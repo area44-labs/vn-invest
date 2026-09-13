@@ -8,30 +8,35 @@ import { defineConfig } from "vite";
 const base = process.env.BASE || process.env.BASE_URL || "/";
 
 function getPrerenderStockSymbols(): string[] {
-  const defaultSymbols = ["ACB", "FPT", "VCB", "HPG", "MBB", "TCB", "VNM", "SSI", "VHM", "MWG"];
-
-  try {
-    const recPath = path.join(process.cwd(), "public", "generated", "recommendations.json");
-    if (fs.existsSync(recPath)) {
-      const content = fs.readFileSync(recPath, "utf-8");
-      const data = JSON.parse(content);
-      if (Array.isArray(data.recommendations)) {
-        const symbols = data.recommendations
-          .map((r: { symbol: string }) => r.symbol)
-          .filter(Boolean);
-        if (symbols.length > 0) {
-          return Array.from(new Set([...symbols, ...defaultSymbols]));
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(
-      "[vite.config] Could not dynamically load generated recommendations for SSG prerender:",
-      err,
+  const recPath = path.join(process.cwd(), "public", "generated", "recommendations.json");
+  if (!fs.existsSync(recPath)) {
+    throw new Error(
+      `[SSG Build Error] Canonical data artifact missing at '${recPath}'. ` +
+        `Run python scripts/generate_report.py before building frontend.`,
     );
   }
 
-  return defaultSymbols;
+  let data: any;
+  try {
+    const content = fs.readFileSync(recPath, "utf-8");
+    data = JSON.parse(content);
+  } catch (err) {
+    throw new Error(`[SSG Build Error] Failed to parse '${recPath}': ${(err as Error).message}`);
+  }
+
+  if (!data || !Array.isArray(data.recommendations) || data.recommendations.length === 0) {
+    throw new Error(`[SSG Build Error] Invalid or empty recommendations array in '${recPath}'.`);
+  }
+
+  const symbols: string[] = data.recommendations
+    .map((r: { symbol?: string }) => r.symbol && r.symbol.trim())
+    .filter((sym: string | undefined): sym is string => Boolean(sym));
+
+  if (symbols.length === 0) {
+    throw new Error(`[SSG Build Error] No valid non-empty stock symbols found in '${recPath}'.`);
+  }
+
+  return Array.from(new Set(symbols));
 }
 
 const prerenderStockSymbols = getPrerenderStockSymbols();
@@ -51,6 +56,7 @@ export default defineConfig({
       prerender: {
         enabled: true,
         pages: prerenderPages,
+        crawl: true,
       },
     }),
     react(),
