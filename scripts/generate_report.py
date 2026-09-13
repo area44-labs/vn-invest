@@ -129,7 +129,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         scanned_recs.append(rec)
 
     logger.info("Step 5: Computing Universe Percentile Liquidity Scores...")
-    scanned_recs = normalize_universe_liquidity_scores(scanned_recs)
+    scanned_recs = normalize_universe_liquidity_scores(
+        scanned_recs, market_regime=final_market_regime
+    )
 
     buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
     watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")

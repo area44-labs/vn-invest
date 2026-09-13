@@ -48,7 +48,7 @@ class TestRiskModel(unittest.TestCase):
             {"risk_metrics": {"avg_value_20d": 5.0, "liquidity_score": None}},
             {"risk_metrics": {"avg_value_20d": 10.0, "liquidity_score": None}},
         ]
-        norm = normalize_universe_liquidity_scores(scanned)
+        norm = normalize_universe_liquidity_scores(scanned, market_regime="BULL")
 
         self.assertAlmostEqual(norm[0]["risk_metrics"]["liquidity_score"], 33.3, delta=1.0)
         self.assertAlmostEqual(norm[2]["risk_metrics"]["liquidity_score"], 100.0, delta=1.0)

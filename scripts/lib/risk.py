@@ -90,12 +90,24 @@ def calculate_t25_risk_metrics(
 
 def normalize_universe_liquidity_scores(
     scanned_recommendations: list[dict],
+    market_regime: str | dict | None = None,
 ) -> list[dict]:
     """Compute 0-100 percentile rank for liquidity_score across all stocks in universe at same point in time.
 
-    Also updates risk_adjusted_alpha using the finalized liquidity_score.
+    Also updates risk_adjusted_alpha using the finalized liquidity_score and explicitly provided market_regime.
     """
-    from scripts.lib.recommendation import calculate_risk_adjusted_alpha
+    from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_alpha
+
+    regime_str = None
+    if isinstance(market_regime, dict):
+        regime_str = market_regime.get("regime")
+    elif isinstance(market_regime, str):
+        regime_str = market_regime
+
+    if not regime_str or regime_str not in VALID_MARKET_REGIMES:
+        raise ValueError(
+            f"Invalid or missing market regime: '{market_regime}'. Must be one of {VALID_MARKET_REGIMES}"
+        )
 
     values = []
     for r in scanned_recommendations:
@@ -117,13 +129,11 @@ def normalize_universe_liquidity_scores(
             r["risk_metrics"]["liquidity_score"] = liq_score
             idx_map += 1
 
-            # Re-calculate risk_adjusted_alpha with populated liquidity_score
+            # Re-calculate risk_adjusted_alpha with populated liquidity_score using explicit market_regime
             if r.get("alpha_score") is not None:
                 r["risk_adjusted_alpha"] = calculate_risk_adjusted_alpha(
                     alpha_score=r["alpha_score"],
-                    regime=r.get(
-                        "market_regime", "DEFENSIVE"
-                    ),  # fallback if regime stored or default
+                    regime=regime_str,
                     volatility_60d=r["risk_metrics"].get("volatility_60d"),
                     max_drawdown=r["risk_metrics"].get("max_drawdown"),
                     liquidity_score=liq_score,

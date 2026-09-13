@@ -19,6 +19,16 @@ def format_vnd(price: float) -> str:
     return f"{vnd_val:,.0f}".replace(",", ".")
 
 
+VALID_MARKET_REGIMES = {
+    "STRONG_BULL",
+    "BULL",
+    "NEUTRAL",
+    "DEFENSIVE",
+    "BEAR",
+    "PANIC",
+}
+
+
 def calculate_risk_adjusted_alpha(
     alpha_score: float,
     regime: str,
@@ -32,7 +42,7 @@ def calculate_risk_adjusted_alpha(
       risk_adjusted_alpha = alpha_score * regime_factor * (1 - vol_penalty) * (1 - mdd_penalty) * liq_factor
 
     Where:
-      - regime_factor: STRONG_BULL=1.05, BULL=1.0, DEFENSIVE=0.90, BEAR=0.75, PANIC=0.50
+      - regime_factor: STRONG_BULL=1.05, BULL=1.0, NEUTRAL/DEFENSIVE=0.90, BEAR=0.75, PANIC=0.50
       - vol_penalty: min(0.25, max(0.0, (vol60 - 0.20) * 0.5))
       - mdd_penalty: min(0.25, max(0.0, (abs(mdd) - 0.15) * 0.5))
       - liq_factor: 0.85 + 0.15 * (liquidity_score / 100.0) if liquidity_score is not None else 1.0
@@ -40,11 +50,16 @@ def calculate_risk_adjusted_alpha(
     regime_map = {
         "STRONG_BULL": 1.05,
         "BULL": 1.00,
+        "NEUTRAL": 0.90,
         "DEFENSIVE": 0.90,
         "BEAR": 0.75,
         "PANIC": 0.50,
     }
-    regime_factor = regime_map.get(regime, 0.90)
+    if regime not in regime_map:
+        raise ValueError(
+            f"Invalid market regime: '{regime}'. Must be one of {VALID_MARKET_REGIMES}"
+        )
+    regime_factor = regime_map[regime]
 
     vol_penalty = 0.0
     if volatility_60d is not None:
