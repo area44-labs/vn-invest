@@ -252,9 +252,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (62.396 VNĐ)."
-      ],
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (62.396 VNĐ)."],
       "warnings": [
         "Giá đóng cửa (63.000 VNĐ) nằm dưới đường xu hướng MA20 (65.030 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -313,9 +311,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."],
       "warnings": [
         "Giá đóng cửa (30.550 VNĐ) nằm dưới đường xu hướng MA20 (31.520 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -381,10 +377,7 @@
         "Chỉ báo RSI (63.6) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 72.000 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (69.878) VNĐ.",
@@ -572,9 +565,7 @@
         "Chỉ báo RSI (58.1) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
-      "warnings": [
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
+      "warnings": ["MACD Histogram âm, báo hiệu áp lực điều chỉnh."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 26.950 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (26.764) VNĐ.",
@@ -756,9 +747,7 @@
         "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (68.000 VNĐ).",
         "Chỉ báo RSI (63.0) nằm trong vùng an toàn (45 - 65)."
       ],
-      "warnings": [
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
+      "warnings": ["MACD Histogram âm, báo hiệu áp lực điều chỉnh."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 68.000 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (68.000) VNĐ.",
@@ -813,9 +802,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (50.4) nằm trong vùng an toàn (45 - 65)."
-      ],
+      "reasons": ["Chỉ báo RSI (50.4) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
         "Giá đóng cửa (72.900 VNĐ) nằm dưới đường xu hướng MA20 (73.495 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
@@ -936,9 +923,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."],
       "warnings": [
         "Giá đóng cửa (12.600 VNĐ) nằm dưới đường xu hướng MA20 (13.185 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -998,9 +983,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (44.771 VNĐ)."
-      ],
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (44.771 VNĐ)."],
       "warnings": [
         "Giá đóng cửa (44.850 VNĐ) nằm dưới đường xu hướng MA20 (45.700 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -1065,9 +1048,7 @@
         "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (16.011 VNĐ).",
         "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+18.3%)."
       ],
-      "warnings": [
-        "RSI (79.8) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
-      ],
+      "warnings": ["RSI (79.8) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 17.250 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (16.011) VNĐ.",
@@ -1189,10 +1170,7 @@
         "Chỉ báo RSI (63.0) nằm trong vùng an toàn (45 - 65).",
         "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.0%)."
       ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 73.500 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (73.002) VNĐ.",
@@ -1252,10 +1230,7 @@
         "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.412 VNĐ).",
         "Chỉ báo RSI (60.1) nằm trong vùng an toàn (45 - 65)."
       ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 31.850 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (31.412) VNĐ.",
@@ -1314,9 +1289,7 @@
         "Chỉ báo RSI (52.9) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Giá đóng cửa (14.450 VNĐ) nằm dưới đường xu hướng MA20 (14.545 VNĐ)."
-      ],
+      "warnings": ["Giá đóng cửa (14.450 VNĐ) nằm dưới đường xu hướng MA20 (14.545 VNĐ)."],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -1439,9 +1412,7 @@
         "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên.",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 70.700 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (71.997) VNĐ.",
@@ -1496,12 +1467,8 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (53.4) nằm trong vùng an toàn (45 - 65)."
-      ],
-      "warnings": [
-        "Giá đóng cửa (13.250 VNĐ) nằm dưới đường xu hướng MA20 (13.429 VNĐ)."
-      ],
+      "reasons": ["Chỉ báo RSI (53.4) nằm trong vùng an toàn (45 - 65)."],
+      "warnings": ["Giá đóng cửa (13.250 VNĐ) nằm dưới đường xu hướng MA20 (13.429 VNĐ)."],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -1618,12 +1585,8 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (57.4) nằm trong vùng an toàn (45 - 65)."
-      ],
-      "warnings": [
-        "Giá đóng cửa (124.700 VNĐ) nằm dưới đường xu hướng MA20 (124.875 VNĐ)."
-      ],
+      "reasons": ["Chỉ báo RSI (57.4) nằm trong vùng an toàn (45 - 65)."],
+      "warnings": ["Giá đóng cửa (124.700 VNĐ) nằm dưới đường xu hướng MA20 (124.875 VNĐ)."],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -1744,9 +1707,7 @@
         "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (26.090 VNĐ).",
         "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
       ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
       "invalidation": [
         "Giá đóng cửa vi phạm ngưỡng cắt lỗ 26.700 VNĐ.",
         "Giá gãy hỗ trợ trung hạn MA50 (26.090) VNĐ.",
@@ -1861,9 +1822,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (54.1) nằm trong vùng an toàn (45 - 65)."
-      ],
+      "reasons": ["Chỉ báo RSI (54.1) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
         "Giá đóng cửa (11.750 VNĐ) nằm dưới đường xu hướng MA20 (11.855 VNĐ).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
@@ -2108,9 +2067,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (51.7) nằm trong vùng an toàn (45 - 65)."
-      ],
+      "reasons": ["Chỉ báo RSI (51.7) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
         "Giá đóng cửa (21.300 VNĐ) nằm dưới đường xu hướng MA20 (21.842 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -2231,9 +2188,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (47.4) nằm trong vùng an toàn (45 - 65)."
-      ],
+      "reasons": ["Chỉ báo RSI (47.4) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
         "Giá đóng cửa (15.850 VNĐ) nằm dưới đường xu hướng MA20 (16.373 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
@@ -2292,9 +2247,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Chỉ báo RSI (46.4) nằm trong vùng an toàn (45 - 65)."
-      ],
+      "reasons": ["Chỉ báo RSI (46.4) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
         "Giá đóng cửa (10.500 VNĐ) nằm dưới đường xu hướng MA20 (10.720 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
@@ -2413,15 +2366,9 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Dữ liệu lịch sử không đủ 20 phiên giao dịch."
-      ],
-      "warnings": [
-        "Không có dữ liệu giao dịch để phân tích."
-      ],
-      "invalidation": [
-        "Cần bổ sung thêm dữ liệu giao dịch trước khi phân tích."
-      ],
+      "reasons": ["Dữ liệu lịch sử không đủ 20 phiên giao dịch."],
+      "warnings": ["Không có dữ liệu giao dịch để phân tích."],
+      "invalidation": ["Cần bổ sung thêm dữ liệu giao dịch trước khi phân tích."],
       "divergence": {
         "1H": "NONE",
         "1D": "NONE",
@@ -2538,9 +2485,7 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D.",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
-      "warnings": [
-        "Giá đóng cửa (12.000 VNĐ) nằm dưới đường xu hướng MA20 (12.200 VNĐ)."
-      ],
+      "warnings": ["Giá đóng cửa (12.000 VNĐ) nằm dưới đường xu hướng MA20 (12.200 VNĐ)."],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
