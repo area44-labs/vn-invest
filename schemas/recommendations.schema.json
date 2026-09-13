@@ -126,7 +126,22 @@
           "type": "string",
           "enum": ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
         },
+        "model_version": { "type": "string" },
+        "data_quality": {
+          "type": "string",
+          "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
+        },
+        "signal_score": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 100.0
+        },
         "alpha_score": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 100.0
+        },
+        "risk_adjusted_score": {
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
@@ -135,6 +150,17 @@
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
+        },
+        "score_components": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "trend": { "type": ["number", "null"] },
+            "momentum": { "type": ["number", "null"] },
+            "volume": { "type": ["number", "null"] },
+            "relative_strength": { "type": ["number", "null"] },
+            "divergence": { "type": ["number", "null"] }
+          }
         },
         "confidence": {
           "type": ["number", "null"],

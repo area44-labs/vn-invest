@@ -6,6 +6,8 @@ export type ExchangeType = "HOSE" | "HNX" | "UPCOM";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | null;
 
+export type DataQuality = "SUFFICIENT" | "PARTIAL" | "INSUFFICIENT";
+
 export type DivergenceSignal = "BULLISH" | "BEARISH" | "NONE";
 
 export interface MarketMetrics {
@@ -59,6 +61,14 @@ export interface TradePlan {
   position_percent: number | null;
 }
 
+export interface ScoreComponents {
+  trend: number | null;
+  momentum: number | null;
+  volume: number | null;
+  relative_strength: number | null;
+  divergence: number | null;
+}
+
 export interface DivergenceDetails {
   "1H"?: DivergenceSignal;
   "1D"?: DivergenceSignal;
@@ -72,8 +82,13 @@ export interface Recommendation {
   exchange: ExchangeType;
   sector: string;
   action: ActionType;
+  model_version?: string;
+  data_quality?: DataQuality;
+  signal_score?: number | null;
   alpha_score: number | null;
+  risk_adjusted_score?: number | null;
   risk_adjusted_alpha: number | null;
+  score_components?: ScoreComponents | null;
   confidence: number | null;
   risk_level: RiskLevel;
   expected_return: ExpectedReturn;

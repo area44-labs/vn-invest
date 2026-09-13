@@ -1,17 +1,106 @@
-"""Unit tests for Recommendation Engine in scripts/lib/recommendation.py."""
+"""Unit tests for VN Invest Signal Engine in scripts/lib/recommendation.py."""
 
+import math
 import unittest
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
-from scripts.lib.recommendation import calculate_risk_adjusted_alpha, generate_recommendation
+from scripts.lib.recommendation import (
+    SIGNAL_WEIGHTS,
+    calculate_divergence_score,
+    calculate_momentum_score,
+    calculate_relative_strength_score,
+    calculate_risk_adjusted_alpha,
+    calculate_signal_score,
+    calculate_trend_score,
+    calculate_volume_score,
+    classify_action,
+    generate_recommendation,
+)
 from scripts.lib.risk import normalize_universe_liquidity_scores
 
 
-class TestRecommendationEngine(unittest.TestCase):
-    def test_actions_classification(self):
+class TestVNInvestSignalEngine(unittest.TestCase):
+    def test_signal_weights_sum_to_one(self):
+        """Verify centralized signal weights sum to 1.0."""
+        weight_sum = sum(SIGNAL_WEIGHTS.values())
+        self.assertAlmostEqual(weight_sum, 1.0, places=5)
+
+    def test_component_scores_bounded(self):
+        """Verify component scores return values in [0, 100] or None."""
+        # Trend
+        self.assertEqual(calculate_trend_score(35.0, 30.0, 25.0), 100.0)
+        self.assertEqual(calculate_trend_score(20.0, 30.0, 35.0), 0.0)
+        self.assertIsNone(calculate_trend_score(None, 30.0, 25.0))
+        self.assertIsNone(calculate_trend_score(float("nan"), 30.0, 25.0))
+
+        # Momentum
+        self.assertEqual(calculate_momentum_score(55.0, 0.5, 0.2), 95.0)
+        self.assertEqual(calculate_momentum_score(72.0, -0.5, -0.2), 10.0)
+        self.assertEqual(calculate_momentum_score(80.0, -0.5, -0.2), 0.0)
+        self.assertIsNone(calculate_momentum_score(None, None, None))
+
+        # Volume
+        self.assertEqual(calculate_volume_score(2.5), 100.0)
+        self.assertEqual(calculate_volume_score(0.2), 20.0)
+        self.assertIsNone(calculate_volume_score(None))
+
+        # Relative Strength
+        self.assertEqual(calculate_relative_strength_score(0.12), 100.0)
+        self.assertEqual(calculate_relative_strength_score(-0.08), 15.0)
+        self.assertIsNone(calculate_relative_strength_score(None))
+
+        # Divergence
+        tf_summary_bullish = {
+            "1d": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
+            "1w": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+            "1m": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+        }
+        self.assertEqual(calculate_divergence_score(tf_summary_bullish), 65.0)
+        self.assertIsNone(calculate_divergence_score(None))
+
+    def test_missing_data_renormalizes_weights(self):
+        """Verify missing data excludes unavailable components and renormalizes weights without distorting scores."""
+        score, components, data_quality = calculate_signal_score(
+            trend_score=100.0,
+            momentum_score=80.0,
+            volume_score=None,
+            relative_strength_score=90.0,
+            divergence_score=None,
+        )
+        self.assertIsNotNone(score)
+        self.assertEqual(data_quality, "PARTIAL")
+        self.assertIsNone(components["volume"])
+        self.assertIsNone(components["divergence"])
+
+        # Expected: weighted across trend (0.30), momentum (0.25), relative_strength (0.15) -> total = 0.70
+        expected = round((100.0 * 0.30 + 80.0 * 0.25 + 90.0 * 0.15) / 0.70, 1)
+        self.assertEqual(score, expected)
+
+    def test_action_classification_boundary_conditions(self):
+        """Test action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
+        regime = "BULL"
+        raw_close = 30.0
+        raw_ma20 = 25.0
+
+        self.assertEqual(classify_action(34.9, regime, raw_close, raw_ma20), "SELL")
+        self.assertEqual(classify_action(35.0, regime, raw_close, raw_ma20), "SELL")
+        self.assertEqual(classify_action(44.9, regime, raw_close, raw_ma20), "SELL")
+        self.assertEqual(classify_action(45.0, regime, raw_close, raw_ma20), "HOLD")
+        self.assertEqual(classify_action(54.9, regime, raw_close, raw_ma20), "HOLD")
+        self.assertEqual(classify_action(55.0, regime, raw_close, raw_ma20), "WATCH")
+        self.assertEqual(classify_action(64.9, regime, raw_close, raw_ma20), "WATCH")
+        self.assertEqual(classify_action(65.0, regime, raw_close, raw_ma20), "BUY")
+        self.assertEqual(classify_action(74.9, regime, raw_close, raw_ma20), "BUY")
+        self.assertEqual(classify_action(75.0, regime, raw_close, raw_ma20), "BUY")
+
+        # DEFENSIVE regime action boundary check
+        self.assertEqual(classify_action(65.0, "DEFENSIVE", raw_close, raw_ma20), "BUY")
+        self.assertEqual(classify_action(75.0, "DEFENSIVE", raw_close, raw_ma20), "WATCH")
+
+    def test_generate_recommendation_output_structure(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_bull = np.linspace(20.0, 35.0, n)
@@ -28,7 +117,7 @@ class TestRecommendationEngine(unittest.TestCase):
 
         regime_bull = {"regime": "STRONG_BULL", "regime_score": 85.0}
 
-        rec_buy = generate_recommendation(
+        rec = generate_recommendation(
             symbol="FPT",
             company_name="Công ty FPT",
             sector="Công nghệ",
@@ -37,13 +126,20 @@ class TestRecommendationEngine(unittest.TestCase):
             market_regime_info=regime_bull,
         )
 
-        self.assertIn(rec_buy["action"], ["BUY", "WATCH", "HOLD", "SELL", "AVOID"])
-        self.assertEqual(rec_buy["symbol"], "FPT")
-        self.assertIsInstance(rec_buy["trade_plan"]["risk_reward"], (int, float))
-        self.assertIsNotNone(rec_buy["risk_adjusted_alpha"])
-        self.assertIsNotNone(rec_buy["confidence"])
-        self.assertIsInstance(rec_buy["invalidation"], list)
-        self.assertIn("1H", rec_buy["divergence"])
+        self.assertIn(rec["action"], ["BUY", "WATCH", "HOLD", "SELL", "AVOID"])
+        self.assertEqual(rec["symbol"], "FPT")
+        self.assertEqual(rec["model_version"], "2.0")
+        self.assertIn(rec["data_quality"], ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"])
+        self.assertIsNotNone(rec["signal_score"])
+        self.assertEqual(rec["signal_score"], rec["alpha_score"])
+        self.assertIsNotNone(rec["risk_adjusted_score"])
+        self.assertEqual(rec["risk_adjusted_score"], rec["risk_adjusted_alpha"])
+        self.assertIsNotNone(rec["confidence"])
+        self.assertGreaterEqual(rec["confidence"], 0.10)
+        self.assertLessEqual(rec["confidence"], 0.95)
+        self.assertIsInstance(rec["score_components"], dict)
+        self.assertIsInstance(rec["invalidation"], list)
+        self.assertIn("1H", rec["divergence"])
 
     def test_risk_adjusted_alpha_formula(self):
         """Verify risk-adjusted alpha deterministic calculation."""
@@ -104,8 +200,8 @@ class TestRecommendationEngine(unittest.TestCase):
             self.assertIsNone(tp["entry_low"])
             self.assertIsNone(tp["stop_loss"])
 
-    def test_anti_lookahead_bias(self):
-        """Verify recommendation at day T does not depend on data from T+1."""
+    def test_anti_lookahead_bias_extended(self):
+        """Verify recommendation at day T does not change when future crash, price spike, volume spike, or volatility spike occurs at T+1."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_bull = np.linspace(20.0, 35.0, n)
@@ -130,37 +226,100 @@ class TestRecommendationEngine(unittest.TestCase):
             market_regime_info=regime,
         )
 
-        # Appending future wild market day at day 51+
-        df_future = pd.concat(
-            [
-                df_base.iloc[:50],
-                pd.DataFrame(
-                    {
-                        "time": [pd.Timestamp("2026-03-01")],
-                        "open": [10.0],
-                        "high": [10.0],
-                        "low": [1.0],
-                        "close": [1.0],
-                        "volume": [10000000],
-                    }
-                ),
-            ],
-            ignore_index=True,
+        scenarios = [
+            # Future crash
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-03-01")],
+                    "open": [10.0],
+                    "high": [10.0],
+                    "low": [1.0],
+                    "close": [1.0],
+                    "volume": [10000000],
+                }
+            ),
+            # Future price spike
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-03-01")],
+                    "open": [100.0],
+                    "high": [200.0],
+                    "low": [95.0],
+                    "close": [190.0],
+                    "volume": [500000],
+                }
+            ),
+            # Future volume spike
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-03-01")],
+                    "open": [35.0],
+                    "high": [36.0],
+                    "low": [34.0],
+                    "close": [35.5],
+                    "volume": [50000000],
+                }
+            ),
+            # Future volatility spike
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-03-01")],
+                    "open": [35.0],
+                    "high": [50.0],
+                    "low": [10.0],
+                    "close": [25.0],
+                    "volume": [100000],
+                }
+            ),
+        ]
+
+        for future_row in scenarios:
+            df_future = pd.concat([df_base.iloc[:50], future_row], ignore_index=True)
+            rec_t_sliced = generate_recommendation(
+                symbol="FPT",
+                company_name="FPT",
+                sector="Tech",
+                exchange="HOSE",
+                df_stock=df_future.iloc[:50],  # sliced back to day 50
+                market_regime_info=regime,
+            )
+
+            self.assertEqual(rec_t["signal_score"], rec_t_sliced["signal_score"])
+            self.assertEqual(rec_t["alpha_score"], rec_t_sliced["alpha_score"])
+            self.assertEqual(
+                rec_t["trade_plan"]["current_price"], rec_t_sliced["trade_plan"]["current_price"]
+            )
+
+    def test_extreme_and_invalid_inputs(self):
+        """Verify engine does not produce NaN, Inf, or crash on extreme/abnormal inputs."""
+        n = 60
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        df_extreme = pd.DataFrame(
+            {
+                "time": dates,
+                "open": [10.0] * n,
+                "high": [100.0] * n,
+                "low": [0.001] * n,
+                "close": [10.0] * n,
+                "volume": [0] * n,  # Zero volume
+            }
         )
 
-        rec_t_sliced = generate_recommendation(
-            symbol="FPT",
-            company_name="FPT",
-            sector="Tech",
+        regime = {"regime": "BULL", "regime_score": 75.0}
+        rec = generate_recommendation(
+            symbol="TEST",
+            company_name="Test Corp",
+            sector="Test",
             exchange="HOSE",
-            df_stock=df_future.iloc[:50],  # sliced back to day 50
+            df_stock=df_extreme,
             market_regime_info=regime,
         )
 
-        self.assertEqual(rec_t["alpha_score"], rec_t_sliced["alpha_score"])
-        self.assertEqual(
-            rec_t["trade_plan"]["current_price"], rec_t_sliced["trade_plan"]["current_price"]
-        )
+        self.assertIsNotNone(rec["signal_score"])
+        self.assertFalse(math.isnan(rec["signal_score"]))
+        self.assertFalse(math.isinf(rec["signal_score"]))
+        self.assertGreaterEqual(rec["signal_score"], 0.0)
+        self.assertLessEqual(rec["signal_score"], 100.0)
 
     def test_avoid_action_in_panic(self):
         n = 30
@@ -200,6 +359,8 @@ class TestRecommendationEngine(unittest.TestCase):
         )
 
         self.assertEqual(rec["action"], "AVOID")
+        self.assertEqual(rec["data_quality"], "INSUFFICIENT")
+        self.assertIsNone(rec["signal_score"])
         self.assertIsNone(rec["alpha_score"])
         self.assertIsNone(rec["risk_metrics"]["var_t25"])
         self.assertIsNone(rec["trade_plan"]["current_price"])
