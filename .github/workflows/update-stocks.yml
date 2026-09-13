@@ -47,11 +47,14 @@ jobs:
       - name: Run formatting and linting check
         run: pnpm run check
 
+      - name: Clean previous dist output
+        run: rm -rf dist
+
       - name: Build static production frontend (SSG)
         run: pnpm build
 
-      - name: Run SSG regression tests
-        run: python scripts/tests/run_tests.py
+      - name: Run SSG static HTML regression tests
+        run: python -m unittest scripts/tests/test_ssg_html.py
 
       - name: Commit and push changes
         id: commit_changes

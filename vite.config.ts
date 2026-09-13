@@ -53,10 +53,10 @@ export default defineConfig({
   base,
   plugins: [
     tanstackStart({
+      pages: prerenderPages,
       prerender: {
         enabled: true,
         pages: prerenderPages,
-        crawl: true,
       },
     }),
     react(),

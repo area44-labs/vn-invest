@@ -85,7 +85,7 @@ class TestSSGStaticHTML(unittest.TestCase):
         rendered_top_recs = sorted_buys[:4] + sorted_sells[:4]
         self.assertTrue(len(rendered_top_recs) > 0, "No top recommendations rendered.")
 
-        for rec in rendered_top_recs[:3]:
+        for rec in rendered_top_recs:
             symbol = rec.get("symbol")
             action = rec.get("action")
             alpha_score = rec.get("alpha_score")
@@ -135,32 +135,51 @@ class TestSSGStaticHTML(unittest.TestCase):
             len(recommendations) > 0, "No recommendations found in recommendations.json"
         )
 
-        # Get list of stock symbols actually prerendered under dist/client/stock/
+        # 1. Derive EXPECTED stock symbols directly from public/generated/recommendations.json
+        expected_symbols = sorted(
+            list(
+                set(
+                    r.get("symbol").strip()
+                    for r in recommendations
+                    if r.get("symbol") and r.get("symbol").strip()
+                )
+            )
+        )
+        self.assertTrue(
+            len(expected_symbols) > 0,
+            "Expected stock symbols list from recommendations.json is empty.",
+        )
+
         stock_dir = os.path.join(os.getcwd(), "dist", "client", "stock")
         self.assertTrue(
             os.path.exists(stock_dir),
             f"Stock output directory missing: {stock_dir}. Run `pnpm build` first.",
         )
 
-        prerendered_symbols = [
-            d for d in os.listdir(stock_dir) if os.path.isdir(os.path.join(stock_dir, d))
-        ]
-        self.assertTrue(
-            len(prerendered_symbols) > 0,
-            "No prerendered stock directories found under dist/client/stock/",
+        # 2. Check actual prerendered directories in dist/client/stock/
+        actual_directories = sorted(
+            [d for d in os.listdir(stock_dir) if os.path.isdir(os.path.join(stock_dir, d))]
+        )
+
+        self.assertEqual(
+            actual_directories,
+            expected_symbols,
+            f"Prerendered stock directories in dist/client/stock/ ({actual_directories}) "
+            f"do not match expected symbols from recommendations.json ({expected_symbols})",
         )
 
         rec_by_symbol = {r.get("symbol"): r for r in recommendations if r.get("symbol")}
 
-        tested_count = 0
-        for symbol in prerendered_symbols:
-            rec = rec_by_symbol.get(symbol, {})
+        # 3. Assert for every expected symbol that static HTML exists and contains real data
+        for symbol in expected_symbols:
+            rec = rec_by_symbol[symbol]
             stock_html_path = os.path.join(stock_dir, symbol, "index.html")
 
             self.assertTrue(
                 os.path.exists(stock_html_path),
-                f"Build stock HTML missing for symbol '{symbol}' at: {stock_html_path}.",
+                f"Expected stock HTML missing for symbol '{symbol}' at: {stock_html_path}.",
             )
+
             with open(stock_html_path, "r", encoding="utf-8") as f:
                 html_content = f.read()
 
@@ -193,10 +212,6 @@ class TestSSGStaticHTML(unittest.TestCase):
                     html_content,
                     f"Stock detail static HTML for '{symbol}' missing risk_adjusted_alpha.",
                 )
-
-            tested_count += 1
-
-        self.assertTrue(tested_count > 0, "No stock detail static HTML pages were tested.")
 
 
 if __name__ == "__main__":
