@@ -31,6 +31,14 @@ SIGNAL_WEIGHTS = {
     "divergence": 0.15,
 }
 
+# Timeframe weights for divergence component scoring.
+# Rationale: Short-to-intermediate timeframes (1D, 1W) take precedence over monthly (1M) setups.
+DIVERGENCE_TIMEFRAME_WEIGHTS = {
+    "1D": 0.50,
+    "1W": 0.30,
+    "1M": 0.20,
+}
+
 VALID_MARKET_REGIMES = {
     "STRONG_BULL",
     "BULL",
@@ -104,7 +112,7 @@ def calculate_momentum_score(
     """Calculate Momentum Score (0 to 100). Returns None if essential inputs are missing."""
     r = _safe_float(rsi)
     hist = _safe_float(macd_hist)
-    prev_hist = _safe_float(prev_macd_hist) if prev_macd_hist is not None else 0.0
+    prev_hist = _safe_float(prev_macd_hist)
 
     if r is None and hist is None:
         return None
@@ -126,14 +134,20 @@ def calculate_momentum_score(
             score -= 20.0
 
     if hist is not None:
-        if hist > 0 and hist > prev_hist:
-            score += 25.0
-        elif hist > 0 and hist <= prev_hist:
-            score += 10.0
-        elif hist < 0 and hist < prev_hist:
-            score -= 25.0
-        elif hist < 0 and hist >= prev_hist:
-            score -= 10.0
+        if prev_hist is not None:
+            if hist > 0 and hist > prev_hist:
+                score += 25.0
+            elif hist > 0 and hist <= prev_hist:
+                score += 10.0
+            elif hist < 0 and hist < prev_hist:
+                score -= 25.0
+            elif hist < 0 and hist >= prev_hist:
+                score -= 10.0
+        else:
+            if hist > 0:
+                score += 15.0
+            elif hist < 0:
+                score -= 15.0
 
     return max(0.0, min(100.0, round(score, 1)))
 
@@ -141,7 +155,7 @@ def calculate_momentum_score(
 def calculate_volume_score(volume_ratio: float | None) -> float | None:
     """Calculate Volume Score (0 to 100). Returns None if essential inputs are missing."""
     vr = _safe_float(volume_ratio)
-    if vr is None or vr < 0:
+    if vr is None or vr <= 0:
         return None
 
     if vr >= 2.0:
@@ -183,30 +197,45 @@ def calculate_relative_strength_score(rs_diff: float | None) -> float | None:
 
 
 def calculate_divergence_score(tf_summary: dict | None) -> float | None:
-    """Calculate Divergence Score (0 to 100) across multi-timeframe divergence."""
+    """Calculate Timeframe-Weighted Divergence Score (0 to 100)."""
     if not tf_summary or not isinstance(tf_summary, dict):
         return None
 
-    score = 50.0
-    has_valid_tf = False
+    tf_map = [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]
+    available_tfs = []
 
-    for tf_key, tf_label in [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]:
+    for tf_key, tf_label in tf_map:
         tf_info = tf_summary.get(tf_key)
-        if not tf_info or not tf_info.get("available", False):
-            continue
+        if tf_info and isinstance(tf_info, dict) and tf_info.get("available", False):
+            available_tfs.append((tf_label, tf_info.get("divergence", {})))
 
-        div = tf_info.get("divergence", {})
-        has_valid_tf = True
-
-        if div.get("rsi_bullish") or div.get("macd_bullish"):
-            score += 15.0
-        if div.get("rsi_bearish") or div.get("macd_bearish"):
-            score -= 20.0
-
-    if not has_valid_tf:
+    if not available_tfs:
         return None
 
-    return max(0.0, min(100.0, round(score, 1)))
+    total_tf_weight = sum(DIVERGENCE_TIMEFRAME_WEIGHTS[lbl] for lbl, _ in available_tfs)
+    if total_tf_weight <= 0:
+        return None
+
+    tf_scores = []
+    for tf_label, div in available_tfs:
+        tf_score = 50.0
+        bullish = bool(div.get("rsi_bullish") or div.get("macd_bullish"))
+        bearish = bool(div.get("rsi_bearish") or div.get("macd_bearish"))
+
+        if bullish and not bearish:
+            tf_score = 90.0
+        elif bearish and not bullish:
+            tf_score = 10.0
+        elif bullish and bearish:
+            tf_score = 40.0  # Conflict penalty
+        else:
+            tf_score = 50.0  # Neutral
+
+        weight = DIVERGENCE_TIMEFRAME_WEIGHTS[tf_label] / total_tf_weight
+        tf_scores.append(tf_score * weight)
+
+    final_div_score = sum(tf_scores)
+    return max(0.0, min(100.0, round(final_div_score, 1)))
 
 
 def calculate_signal_score(
@@ -232,7 +261,7 @@ def calculate_signal_score(
     available_keys = [k for k, v in components.items() if v is not None]
     num_available = len(available_keys)
 
-    if num_available == 0:
+    if num_available < 3:
         return None, components, "INSUFFICIENT"
 
     total_weight = sum(SIGNAL_WEIGHTS[k] for k in available_keys)
@@ -244,32 +273,66 @@ def calculate_signal_score(
 
     if num_available >= 5:
         data_quality = "SUFFICIENT"
-    elif num_available >= 3:
-        data_quality = "PARTIAL"
     else:
-        data_quality = "INSUFFICIENT"
+        data_quality = "PARTIAL"
 
     return signal_score, components, data_quality
 
 
+def calculate_confidence(
+    data_quality: str,
+    components: dict[str, float | None],
+    risk_metrics: dict,
+    rsi: float | None = None,
+) -> float:
+    """Calculate deterministic confidence score (0.10 to 0.95) based on data quality, dispersion/agreement, and risk indicators."""
+    if data_quality == "INSUFFICIENT":
+        return 0.10
+
+    base_conf = 0.70 if data_quality == "SUFFICIENT" else 0.55
+
+    available_scores = [v for v in components.values() if v is not None]
+    if len(available_scores) >= 2:
+        mean_score = sum(available_scores) / len(available_scores)
+        variance = sum((s - mean_score) ** 2 for s in available_scores) / len(available_scores)
+        std_dev = math.sqrt(variance)
+
+        # High agreement (std_dev < 12.0) increases confidence; strong dispersion (std_dev > 25.0) decreases confidence.
+        if std_dev < 12.0:
+            base_conf += 0.10
+        elif std_dev < 18.0:
+            base_conf += 0.05
+        elif std_dev > 30.0:
+            base_conf -= 0.15
+        elif std_dev > 22.0:
+            base_conf -= 0.08
+
+    vol60 = _safe_float(risk_metrics.get("volatility_60d"))
+    mdd = _safe_float(risk_metrics.get("max_drawdown"))
+
+    if vol60 is not None and mdd is not None:
+        if vol60 > 0.35 or abs(mdd) > 0.25:
+            base_conf -= 0.05
+        elif vol60 < 0.22 and abs(mdd) < 0.12:
+            base_conf += 0.05
+
+    if rsi is not None and (rsi > 78.0 or rsi < 35.0):
+        base_conf -= 0.05
+
+    return round(max(0.10, min(0.95, base_conf)), 2)
+
+
 def calculate_risk_adjusted_alpha(
-    alpha_score: float,
+    alpha_score: float | None,
     regime: str,
     volatility_60d: float | None = None,
     max_drawdown: float | None = None,
     liquidity_score: float | None = None,
-) -> float:
-    """Calculate deterministic and explainable risk-adjusted signal score.
+) -> float | None:
+    """Calculate deterministic and explainable risk-adjusted signal score."""
+    if alpha_score is None:
+        return None
 
-    Formula:
-      risk_adjusted_score = signal_score * regime_factor * (1 - vol_penalty) * (1 - mdd_penalty) * liq_factor
-
-    Where:
-      - regime_factor: STRONG_BULL=1.05, BULL=1.0, NEUTRAL/DEFENSIVE=0.90, BEAR=0.75, PANIC=0.50
-      - vol_penalty: min(0.25, max(0.0, (vol60 - 0.20) * 0.5))
-      - mdd_penalty: min(0.25, max(0.0, (abs(mdd) - 0.15) * 0.5))
-      - liq_factor: 0.85 + 0.15 * (liquidity_score / 100.0) if liquidity_score is not None else 1.0
-    """
     regime_map = {
         "STRONG_BULL": 1.05,
         "BULL": 1.00,
@@ -434,7 +497,7 @@ def generate_recommendation(
     raw_ma50 = _safe_float(df_d["ma50"].iloc[-1])
     rsi = _safe_float(df_d["rsi"].iloc[-1])
     macd_hist = _safe_float(df_d["hist"].iloc[-1])
-    prev_macd_hist = _safe_float(df_d["hist"].iloc[-2]) if len(df_d) >= 2 else 0.0
+    prev_macd_hist = _safe_float(df_d["hist"].iloc[-2]) if len(df_d) >= 2 else None
     atr = _safe_float(df_d["atr"].iloc[-1]) or 0.0
 
     vol_20d_avg = _safe_float(df_d["vol_ma20"].iloc[-1])
@@ -442,7 +505,7 @@ def generate_recommendation(
     vol_ratio = (
         (current_vol / vol_20d_avg)
         if (current_vol is not None and vol_20d_avg is not None and vol_20d_avg > 0)
-        else 1.0
+        else None
     )
 
     # Relative strength vs VN-Index benchmark
@@ -496,7 +559,7 @@ def generate_recommendation(
         reasons.append(f"Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 ({format_vnd(raw_ma50)} VNĐ).")
 
     if macd_hist is not None:
-        if macd_hist > 0 and macd_hist > prev_macd_hist:
+        if prev_macd_hist is not None and macd_hist > 0 and macd_hist > prev_macd_hist:
             reasons.append("MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.")
         elif macd_hist < 0:
             warnings.append("MACD Histogram âm, báo hiệu áp lực điều chỉnh.")
@@ -535,31 +598,25 @@ def generate_recommendation(
     regime = market_regime_info.get("regime", "DEFENSIVE")
     action = classify_action(score, regime, raw_close, raw_ma20)
 
-    # Separate Confidence calculation (0.10 to 0.95)
-    confidence = 0.65
-    if data_quality == "SUFFICIENT":
-        confidence += 0.05
-    elif data_quality == "INSUFFICIENT":
-        confidence -= 0.15
+    # Calculate Confidence
+    confidence = calculate_confidence(
+        data_quality=data_quality,
+        components=score_components,
+        risk_metrics=risk_metrics,
+        rsi=rsi,
+    )
 
     vol60 = risk_metrics.get("volatility_60d")
     mdd = risk_metrics.get("max_drawdown")
     if vol60 is not None and mdd is not None:
         if vol60 > 0.35 or abs(mdd) > 0.25:
             risk_level = "HIGH"
-            confidence -= 0.05
         elif vol60 < 0.22 and abs(mdd) < 0.12:
             risk_level = "LOW"
-            confidence += 0.05
         else:
             risk_level = "MEDIUM"
     else:
         risk_level = None
-
-    if rsi is not None and (rsi > 78.0 or rsi < 35.0):
-        confidence -= 0.05
-
-    confidence = round(max(0.10, min(0.95, confidence)), 2)
 
     # Convert prices to full VND units
     close_vnd = (
@@ -642,16 +699,12 @@ def generate_recommendation(
     }
 
     # Calculate risk-adjusted score
-    risk_adjusted_score = (
-        calculate_risk_adjusted_alpha(
-            alpha_score=score,
-            regime=regime,
-            volatility_60d=vol60,
-            max_drawdown=mdd,
-            liquidity_score=risk_metrics.get("liquidity_score"),
-        )
-        if score is not None
-        else None
+    risk_adjusted_score = calculate_risk_adjusted_alpha(
+        alpha_score=score,
+        regime=regime,
+        volatility_60d=vol60,
+        max_drawdown=mdd,
+        liquidity_score=risk_metrics.get("liquidity_score"),
     )
 
     div_mapping = {

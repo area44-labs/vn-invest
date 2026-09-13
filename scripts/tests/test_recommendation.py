@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from scripts.lib.recommendation import (
+    DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
     calculate_divergence_score,
     calculate_momentum_score,
@@ -27,6 +28,138 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         """Verify centralized signal weights sum to 1.0."""
         weight_sum = sum(SIGNAL_WEIGHTS.values())
         self.assertAlmostEqual(weight_sum, 1.0, places=5)
+
+    def test_divergence_weights_sum_to_one(self):
+        """Verify divergence timeframe weights sum to 1.0."""
+        weight_sum = sum(DIVERGENCE_TIMEFRAME_WEIGHTS.values())
+        self.assertAlmostEqual(weight_sum, 1.0, places=5)
+
+    def test_zero_and_missing_volume_handling(self):
+        """Regression test P0: Invalid/zero/missing volume must produce volume_score = None."""
+        # Zero volume ratio -> None
+        self.assertIsNone(calculate_volume_score(0.0))
+        # Negative volume ratio -> None
+        self.assertIsNone(calculate_volume_score(-0.5))
+        # NaN / Inf -> None
+        self.assertIsNone(calculate_volume_score(float("nan")))
+        self.assertIsNone(calculate_volume_score(float("inf")))
+        # None -> None
+        self.assertIsNone(calculate_volume_score(None))
+
+        # Valid volume ratio -> score in [0, 100]
+        self.assertEqual(calculate_volume_score(1.5), 85.0)
+
+    def test_missing_and_invalid_previous_macd_handling(self):
+        """Regression test P0: Missing/invalid previous MACD must NOT be treated as 0.0."""
+        # Current hist valid, previous hist missing -> uses fallback +15.0 for positive hist
+        score_no_prev = calculate_momentum_score(rsi=50.0, macd_hist=0.5, prev_macd_hist=None)
+        score_prev_zero = calculate_momentum_score(rsi=50.0, macd_hist=0.5, prev_macd_hist=0.0)
+
+        # previous_macd_hist = None must NOT behave as previous_macd_hist = 0.0 (which would give +25.0)
+        self.assertNotEqual(score_no_prev, score_prev_zero)
+        self.assertEqual(score_no_prev, 85.0)  # 50 + 20 (RSI) + 15 (hist > 0)
+        self.assertEqual(score_prev_zero, 95.0)  # 50 + 20 (RSI) + 25 (hist > prev_hist)
+
+        # Invalid NaN / Inf previous MACD
+        score_nan_prev = calculate_momentum_score(
+            rsi=50.0, macd_hist=0.5, prev_macd_hist=float("nan")
+        )
+        self.assertEqual(score_nan_prev, score_no_prev)
+
+    def test_insufficient_data_semantics(self):
+        """Regression test P1: Less than 3 components must produce data_quality = INSUFFICIENT, signal_score = None, action = AVOID."""
+        # 0 components available
+        score, _components, dq = calculate_signal_score(None, None, None, None, None)
+        self.assertIsNone(score)
+        self.assertEqual(dq, "INSUFFICIENT")
+
+        # 1 component available
+        score, _components, dq = calculate_signal_score(100.0, None, None, None, None)
+        self.assertIsNone(score)
+        self.assertEqual(dq, "INSUFFICIENT")
+
+        # 2 components available
+        score, _components, dq = calculate_signal_score(100.0, 90.0, None, None, None)
+        self.assertIsNone(score)
+        self.assertEqual(dq, "INSUFFICIENT")
+
+        # Action classification check for None score
+        self.assertEqual(classify_action(None, "STRONG_BULL"), "AVOID")
+
+        # Risk-adjusted score for None score
+        self.assertIsNone(calculate_risk_adjusted_alpha(None, "STRONG_BULL"))
+
+        # 3 components available -> PARTIAL
+        score, _components, dq = calculate_signal_score(100.0, 90.0, 80.0, None, None)
+        self.assertIsNotNone(score)
+        self.assertEqual(dq, "PARTIAL")
+
+        # 5 components available -> SUFFICIENT
+        score, _components, dq = calculate_signal_score(100.0, 90.0, 80.0, 70.0, 60.0)
+        self.assertIsNotNone(score)
+        self.assertEqual(dq, "SUFFICIENT")
+
+    def test_confidence_reflects_signal_agreement(self):
+        """Test P1: Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
+        from scripts.lib.recommendation import calculate_confidence
+
+        risk_metrics = {"volatility_60d": 0.15, "max_drawdown": -0.10}
+
+        # High agreement: std dev < 12 (e.g., 80, 82, 78, 84, 81)
+        high_agreement_comp = {
+            "trend": 80.0,
+            "momentum": 82.0,
+            "volume": 78.0,
+            "relative_strength": 84.0,
+            "divergence": 81.0,
+        }
+        conf_agree = calculate_confidence("SUFFICIENT", high_agreement_comp, risk_metrics, rsi=50.0)
+
+        # Strong disagreement / dispersion: e.g., 100, 0, 100, 0, 100
+        conflict_comp = {
+            "trend": 100.0,
+            "momentum": 0.0,
+            "volume": 100.0,
+            "relative_strength": 0.0,
+            "divergence": 100.0,
+        }
+        conf_conflict = calculate_confidence("SUFFICIENT", conflict_comp, risk_metrics, rsi=50.0)
+
+        self.assertGreater(conf_agree, conf_conflict)
+        self.assertGreaterEqual(conf_agree, 0.10)
+        self.assertLessEqual(conf_agree, 0.95)
+        self.assertGreaterEqual(conf_conflict, 0.10)
+        self.assertLessEqual(conf_conflict, 0.95)
+
+    def test_divergence_timeframe_weighting_and_conflict(self):
+        """Test P1: Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
+        # 1D Bullish only
+        tf_1d_bull = {
+            "1d": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
+            "1w": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+            "1m": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+        }
+        score_1d = calculate_divergence_score(tf_1d_bull)
+
+        # 1M Bullish only
+        tf_1m_bull = {
+            "1d": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+            "1w": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+            "1m": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
+        }
+        score_1m = calculate_divergence_score(tf_1m_bull)
+
+        # 1D should have higher impact than 1M
+        self.assertGreater(score_1d, score_1m)
+
+        # Conflict on same timeframe (both bullish and bearish)
+        tf_conflict = {
+            "1d": {"available": True, "divergence": {"rsi_bullish": True, "rsi_bearish": True}},
+            "1w": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+            "1m": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
+        }
+        score_conflict = calculate_divergence_score(tf_conflict)
+        self.assertEqual(score_conflict, 45.0)  # 90 * 0.5 * 0.40 + 50 * 0.30 + 50 * 0.20 = 45.0
 
     def test_component_scores_bounded(self):
         """Verify component scores return values in [0, 100] or None."""
@@ -51,15 +184,6 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(calculate_relative_strength_score(0.12), 100.0)
         self.assertEqual(calculate_relative_strength_score(-0.08), 15.0)
         self.assertIsNone(calculate_relative_strength_score(None))
-
-        # Divergence
-        tf_summary_bullish = {
-            "1d": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
-            "1w": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
-            "1m": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
-        }
-        self.assertEqual(calculate_divergence_score(tf_summary_bullish), 65.0)
-        self.assertIsNone(calculate_divergence_score(None))
 
     def test_missing_data_renormalizes_weights(self):
         """Verify missing data excludes unavailable components and renormalizes weights without distorting scores."""
@@ -315,6 +439,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             market_regime_info=regime,
         )
 
+        # Volume score should be None due to 0 volume, leaving 4 available components -> PARTIAL data quality
         self.assertIsNotNone(rec["signal_score"])
         self.assertFalse(math.isnan(rec["signal_score"]))
         self.assertFalse(math.isinf(rec["signal_score"]))
