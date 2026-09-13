@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { loadStock } from "@/data/loader";
 import { StockDetail } from "@/pages/StockDetail";
 
 export const Route = createFileRoute("/stock/$symbol")({
+  loader: async ({ params }) => {
+    const stock = await loadStock(params.symbol);
+    return { stock, symbol: params.symbol };
+  },
   head: ({ params }) => ({
     meta: [
       {
@@ -26,6 +31,6 @@ export const Route = createFileRoute("/stock/$symbol")({
 });
 
 function StockDetailRouteComponent() {
-  const { symbol } = Route.useParams();
-  return <StockDetail symbol={symbol} />;
+  const { stock, symbol } = Route.useLoaderData();
+  return <StockDetail symbol={symbol} initialStock={stock} />;
 }

@@ -9,13 +9,22 @@ import { StockTable } from "@/components/stock-table";
 import { loadMarket, loadRecommendations } from "@/data/loader";
 import { formatDate } from "@/lib/format";
 
-export function Dashboard() {
-  const [data, setData] = useState<RecommendationsPayload | null>(null);
-  const [marketPayload, setMarketPayload] = useState<MarketPayload | null>(null);
+interface DashboardProps {
+  initialData?: RecommendationsPayload | null;
+  initialMarketPayload?: MarketPayload | null;
+}
+
+export function Dashboard({ initialData = null, initialMarketPayload = null }: DashboardProps) {
+  const [data, setData] = useState<RecommendationsPayload | null>(initialData);
+  const [marketPayload, setMarketPayload] = useState<MarketPayload | null>(initialMarketPayload);
   const [activeTab, setActiveTab] = useState<string>("BUY");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) {
+      return;
+    }
+
     async function initDashboardData() {
       setLoading(true);
       const [recs, mkt] = await Promise.all([loadRecommendations(), loadMarket()]);
@@ -24,7 +33,7 @@ export function Dashboard() {
       setLoading(false);
     }
     initDashboardData();
-  }, []);
+  }, [initialData]);
 
   if (loading && !data) {
     return (
