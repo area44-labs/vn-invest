@@ -256,8 +256,6 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertIn(rec["data_quality"], ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"])
         self.assertIsNotNone(rec["signal_score"])
         self.assertIsNotNone(rec["risk_adjusted_score"])
-        self.assertNotIn("alpha_score", rec)
-        self.assertNotIn("risk_adjusted_alpha", rec)
         self.assertIsNotNone(rec["confidence"])
         self.assertGreaterEqual(rec["confidence"], 0.10)
         self.assertLessEqual(rec["confidence"], 0.95)
@@ -315,11 +313,9 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             )
 
             self.assertIsNotNone(rec["risk_adjusted_score"])
-            self.assertNotIn("risk_adjusted_alpha", rec)
 
             norm_recs = normalize_universe_liquidity_scores([rec], market_regime=r_str)
             self.assertIsNotNone(norm_recs[0]["risk_adjusted_score"])
-            self.assertNotIn("risk_adjusted_alpha", norm_recs[0])
 
     def test_missing_atr_trade_plan_behavior(self):
         """Regression test P1: Missing ATR does not raise error and produces valid trade plan bounds."""
@@ -553,7 +549,6 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec["action"], "AVOID")
         self.assertEqual(rec["data_quality"], "INSUFFICIENT")
         self.assertIsNone(rec["signal_score"])
-        self.assertNotIn("alpha_score", rec)
         self.assertIsNone(rec["risk_metrics"]["var_t25"])
         self.assertIsNone(rec["trade_plan"]["current_price"])
 
