@@ -19,14 +19,19 @@ import { formatRisk, formatScore, formatVnd } from "@/lib/format";
 
 interface StockDetailProps {
   symbol?: string;
+  initialStock?: Recommendation | null;
 }
 
-export function StockDetail({ symbol: propsSymbol }: StockDetailProps) {
+export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockDetailProps) {
   const activeSymbol = propsSymbol || "FPT";
-  const [stock, setStock] = useState<Recommendation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stock, setStock] = useState<Recommendation | null>(initialStock);
+  const [loading, setLoading] = useState(!initialStock);
 
   useEffect(() => {
+    if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
+      return;
+    }
+
     async function fetchStock() {
       setLoading(true);
       const rec = await loadStock(activeSymbol);
@@ -36,7 +41,7 @@ export function StockDetail({ symbol: propsSymbol }: StockDetailProps) {
       setLoading(false);
     }
     fetchStock();
-  }, [activeSymbol]);
+  }, [activeSymbol, initialStock]);
 
   if (loading) {
     return (
