@@ -26,8 +26,13 @@ async function loadArtifact<T>(relativePath: string): Promise<T | null> {
       const content = await fs.readFile(filePath, "utf-8");
       return JSON.parse(content) as T;
     } catch (err) {
-      console.error(`[SSG] Failed to read static artifact public/${relativePath}:`, err);
-      return null;
+      console.error(
+        `[SSG Fatal Error] Failed to read static artifact public/${relativePath}:`,
+        err,
+      );
+      throw new Error(
+        `[SSG Build Error] Required static artifact public/${relativePath} is missing or invalid: ${(err as Error).message}`,
+      );
     }
   }
 
