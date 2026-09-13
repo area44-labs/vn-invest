@@ -74,8 +74,8 @@ def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
         parsed = pd.to_datetime(val_str)
         if pd.notna(parsed):
             return parsed.strftime("%Y-%m-%d")
-    except Exception:
-        pass
+    except (ValueError, TypeError, Exception) as e:
+        logger.debug("Date string parsing failed for '%s': %s", val_str, e)
 
     return None
 
