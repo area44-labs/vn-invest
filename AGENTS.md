@@ -17,8 +17,7 @@ vn-invest/
 ├── .github/
 │   ├── workflows/
 │   │   ├── lint-format.yml          # GitHub Actions lint & format CI
-│   │   ├── pages.yml                # GitHub Pages deployment workflow
-│   │   └── update-stocks.yml        # Automated daily EOD update workflow
+│   │   └── pages.yml                # GitHub Pages deployment workflow
 ├── schemas/
 │   └── recommendations.schema.json  # Canonical JSON Schema Draft 2020-12 v2.0
 ├── scripts/                         # Backend Python - Pipeline định lượng & báo cáo

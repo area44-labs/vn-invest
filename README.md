@@ -20,7 +20,7 @@ SSG / GitHub Pages Deployment
 
 ## Tính Năng Nổi Bật
 
-- **Python Quantitative Engine**: Tính toán chỉ báo kỹ thuật (MA, RSI, MACD, ATR), nhận diện phân kỳ đa khung thời gian, phân tích trạng thái thị trường (Market Regime), chấm điểm Alpha Score, tính rủi ro T+2.5 (Historical VaR 95%, Expected Shortfall, Max Drawdown) và lập kế hoạch giao dịch (Trade Plan).
+- **Python Quantitative Engine**: Tính toán chỉ báo kỹ thuật (MA, RSI, MACD, ATR), nhận diện phân kỳ đa khung thời gian, phân tích trạng thái thị trường (Market Regime), chấm điểm Signal Score (VN Invest Signal Engine), tính rủi ro T+2.5 (Historical VaR 95%, Expected Shortfall, Max Drawdown) và lập kế hoạch giao dịch (Trade Plan).
 - **Single Source of Truth**: Data contract được định nghĩa chuẩn xác bằng JSON Schema (`schemas/recommendations.schema.json`).
 - **TanStack Router & SSG**: Điều hướng SPA mượt mà với routing dựa trên TanStack Router (`/`, `/history`, `/stock/$symbol`) và prerender static HTML tương thích GitHub Pages.
 - **Bảo Đảm Kiểm Thử**: Bộ unit test Python kiểm tra toàn bộ logic tính toán chỉ báo, rủi ro, kế hoạch giao dịch và anti-lookahead bias.
