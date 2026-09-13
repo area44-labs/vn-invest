@@ -7,6 +7,7 @@
   "required": [
     "schema_version",
     "generated_at",
+    "data_as_of",
     "source_date",
     "market",
     "summary",
@@ -20,8 +21,14 @@
     "generated_at": {
       "type": "string"
     },
+    "data_as_of": {
+      "type": ["string", "null"]
+    },
     "source_date": {
-      "type": "string"
+      "type": ["string", "null"]
+    },
+    "data_source": {
+      "type": ["string", "null"]
     },
     "universe_info": {
       "type": "object",
@@ -130,6 +137,12 @@
         "data_quality": {
           "type": "string",
           "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
+        },
+        "data_as_of": {
+          "type": ["string", "null"]
+        },
+        "data_source": {
+          "type": ["string", "null"]
         },
         "signal_score": {
           "type": ["number", "null"],

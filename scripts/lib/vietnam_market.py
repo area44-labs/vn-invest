@@ -25,6 +25,60 @@ except ImportError:
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RECOMMENDATIONS_JSON_PATH = os.path.join(ROOT_DIR, "generated", "recommendations.json")
 
+TIMEZONE_POLICY = """
+Timezone and Date Semantics Policy:
+1. `generated_at`: ISO 8601 timestamp in UTC (e.g. '2026-09-13T18:00:00.000000+00:00') representing
+   the exact system execution time when the report or analysis was generated.
+2. `data_as_of`: Calendar date in 'YYYY-MM-DD' format representing the latest actual validated
+   market-data EOD trading session present in the dataset.
+3. Market-data date (`data_as_of`) must NEVER be substituted with current system date (`datetime.now()`).
+   If OHLCV data is empty or unavailable, `data_as_of` must remain `None`.
+"""
+
+
+def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
+    """Extract the latest validated EOD trading session date (YYYY-MM-DD) from OHLCV DataFrame.
+
+    Returns None if DataFrame is empty, None, or lacks date information.
+    """
+    if df is None or df.empty:
+        return None
+
+    df_cols = [c.lower() for c in df.columns]
+    date_col = None
+    for candidate in ["time", "date"]:
+        if candidate in df_cols:
+            date_col = df.columns[df_cols.index(candidate)]
+            break
+
+    if not date_col:
+        return None
+
+    series = df[date_col].dropna()
+    if series.empty:
+        return None
+
+    latest_val = series.iloc[-1]
+    if isinstance(latest_val, (pd.Timestamp, datetime)):
+        return latest_val.strftime("%Y-%m-%d")
+
+    val_str = str(latest_val).strip()
+    if not val_str:
+        return None
+
+    match = re.search(r"\d{4}-\d{2}-\d{2}", val_str)
+    if match:
+        return match.group(0)
+
+    try:
+        parsed = pd.to_datetime(val_str)
+        if pd.notna(parsed):
+            return parsed.strftime("%Y-%m-%d")
+    except Exception:
+        pass
+
+    return None
+
 
 class UniverseProvider:
     """Abstraction for stock universe selection in Vietnam equity markets."""

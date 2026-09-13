@@ -84,6 +84,8 @@ export interface Recommendation {
   action: ActionType;
   model_version?: string;
   data_quality?: DataQuality;
+  data_as_of?: string | null;
+  data_source?: string | null;
   signal_score: number | null;
   risk_adjusted_score: number | null;
   score_components?: ScoreComponents | null;
@@ -106,7 +108,9 @@ export interface UniverseInfo {
 export interface RecommendationsPayload {
   schema_version: "2.0";
   generated_at: string;
-  source_date: string;
+  data_as_of?: string | null;
+  source_date: string | null;
+  data_source?: string | null;
   universe_info?: UniverseInfo;
   market: MarketInfo;
   summary: SummaryInfo;
@@ -114,8 +118,10 @@ export interface RecommendationsPayload {
 }
 
 export interface MarketPayload {
-  source_date: string;
+  data_as_of?: string | null;
+  source_date: string | null;
   generated_at: string;
+  data_source?: string | null;
   universe_info?: UniverseInfo;
   market: MarketInfo;
   summary: SummaryInfo;

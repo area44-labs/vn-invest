@@ -29,7 +29,11 @@ if ROOT_DIR not in sys.path:
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
-from scripts.lib.vietnam_market import UniverseProvider, get_historical_data
+from scripts.lib.vietnam_market import (
+    UniverseProvider,
+    extract_latest_trading_date,
+    get_historical_data,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -68,7 +72,6 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     4. Generate Stock Recommendations using the Final Market Regime
     5. Compute Universe Percentile Liquidity Scores
     """
-    source_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     generated_at = datetime.now(timezone.utc).isoformat()
     use_cache = not update_data
 
@@ -77,7 +80,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     universe_info = provider.get_info()
 
     logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
-    df_vnindex, _vn_source, _vn_warns = get_historical_data(
+    df_vnindex, vn_source, _vn_warns = get_historical_data(
         "VNINDEX", max_retries=2 if update_data else 1, use_cache_only=use_cache
     )
     df_vn30, _, _ = get_historical_data(
@@ -86,11 +89,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     stock_data_map = {}
     bullish_count = 0
+    all_dates = []
+
+    vnindex_date = extract_latest_trading_date(df_vnindex)
+    if vnindex_date:
+        all_dates.append(vnindex_date)
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
         df_stock, tag, warns = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
         stock_data_map[sym] = (df_stock, tag, warns)
+
+        stock_date = extract_latest_trading_date(df_stock)
+        if stock_date:
+            all_dates.append(stock_date)
 
         # Pre-breadth check: price above MA20
         if not df_stock.empty and len(df_stock) >= 20:
@@ -98,6 +110,12 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             ma20 = df_stock["close"].tail(20).mean()
             if c > ma20:
                 bullish_count += 1
+
+    # Market data date is determined from validated OHLCV datasets.
+    # Never fall back to datetime.now() when datasets are empty.
+    data_as_of = max(all_dates) if all_dates else None
+    source_date = data_as_of  # Backward compatibility alias
+    data_source = vn_source if not df_vnindex.empty else None
 
     logger.info("Step 2: Calculating Market Breadth...")
     breadth_ratio = round(bullish_count / len(candidate_stocks), 2) if candidate_stocks else 0.50
@@ -115,7 +133,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         sec = item["sector"]
         ex = item.get("exchange", "HOSE")
 
-        df_stock, _, _ = stock_data_map[sym]
+        df_stock, tag, _ = stock_data_map[sym]
 
         rec = generate_recommendation(
             symbol=sym,
@@ -125,6 +143,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             df_stock=df_stock,
             market_regime_info=final_market_regime,
             df_vnindex=df_vnindex,
+            data_source=tag if not df_stock.empty else None,
         )
         scanned_recs.append(rec)
 
@@ -151,7 +170,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     recommendations_payload = {
         "schema_version": "2.0",
         "generated_at": generated_at,
+        "data_as_of": data_as_of,
         "source_date": source_date,
+        "data_source": data_source,
         "universe_info": universe_info,
         "market": final_market_regime,
         "summary": summary,
@@ -159,8 +180,10 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     }
 
     market_payload = {
+        "data_as_of": data_as_of,
         "source_date": source_date,
         "generated_at": generated_at,
+        "data_source": data_source,
         "universe_info": universe_info,
         "market": final_market_regime,
         "summary": summary,
@@ -171,8 +194,11 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     return recommendations_payload, market_payload, history_payload
 
 
-def update_history_index(source_date: str):
+def update_history_index(data_date: str | None):
     """Maintain history/index.json with list of available historical dates."""
+    if not data_date:
+        return
+
     index_path = os.path.join(GENERATED_DIR, "history", "index.json")
     history_dates = []
 
@@ -184,8 +210,8 @@ def update_history_index(source_date: str):
         except Exception:  # noqa: BLE001
             history_dates = []
 
-    if source_date not in history_dates:
-        history_dates.append(source_date)
+    if data_date not in history_dates:
+        history_dates.append(data_date)
         history_dates.sort(reverse=True)
 
     index_payload = {
@@ -216,19 +242,21 @@ def main():
     jsonschema.validate(instance=recs_data, schema=schema)
     logger.info("JSON Schema validation passed successfully!")
 
-    source_date = recs_data["source_date"]
+    data_as_of = recs_data.get("data_as_of")
+    history_filename_date = data_as_of or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Save outputs
     save_json_files("recommendations.json", recs_data)
     save_json_files("market.json", market_data)
-    save_json_files(os.path.join("history", f"{source_date}.json"), history_data)
-    update_history_index(source_date)
+    save_json_files(os.path.join("history", f"{history_filename_date}.json"), history_data)
+    if data_as_of:
+        update_history_index(data_as_of)
 
     logger.info("Report generation complete!")
     logger.info("Outputs written to generated/ and public/generated/:")
     logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
     logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
-    logger.info("  - history/%s.json", source_date)
+    logger.info("  - history/%s.json", history_filename_date)
     logger.info("  - history/index.json")
 
 
