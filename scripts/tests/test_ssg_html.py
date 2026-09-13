@@ -137,13 +137,11 @@ class TestSSGStaticHTML(unittest.TestCase):
 
         # 1. Derive EXPECTED stock symbols directly from public/generated/recommendations.json
         expected_symbols = sorted(
-            list(
-                set(
-                    r.get("symbol").strip()
-                    for r in recommendations
-                    if r.get("symbol") and r.get("symbol").strip()
-                )
-            )
+            {
+                r.get("symbol").strip()
+                for r in recommendations
+                if r.get("symbol") and r.get("symbol").strip()
+            }
         )
         self.assertTrue(
             len(expected_symbols) > 0,
