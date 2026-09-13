@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "generated_at": "2026-09-13T11:36:02.090016+00:00",
+  "generated_at": "2026-09-13T13:26:29.933121+00:00",
   "source_date": "2026-09-13",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
@@ -24,8 +24,8 @@
     "buy_count": 2,
     "watch_count": 9,
     "hold_count": 8,
-    "sell_count": 22,
-    "avoid_count": 1
+    "sell_count": 21,
+    "avoid_count": 2
   },
   "recommendations": [
     {
@@ -35,7 +35,7 @@
       "sector": "Ngân hàng",
       "action": "HOLD",
       "alpha_score": 50.0,
-      "risk_adjusted_alpha": 45.8,
+      "risk_adjusted_alpha": 45.7,
       "confidence": 0.7,
       "risk_level": "MEDIUM",
       "expected_return": {
@@ -48,7 +48,7 @@
         "es_t25": -0.0471,
         "volatility_60d": 0.2107,
         "max_drawdown": -0.1949,
-        "liquidity_score": 61.0,
+        "liquidity_score": 60.0,
         "avg_value_20d": 0.17
       },
       "trade_plan": {
@@ -101,7 +101,7 @@
         "es_t25": -0.105,
         "volatility_60d": 0.4916,
         "max_drawdown": -0.5549,
-        "liquidity_score": 15.9,
+        "liquidity_score": 16.2,
         "avg_value_20d": 0.04
       },
       "trade_plan": {
@@ -151,7 +151,7 @@
         "es_t25": -0.0726,
         "volatility_60d": 0.2518,
         "max_drawdown": -0.3618,
-        "liquidity_score": 43.9,
+        "liquidity_score": 45.0,
         "avg_value_20d": 0.12
       },
       "trade_plan": {
@@ -192,7 +192,7 @@
       "sector": "Bảo hiểm",
       "action": "HOLD",
       "alpha_score": 50.0,
-      "risk_adjusted_alpha": 36.2,
+      "risk_adjusted_alpha": 36.3,
       "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
@@ -205,7 +205,7 @@
         "es_t25": -0.0756,
         "volatility_60d": 0.3457,
         "max_drawdown": -0.3419,
-        "liquidity_score": 9.8,
+        "liquidity_score": 10.0,
         "avg_value_20d": 0.03
       },
       "trade_plan": {
@@ -257,7 +257,7 @@
         "es_t25": -0.0667,
         "volatility_60d": 0.2367,
         "max_drawdown": -0.2966,
-        "liquidity_score": 70.7,
+        "liquidity_score": 70.0,
         "avg_value_20d": 0.21
       },
       "trade_plan": {
@@ -311,7 +311,7 @@
         "es_t25": -0.068,
         "volatility_60d": 0.2927,
         "max_drawdown": -0.4057,
-        "liquidity_score": 82.9,
+        "liquidity_score": 82.5,
         "avg_value_20d": 0.4
       },
       "trade_plan": {
@@ -405,7 +405,7 @@
       "sector": "Cao su & BĐS KCN",
       "action": "SELL",
       "alpha_score": 35.0,
-      "risk_adjusted_alpha": 24.5,
+      "risk_adjusted_alpha": 24.6,
       "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
@@ -418,7 +418,7 @@
         "es_t25": -0.1185,
         "volatility_60d": 0.385,
         "max_drawdown": -0.4317,
-        "liquidity_score": 32.9,
+        "liquidity_score": 33.8,
         "avg_value_20d": 0.08
       },
       "trade_plan": {
@@ -468,7 +468,7 @@
         "es_t25": -0.0671,
         "volatility_60d": 0.2278,
         "max_drawdown": -0.1886,
-        "liquidity_score": 78.0,
+        "liquidity_score": 77.5,
         "avg_value_20d": 0.27
       },
       "trade_plan": {
@@ -522,7 +522,7 @@
         "es_t25": -0.0578,
         "volatility_60d": 0.2461,
         "max_drawdown": -0.2488,
-        "liquidity_score": 89.0,
+        "liquidity_score": 88.8,
         "avg_value_20d": 0.44
       },
       "trade_plan": {
@@ -561,7 +561,7 @@
       "sector": "Ngân hàng",
       "action": "SELL",
       "alpha_score": 40.0,
-      "risk_adjusted_alpha": 36.2,
+      "risk_adjusted_alpha": 36.1,
       "confidence": 0.6,
       "risk_level": "MEDIUM",
       "expected_return": {
@@ -574,7 +574,7 @@
         "es_t25": -0.0605,
         "volatility_60d": 0.2436,
         "max_drawdown": -0.2238,
-        "liquidity_score": 73.2,
+        "liquidity_score": 72.5,
         "avg_value_20d": 0.22
       },
       "trade_plan": {
@@ -627,7 +627,7 @@
         "es_t25": -0.0711,
         "volatility_60d": 0.2188,
         "max_drawdown": -0.278,
-        "liquidity_score": 80.5,
+        "liquidity_score": 80.0,
         "avg_value_20d": 0.29
       },
       "trade_plan": {
@@ -663,7 +663,7 @@
       "sector": "Bán lẻ",
       "action": "SELL",
       "alpha_score": 40.0,
-      "risk_adjusted_alpha": 32.1,
+      "risk_adjusted_alpha": 32.0,
       "confidence": 0.55,
       "risk_level": "HIGH",
       "expected_return": {
@@ -676,7 +676,7 @@
         "es_t25": -0.0842,
         "volatility_60d": 0.344,
         "max_drawdown": -0.3244,
-        "liquidity_score": 64.6,
+        "liquidity_score": 63.7,
         "avg_value_20d": 0.19
       },
       "trade_plan": {
@@ -725,7 +725,7 @@
         "es_t25": -0.1221,
         "volatility_60d": 0.3532,
         "max_drawdown": -0.5303,
-        "liquidity_score": 54.9,
+        "liquidity_score": 53.8,
         "avg_value_20d": 0.15
       },
       "trade_plan": {
@@ -778,7 +778,7 @@
         "es_t25": -0.0796,
         "volatility_60d": 0.2504,
         "max_drawdown": -0.2508,
-        "liquidity_score": 32.9,
+        "liquidity_score": 33.8,
         "avg_value_20d": 0.08
       },
       "trade_plan": {
@@ -829,7 +829,7 @@
         "es_t25": -0.0521,
         "volatility_60d": 0.1966,
         "max_drawdown": -0.2094,
-        "liquidity_score": 9.8,
+        "liquidity_score": 10.0,
         "avg_value_20d": 0.03
       },
       "trade_plan": {
@@ -881,7 +881,7 @@
         "es_t25": -0.0424,
         "volatility_60d": 0.3043,
         "max_drawdown": -0.1894,
-        "liquidity_score": 15.9,
+        "liquidity_score": 16.2,
         "avg_value_20d": 0.04
       },
       "trade_plan": {
@@ -919,7 +919,7 @@
       "sector": "Chứng khoán",
       "action": "WATCH",
       "alpha_score": 55.0,
-      "risk_adjusted_alpha": 43.1,
+      "risk_adjusted_alpha": 43.0,
       "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
@@ -932,7 +932,7 @@
         "es_t25": -0.0838,
         "volatility_60d": 0.352,
         "max_drawdown": -0.4178,
-        "liquidity_score": 85.4,
+        "liquidity_score": 85.0,
         "avg_value_20d": 0.42
       },
       "trade_plan": {
@@ -1028,7 +1028,7 @@
         "es_t25": -0.0771,
         "volatility_60d": 0.3314,
         "max_drawdown": -0.3051,
-        "liquidity_score": 92.7,
+        "liquidity_score": 92.5,
         "avg_value_20d": 0.53
       },
       "trade_plan": {
@@ -1081,7 +1081,7 @@
         "es_t25": -0.0632,
         "volatility_60d": 0.2126,
         "max_drawdown": -0.2707,
-        "liquidity_score": 32.9,
+        "liquidity_score": 33.8,
         "avg_value_20d": 0.08
       },
       "trade_plan": {
@@ -1130,7 +1130,7 @@
         "es_t25": -0.0637,
         "volatility_60d": 0.2258,
         "max_drawdown": -0.2842,
-        "liquidity_score": 75.6,
+        "liquidity_score": 75.0,
         "avg_value_20d": 0.26
       },
       "trade_plan": {
@@ -1180,7 +1180,7 @@
         "es_t25": -0.1198,
         "volatility_60d": 0.444,
         "max_drawdown": -0.4087,
-        "liquidity_score": 96.3,
+        "liquidity_score": 96.2,
         "avg_value_20d": 0.55
       },
       "trade_plan": {
@@ -1234,7 +1234,7 @@
         "es_t25": -0.0552,
         "volatility_60d": 0.2263,
         "max_drawdown": -0.3046,
-        "liquidity_score": 22.0,
+        "liquidity_score": 22.5,
         "avg_value_20d": 0.06
       },
       "trade_plan": {
@@ -1318,7 +1318,7 @@
       "sector": "Hàng không",
       "action": "HOLD",
       "alpha_score": 50.0,
-      "risk_adjusted_alpha": 42.8,
+      "risk_adjusted_alpha": 42.7,
       "confidence": 0.55,
       "risk_level": "HIGH",
       "expected_return": {
@@ -1331,7 +1331,7 @@
         "es_t25": -0.0774,
         "volatility_60d": 0.2205,
         "max_drawdown": -0.3072,
-        "liquidity_score": 58.5,
+        "liquidity_score": 57.5,
         "avg_value_20d": 0.16
       },
       "trade_plan": {
@@ -1377,7 +1377,7 @@
         "es_t25": -0.0674,
         "volatility_60d": 0.232,
         "max_drawdown": -0.2296,
-        "liquidity_score": 64.6,
+        "liquidity_score": 63.7,
         "avg_value_20d": 0.19
       },
       "trade_plan": {
@@ -1431,7 +1431,7 @@
         "es_t25": -0.071,
         "volatility_60d": 0.2492,
         "max_drawdown": -0.2878,
-        "liquidity_score": 89.0,
+        "liquidity_score": 88.8,
         "avg_value_20d": 0.44
       },
       "trade_plan": {
@@ -1534,7 +1534,7 @@
         "es_t25": -0.0638,
         "volatility_60d": 0.275,
         "max_drawdown": -0.376,
-        "liquidity_score": 96.3,
+        "liquidity_score": 96.2,
         "avg_value_20d": 0.55
       },
       "trade_plan": {
@@ -1571,7 +1571,7 @@
       "sector": "Hóa chất",
       "action": "BUY",
       "alpha_score": 80.0,
-      "risk_adjusted_alpha": 47.1,
+      "risk_adjusted_alpha": 47.2,
       "confidence": 0.8,
       "risk_level": "HIGH",
       "expected_return": {
@@ -1584,7 +1584,7 @@
         "es_t25": -0.1562,
         "volatility_60d": 0.4136,
         "max_drawdown": -0.6243,
-        "liquidity_score": 9.8,
+        "liquidity_score": 10.0,
         "avg_value_20d": 0.03
       },
       "trade_plan": {
@@ -1637,7 +1637,7 @@
         "es_t25": -0.0787,
         "volatility_60d": 0.4006,
         "max_drawdown": -0.3718,
-        "liquidity_score": 22.0,
+        "liquidity_score": 22.5,
         "avg_value_20d": 0.06
       },
       "trade_plan": {
@@ -1678,7 +1678,7 @@
       "sector": "Dầu khí",
       "action": "HOLD",
       "alpha_score": 45.0,
-      "risk_adjusted_alpha": 32.8,
+      "risk_adjusted_alpha": 32.9,
       "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
@@ -1691,7 +1691,7 @@
         "es_t25": -0.094,
         "volatility_60d": 0.3962,
         "max_drawdown": -0.3509,
-        "liquidity_score": 32.9,
+        "liquidity_score": 33.8,
         "avg_value_20d": 0.08
       },
       "trade_plan": {
@@ -1745,7 +1745,7 @@
         "es_t25": -0.0943,
         "volatility_60d": 0.4114,
         "max_drawdown": -0.4365,
-        "liquidity_score": 68.3,
+        "liquidity_score": 67.5,
         "avg_value_20d": 0.2
       },
       "trade_plan": {
@@ -1783,7 +1783,7 @@
       "sector": "Chứng khoán",
       "action": "SELL",
       "alpha_score": 40.0,
-      "risk_adjusted_alpha": 31.9,
+      "risk_adjusted_alpha": 32.0,
       "confidence": 0.5,
       "risk_level": "HIGH",
       "expected_return": {
@@ -1796,7 +1796,7 @@
         "es_t25": -0.0836,
         "volatility_60d": 0.305,
         "max_drawdown": -0.3029,
-        "liquidity_score": 41.5,
+        "liquidity_score": 42.5,
         "avg_value_20d": 0.1
       },
       "trade_plan": {
@@ -1851,7 +1851,7 @@
         "es_t25": -0.0874,
         "volatility_60d": 0.3727,
         "max_drawdown": -0.4187,
-        "liquidity_score": 54.9,
+        "liquidity_score": 53.8,
         "avg_value_20d": 0.15
       },
       "trade_plan": {
@@ -1901,7 +1901,7 @@
         "es_t25": -0.0752,
         "volatility_60d": 0.2577,
         "max_drawdown": -0.3679,
-        "liquidity_score": 3.7,
+        "liquidity_score": 3.8,
         "avg_value_20d": 0.02
       },
       "trade_plan": {
@@ -1951,7 +1951,7 @@
         "es_t25": -0.0789,
         "volatility_60d": 0.2641,
         "max_drawdown": -0.4362,
-        "liquidity_score": 3.7,
+        "liquidity_score": 3.8,
         "avg_value_20d": 0.02
       },
       "trade_plan": {
@@ -1986,50 +1986,39 @@
       "company_name": "CTCP Tập đoàn Đất Xanh",
       "exchange": "HOSE",
       "sector": "Bất động sản",
-      "action": "SELL",
-      "alpha_score": 40.0,
-      "risk_adjusted_alpha": 27.0,
-      "confidence": 0.55,
-      "risk_level": "HIGH",
+      "action": "AVOID",
+      "alpha_score": null,
+      "risk_adjusted_alpha": null,
+      "confidence": 0.0,
+      "risk_level": null,
       "expected_return": {
         "expected_return_5d": null,
         "expected_return_10d": null,
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0816,
-        "es_t25": -0.0951,
-        "volatility_60d": 0.3944,
-        "max_drawdown": -0.531,
-        "liquidity_score": 48.8,
-        "avg_value_20d": 0.14
+        "var_t25": null,
+        "es_t25": null,
+        "volatility_60d": null,
+        "max_drawdown": null,
+        "liquidity_score": null
       },
       "trade_plan": {
-        "current_price": 10750.0,
+        "current_price": null,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
         "tp1": null,
         "tp2": null,
         "risk_reward": null,
-        "position_percent": 0.0
+        "position_percent": null
       },
-      "reasons": [
-        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên.",
-        "Chỉ báo RSI (46.3) nằm trong vùng an toàn (45 - 68)."
-      ],
-      "warnings": [
-        "Giá đóng cửa (10.750 VNĐ) nằm dưới đường xu hướng MA20 (11.458 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
+      "reasons": ["Dữ liệu lịch sử không đủ 20 phiên giao dịch."],
+      "warnings": ["Không có dữ liệu giao dịch để phân tích."],
+      "invalidation": ["Cần bổ sung thêm dữ liệu giao dịch trước khi phân tích."],
       "divergence": {
         "1H": "NONE",
-        "1D": "BEARISH",
+        "1D": "NONE",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -2041,7 +2030,7 @@
       "sector": "Bất động sản",
       "action": "SELL",
       "alpha_score": 40.0,
-      "risk_adjusted_alpha": 24.9,
+      "risk_adjusted_alpha": 25.0,
       "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
@@ -2054,7 +2043,7 @@
         "es_t25": -0.0966,
         "volatility_60d": 0.3855,
         "max_drawdown": -0.6062,
-        "liquidity_score": 26.8,
+        "liquidity_score": 27.5,
         "avg_value_20d": 0.07
       },
       "trade_plan": {
@@ -2095,7 +2084,7 @@
       "sector": "Bất động sản",
       "action": "WATCH",
       "alpha_score": 60.0,
-      "risk_adjusted_alpha": 39.6,
+      "risk_adjusted_alpha": 39.7,
       "confidence": 0.7,
       "risk_level": "HIGH",
       "expected_return": {
@@ -2108,7 +2097,7 @@
         "es_t25": -0.0884,
         "volatility_60d": 0.2984,
         "max_drawdown": -0.576,
-        "liquidity_score": 22.0,
+        "liquidity_score": 22.5,
         "avg_value_20d": 0.06
       },
       "trade_plan": {
@@ -2163,7 +2152,7 @@
         "es_t25": -0.0796,
         "volatility_60d": 0.2412,
         "max_drawdown": -0.2243,
-        "liquidity_score": 39.0,
+        "liquidity_score": 40.0,
         "avg_value_20d": 0.09
       },
       "trade_plan": {

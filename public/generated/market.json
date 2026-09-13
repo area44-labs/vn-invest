@@ -1,6 +1,6 @@
 {
   "source_date": "2026-09-13",
-  "generated_at": "2026-09-13T11:36:02.090016+00:00",
+  "generated_at": "2026-09-13T13:26:29.933121+00:00",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
     "universe_size": 42
@@ -23,7 +23,7 @@
     "buy_count": 2,
     "watch_count": 9,
     "hold_count": 8,
-    "sell_count": 22,
-    "avoid_count": 1
+    "sell_count": 21,
+    "avoid_count": 2
   }
 }

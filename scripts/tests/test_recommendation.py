@@ -1,6 +1,7 @@
 """Unit tests for Recommendation Engine in scripts/lib/recommendation.py."""
 
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -282,6 +283,86 @@ class TestRecommendationEngine(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             calculate_risk_adjusted_alpha(alpha_score=80.0, regime="UNKNOWN")
+
+    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.generate_report.detect_market_regime")
+    def test_run_pipeline_market_regime_propagation(self, mock_detect, mock_get_hist):
+        """Integration test verifying canonical market regime flow in run_pipeline().
+
+        Flow: detect_market_regime() -> generate_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_alpha.
+        Ensures top-level market regime is propagated and used for final risk_adjusted_alpha without falling back to DEFENSIVE.
+        """
+        from scripts.generate_report import run_pipeline
+
+        n = 60
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        close_prices = np.linspace(20.0, 35.0, n)
+        df_sample = pd.DataFrame(
+            {
+                "time": dates,
+                "open": close_prices - 0.2,
+                "high": close_prices + 0.5,
+                "low": close_prices - 0.5,
+                "close": close_prices,
+                "volume": [500000] * n,
+            }
+        )
+        mock_get_hist.return_value = (df_sample, "OK", [])
+
+        # Test case A: Market regime detected as STRONG_BULL
+        mock_detect.return_value = {
+            "regime": "STRONG_BULL",
+            "regime_score": 85.0,
+            "confidence": 0.85,
+            "metrics": {"vnindex_value": 1200.0, "vnindex_change_pct": 1.5},
+        }
+
+        recs_data_bull, _, _ = run_pipeline(update_data=False)
+        self.assertEqual(recs_data_bull["market"]["regime"], "STRONG_BULL")
+
+        rec_fpt_bull = next(r for r in recs_data_bull["recommendations"] if r["symbol"] == "FPT")
+        self.assertIsNotNone(rec_fpt_bull["risk_adjusted_alpha"])
+
+        expected_strong_bull_alpha = calculate_risk_adjusted_alpha(
+            alpha_score=rec_fpt_bull["alpha_score"],
+            regime="STRONG_BULL",
+            volatility_60d=rec_fpt_bull["risk_metrics"]["volatility_60d"],
+            max_drawdown=rec_fpt_bull["risk_metrics"]["max_drawdown"],
+            liquidity_score=rec_fpt_bull["risk_metrics"]["liquidity_score"],
+        )
+        defensive_fallback_alpha = calculate_risk_adjusted_alpha(
+            alpha_score=rec_fpt_bull["alpha_score"],
+            regime="DEFENSIVE",
+            volatility_60d=rec_fpt_bull["risk_metrics"]["volatility_60d"],
+            max_drawdown=rec_fpt_bull["risk_metrics"]["max_drawdown"],
+            liquidity_score=rec_fpt_bull["risk_metrics"]["liquidity_score"],
+        )
+
+        self.assertEqual(rec_fpt_bull["risk_adjusted_alpha"], expected_strong_bull_alpha)
+        self.assertNotEqual(rec_fpt_bull["risk_adjusted_alpha"], defensive_fallback_alpha)
+
+        # Test case B: Market regime detected as BEAR
+        mock_detect.return_value = {
+            "regime": "BEAR",
+            "regime_score": 30.0,
+            "confidence": 0.70,
+            "metrics": {"vnindex_value": 1100.0, "vnindex_change_pct": -2.0},
+        }
+
+        recs_data_bear, _, _ = run_pipeline(update_data=False)
+        self.assertEqual(recs_data_bear["market"]["regime"], "BEAR")
+
+        rec_fpt_bear = next(r for r in recs_data_bear["recommendations"] if r["symbol"] == "FPT")
+        expected_bear_alpha = calculate_risk_adjusted_alpha(
+            alpha_score=rec_fpt_bear["alpha_score"],
+            regime="BEAR",
+            volatility_60d=rec_fpt_bear["risk_metrics"]["volatility_60d"],
+            max_drawdown=rec_fpt_bear["risk_metrics"]["max_drawdown"],
+            liquidity_score=rec_fpt_bear["risk_metrics"]["liquidity_score"],
+        )
+
+        self.assertEqual(rec_fpt_bear["risk_adjusted_alpha"], expected_bear_alpha)
+        self.assertLess(rec_fpt_bear["risk_adjusted_alpha"], rec_fpt_bull["risk_adjusted_alpha"])
 
 
 if __name__ == "__main__":
