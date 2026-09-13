@@ -13,7 +13,7 @@ from scripts.lib.recommendation import (
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
-    calculate_risk_adjusted_alpha,
+    calculate_risk_adjusted_score,
     calculate_signal_score,
     calculate_trend_score,
     calculate_volume_score,
@@ -87,7 +87,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(classify_action(None, "STRONG_BULL"), "AVOID")
 
         # Risk-adjusted score for None score
-        self.assertIsNone(calculate_risk_adjusted_alpha(None, "STRONG_BULL"))
+        self.assertIsNone(calculate_risk_adjusted_score(None, "STRONG_BULL"))
 
         # 3 components available -> PARTIAL
         score, _components, dq = calculate_signal_score(100.0, 90.0, 80.0, None, None)
@@ -255,9 +255,9 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec["model_version"], "2.0")
         self.assertIn(rec["data_quality"], ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"])
         self.assertIsNotNone(rec["signal_score"])
-        self.assertEqual(rec["signal_score"], rec["alpha_score"])
         self.assertIsNotNone(rec["risk_adjusted_score"])
-        self.assertEqual(rec["risk_adjusted_score"], rec["risk_adjusted_alpha"])
+        self.assertNotIn("alpha_score", rec)
+        self.assertNotIn("risk_adjusted_alpha", rec)
         self.assertIsNotNone(rec["confidence"])
         self.assertGreaterEqual(rec["confidence"], 0.10)
         self.assertLessEqual(rec["confidence"], 0.95)
@@ -265,10 +265,10 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertIsInstance(rec["invalidation"], list)
         self.assertIn("1H", rec["divergence"])
 
-    def test_risk_adjusted_alpha_formula(self):
-        """Verify risk-adjusted alpha deterministic calculation."""
-        score = calculate_risk_adjusted_alpha(
-            alpha_score=80.0,
+    def test_risk_adjusted_score_formula(self):
+        """Verify risk-adjusted score deterministic calculation."""
+        score = calculate_risk_adjusted_score(
+            signal_score=80.0,
             regime="STRONG_BULL",
             volatility_60d=0.15,
             max_drawdown=-0.10,
@@ -278,8 +278,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertLessEqual(score, 100.0)
 
         # High volatility and drawdown penalty check
-        score_high_risk = calculate_risk_adjusted_alpha(
-            alpha_score=80.0,
+        score_high_risk = calculate_risk_adjusted_score(
+            signal_score=80.0,
             regime="BEAR",
             volatility_60d=0.45,
             max_drawdown=-0.35,
@@ -287,8 +287,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         )
         self.assertLess(score_high_risk, score)
 
-    def test_risk_adjusted_score_equals_risk_adjusted_alpha_across_regimes(self):
-        """Regression test P0: Verify risk_adjusted_score == risk_adjusted_alpha across all market regimes and after universe normalization."""
+    def test_risk_adjusted_score_across_regimes(self):
+        """Verify risk_adjusted_score calculation across all market regimes and after universe normalization."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_bull = np.linspace(20.0, 35.0, n)
@@ -314,14 +314,12 @@ class TestVNInvestSignalEngine(unittest.TestCase):
                 market_regime_info={"regime": r_str, "regime_score": 50.0},
             )
 
-            # Direct generation check
-            self.assertEqual(rec["risk_adjusted_score"], rec["risk_adjusted_alpha"])
+            self.assertIsNotNone(rec["risk_adjusted_score"])
+            self.assertNotIn("risk_adjusted_alpha", rec)
 
-            # Universe normalization check
             norm_recs = normalize_universe_liquidity_scores([rec], market_regime=r_str)
-            self.assertEqual(
-                norm_recs[0]["risk_adjusted_score"], norm_recs[0]["risk_adjusted_alpha"]
-            )
+            self.assertIsNotNone(norm_recs[0]["risk_adjusted_score"])
+            self.assertNotIn("risk_adjusted_alpha", norm_recs[0])
 
     def test_missing_atr_trade_plan_behavior(self):
         """Regression test P1: Missing ATR does not raise error and produces valid trade plan bounds."""
@@ -353,7 +351,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         if rec["action"] in ["BUY", "WATCH"]:
             self.assertIsNotNone(tp["stop_loss"])
             self.assertLess(tp["stop_loss"], tp["entry_low"])
-            self.assertGreaterEqual(tp["tp1"], tp["entry_high"])
+            self.assertGreater(tp["tp1"], tp["entry_high"])
+            self.assertGreaterEqual(tp["tp2"], tp["tp1"])
 
     def test_trade_plan_invariants(self):
         n = 60
@@ -384,8 +383,9 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         if rec["action"] in ["BUY", "WATCH"]:
             self.assertLessEqual(tp["entry_low"], tp["entry_high"])
             self.assertLess(tp["stop_loss"], tp["entry_low"])
-            self.assertGreaterEqual(tp["tp1"], tp["entry_high"])
+            self.assertGreater(tp["tp1"], tp["entry_high"])
             self.assertGreaterEqual(tp["tp2"], tp["tp1"])
+            self.assertGreater(tp["risk_reward"], 0.0)
             self.assertGreaterEqual(tp["position_percent"], 0.0)
             self.assertLessEqual(tp["position_percent"], 100.0)
         else:
@@ -477,7 +477,6 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             )
 
             self.assertEqual(rec_t["signal_score"], rec_t_sliced["signal_score"])
-            self.assertEqual(rec_t["alpha_score"], rec_t_sliced["alpha_score"])
             self.assertEqual(
                 rec_t["trade_plan"]["current_price"], rec_t_sliced["trade_plan"]["current_price"]
             )
@@ -554,7 +553,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec["action"], "AVOID")
         self.assertEqual(rec["data_quality"], "INSUFFICIENT")
         self.assertIsNone(rec["signal_score"])
-        self.assertIsNone(rec["alpha_score"])
+        self.assertNotIn("alpha_score", rec)
         self.assertIsNone(rec["risk_metrics"]["var_t25"])
         self.assertIsNone(rec["trade_plan"]["current_price"])
 
@@ -566,7 +565,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         for regime in regimes:
             recs = [
                 {
-                    "alpha_score": 80.0,
+                    "signal_score": 80.0,
                     "risk_metrics": {
                         "avg_value_20d": 10.0,
                         "volatility_60d": 0.20,
@@ -576,7 +575,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
                 }
             ]
             norm = normalize_universe_liquidity_scores(recs, market_regime=regime)
-            scores[regime] = norm[0]["risk_adjusted_alpha"]
+            scores[regime] = norm[0]["risk_adjusted_score"]
 
         self.assertGreater(scores["STRONG_BULL"], scores["BULL"])
         self.assertGreater(scores["BULL"], scores["NEUTRAL"])
@@ -588,7 +587,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         recs = [
             {
                 "market_regime": "DEFENSIVE",  # Inner regime attempts to override
-                "alpha_score": 80.0,
+                "signal_score": 80.0,
                 "risk_metrics": {
                     "avg_value_20d": 10.0,
                     "volatility_60d": 0.20,
@@ -599,19 +598,19 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         ]
 
         norm = normalize_universe_liquidity_scores(recs, market_regime="STRONG_BULL")
-        expected_score = calculate_risk_adjusted_alpha(
-            alpha_score=80.0,
+        expected_score = calculate_risk_adjusted_score(
+            signal_score=80.0,
             regime="STRONG_BULL",
             volatility_60d=0.20,
             max_drawdown=-0.15,
             liquidity_score=100.0,
         )
 
-        self.assertEqual(norm[0]["risk_adjusted_alpha"], expected_score)
+        self.assertEqual(norm[0]["risk_adjusted_score"], expected_score)
         self.assertNotEqual(
-            norm[0]["risk_adjusted_alpha"],
-            calculate_risk_adjusted_alpha(
-                alpha_score=80.0,
+            norm[0]["risk_adjusted_score"],
+            calculate_risk_adjusted_score(
+                signal_score=80.0,
                 regime="DEFENSIVE",
                 volatility_60d=0.20,
                 max_drawdown=-0.15,
@@ -622,7 +621,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
     def test_invalid_market_regime_raises_error(self):
         recs = [
             {
-                "alpha_score": 80.0,
+                "signal_score": 80.0,
                 "risk_metrics": {
                     "avg_value_20d": 10.0,
                 },
@@ -636,15 +635,15 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             normalize_universe_liquidity_scores(recs, market_regime=None)
 
         with self.assertRaises(ValueError):
-            calculate_risk_adjusted_alpha(alpha_score=80.0, regime="UNKNOWN")
+            calculate_risk_adjusted_score(signal_score=80.0, regime="UNKNOWN")
 
     @patch("scripts.generate_report.get_historical_data")
     @patch("scripts.generate_report.detect_market_regime")
     def test_run_pipeline_market_regime_propagation(self, mock_detect, mock_get_hist):
         """Integration test verifying canonical market regime flow in run_pipeline().
 
-        Flow: detect_market_regime() -> generate_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_alpha.
-        Ensures top-level market regime is propagated and used for final risk_adjusted_alpha without falling back to DEFENSIVE.
+        Flow: detect_market_regime() -> generate_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_score.
+        Ensures top-level market regime is propagated and used for final risk_adjusted_score without falling back to DEFENSIVE.
         """
         from scripts.generate_report import run_pipeline
 
@@ -675,25 +674,25 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(recs_data_bull["market"]["regime"], "STRONG_BULL")
 
         rec_fpt_bull = next(r for r in recs_data_bull["recommendations"] if r["symbol"] == "FPT")
-        self.assertIsNotNone(rec_fpt_bull["risk_adjusted_alpha"])
+        self.assertIsNotNone(rec_fpt_bull["risk_adjusted_score"])
 
-        expected_strong_bull_alpha = calculate_risk_adjusted_alpha(
-            alpha_score=rec_fpt_bull["alpha_score"],
+        expected_strong_bull_score = calculate_risk_adjusted_score(
+            signal_score=rec_fpt_bull["signal_score"],
             regime="STRONG_BULL",
             volatility_60d=rec_fpt_bull["risk_metrics"]["volatility_60d"],
             max_drawdown=rec_fpt_bull["risk_metrics"]["max_drawdown"],
             liquidity_score=rec_fpt_bull["risk_metrics"]["liquidity_score"],
         )
-        defensive_fallback_alpha = calculate_risk_adjusted_alpha(
-            alpha_score=rec_fpt_bull["alpha_score"],
+        defensive_fallback_score = calculate_risk_adjusted_score(
+            signal_score=rec_fpt_bull["signal_score"],
             regime="DEFENSIVE",
             volatility_60d=rec_fpt_bull["risk_metrics"]["volatility_60d"],
             max_drawdown=rec_fpt_bull["risk_metrics"]["max_drawdown"],
             liquidity_score=rec_fpt_bull["risk_metrics"]["liquidity_score"],
         )
 
-        self.assertEqual(rec_fpt_bull["risk_adjusted_alpha"], expected_strong_bull_alpha)
-        self.assertNotEqual(rec_fpt_bull["risk_adjusted_alpha"], defensive_fallback_alpha)
+        self.assertEqual(rec_fpt_bull["risk_adjusted_score"], expected_strong_bull_score)
+        self.assertNotEqual(rec_fpt_bull["risk_adjusted_score"], defensive_fallback_score)
 
         # Test case B: Market regime detected as BEAR
         mock_detect.return_value = {
@@ -707,16 +706,16 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(recs_data_bear["market"]["regime"], "BEAR")
 
         rec_fpt_bear = next(r for r in recs_data_bear["recommendations"] if r["symbol"] == "FPT")
-        expected_bear_alpha = calculate_risk_adjusted_alpha(
-            alpha_score=rec_fpt_bear["alpha_score"],
+        expected_bear_score = calculate_risk_adjusted_score(
+            signal_score=rec_fpt_bear["signal_score"],
             regime="BEAR",
             volatility_60d=rec_fpt_bear["risk_metrics"]["volatility_60d"],
             max_drawdown=rec_fpt_bear["risk_metrics"]["max_drawdown"],
             liquidity_score=rec_fpt_bear["risk_metrics"]["liquidity_score"],
         )
 
-        self.assertEqual(rec_fpt_bear["risk_adjusted_alpha"], expected_bear_alpha)
-        self.assertLess(rec_fpt_bear["risk_adjusted_alpha"], rec_fpt_bull["risk_adjusted_alpha"])
+        self.assertEqual(rec_fpt_bear["risk_adjusted_score"], expected_bear_score)
+        self.assertLess(rec_fpt_bear["risk_adjusted_score"], rec_fpt_bull["risk_adjusted_score"])
 
 
 if __name__ == "__main__":

@@ -128,7 +128,7 @@ export function History() {
                 <tr className="border-b border-border bg-muted/40 font-mono text-[10px] text-muted-foreground uppercase">
                   <th className="p-3">Mã CP</th>
                   <th className="p-3 text-center">Hành động</th>
-                  <th className="p-3 text-right">Alpha Score</th>
+                  <th className="p-3 text-right">Signal Score</th>
                   <th className="p-3 text-right">Giá hiện tại</th>
                   <th className="p-3 text-center">Vùng mua / TP / SL</th>
                 </tr>
@@ -162,7 +162,7 @@ export function History() {
                       </Badge>
                     </td>
                     <td className="p-3 text-right font-mono font-bold">
-                      {rec.alpha_score != null ? rec.alpha_score.toFixed(1) : "—"}
+                      {rec.signal_score != null ? rec.signal_score.toFixed(1) : "—"}
                     </td>
                     <td className="p-3 text-right font-bold">
                       {formatVnd(rec.trade_plan.current_price)}

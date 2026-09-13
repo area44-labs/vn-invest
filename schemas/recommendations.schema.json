@@ -106,8 +106,8 @@
         "exchange",
         "sector",
         "action",
-        "alpha_score",
-        "risk_adjusted_alpha",
+        "signal_score",
+        "risk_adjusted_score",
         "confidence",
         "risk_level",
         "expected_return",
@@ -136,17 +136,7 @@
           "minimum": 0.0,
           "maximum": 100.0
         },
-        "alpha_score": {
-          "type": ["number", "null"],
-          "minimum": 0.0,
-          "maximum": 100.0
-        },
         "risk_adjusted_score": {
-          "type": ["number", "null"],
-          "minimum": 0.0,
-          "maximum": 100.0
-        },
-        "risk_adjusted_alpha": {
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0

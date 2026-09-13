@@ -218,7 +218,6 @@ def calculate_divergence_score(tf_summary: dict | None) -> float | None:
 
     tf_scores = []
     for tf_label, div in available_tfs:
-        tf_score = 50.0
         bullish = bool(div.get("rsi_bullish") or div.get("macd_bullish"))
         bearish = bool(div.get("rsi_bearish") or div.get("macd_bearish"))
 
@@ -297,7 +296,7 @@ def calculate_confidence(
         variance = sum((s - mean_score) ** 2 for s in available_scores) / len(available_scores)
         std_dev = math.sqrt(variance)
 
-        # High agreement (std_dev < 12.0) increases confidence; strong dispersion (std_dev > 25.0) decreases confidence.
+        # High agreement (std_dev < 12.0) increases confidence; strong dispersion (std_dev > 22.0) decreases confidence.
         if std_dev < 12.0:
             base_conf += 0.10
         elif std_dev < 18.0:
@@ -322,15 +321,15 @@ def calculate_confidence(
     return round(max(0.10, min(0.95, base_conf)), 2)
 
 
-def calculate_risk_adjusted_alpha(
-    alpha_score: float | None,
+def calculate_risk_adjusted_score(
+    signal_score: float | None,
     regime: str,
     volatility_60d: float | None = None,
     max_drawdown: float | None = None,
     liquidity_score: float | None = None,
 ) -> float | None:
     """Calculate deterministic and explainable risk-adjusted signal score."""
-    if alpha_score is None:
+    if signal_score is None:
         return None
 
     regime_map = {
@@ -362,12 +361,8 @@ def calculate_risk_adjusted_alpha(
     if liq is not None:
         liq_factor = 0.85 + 0.15 * (max(0.0, min(100.0, liq)) / 100.0)
 
-    score = alpha_score * regime_factor * (1.0 - vol_penalty) * (1.0 - mdd_penalty) * liq_factor
+    score = signal_score * regime_factor * (1.0 - vol_penalty) * (1.0 - mdd_penalty) * liq_factor
     return max(0.0, min(100.0, round(score, 1)))
-
-
-# Alias for canonical terminology
-calculate_risk_adjusted_score = calculate_risk_adjusted_alpha
 
 
 def classify_action(
@@ -444,9 +439,7 @@ def generate_recommendation(
             "model_version": SIGNAL_MODEL_VERSION,
             "data_quality": "INSUFFICIENT",
             "signal_score": None,
-            "alpha_score": None,  # Compatibility field
             "risk_adjusted_score": None,
-            "risk_adjusted_alpha": None,  # Compatibility field
             "score_components": {
                 "trend": None,
                 "momentum": None,
@@ -627,7 +620,7 @@ def generate_recommendation(
 
     invalidation = []
 
-    if action in ["BUY", "WATCH"]:
+    if action in ["BUY", "WATCH"] and raw_close is not None:
         stop_atr_component = (raw_close - 1.8 * atr) if atr is not None else (raw_close * 0.95)
         sl_raw = max(
             stop_atr_component,
@@ -677,7 +670,7 @@ def generate_recommendation(
         )
     else:
         trade_plan = {
-            "current_price": current_price_vnd,
+            "current_price": current_price_vnd if raw_close is not None else None,
             "entry_low": None,
             "entry_high": None,
             "stop_loss": None,
@@ -700,8 +693,8 @@ def generate_recommendation(
     }
 
     # Calculate risk-adjusted score
-    risk_adjusted_score = calculate_risk_adjusted_alpha(
-        alpha_score=score,
+    risk_adjusted_score = calculate_risk_adjusted_score(
+        signal_score=score,
         regime=regime,
         volatility_60d=vol60,
         max_drawdown=mdd,
@@ -733,9 +726,7 @@ def generate_recommendation(
         "model_version": SIGNAL_MODEL_VERSION,
         "data_quality": data_quality,
         "signal_score": score,
-        "alpha_score": score,  # Backward compatibility alias
         "risk_adjusted_score": risk_adjusted_score,
-        "risk_adjusted_alpha": risk_adjusted_score,  # Backward compatibility alias
         "score_components": score_components,
         "confidence": confidence,
         "risk_level": risk_level,

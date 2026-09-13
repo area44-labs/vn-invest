@@ -94,9 +94,9 @@ def normalize_universe_liquidity_scores(
 ) -> list[dict]:
     """Compute 0-100 percentile rank for liquidity_score across all stocks in universe at same point in time.
 
-    Also updates risk_adjusted_alpha using the finalized liquidity_score and explicitly provided market_regime.
+    Also updates risk_adjusted_score using the finalized liquidity_score and explicitly provided market_regime.
     """
-    from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_alpha
+    from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_score
 
     regime_str = None
     if isinstance(market_regime, dict):
@@ -129,25 +129,18 @@ def normalize_universe_liquidity_scores(
             r["risk_metrics"]["liquidity_score"] = liq_score
             idx_map += 1
 
-            # Re-calculate risk_adjusted_score and risk_adjusted_alpha alias with populated liquidity_score using explicit market_regime
-            if r.get("signal_score") is not None or r.get("alpha_score") is not None:
-                score_val = (
-                    r.get("signal_score")
-                    if r.get("signal_score") is not None
-                    else r.get("alpha_score")
-                )
-                final_adj = calculate_risk_adjusted_alpha(
-                    alpha_score=score_val,
+            # Re-calculate risk_adjusted_score with populated liquidity_score using explicit market_regime
+            if r.get("signal_score") is not None:
+                final_adj = calculate_risk_adjusted_score(
+                    signal_score=r["signal_score"],
                     regime=regime_str,
                     volatility_60d=r["risk_metrics"].get("volatility_60d"),
                     max_drawdown=r["risk_metrics"].get("max_drawdown"),
                     liquidity_score=liq_score,
                 )
                 r["risk_adjusted_score"] = final_adj
-                r["risk_adjusted_alpha"] = final_adj
             else:
                 r["risk_adjusted_score"] = None
-                r["risk_adjusted_alpha"] = None
         else:
             r["risk_metrics"]["liquidity_score"] = None
 

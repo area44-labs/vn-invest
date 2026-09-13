@@ -84,10 +84,8 @@ export interface Recommendation {
   action: ActionType;
   model_version?: string;
   data_quality?: DataQuality;
-  signal_score?: number | null;
-  alpha_score: number | null;
-  risk_adjusted_score?: number | null;
-  risk_adjusted_alpha: number | null;
+  signal_score: number | null;
+  risk_adjusted_score: number | null;
   score_components?: ScoreComponents | null;
   confidence: number | null;
   risk_level: RiskLevel;

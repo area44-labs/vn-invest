@@ -15,7 +15,7 @@ export const Route = createFileRoute("/stock/$symbol")({
       },
       {
         name: "description",
-        content: `Phân tích và khuyến nghị định lượng mã cổ phiếu ${params.symbol.toUpperCase()} dựa trên chỉ báo kỹ thuật, điểm Alpha Score và quản trị rủi ro T+2.5.`,
+        content: `Phân tích và khuyến nghị định lượng mã cổ phiếu ${params.symbol.toUpperCase()} dựa trên chỉ báo kỹ thuật, điểm Signal Score và quản trị rủi ro T+2.5.`,
       },
       {
         property: "og:title",
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/stock/$symbol")({
       },
       {
         property: "og:description",
-        content: `Khuyến nghị Mua/Bán, điểm số Alpha Score và kế hoạch giao dịch mã ${params.symbol.toUpperCase()} trên VN Invest.`,
+        content: `Khuyến nghị Mua/Bán, điểm số Signal Score và kế hoạch giao dịch mã ${params.symbol.toUpperCase()} trên VN Invest.`,
       },
     ],
   }),
