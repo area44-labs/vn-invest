@@ -129,15 +129,21 @@ def normalize_universe_liquidity_scores(
             r["risk_metrics"]["liquidity_score"] = liq_score
             idx_map += 1
 
-            # Re-calculate risk_adjusted_alpha with populated liquidity_score using explicit market_regime
-            if r.get("alpha_score") is not None:
-                r["risk_adjusted_alpha"] = calculate_risk_adjusted_alpha(
-                    alpha_score=r["alpha_score"],
+            # Re-calculate risk_adjusted_score and risk_adjusted_alpha alias with populated liquidity_score using explicit market_regime
+            if r.get("signal_score") is not None or r.get("alpha_score") is not None:
+                score_val = r.get("signal_score") if r.get("signal_score") is not None else r.get("alpha_score")
+                final_adj = calculate_risk_adjusted_alpha(
+                    alpha_score=score_val,
                     regime=regime_str,
                     volatility_60d=r["risk_metrics"].get("volatility_60d"),
                     max_drawdown=r["risk_metrics"].get("max_drawdown"),
                     liquidity_score=liq_score,
                 )
+                r["risk_adjusted_score"] = final_adj
+                r["risk_adjusted_alpha"] = final_adj
+            else:
+                r["risk_adjusted_score"] = None
+                r["risk_adjusted_alpha"] = None
         else:
             r["risk_metrics"]["liquidity_score"] = None
 
