@@ -498,7 +498,7 @@ def generate_recommendation(
     rsi = _safe_float(df_d["rsi"].iloc[-1])
     macd_hist = _safe_float(df_d["hist"].iloc[-1])
     prev_macd_hist = _safe_float(df_d["hist"].iloc[-2]) if len(df_d) >= 2 else None
-    atr = _safe_float(df_d["atr"].iloc[-1]) or 0.0
+    atr = _safe_float(df_d["atr"].iloc[-1])
 
     vol_20d_avg = _safe_float(df_d["vol_ma20"].iloc[-1])
     current_vol = _safe_float(df_d["volume"].iloc[-1])
@@ -628,8 +628,9 @@ def generate_recommendation(
     invalidation = []
 
     if action in ["BUY", "WATCH"]:
+        stop_atr_component = (raw_close - 1.8 * atr) if atr is not None else (raw_close * 0.95)
         sl_raw = max(
-            raw_close - 1.8 * atr,
+            stop_atr_component,
             lowest_5d,
             (raw_ma20 * 0.98 if raw_ma20 else raw_close * 0.95),
             raw_close * 0.93,

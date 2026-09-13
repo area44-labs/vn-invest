@@ -131,7 +131,11 @@ def normalize_universe_liquidity_scores(
 
             # Re-calculate risk_adjusted_score and risk_adjusted_alpha alias with populated liquidity_score using explicit market_regime
             if r.get("signal_score") is not None or r.get("alpha_score") is not None:
-                score_val = r.get("signal_score") if r.get("signal_score") is not None else r.get("alpha_score")
+                score_val = (
+                    r.get("signal_score")
+                    if r.get("signal_score") is not None
+                    else r.get("alpha_score")
+                )
                 final_adj = calculate_risk_adjusted_alpha(
                     alpha_score=score_val,
                     regime=regime_str,

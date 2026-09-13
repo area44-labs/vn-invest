@@ -287,6 +287,74 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         )
         self.assertLess(score_high_risk, score)
 
+    def test_risk_adjusted_score_equals_risk_adjusted_alpha_across_regimes(self):
+        """Regression test P0: Verify risk_adjusted_score == risk_adjusted_alpha across all market regimes and after universe normalization."""
+        n = 60
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        close_bull = np.linspace(20.0, 35.0, n)
+        df_bull = pd.DataFrame(
+            {
+                "time": dates,
+                "open": close_bull - 0.2,
+                "high": close_bull + 0.5,
+                "low": close_bull - 0.5,
+                "close": close_bull,
+                "volume": [500000] * n,
+            }
+        )
+
+        regimes = ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]
+        for r_str in regimes:
+            rec = generate_recommendation(
+                symbol="FPT",
+                company_name="FPT",
+                sector="Tech",
+                exchange="HOSE",
+                df_stock=df_bull,
+                market_regime_info={"regime": r_str, "regime_score": 50.0},
+            )
+
+            # Direct generation check
+            self.assertEqual(rec["risk_adjusted_score"], rec["risk_adjusted_alpha"])
+
+            # Universe normalization check
+            norm_recs = normalize_universe_liquidity_scores([rec], market_regime=r_str)
+            self.assertEqual(
+                norm_recs[0]["risk_adjusted_score"], norm_recs[0]["risk_adjusted_alpha"]
+            )
+
+    def test_missing_atr_trade_plan_behavior(self):
+        """Regression test P1: Missing ATR does not raise error and produces valid trade plan bounds."""
+        n = 60
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        close_bull = np.linspace(20.0, 35.0, n)
+        df_bull = pd.DataFrame(
+            {
+                "time": dates,
+                "open": close_bull - 0.2,
+                "high": close_bull + 0.5,
+                "low": close_bull - 0.5,
+                "close": close_bull,
+                "volume": [500000] * n,
+                "atr": [None] * n,  # Explicitly missing ATR
+            }
+        )
+
+        rec = generate_recommendation(
+            symbol="FPT",
+            company_name="FPT",
+            sector="Tech",
+            exchange="HOSE",
+            df_stock=df_bull,
+            market_regime_info={"regime": "STRONG_BULL"},
+        )
+
+        tp = rec["trade_plan"]
+        if rec["action"] in ["BUY", "WATCH"]:
+            self.assertIsNotNone(tp["stop_loss"])
+            self.assertLess(tp["stop_loss"], tp["entry_low"])
+            self.assertGreaterEqual(tp["tp1"], tp["entry_high"])
+
     def test_trade_plan_invariants(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
