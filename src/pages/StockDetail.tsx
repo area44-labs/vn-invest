@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import {
+  Activity,
+  AlertTriangle,
   ArrowLeft,
+  BarChart3,
+  HelpCircle,
   ShieldAlert,
   Sparkles,
   Target,
-  AlertTriangle,
-  Activity,
-  BarChart3,
-  HelpCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -125,18 +125,18 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
       {/* Grid Overview Metrics */}
       <div className="grid grid-cols-2 gap-3 font-mono sm:grid-cols-4">
         <div className="space-y-1 rounded-sm border border-border bg-card p-4 text-center">
-          <span className="block text-[10px] text-muted-foreground uppercase">Alpha Score</span>
+          <span className="block text-[10px] text-muted-foreground uppercase">Signal Score</span>
           <span className="text-2xl font-extrabold text-foreground">
-            {formatScore(stock.alpha_score)}
+            {formatScore(stock.signal_score)}
           </span>
         </div>
 
         <div className="space-y-1 rounded-sm border border-border bg-card p-4 text-center">
           <span className="block text-[10px] text-muted-foreground uppercase">
-            Risk-Adjusted Alpha
+            Risk-Adjusted Score
           </span>
           <span className="text-2xl font-extrabold text-trend-up-text">
-            {formatScore(stock.risk_adjusted_alpha)}
+            {formatScore(stock.risk_adjusted_score)}
           </span>
         </div>
 

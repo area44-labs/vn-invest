@@ -106,8 +106,8 @@
         "exchange",
         "sector",
         "action",
-        "alpha_score",
-        "risk_adjusted_alpha",
+        "signal_score",
+        "risk_adjusted_score",
         "confidence",
         "risk_level",
         "expected_return",
@@ -126,15 +126,31 @@
           "type": "string",
           "enum": ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
         },
-        "alpha_score": {
+        "model_version": { "type": "string" },
+        "data_quality": {
+          "type": "string",
+          "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
+        },
+        "signal_score": {
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
         },
-        "risk_adjusted_alpha": {
+        "risk_adjusted_score": {
           "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
+        },
+        "score_components": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "trend": { "type": ["number", "null"] },
+            "momentum": { "type": ["number", "null"] },
+            "volume": { "type": ["number", "null"] },
+            "relative_strength": { "type": ["number", "null"] },
+            "divergence": { "type": ["number", "null"] }
+          }
         },
         "confidence": {
           "type": ["number", "null"],

@@ -66,18 +66,18 @@ class TestSSGStaticHTML(unittest.TestCase):
         sorted_buys = sorted(
             buy_list,
             key=lambda x: (
-                x.get("risk_adjusted_alpha")
-                if x.get("risk_adjusted_alpha") is not None
-                else (x.get("alpha_score") or 0)
+                x.get("risk_adjusted_score")
+                if x.get("risk_adjusted_score") is not None
+                else (x.get("signal_score") or 0)
             ),
             reverse=True,
         )
         sorted_sells = sorted(
             sell_list,
             key=lambda x: (
-                x.get("risk_adjusted_alpha")
-                if x.get("risk_adjusted_alpha") is not None
-                else (x.get("alpha_score") or 0)
+                x.get("risk_adjusted_score")
+                if x.get("risk_adjusted_score") is not None
+                else (x.get("signal_score") or 0)
             ),
             reverse=True,
         )
@@ -88,8 +88,8 @@ class TestSSGStaticHTML(unittest.TestCase):
         for rec in rendered_top_recs:
             symbol = rec.get("symbol")
             action = rec.get("action")
-            alpha_score = rec.get("alpha_score")
-            risk_adj_alpha = rec.get("risk_adjusted_alpha")
+            signal_score = rec.get("signal_score")
+            risk_adj_score = rec.get("risk_adjusted_score")
 
             self.assertIn(
                 symbol,
@@ -104,20 +104,20 @@ class TestSSGStaticHTML(unittest.TestCase):
                     f"Dashboard static HTML missing action '{action}' for '{symbol}'",
                 )
 
-            if alpha_score is not None:
-                formatted_alpha = f"{alpha_score:.1f}"
+            if signal_score is not None:
+                formatted_signal = f"{signal_score:.1f}"
                 self.assertIn(
-                    formatted_alpha,
+                    formatted_signal,
                     html_content,
-                    f"Dashboard static HTML missing formatted alpha_score '{formatted_alpha}' for '{symbol}'",
+                    f"Dashboard static HTML missing formatted signal_score '{formatted_signal}' for '{symbol}'",
                 )
 
-            if risk_adj_alpha is not None:
-                formatted_risk_adj = f"{risk_adj_alpha:.1f}"
+            if risk_adj_score is not None:
+                formatted_risk_adj = f"{risk_adj_score:.1f}"
                 self.assertIn(
                     formatted_risk_adj,
                     html_content,
-                    f"Dashboard static HTML missing formatted risk_adjusted_alpha '{formatted_risk_adj}' for '{symbol}'",
+                    f"Dashboard static HTML missing formatted risk_adjusted_score '{formatted_risk_adj}' for '{symbol}'",
                 )
 
     def test_stock_detail_static_html_for_all_prerendered_symbols(self):
@@ -195,20 +195,20 @@ class TestSSGStaticHTML(unittest.TestCase):
                 f"Stock detail HTML for '{symbol}' missing symbol string.",
             )
 
-            # Must contain at least one quantitative value (alpha_score or risk_adjusted_alpha)
-            alpha_score = rec.get("alpha_score")
-            risk_adj_alpha = rec.get("risk_adjusted_alpha")
-            if alpha_score is not None:
+            # Must contain at least one quantitative value (signal_score or risk_adjusted_score)
+            signal_score = rec.get("signal_score")
+            risk_adj_score = rec.get("risk_adjusted_score")
+            if signal_score is not None:
                 self.assertIn(
-                    f"{alpha_score:.1f}",
+                    f"{signal_score:.1f}",
                     html_content,
-                    f"Stock detail static HTML for '{symbol}' missing alpha_score.",
+                    f"Stock detail static HTML for '{symbol}' missing signal_score.",
                 )
-            elif risk_adj_alpha is not None:
+            elif risk_adj_score is not None:
                 self.assertIn(
-                    f"{risk_adj_alpha:.1f}",
+                    f"{risk_adj_score:.1f}",
                     html_content,
-                    f"Stock detail static HTML for '{symbol}' missing risk_adjusted_alpha.",
+                    f"Stock detail static HTML for '{symbol}' missing risk_adjusted_score.",
                 )
 
 

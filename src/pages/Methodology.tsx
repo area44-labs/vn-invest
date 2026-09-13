@@ -27,7 +27,7 @@ export function Methodology() {
             (Methodology)
           </h1>
           <p className="text-xs text-muted-foreground">
-            Giải thích chi tiết quy trình tính toán, chấm điểm Alpha Score, mô hình rủi ro T+2.5 và
+            Giải thích chi tiết quy trình tính toán, chấm điểm Signal Score, mô hình rủi ro T+2.5 và
             quy tắc giao dịch.
           </p>
         </div>
@@ -44,7 +44,7 @@ export function Methodology() {
             <span className="text-[10px] text-muted-foreground">Phân tích xu hướng chung</span>
           </div>
           <div className="rounded border border-border bg-background p-2">
-            <span className="block font-bold text-foreground">2. Alpha Score</span>
+            <span className="block font-bold text-foreground">2. Signal Score</span>
             <span className="text-[10px] text-muted-foreground">Kỹ thuật & Xu hướng</span>
           </div>
           <div className="rounded border border-border bg-background p-2">
@@ -81,7 +81,7 @@ export function Methodology() {
             <strong>BULL:</strong> Xu hướng tăng ổn định, hỗ trợ xu hướng vững chắc.
           </li>
           <li>
-            <strong>DEFENSIVE:</strong> Thị trường giằng co, phân hóa cao. Yêu cầu điểm số Alpha
+            <strong>DEFENSIVE:</strong> Thị trường giằng co, phân hóa cao. Yêu cầu điểm số Signal
             Score khắt khe hơn để đưa ra khuyến nghị BUY.
           </li>
           <li>
@@ -95,14 +95,14 @@ export function Methodology() {
         </ul>
       </div>
 
-      {/* Section 2: Alpha Score & Technical Signals */}
+      {/* Section 2: Signal Score & Technical Signals */}
       <div className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
-          <Sparkles className="h-5 w-5 text-trend-up-text" /> 2. Điểm Số Alpha Score & Chỉ Báo Kỹ
+          <Sparkles className="h-5 w-5 text-trend-up-text" /> 2. Điểm Số Signal Score & Chỉ Báo Kỹ
           Thuật
         </h2>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Alpha Score được chấm trên thang điểm 0 - 100 dựa trên các chỉ báo kỹ thuật chuẩn hóa:
+          Signal Score được chấm trên thang điểm 0 - 100 dựa trên các chỉ báo kỹ thuật chuẩn hóa:
         </p>
         <div className="grid grid-cols-1 gap-3 font-mono text-xs sm:grid-cols-2">
           <div className="rounded border border-border bg-background p-3">
@@ -134,11 +134,11 @@ export function Methodology() {
         </div>
       </div>
 
-      {/* Section 3: Risk Horizon T+2.5 & Risk-Adjusted Alpha */}
+      {/* Section 3: Risk Horizon T+2.5 & Risk-Adjusted Score */}
       <div className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
           <BarChart3 className="h-5 w-5 text-trend-down-text" /> 3. Mô Hình Rủi Ro T+2.5 &
-          Risk-Adjusted Alpha
+          Risk-Adjusted Score
         </h2>
         <p className="text-xs leading-relaxed text-muted-foreground">
           Do đặc thù chu kỳ thanh toán T+2.5 tại Việt Nam, rủi ro giữ vị thế 3 phiên giao dịch được
@@ -158,8 +158,8 @@ export function Methodology() {
             giao dịch bình quân 20 phiên trong toàn bộ universe.
           </li>
           <li>
-            <strong>Risk-Adjusted Alpha:</strong> Công thức điều chỉnh điểm Alpha minh bạch dựa trên
-            biến động 60 ngày, Max Drawdown và hệ số Market Regime.
+            <strong>Risk-Adjusted Score:</strong> Công thức điều chỉnh điểm Signal minh bạch dựa
+            trên biến động 60 ngày, Max Drawdown và hệ số Market Regime.
           </li>
         </ul>
       </div>

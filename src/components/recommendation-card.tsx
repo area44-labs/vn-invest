@@ -60,13 +60,13 @@ export function RecommendationCard({ recommendation: r, rank }: RecommendationCa
       {/* Metric Badges */}
       <div className="grid grid-cols-3 gap-2 text-center font-mono text-[11px]">
         <div className="rounded-sm border border-border bg-background p-2">
-          <span className="block text-[9px] text-muted-foreground uppercase">Alpha Score</span>
-          <span className="font-extrabold text-foreground">{formatScore(r.alpha_score)}</span>
+          <span className="block text-[9px] text-muted-foreground uppercase">Signal Score</span>
+          <span className="font-extrabold text-foreground">{formatScore(r.signal_score)}</span>
         </div>
         <div className="rounded-sm border border-border bg-background p-2">
           <span className="block text-[9px] text-muted-foreground uppercase">Rủi Ro Chỉnh</span>
           <span className="font-extrabold text-trend-up-text">
-            {formatScore(r.risk_adjusted_alpha)}
+            {formatScore(r.risk_adjusted_score)}
           </span>
         </div>
         <div className="rounded-sm border border-border bg-background p-2">

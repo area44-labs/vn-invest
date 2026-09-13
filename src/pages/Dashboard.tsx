@@ -60,14 +60,16 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
     (r) => r.action === "SELL" || r.action === "AVOID" || r.action === "HOLD",
   );
 
-  // Deterministic ranking by risk_adjusted_alpha or alpha_score DESC
+  // Deterministic ranking by risk_adjusted_score or signal_score DESC
   const sortedBuys = [...buyList].sort(
     (a, b) =>
-      (b.risk_adjusted_alpha ?? b.alpha_score ?? 0) - (a.risk_adjusted_alpha ?? a.alpha_score ?? 0),
+      (b.risk_adjusted_score ?? b.signal_score ?? 0) -
+      (a.risk_adjusted_score ?? a.signal_score ?? 0),
   );
   const sortedSells = [...sellList].sort(
     (a, b) =>
-      (b.risk_adjusted_alpha ?? b.alpha_score ?? 0) - (a.risk_adjusted_alpha ?? a.alpha_score ?? 0),
+      (b.risk_adjusted_score ?? b.signal_score ?? 0) -
+      (a.risk_adjusted_score ?? a.signal_score ?? 0),
   );
 
   const topBuys = sortedBuys.slice(0, 4);
@@ -147,7 +149,7 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
       <div className="rounded-sm border border-border bg-accent/30 p-4">
         <h2 className="text-lg font-bold text-foreground">Hôm nay nên chú ý cổ phiếu nào?</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Hệ thống xếp hạng định lượng ưu tiên các mã thỏa mãn bộ lọc Alpha Score, rủi ro T+2.5 và
+          Hệ thống xếp hạng định lượng ưu tiên các mã thỏa mãn bộ lọc Signal Score, rủi ro T+2.5 và
           quy tắc Market Regime ({data.market?.regime}).
         </p>
       </div>
@@ -159,7 +161,7 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
             <Sparkles className="mr-1.5 h-4 w-4" /> Top Khuyến Nghị Tiêu Biểu Hôm Nay
           </h3>
           <span className="font-mono text-[10px] text-muted-foreground">
-            Sắp xếp theo Risk-Adjusted Alpha
+            Sắp xếp theo Risk-Adjusted Score
           </span>
         </div>
 
