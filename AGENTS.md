@@ -12,8 +12,6 @@ Dự án tuân theo mô hình phân tách hoàn toàn giữa tính toán định
 Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG / GitHub Pages
 ```
 
-> **Lưu ý**: `scripts/update_stocks.py` hoàn toàn nằm ngoài quy trình quantitative active pipeline hiện tại và không thuộc hợp đồng phụ thuộc (dependency contract) của PR này.
-
 ```
 vn-invest/
 ├── .github/
@@ -82,7 +80,6 @@ python scripts/generate_report.py
 - Tất cả các gói phụ thuộc Python chính cho active quant pipeline được ghim phiên bản chính xác tại `requirements.txt`.
 - Phiên bản `vnstock` hỗ trợ chính thức là **4.0.7**.
 - Nâng cấp phụ thuộc: Khi cần nâng cấp dependency, phải kiểm tra khả năng tương thích của API (đặc biệt là `vnstock` quote/history unit contract) và chạy toàn bộ unit test suite trước khi cập nhật phiên bản ghim trong `requirements.txt`.
-- `scripts/update_stocks.py` không thuộc phạm vi active pipeline và được loại trừ khỏi dependency contract này.
 
 <!-- vnai-bootstrap | auto-generated -->
 
