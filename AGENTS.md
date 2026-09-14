@@ -46,7 +46,7 @@ vn-invest/
 │   └── types/                       # TypeScript interfaces mirroring JSON schema (recommendation.ts)
 ├── pyproject.toml                   # Ruff configuration for Python
 ├── package.json                     # Frontend dependencies & pnpm scripts
-└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==3.0.5, etc.)
+└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==2.2.3, etc.)
 ```
 
 ---
