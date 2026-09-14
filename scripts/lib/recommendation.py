@@ -12,7 +12,11 @@ import math
 
 from scripts.lib.features import calculate_multi_timeframe_features
 from scripts.lib.risk import calculate_t25_risk_metrics
-from scripts.lib.vietnam_market import clamp_price_limits, round_tick_size
+from scripts.lib.vietnam_market import (
+    clamp_price_limits,
+    extract_latest_trading_date,
+    round_tick_size,
+)
 
 SIGNAL_MODEL_VERSION = "2.0"
 
@@ -425,9 +429,13 @@ def generate_recommendation(
     df_vnindex=None,
     foreign_net_buy_bn: float = 0.0,
     prop_net_buy_bn: float = 0.0,
+    data_as_of: str | None = None,
+    data_source: str | None = None,
 ) -> dict:
     """Generate a single stock recommendation object for VN Invest Signal Engine v2.0."""
     ex = exchange.upper() if exchange else "HOSE"
+
+    stock_data_as_of = data_as_of or extract_latest_trading_date(df_stock)
 
     if df_stock is None or df_stock.empty or len(df_stock) < 20:
         return {
@@ -438,6 +446,8 @@ def generate_recommendation(
             "action": "AVOID",
             "model_version": SIGNAL_MODEL_VERSION,
             "data_quality": "INSUFFICIENT",
+            "data_as_of": stock_data_as_of,
+            "data_source": data_source,
             "signal_score": None,
             "risk_adjusted_score": None,
             "score_components": {
@@ -725,6 +735,8 @@ def generate_recommendation(
         "action": action,
         "model_version": SIGNAL_MODEL_VERSION,
         "data_quality": data_quality,
+        "data_as_of": stock_data_as_of,
+        "data_source": data_source,
         "signal_score": score,
         "risk_adjusted_score": risk_adjusted_score,
         "score_components": score_components,
