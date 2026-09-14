@@ -13,6 +13,35 @@ import numpy as np
 import pandas as pd
 
 
+def calculate_t25_returns(price_series: pd.Series) -> pd.Series:
+    """Calculate 3-session EOD proxy returns for the Vietnam T+2.5 settlement horizon.
+
+    Vietnam Market T+2.5 Settlement & Holding Horizon Context:
+    Under Vietnamese equity market settlement rules (T+2.5), securities purchased in trading
+    session T complete settlement on the afternoon of T+2. Consequently, the investor can first
+    trade or dispose of the position during trading session T+3.
+
+    EOD Data Proxy & Limitations:
+    Daily EOD OHLCV data consists of discrete trading-session closing/VWAP prices without intra-day
+    half-session observations. Exact intra-day settlement mechanics (e.g. trading at T+2 afternoon)
+    cannot be reconstructed from daily EOD data alone.
+
+    Therefore, a 3-trading-session return (R_{T+3} = (P_{T+3} - P_T) / P_T) serves as the project's
+    explicit, deterministic EOD risk-horizon proxy for T+2.5.
+
+    Input-Order & Clean-Data Contract:
+    `price_series` MUST be a chronologically ordered sequence of validated clean trading-session
+    prices produced upstream by the clean-data boundary (`get_clean_ohlcv_data`). This helper does
+    NOT perform calendar interpolation, date reindexing, price forward-filling, or synthetic row creation.
+
+    Requires at least 4 valid price observations (periods=3 + 1) to yield the first valid return.
+    """
+    if price_series is None or len(price_series) < 4:
+        return pd.Series(dtype=float)
+
+    return price_series.pct_change(periods=3).dropna()
+
+
 def calculate_t25_risk_metrics(
     df: pd.DataFrame,
     exchange: str = "HOSE",
@@ -41,8 +70,8 @@ def calculate_t25_risk_metrics(
 
     df_calc = df.copy()
 
-    # T+2.5 horizon corresponds to 3-session rolling return in daily EOD data
-    returns_3d = df_calc[price_col].pct_change(periods=3).dropna()
+    # Calculate T+2.5 settlement horizon returns using explicit EOD session mapping
+    returns_3d = calculate_t25_returns(df_calc[price_col])
 
     if len(returns_3d) < 10:
         return default_nulls
