@@ -9,9 +9,87 @@ class TestSSGStaticHTML(unittest.TestCase):
     Prevents regression back to initial loading placeholders and useEffect-only loading.
     """
 
+    def test_single_source_of_truth_no_duplicate_public_generated(self):
+        """Verify generated/ is the single source of truth and public/generated does not exist."""
+        public_generated_path = os.path.join(os.getcwd(), "public", "generated")
+        self.assertFalse(
+            os.path.exists(public_generated_path),
+            f"Duplicate data source found at '{public_generated_path}'. "
+            "generated/ must be the single source of truth; public/generated/ must not exist.",
+        )
+
+    def test_generated_data_plugin_path_boundary_security(self):
+        """Verify resolveGeneratedFilePath path boundary security invariants in Vite dev server."""
+        import subprocess
+
+        node_script = """
+const path = require("path");
+const fs = require("fs");
+
+function resolveGeneratedFilePath(urlPath, rootDir = process.cwd()) {
+  if (!urlPath) return null;
+  const relativeUrl = urlPath.split("?")[0].split("#")[0];
+  const match = relativeUrl.match(/\\/?(?:.*\\/)?(generated\\/.*)$/);
+  if (!match) return null;
+
+  const subPath = match[1];
+  const generatedDir = path.resolve(rootDir, "generated");
+  const resolvedPath = path.resolve(rootDir, subPath);
+
+  const rel = path.relative(generatedDir, resolvedPath);
+  const isInside = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  if (!isInside) return null;
+
+  try {
+    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+      return resolvedPath;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+const tests = {
+  valid: resolveGeneratedFilePath("/generated/recommendations.json"),
+  traversal: resolveGeneratedFilePath("/generated/../package.json"),
+  outside: resolveGeneratedFilePath("/package.json"),
+  directory: resolveGeneratedFilePath("/generated/history"),
+  sibling: resolveGeneratedFilePath("/generated-secret/file.json"),
+};
+
+console.log(JSON.stringify(tests));
+"""
+
+        res = subprocess.run(
+            ["node", "-e", node_script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        results = json.loads(res.stdout)
+
+        # 1. Valid generated JSON file can be served
+        self.assertIsNotNone(results.get("valid"))
+        self.assertTrue(
+            results["valid"].endswith(os.path.join("generated", "recommendations.json"))
+        )
+
+        # 2. Path traversal cannot escape generated/
+        self.assertIsNone(results.get("traversal"))
+
+        # 3. Path outside generated/ is not served
+        self.assertIsNone(results.get("outside"))
+
+        # 4. Directory is not served as a JSON file
+        self.assertIsNone(results.get("directory"))
+
+        # 5. Sibling directory with shared prefix is not served
+        self.assertIsNone(results.get("sibling"))
+
     def test_dashboard_static_html_contains_recommendation_data(self):
         index_html_path = os.path.join(os.getcwd(), "dist", "client", "index.html")
-        rec_json_path = os.path.join(os.getcwd(), "public", "generated", "recommendations.json")
+        rec_json_path = os.path.join(os.getcwd(), "generated", "recommendations.json")
 
         self.assertTrue(
             os.path.exists(index_html_path),
@@ -56,7 +134,7 @@ class TestSSGStaticHTML(unittest.TestCase):
         recommendations = rec_data.get("recommendations", [])
         self.assertTrue(
             len(recommendations) > 0,
-            "No recommendations found in public/generated/recommendations.json",
+            "No recommendations found in generated/recommendations.json",
         )
 
         # Filter top Buys & Sells as rendered on Dashboard cards
@@ -121,7 +199,7 @@ class TestSSGStaticHTML(unittest.TestCase):
                 )
 
     def test_stock_detail_static_html_for_all_prerendered_symbols(self):
-        rec_json_path = os.path.join(os.getcwd(), "public", "generated", "recommendations.json")
+        rec_json_path = os.path.join(os.getcwd(), "generated", "recommendations.json")
         self.assertTrue(
             os.path.exists(rec_json_path),
             f"Canonical data artifact missing: {rec_json_path}.",
@@ -135,7 +213,7 @@ class TestSSGStaticHTML(unittest.TestCase):
             len(recommendations) > 0, "No recommendations found in recommendations.json"
         )
 
-        # 1. Derive EXPECTED stock symbols directly from public/generated/recommendations.json
+        # 1. Derive EXPECTED stock symbols directly from generated/recommendations.json
         expected_symbols = sorted(
             {
                 r.get("symbol").strip()

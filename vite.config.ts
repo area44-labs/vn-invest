@@ -7,8 +7,63 @@ import { defineConfig } from "vite";
 
 const base = process.env.BASE || process.env.BASE_URL || "/";
 
+export function resolveGeneratedFilePath(
+  urlPath: string,
+  rootDir: string = process.cwd(),
+): string | null {
+  if (!urlPath) return null;
+
+  const relativeUrl = urlPath.split("?")[0].split("#")[0];
+  const match = relativeUrl.match(/\/?(?:.*\/)?(generated\/.*)$/);
+  if (!match) return null;
+
+  const subPath = match[1];
+  const generatedDir = path.resolve(rootDir, "generated");
+  const resolvedPath = path.resolve(rootDir, subPath);
+
+  const rel = path.relative(generatedDir, resolvedPath);
+  const isInside = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  if (!isInside) return null;
+
+  try {
+    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+      return resolvedPath;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function generatedDataPlugin() {
+  return {
+    name: "vite-plugin-generated-data",
+    configureServer(server: import("vite").ViteDevServer) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url) {
+          const filePath = resolveGeneratedFilePath(req.url);
+          if (filePath) {
+            res.setHeader("Content-Type", "application/json");
+            res.end(fs.readFileSync(filePath));
+            return;
+          }
+        }
+        next();
+      });
+    },
+    closeBundle() {
+      const generatedSrc = path.join(process.cwd(), "generated");
+      const clientOutDir = path.join(process.cwd(), "dist", "client", "generated");
+      if (fs.existsSync(generatedSrc)) {
+        fs.cpSync(generatedSrc, clientOutDir, { recursive: true });
+      }
+    },
+  };
+}
+
 function getPrerenderStockSymbols(): string[] {
-  const recPath = path.join(process.cwd(), "public", "generated", "recommendations.json");
+  const recPath = path.join(process.cwd(), "generated", "recommendations.json");
   if (!fs.existsSync(recPath)) {
     throw new Error(
       `[SSG Build Error] Canonical data artifact missing at '${recPath}'. ` +
@@ -61,6 +116,7 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    generatedDataPlugin(),
   ],
   resolve: {
     tsconfigPaths: true,
