@@ -64,7 +64,7 @@ ruff format --check .
 
 ### 3. Quy Định & Chính Sách Phụ Thuộc (Dependency Policy)
 
-- **Các gói phụ thuộc được ghim cố định**: Các phụ thuộc của active quantitative pipeline được ghim phiên bản chính xác tại `requirements.txt` (`vnstock==4.0.7`, `pandas==2.3.3`, `numpy==2.2.6`, `requests==2.34.2`, `jsonschema==4.26.0`, `openpyxl==3.1.5`).
+- **Các gói phụ thuộc được ghim cố định**: Các phụ thuộc của active quantitative pipeline được ghim phiên bản chính xác tại `requirements.txt`.
 - **Phiên bản `vnstock`**: Phiên bản hỗ trợ chính thức hiện tại là **4.0.7**.
 - **Quy trình nâng cấp dependency**: Muốn nâng cấp bất kỳ dependency nào, cần kiểm tra tính tương thích cấu trúc API/đơn vị tính (provider unit contract) và đảm bảo toàn bộ bộ kiểm thử trong `python scripts/tests/run_tests.py` vượt qua trước khi cập nhật phiên bản trong `requirements.txt`.
 
