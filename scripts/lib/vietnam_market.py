@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -628,7 +628,7 @@ def get_historical_data(
     """Fetch real historical EOD OHLCV data for a given symbol from vnstock."""
     sym = normalize_symbol(symbol)
     if not start_date or not end_date:
-        now_dt = datetime.now(timezone.utc)
+        now_dt = datetime.now(UTC)
         end_date = now_dt.strftime("%Y-%m-%d")
         start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
