@@ -18,6 +18,75 @@ class TestSSGStaticHTML(unittest.TestCase):
             "generated/ must be the single source of truth; public/generated/ must not exist.",
         )
 
+    def test_generated_data_plugin_path_boundary_security(self):
+        """Verify resolveGeneratedFilePath path boundary security invariants in Vite dev server."""
+        import subprocess
+
+        node_script = """
+const path = require("path");
+const fs = require("fs");
+
+function resolveGeneratedFilePath(urlPath, rootDir = process.cwd()) {
+  if (!urlPath) return null;
+  const relativeUrl = urlPath.split("?")[0].split("#")[0];
+  const match = relativeUrl.match(/\\/?(?:.*\\/)?(generated\\/.*)$/);
+  if (!match) return null;
+
+  const subPath = match[1];
+  const generatedDir = path.resolve(rootDir, "generated");
+  const resolvedPath = path.resolve(rootDir, subPath);
+
+  const rel = path.relative(generatedDir, resolvedPath);
+  const isInside = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  if (!isInside) return null;
+
+  try {
+    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+      return resolvedPath;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+const tests = {
+  valid: resolveGeneratedFilePath("/generated/recommendations.json"),
+  traversal: resolveGeneratedFilePath("/generated/../package.json"),
+  outside: resolveGeneratedFilePath("/package.json"),
+  directory: resolveGeneratedFilePath("/generated/history"),
+  sibling: resolveGeneratedFilePath("/generated-secret/file.json"),
+};
+
+console.log(JSON.stringify(tests));
+"""
+
+        res = subprocess.run(
+            ["node", "-e", node_script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        results = json.loads(res.stdout)
+
+        # 1. Valid generated JSON file can be served
+        self.assertIsNotNone(results.get("valid"))
+        self.assertTrue(
+            results["valid"].endswith(os.path.join("generated", "recommendations.json"))
+        )
+
+        # 2. Path traversal cannot escape generated/
+        self.assertIsNone(results.get("traversal"))
+
+        # 3. Path outside generated/ is not served
+        self.assertIsNone(results.get("outside"))
+
+        # 4. Directory is not served as a JSON file
+        self.assertIsNone(results.get("directory"))
+
+        # 5. Sibling directory with shared prefix is not served
+        self.assertIsNone(results.get("sibling"))
+
     def test_dashboard_static_html_contains_recommendation_data(self):
         index_html_path = os.path.join(os.getcwd(), "dist", "client", "index.html")
         rec_json_path = os.path.join(os.getcwd(), "generated", "recommendations.json")

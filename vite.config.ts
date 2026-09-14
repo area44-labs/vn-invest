@@ -7,26 +7,46 @@ import { defineConfig } from "vite";
 
 const base = process.env.BASE || process.env.BASE_URL || "/";
 
+export function resolveGeneratedFilePath(
+  urlPath: string,
+  rootDir: string = process.cwd(),
+): string | null {
+  if (!urlPath) return null;
+
+  const relativeUrl = urlPath.split("?")[0].split("#")[0];
+  const match = relativeUrl.match(/\/?(?:.*\/)?(generated\/.*)$/);
+  if (!match) return null;
+
+  const subPath = match[1];
+  const generatedDir = path.resolve(rootDir, "generated");
+  const resolvedPath = path.resolve(rootDir, subPath);
+
+  const rel = path.relative(generatedDir, resolvedPath);
+  const isInside = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  if (!isInside) return null;
+
+  try {
+    if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+      return resolvedPath;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function generatedDataPlugin() {
   return {
     name: "vite-plugin-generated-data",
     configureServer(server: import("vite").ViteDevServer) {
       server.middlewares.use((req, res, next) => {
         if (req.url) {
-          const relativeUrl = req.url.split("?")[0];
-          const match = relativeUrl.match(/\/?(?:.*\/)?(generated\/.*)$/);
-          if (match) {
-            const generatedDir = path.join(process.cwd(), "generated");
-            const filePath = path.resolve(process.cwd(), match[1]);
-            if (
-              filePath.startsWith(generatedDir) &&
-              fs.existsSync(filePath) &&
-              fs.statSync(filePath).isFile()
-            ) {
-              res.setHeader("Content-Type", "application/json");
-              res.end(fs.readFileSync(filePath));
-              return;
-            }
+          const filePath = resolveGeneratedFilePath(req.url);
+          if (filePath) {
+            res.setHeader("Content-Type", "application/json");
+            res.end(fs.readFileSync(filePath));
+            return;
           }
         }
         next();
