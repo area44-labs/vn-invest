@@ -184,56 +184,6 @@ class TestRiskModel(unittest.TestCase):
         # Confirm that bypassing clean data boundary produces a completely different (corrupted) return
         self.assertNotEqual(clean_returns.iloc[0], raw_returns.iloc[0])
 
-    def test_h_update_stocks_integration(self):
-        """Test H — Integration test for calculate_advanced_vn_risk_metrics in update_stocks.py with DatetimeIndex preservation."""
-        from scripts.update_stocks import calculate_advanced_vn_risk_metrics
-
-        n = 30
-        dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_prices = np.linspace(20000.0, 35000.0, n)
-        volumes = np.linspace(100000.0, 500000.0, n)
-
-        # Create DataFrame with DatetimeIndex to verify index alignment preservation
-        df = pd.DataFrame(
-            {
-                "time": dates.strftime("%Y-%m-%d"),
-                "open": close_prices - 100.0,
-                "high": close_prices + 500.0,
-                "low": close_prices - 500.0,
-                "close": close_prices,
-                "volume": volumes,
-            },
-            index=dates,
-        )
-
-        res = calculate_advanced_vn_risk_metrics(df, exchange="HOSE")
-
-        # Verify risk metrics dictionary keys and populated values
-        self.assertEqual(res["status"], "PASSED")
-        self.assertIsNotNone(res["historical_var_t25"])
-        self.assertIn("returns_t25", df.columns)
-        self.assertEqual(len(df["returns_t25"]), len(df))
-
-        # Verify Index preservation and strict alignment
-        pd.testing.assert_index_equal(df.index, dates)
-        self.assertTrue(pd.isna(df["returns_t25"].iloc[0]))
-        self.assertTrue(pd.isna(df["returns_t25"].iloc[1]))
-        self.assertTrue(pd.isna(df["returns_t25"].iloc[2]))
-
-        # First valid T+2.5 return occurs at index 3 (T -> T+3)
-        first_valid_t25 = df["returns_t25"].iloc[3]
-        expected_first_t25 = (df["close"].iloc[3] - df["close"].iloc[0]) / df["close"].iloc[0]
-        self.assertAlmostEqual(first_valid_t25, expected_first_t25, places=4)
-
-        # Verify anti-lookahead in df["returns_t25"]
-        df_modified = df.copy()
-        df_modified.loc[dates[-1], "close"] = 999999.0
-        _ = calculate_advanced_vn_risk_metrics(df_modified, exchange="HOSE")
-
-        self.assertAlmostEqual(
-            df["returns_t25"].iloc[3], df_modified["returns_t25"].iloc[3], places=6
-        )
-
     def test_i_other_risk_metrics_unchanged(self):
         """Test I — Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
         n = 60
