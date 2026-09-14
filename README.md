@@ -18,6 +18,8 @@ React / TanStack Router (src/)
 SSG / GitHub Pages Deployment
 ```
 
+_Lưu ý: `scripts/update_stocks.py` hoàn toàn nằm ngoài quy trình quantitative active pipeline hiện tại và không thuộc hợp đồng phụ thuộc của hệ thống._
+
 ## Tính Năng Nổi Bật
 
 - **Python Quantitative Engine**: Tính toán chỉ báo kỹ thuật (MA, RSI, MACD, ATR), nhận diện phân kỳ đa khung thời gian, phân tích trạng thái thị trường (Market Regime), chấm điểm Signal Score (VN Invest Signal Engine), tính rủi ro T+2.5 (Historical VaR 95%, Expected Shortfall, Max Drawdown) và lập kế hoạch giao dịch (Trade Plan).
@@ -45,8 +47,10 @@ pnpm build
 
 ### 2. Backend Quantitative Pipeline
 
+Hỗ trợ Python >= 3.10 (khuyến nghị Python 3.10 - 3.12).
+
 ```bash
-# Cài đặt Python dependencies
+# Cài đặt Python dependencies có tính tái lập cao (reproducible)
 pip install -r requirements.txt
 
 # Chạy báo cáo định lượng & tạo file JSON tĩnh
@@ -56,9 +60,16 @@ python scripts/generate_report.py
 python scripts/tests/run_tests.py
 
 # Lint & format Python code
-ruff check scripts
-ruff format scripts
+ruff check .
+ruff format --check .
 ```
+
+### 3. Quy Định & Chính Sách Phụ Thuộc (Dependency Policy)
+
+- **Các gói phụ thuộc được ghim cố định**: Các phụ thuộc của active quantitative pipeline được ghim phiên bản chính xác tại `requirements.txt` (`vnstock==4.0.7`, `pandas==2.3.3`, `numpy==2.2.6`, `requests==2.34.2`, `jsonschema==4.26.0`, `openpyxl==3.1.5`).
+- **Phiên bản `vnstock`**: Phiên bản hỗ trợ chính thức hiện tại là **4.0.7**.
+- **Quy trình nâng cấp dependency**: Muốn nâng cấp bất kỳ dependency nào, cần kiểm tra tính tương thích cấu trúc API/đơn vị tính (provider unit contract) và đảm bảo toàn bộ bộ kiểm thử trong `python scripts/tests/run_tests.py` vượt qua trước khi cập nhật phiên bản trong `requirements.txt`.
+- **Ngoại lệ `scripts/update_stocks.py`**: `scripts/update_stocks.py` không thuộc active pipeline và không tác động đến phụ thuộc của dự án.
 
 ## License
 
