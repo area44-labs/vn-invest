@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import jsonschema
 
@@ -72,7 +72,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     4. Generate Stock Recommendations using the Final Market Regime
     5. Compute Universe Percentile Liquidity Scores
     """
-    generated_at = datetime.now(UTC).isoformat()
+    generated_at = datetime.now(timezone.utc).isoformat()
     use_cache = not update_data
 
     provider = UniverseProvider()
@@ -214,7 +214,7 @@ def update_history_index(data_date: str | None):
         history_dates.sort(reverse=True)
 
     index_payload = {
-        "last_updated": datetime.now(UTC).isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
         "total_reports": len(history_dates),
         "dates": history_dates,
     }

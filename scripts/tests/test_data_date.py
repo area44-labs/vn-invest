@@ -1,7 +1,7 @@
 """Regression test suite for data-date semantics in the Python data pipeline."""
 
 import unittest
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pandas as pd
@@ -154,8 +154,8 @@ class TestDataDateSemantics(unittest.TestCase):
     def test_stale_data_is_detectable(self):
         """Verify stale data (data_as_of < current date) can be detected."""
         stale_date_str = "2020-01-01"
-        data_date = datetime.strptime(stale_date_str, "%Y-%m-%d").replace(tzinfo=UTC)
-        current_date = datetime.now(UTC)
+        data_date = datetime.strptime(stale_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        current_date = datetime.now(timezone.utc)
 
         days_diff = (current_date - data_date).days
         self.assertGreater(days_diff, 100)  # Clearly stale
