@@ -32,8 +32,6 @@ REQUIRED_OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 class CanonicalOHLCVError(ValueError):
     """Exception raised when canonical OHLCV validation fails."""
 
-    pass
-
 
 def parse_wait_seconds(err_str: str) -> int:
     """Extract wait seconds from vnstock rate limit notice."""
