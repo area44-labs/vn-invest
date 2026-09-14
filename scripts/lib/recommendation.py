@@ -16,6 +16,7 @@ from scripts.lib.vietnam_market import (
     clamp_price_limits,
     extract_latest_trading_date,
     round_tick_size,
+    validate_ohlcv_data,
 )
 
 SIGNAL_MODEL_VERSION = "2.0"
@@ -435,9 +436,12 @@ def generate_recommendation(
     """Generate a single stock recommendation object for VN Invest Signal Engine v2.0."""
     ex = exchange.upper() if exchange else "HOSE"
 
-    stock_data_as_of = data_as_of or extract_latest_trading_date(df_stock)
+    val_res = validate_ohlcv_data(df_stock, symbol)
+    stock_data_as_of = (
+        data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_stock)
+    )
 
-    if df_stock is None or df_stock.empty or len(df_stock) < 20:
+    if val_res["status"] == "INSUFFICIENT":
         return {
             "symbol": symbol,
             "company_name": company_name,
@@ -446,6 +450,7 @@ def generate_recommendation(
             "action": "AVOID",
             "model_version": SIGNAL_MODEL_VERSION,
             "data_quality": "INSUFFICIENT",
+            "data_quality_issues": val_res["issues"],
             "data_as_of": stock_data_as_of,
             "data_source": data_source,
             "signal_score": None,
@@ -481,9 +486,9 @@ def generate_recommendation(
                 "risk_reward": None,
                 "position_percent": 0.0,
             },
-            "reasons": ["Dữ liệu lịch sử không đủ 20 phiên giao dịch."],
-            "warnings": ["Không có dữ liệu giao dịch để phân tích."],
-            "invalidation": ["Cần bổ sung thêm dữ liệu giao dịch trước khi phân tích."],
+            "reasons": ["Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."],
+            "warnings": ["Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."],
+            "invalidation": ["Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."],
             "divergence": {
                 "1H": "NONE",
                 "1D": "NONE",
@@ -727,6 +732,10 @@ def generate_recommendation(
         else:
             div_mapping[tf_lbl] = "NONE"
 
+    final_data_quality = data_quality
+    if val_res["status"] == "PARTIAL" and final_data_quality == "SUFFICIENT":
+        final_data_quality = "PARTIAL"
+
     return {
         "symbol": symbol,
         "company_name": company_name,
@@ -734,7 +743,8 @@ def generate_recommendation(
         "sector": sector,
         "action": action,
         "model_version": SIGNAL_MODEL_VERSION,
-        "data_quality": data_quality,
+        "data_quality": final_data_quality,
+        "data_quality_issues": val_res["issues"],
         "data_as_of": stock_data_as_of,
         "data_source": data_source,
         "signal_score": score,

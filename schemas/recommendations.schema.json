@@ -138,6 +138,10 @@
           "type": "string",
           "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
         },
+        "data_quality_issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "data_as_of": {
           "type": ["string", "null"]
         },

@@ -414,57 +414,127 @@ def clamp_price_limits(price: float, ref_price: float = 0.0, exchange: str = "HO
     return round_tick_size(max(floor_p, min(ceiling_p, p)), ex_upper)
 
 
-def validate_ohlcv_data(df: pd.DataFrame, symbol: str) -> tuple[pd.DataFrame, list[str]]:
-    """Validate data quality for OHLCV DataFrame."""
-    warnings = []
+def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
+    """Validate data quality for an OHLCV DataFrame without modifying raw data.
+
+    Returns a dict containing:
+      - status: "SUFFICIENT" | "PARTIAL" | "INSUFFICIENT"
+      - issues: list of issue codes
+      - row_count: total raw rows
+      - valid_row_count: number of clean valid rows
+      - latest_date: YYYY-MM-DD string or None
+    """
     if df is None or df.empty:
-        return pd.DataFrame(), [f"[{symbol}] Dữ liệu OHLCV rỗng."]
+        return {
+            "status": "INSUFFICIENT",
+            "issues": ["empty_dataframe"],
+            "row_count": 0,
+            "valid_row_count": 0,
+            "latest_date": None,
+        }
 
-    df_valid = df.copy()
-    df_valid.columns = [c.lower() for c in df_valid.columns]
+    row_count = len(df)
+    df_cols_lower = [str(c).lower() for c in df.columns]
+    col_map = {str(c).lower(): c for c in df.columns}
 
-    required_cols = ["open", "high", "low", "close", "volume"]
-    for col in required_cols:
-        if col not in df_valid.columns:
-            return pd.DataFrame(), [f"[{symbol}] Thiếu cột bắt buộc {col}."]
-        df_valid[col] = pd.to_numeric(df_valid[col], errors="coerce")
+    required_fields = ["open", "high", "low", "close", "volume"]
+    missing_fields = [f for f in required_fields if f not in df_cols_lower]
 
-    date_col = (
-        "time" if "time" in df_valid.columns else ("date" if "date" in df_valid.columns else None)
-    )
-    if date_col:
-        initial_count = len(df_valid)
-        df_valid = df_valid.drop_duplicates(subset=[date_col], keep="last")
-        if len(df_valid) < initial_count:
-            warnings.append(
-                f"[{symbol}] Loại bỏ {initial_count - len(df_valid)} phiên trùng lặp ngày."
-            )
+    date_col_name = None
+    for candidate in ["time", "date"]:
+        if candidate in df_cols_lower:
+            date_col_name = col_map[candidate]
+            break
 
-    invalid_price = (df_valid["close"] <= 0) | (df_valid["volume"] < 0)
-    if invalid_price.any():
-        warnings.append(
-            f"[{symbol}] Loại bỏ {invalid_price.sum()} dòng có giá đóng cửa <= 0 hoặc volume < 0."
-        )
-        df_valid = df_valid[~invalid_price]
+    issues = []
+    if missing_fields or not date_col_name:
+        if missing_fields:
+            issues.append("missing_required_columns")
+        if not date_col_name:
+            issues.append("missing_date_column")
+        return {
+            "status": "INSUFFICIENT",
+            "issues": issues,
+            "row_count": row_count,
+            "valid_row_count": 0,
+            "latest_date": None,
+        }
 
-    max_oc = df_valid[["open", "close"]].max(axis=1)
-    min_oc = df_valid[["open", "close"]].min(axis=1)
-    ohlc_conflict = (df_valid["high"] < max_oc) | (df_valid["low"] > min_oc)
-    if ohlc_conflict.any():
-        warnings.append(
-            f"[{symbol}] Phát hiện {ohlc_conflict.sum()} dòng vi phạm quy tắc High >= Max(O,C) hoặc Low <= Min(O,C)."
-        )
-        df_valid.loc[df_valid["high"] < max_oc, "high"] = max_oc
-        df_valid.loc[df_valid["low"] > min_oc, "low"] = min_oc
+    raw_dates = df[date_col_name]
+    parsed_dates = pd.to_datetime(raw_dates, errors="coerce")
+    invalid_date_mask = parsed_dates.isna()
+    if invalid_date_mask.any():
+        issues.append("invalid_dates")
 
-    returns = df_valid["close"].pct_change().abs()
-    spikes = returns > 0.35
-    if spikes.any():
-        warnings.append(
-            f"[{symbol}] Báo động: {spikes.sum()} phiên biến động giá bất thường (> 35%)."
-        )
+    valid_dates = parsed_dates.dropna()
+    latest_date = valid_dates.max().strftime("%Y-%m-%d") if not valid_dates.empty else None
 
-    return df_valid.reset_index(drop=True), warnings
+    if not valid_dates.empty and valid_dates.duplicated().any():
+        issues.append("duplicate_dates")
+
+    numeric_df = pd.DataFrame(index=df.index)
+    has_non_numeric = False
+    has_nans = False
+
+    for field in required_fields:
+        orig_col = col_map[field]
+        converted = pd.to_numeric(df[orig_col], errors="coerce")
+        numeric_df[field] = converted
+        if converted.isna().any():
+            has_nans = True
+            non_null_orig = df[orig_col].dropna()
+            if not non_null_orig.empty and converted.loc[non_null_orig.index].isna().any():
+                has_non_numeric = True
+
+    if has_non_numeric:
+        issues.append("non_numeric_values")
+    if has_nans:
+        issues.append("nan_values")
+
+    row_invalid_mask = invalid_date_mask.copy()
+    for field in required_fields:
+        row_invalid_mask |= numeric_df[field].isna()
+
+    price_cols = ["open", "high", "low", "close"]
+    non_pos_price_mask = (numeric_df[price_cols] <= 0).any(axis=1)
+    if non_pos_price_mask.any():
+        issues.append("non_positive_prices")
+        row_invalid_mask |= non_pos_price_mask
+
+    neg_vol_mask = numeric_df["volume"] < 0
+    if neg_vol_mask.any():
+        issues.append("negative_volume")
+        row_invalid_mask |= neg_vol_mask
+
+    o, h, l, c = numeric_df["open"], numeric_df["high"], numeric_df["low"], numeric_df["close"]
+    ohlc_conflict_mask = (h < l) | (h < o) | (h < c) | (l > o) | (l > c)
+    if ohlc_conflict_mask.any():
+        issues.append("invalid_ohlc_relationship")
+        row_invalid_mask |= ohlc_conflict_mask
+
+    valid_row_count = int((~row_invalid_mask).sum())
+
+    if valid_row_count < 20:
+        issues.append("insufficient_history")
+
+    if (
+        valid_row_count < 20
+        or "missing_required_columns" in issues
+        or "missing_date_column" in issues
+    ):
+        status = "INSUFFICIENT"
+    elif len(issues) > 0:
+        status = "PARTIAL"
+    else:
+        status = "SUFFICIENT"
+
+    return {
+        "status": status,
+        "issues": sorted(set(issues)),
+        "row_count": row_count,
+        "valid_row_count": valid_row_count,
+        "latest_date": latest_date,
+    }
 
 
 def get_historical_data(
@@ -491,14 +561,16 @@ def get_historical_data(
                 try:
                     q = VnQuote(symbol=sym, source=source)
                     df = q.history(start=start_date, end=end_date)
-                    if df is not None and not df.empty and "close" in df.columns:
-                        df_val, warnings = validate_ohlcv_data(df, sym)
-                        if not df_val.empty and len(df_val) >= 15:
-                            if sym not in INDEX_SYMBOLS and df_val["close"].iloc[-1] > 1000.0:
+                    if df is not None and not df.empty:
+                        val_res = validate_ohlcv_data(df, sym)
+                        if val_res["status"] != "INSUFFICIENT":
+                            df_out = df.copy()
+                            df_out.columns = [c.lower() for c in df_out.columns]
+                            if sym not in INDEX_SYMBOLS and df_out["close"].iloc[-1] > 1000.0:
                                 for col in ["open", "high", "low", "close"]:
-                                    if col in df_val.columns:
-                                        df_val[col] = df_val[col] / 1000.0
-                            return df_val, "REAL_DATA", warnings
+                                    if col in df_out.columns:
+                                        df_out[col] = df_out[col] / 1000.0
+                            return df_out, "REAL_DATA", val_res["issues"]
                 except (Exception, SystemExit, BaseException) as e:  # noqa: BLE001
                     err_str = str(e).lower()
                     if any(
