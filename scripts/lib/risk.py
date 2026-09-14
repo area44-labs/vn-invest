@@ -13,6 +13,31 @@ import numpy as np
 import pandas as pd
 
 
+def calculate_t25_returns(price_series: pd.Series) -> pd.Series:
+    """Calculate Vietnam T+2.5 settlement horizon returns from sequential daily EOD price observations.
+
+    Vietnam Market T+2.5 Settlement & Holding Horizon Context:
+    Under Vietnamese equity market settlement rules (T+2.5), securities purchased in trading
+    session T complete settlement on the afternoon of T+2. Consequently, the investor can first
+    trade or dispose of the position during trading session T+3.
+
+    EOD Data Approximation vs Settlement Mechanics:
+    Daily EOD OHLCV data consists of discrete trading-session closing/VWAP prices without intra-day
+    half-session observations. The effective percentage return from trade entry at session T to first
+    tradable session T+3 is defined as (P_{T+3} - P_T) / P_T.
+
+    Therefore, 3 daily trading sessions (periods=3 on validated clean trading-session rows) is the
+    explicit, deterministic EOD risk-return horizon approximation for T+2.5. This helper operates
+    strictly on clean trading sessions without calendar interpolation, synthetic prices, or forward fills.
+
+    Requires at least 4 valid price observations (periods=3 + 1) to yield the first valid return.
+    """
+    if price_series is None or len(price_series) < 4:
+        return pd.Series(dtype=float)
+
+    return price_series.pct_change(periods=3).dropna()
+
+
 def calculate_t25_risk_metrics(
     df: pd.DataFrame,
     exchange: str = "HOSE",
@@ -41,8 +66,8 @@ def calculate_t25_risk_metrics(
 
     df_calc = df.copy()
 
-    # T+2.5 horizon corresponds to 3-session rolling return in daily EOD data
-    returns_3d = df_calc[price_col].pct_change(periods=3).dropna()
+    # Calculate T+2.5 settlement horizon returns using explicit EOD session mapping
+    returns_3d = calculate_t25_returns(df_calc[price_col])
 
     if len(returns_3d) < 10:
         return default_nulls

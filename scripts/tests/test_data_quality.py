@@ -61,6 +61,7 @@ class TestDataQualityGate(unittest.TestCase):
     def test_c_invalid_numeric_value(self):
         """Test C — Invalid numeric value -> invalid row excluded from clean dataset."""
         df = make_valid_df(30)
+        df["close"] = df["close"].astype(object)
         df.loc[5, "close"] = "abc"
         res = validate_ohlcv_data(df)
         self.assertIn("non_numeric_values", res["issues"])

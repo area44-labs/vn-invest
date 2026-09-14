@@ -538,9 +538,11 @@ def calculate_advanced_vn_risk_metrics(
         )
     )
 
-    # 2. Tính Lợi nhuận 1D và T+2.5 (Rolling 3-day Return)
+    # 2. Tính Lợi nhuận 1D và T+2.5 (Explicit Settlement Horizon Helper)
+    from scripts.lib.risk import calculate_t25_returns
+
     df["returns_1d"] = df[price_col].pct_change()
-    df["returns_t25"] = df[price_col].pct_change(periods=3)
+    df["returns_t25"] = calculate_t25_returns(df[price_col])
 
     # 3. Lọc Thanh khoản tối thiểu (20 phiên gần nhất)
     df["trading_value"] = df[price_col] * df["volume"]
