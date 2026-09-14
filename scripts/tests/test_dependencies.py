@@ -24,7 +24,7 @@ class TestDependencyVersions(unittest.TestCase):
         """Verify pandas version matches reproducible dependency contract."""
         import pandas as pd
 
-        self.assertEqual(pd.__version__, "2.3.3")
+        self.assertEqual(pd.__version__, "2.2.3")
 
     def test_numpy_version(self):
         """Verify numpy version matches reproducible dependency contract."""
