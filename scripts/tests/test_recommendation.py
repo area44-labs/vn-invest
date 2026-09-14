@@ -227,13 +227,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
     def test_generate_recommendation_output_structure(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_bull = np.linspace(20.0, 35.0, n)
+        close_bull = np.linspace(20000.0, 35000.0, n)
         df_bull = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_bull - 0.2,
-                "high": close_bull + 0.5,
-                "low": close_bull - 0.5,
+                "open": close_bull - 200.0,
+                "high": close_bull + 500.0,
+                "low": close_bull - 500.0,
                 "close": close_bull,
                 "volume": [500000] * n,
             }
@@ -321,13 +321,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         """Regression test P1: Missing ATR does not raise error and produces valid trade plan bounds."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_bull = np.linspace(20.0, 35.0, n)
+        close_bull = np.linspace(20000.0, 35000.0, n)
         df_bull = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_bull - 0.2,
-                "high": close_bull + 0.5,
-                "low": close_bull - 0.5,
+                "open": close_bull - 200.0,
+                "high": close_bull + 500.0,
+                "low": close_bull - 500.0,
                 "close": close_bull,
                 "volume": [500000] * n,
                 "atr": [None] * n,  # Explicitly missing ATR
@@ -353,13 +353,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
     def test_trade_plan_invariants(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_bull = np.linspace(20.0, 35.0, n)
+        close_bull = np.linspace(20000.0, 35000.0, n)
         df_bull = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_bull - 0.2,
-                "high": close_bull + 0.5,
-                "low": close_bull - 0.5,
+                "open": close_bull - 200.0,
+                "high": close_bull + 500.0,
+                "low": close_bull - 500.0,
                 "close": close_bull,
                 "volume": [500000] * n,
             }
@@ -392,13 +392,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         """Verify recommendation at day T does not change when future crash, price spike, volume spike, or volatility spike occurs at T+1."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_bull = np.linspace(20.0, 35.0, n)
+        close_bull = np.linspace(20000.0, 35000.0, n)
         df_base = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_bull - 0.2,
-                "high": close_bull + 0.5,
-                "low": close_bull - 0.5,
+                "open": close_bull - 200.0,
+                "high": close_bull + 500.0,
+                "low": close_bull - 500.0,
                 "close": close_bull,
                 "volume": [500000] * n,
             }
@@ -644,13 +644,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
 
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_prices = np.linspace(20.0, 35.0, n)
+        close_prices = np.linspace(20000.0, 35000.0, n)
         df_sample = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_prices - 0.2,
-                "high": close_prices + 0.5,
-                "low": close_prices - 0.5,
+                "open": close_prices - 200.0,
+                "high": close_prices + 500.0,
+                "low": close_prices - 500.0,
                 "close": close_prices,
                 "volume": [500000] * n,
             }

@@ -22,6 +22,17 @@ try:
 except ImportError:
     VNSTOCK_AVAILABLE = False
 
+# Explicit internal unit contract constants
+PRICE_UNIT = "VND/share"
+VOLUME_UNIT = "shares"
+TRADING_VALUE_UNIT = "VND"
+AVG_TRADING_VALUE_UNIT = "billion_VND"
+
+# Source unit contracts for upstream data providers
+SOURCE_PRICE_UNIT_VNSTOCK = "thousand_VND/share"
+SOURCE_VOLUME_UNIT_VNSTOCK = "shares"
+INDEX_SYMBOLS = {"VNINDEX", "VN30", "HNXINDEX", "UPCOMINDEX", "VN30INDEX"}
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RECOMMENDATIONS_JSON_PATH = os.path.join(ROOT_DIR, "generated", "recommendations.json")
 
@@ -364,20 +375,50 @@ def parse_wait_seconds(err_str: str) -> int:
     return 15
 
 
+def normalize_ohlcv_units(
+    df: pd.DataFrame,
+    source_price_unit: str = SOURCE_PRICE_UNIT_VNSTOCK,
+    source_volume_unit: str = SOURCE_VOLUME_UNIT_VNSTOCK,
+) -> pd.DataFrame:
+    """Normalize OHLCV DataFrame from declared source units to canonical internal units.
+
+    Canonical units:
+    - price: VND/share
+    - volume: shares
+
+    Does NOT perform magnitude checks (e.g., if price > X) to infer units.
+    """
+    if df is None or df.empty:
+        return df
+
+    df_norm = df.copy()
+
+    if source_price_unit == "thousand_VND/share":
+        price_cols = [c for c in ["open", "high", "low", "close", "vwap"] if c in df_norm.columns]
+        for col in price_cols:
+            df_norm[col] = df_norm[col] * 1000.0
+
+    if source_volume_unit == "thousand_shares":
+        if "volume" in df_norm.columns:
+            df_norm["volume"] = df_norm["volume"] * 1000.0
+
+    return df_norm
+
+
 def round_tick_size(price: float, exchange: str = "HOSE") -> float:
-    """Round price according to Vietnam exchange tick size rules."""
+    """Round price according to Vietnam exchange tick size rules (in VND/share)."""
     if price <= 0:
         return 0.0
     exchange_upper = exchange.upper() if exchange else "HOSE"
     if exchange_upper == "HOSE":
-        if price < 10.0:
-            step = 0.01
-        elif price <= 50.0:
-            step = 0.05
+        if price < 10000.0:
+            step = 10.0
+        elif price <= 50000.0:
+            step = 50.0
         else:
-            step = 0.1
+            step = 100.0
     else:  # HNX / UPCOM
-        step = 0.1
+        step = 100.0
     return round(round(price / step) * step, 2)
 
 
@@ -386,12 +427,12 @@ def get_exchange_price_limits(
 ) -> tuple[float, float, float]:
     """Calculate exchange daily price reference, ceiling and floor bounds."""
     try:
-        ref_p = float(ref_price) if ref_price is not None else 10.0
+        ref_p = float(ref_price) if ref_price is not None else 10000.0
     except (ValueError, TypeError):
-        ref_p = 10.0
+        ref_p = 10000.0
 
     if ref_p <= 0:
-        ref_p = 10.0
+        ref_p = 10000.0
 
     ex_upper = str(exchange).upper() if exchange else "HOSE"
     pct = 0.07 if ex_upper == "HOSE" else (0.10 if ex_upper == "HNX" else 0.15)
@@ -512,8 +553,8 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
         issues.append("negative_volume")
         row_invalid_mask |= neg_vol_mask
 
-    o, h, l, c = numeric_df["open"], numeric_df["high"], numeric_df["low"], numeric_df["close"]
-    ohlc_conflict_mask = (h < l) | (h < o) | (h < c) | (l > o) | (l > c)
+    o, h, low_s, c = numeric_df["open"], numeric_df["high"], numeric_df["low"], numeric_df["close"]
+    ohlc_conflict_mask = (h < low_s) | (h < o) | (h < c) | (low_s > o) | (low_s > c)
     if ohlc_conflict_mask.any():
         issues.append("invalid_ohlc_relationship")
         row_invalid_mask |= ohlc_conflict_mask
@@ -592,10 +633,12 @@ def get_historical_data(
                         if val_res["status"] != "INSUFFICIENT":
                             df_out = df.copy()
                             df_out.columns = [c.lower() for c in df_out.columns]
-                            if sym not in INDEX_SYMBOLS and df_out["close"].iloc[-1] > 1000.0:
-                                for col in ["open", "high", "low", "close"]:
-                                    if col in df_out.columns:
-                                        df_out[col] = df_out[col] / 1000.0
+                            if sym not in INDEX_SYMBOLS:
+                                df_out = normalize_ohlcv_units(
+                                    df_out,
+                                    source_price_unit=SOURCE_PRICE_UNIT_VNSTOCK,
+                                    source_volume_unit=SOURCE_VOLUME_UNIT_VNSTOCK,
+                                )
                             return df_out, "REAL_DATA", val_res["issues"]
                 except (Exception, SystemExit, BaseException) as e:  # noqa: BLE001
                     err_str = str(e).lower()
