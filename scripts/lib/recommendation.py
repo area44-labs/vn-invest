@@ -55,9 +55,8 @@ VALID_MARKET_REGIMES = {
 
 
 def format_vnd(price: float) -> str:
-    """Format numeric price into full VND string (e.g. 33.63 -> '33,630')."""
-    vnd_val = price * 1000.0 if price < 1000.0 else price
-    return f"{vnd_val:,.0f}".replace(",", ".")
+    """Format numeric price (in VND/share) into full VND string (e.g. 33630 -> '33.630')."""
+    return f"{price:,.0f}".replace(",", ".")
 
 
 def _safe_float(val) -> float | None:
@@ -627,11 +626,8 @@ def generate_recommendation(
     else:
         risk_level = None
 
-    # Convert prices to full VND units
-    close_vnd = (
-        (raw_close * 1000.0 if raw_close < 1000.0 else raw_close) if raw_close is not None else 0.0
-    )
-    current_price_vnd = round(close_vnd, 0)
+    # Price is already in canonical VND/share
+    current_price_vnd = round(raw_close, 0) if raw_close is not None else 0.0
     lowest_5d = float(df_d["low"].tail(5).min()) if not df_d.empty else raw_close
 
     invalidation = []
@@ -668,11 +664,11 @@ def generate_recommendation(
 
         trade_plan = {
             "current_price": current_price_vnd,
-            "entry_low": round(entry_low_p * 1000.0, 0),
-            "entry_high": round(entry_high_p * 1000.0, 0),
-            "stop_loss": round(sl_p * 1000.0, 0),
-            "tp1": round(tp1_p * 1000.0, 0),
-            "tp2": round(tp2_p * 1000.0, 0),
+            "entry_low": round(entry_low_p, 0),
+            "entry_high": round(entry_high_p, 0),
+            "stop_loss": round(sl_p, 0),
+            "tp1": round(tp1_p, 0),
+            "tp2": round(tp2_p, 0),
             "risk_reward": rr_num,
             "position_percent": final_position_pct,
         }

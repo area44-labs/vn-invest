@@ -71,10 +71,12 @@ def calculate_t25_risk_metrics(
     max_dd = float(dd.min()) if not dd.empty else None
 
     # Average 20d trading value in billion VND
+    # Formula: trading_value_vnd = price (VND/share) * volume (shares)
+    # avg_value_20d_bn = mean(last 20 trading_value_vnd) / 1_000_000_000
     if "volume" in df_calc.columns:
         df_calc["trading_value"] = df_calc[price_col] * df_calc["volume"]
-        avg_val = float(df_calc["trading_value"].tail(20).mean())
-        avg_val_20d_bn = avg_val / 1e9 if avg_val > 1e6 else avg_val * 1000 / 1e9
+        avg_val_vnd = float(df_calc["trading_value"].tail(20).mean())
+        avg_val_20d_bn = avg_val_vnd / 1e9
     else:
         avg_val_20d_bn = None
 
