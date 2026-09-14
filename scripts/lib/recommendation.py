@@ -6,6 +6,10 @@ and risk-based position sizing.
 Allowed actions: BUY, WATCH, HOLD, SELL, AVOID.
 Strictly avoids unverified heuristics for expected returns.
 All stock price values are converted and displayed in full VND units (e.g. 33,630 VND).
+
+Invariant:
+All quantitative consumers must receive clean OHLCV data.
+Raw provider data may be retained for diagnostics only.
 """
 
 import math
@@ -15,6 +19,7 @@ from scripts.lib.risk import calculate_t25_risk_metrics
 from scripts.lib.vietnam_market import (
     clamp_price_limits,
     extract_latest_trading_date,
+    get_clean_ohlcv_data,
     round_tick_size,
     validate_ohlcv_data,
 )
@@ -516,12 +521,16 @@ def generate_recommendation(
         else None
     )
 
-    # Relative strength vs VN-Index benchmark
+    # Relative strength vs VN-Index benchmark (strictly using clean benchmark OHLCV data)
     rs_diff = None
-    if df_vnindex is not None and len(df_vnindex) >= 20 and len(df_d) >= 20:
+    df_vnindex_clean = None
+    if df_vnindex is not None and not df_vnindex.empty:
+        df_vnindex_clean, _ = get_clean_ohlcv_data(df_vnindex, "VNINDEX")
+
+    if df_vnindex_clean is not None and len(df_vnindex_clean) >= 20 and len(df_d) >= 20:
         c0 = _safe_float(df_d["close"].iloc[-20])
-        vn_c1 = _safe_float(df_vnindex["close"].iloc[-1])
-        vn_c0 = _safe_float(df_vnindex["close"].iloc[-20])
+        vn_c1 = _safe_float(df_vnindex_clean["close"].iloc[-1])
+        vn_c0 = _safe_float(df_vnindex_clean["close"].iloc[-20])
         if (
             raw_close is not None
             and c0 is not None
