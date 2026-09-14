@@ -437,11 +437,12 @@ def generate_recommendation(
     ex = exchange.upper() if exchange else "HOSE"
 
     val_res = validate_ohlcv_data(df_stock, symbol)
+    df_clean = val_res["clean_df"]
     stock_data_as_of = (
-        data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_stock)
+        data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_clean)
     )
 
-    if val_res["status"] == "INSUFFICIENT":
+    if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
         return {
             "symbol": symbol,
             "company_name": company_name,
@@ -497,7 +498,7 @@ def generate_recommendation(
             },
         }
 
-    df_d, tf_summary = calculate_multi_timeframe_features(df_stock)
+    df_d, tf_summary = calculate_multi_timeframe_features(df_clean)
     risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex)
 
     raw_close = _safe_float(df_d["close"].iloc[-1])

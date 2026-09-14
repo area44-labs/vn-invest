@@ -419,10 +419,11 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
 
     Returns a dict containing:
       - status: "SUFFICIENT" | "PARTIAL" | "INSUFFICIENT"
-      - issues: list of issue codes
+      - issues: sorted list of issue codes
       - row_count: total raw rows
       - valid_row_count: number of clean valid rows
-      - latest_date: YYYY-MM-DD string or None
+      - latest_date: YYYY-MM-DD string of latest usable valid row or None
+      - clean_df: pd.DataFrame containing only valid rows
     """
     if df is None or df.empty:
         return {
@@ -431,6 +432,7 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
             "row_count": 0,
             "valid_row_count": 0,
             "latest_date": None,
+            "clean_df": pd.DataFrame(),
         }
 
     row_count = len(df)
@@ -458,6 +460,7 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
             "row_count": row_count,
             "valid_row_count": 0,
             "latest_date": None,
+            "clean_df": pd.DataFrame(),
         }
 
     raw_dates = df[date_col_name]
@@ -466,11 +469,14 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
     if invalid_date_mask.any():
         issues.append("invalid_dates")
 
-    valid_dates = parsed_dates.dropna()
-    latest_date = valid_dates.max().strftime("%Y-%m-%d") if not valid_dates.empty else None
-
-    if not valid_dates.empty and valid_dates.duplicated().any():
-        issues.append("duplicate_dates")
+    # Detect duplicate trading dates (exclude all duplicate date occurrences from clean dataset)
+    dup_date_mask = pd.Series(False, index=df.index)
+    valid_parsed_dates = parsed_dates.dropna()
+    if not valid_parsed_dates.empty:
+        duplicated_date_values = set(valid_parsed_dates[valid_parsed_dates.duplicated()].values)
+        if duplicated_date_values:
+            issues.append("duplicate_dates")
+            dup_date_mask = parsed_dates.isin(duplicated_date_values)
 
     numeric_df = pd.DataFrame(index=df.index)
     has_non_numeric = False
@@ -491,7 +497,7 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
     if has_nans:
         issues.append("nan_values")
 
-    row_invalid_mask = invalid_date_mask.copy()
+    row_invalid_mask = invalid_date_mask | dup_date_mask
     for field in required_fields:
         row_invalid_mask |= numeric_df[field].isna()
 
@@ -512,10 +518,23 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
         issues.append("invalid_ohlc_relationship")
         row_invalid_mask |= ohlc_conflict_mask
 
-    valid_row_count = int((~row_invalid_mask).sum())
+    valid_mask = ~row_invalid_mask
+    valid_row_count = int(valid_mask.sum())
 
     if valid_row_count < 20:
         issues.append("insufficient_history")
+
+    # Build clean DataFrame without mutating raw df
+    if valid_row_count > 0:
+        clean_df = pd.DataFrame(index=df.index[valid_mask])
+        clean_df["time"] = parsed_dates[valid_mask].dt.strftime("%Y-%m-%d")
+        for field in required_fields:
+            clean_df[field] = numeric_df.loc[valid_mask, field]
+        clean_df = clean_df.sort_values("time").reset_index(drop=True)
+        latest_date = clean_df["time"].max()
+    else:
+        clean_df = pd.DataFrame()
+        latest_date = None
 
     if (
         valid_row_count < 20
@@ -534,7 +553,14 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
         "row_count": row_count,
         "valid_row_count": valid_row_count,
         "latest_date": latest_date,
+        "clean_df": clean_df,
     }
+
+
+def get_clean_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> tuple[pd.DataFrame, dict]:
+    """Extract downstream-safe cleaned OHLCV DataFrame and validation result."""
+    val_res = validate_ohlcv_data(df, symbol)
+    return val_res["clean_df"], val_res
 
 
 def get_historical_data(
