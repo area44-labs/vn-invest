@@ -12,6 +12,8 @@ Dự án tuân theo mô hình phân tách hoàn toàn giữa tính toán định
 Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG / GitHub Pages
 ```
 
+> **Lưu ý**: `scripts/update_stocks.py` hoàn toàn nằm ngoài quy trình quantitative active pipeline hiện tại và không thuộc hợp đồng phụ thuộc (dependency contract) của PR này.
+
 ```
 vn-invest/
 ├── .github/
@@ -24,6 +26,7 @@ vn-invest/
 │   ├── lib/                         # Core modules (features, regime, recommendation, risk, vietnam_market)
 │   ├── tests/                       # Automated unit test suite
 │   │   ├── run_tests.py             # Test runner
+│   │   ├── test_dependencies.py     # Deterministic dependency version validation
 │   │   ├── test_recommendation.py   # Unit tests for recommendation & anti-lookahead
 │   │   ├── test_regime.py           # Unit tests for market regime
 │   │   ├── test_risk.py             # Unit tests for T+2.5 risk model
@@ -45,7 +48,7 @@ vn-invest/
 │   └── types/                       # TypeScript interfaces mirroring JSON schema (recommendation.ts)
 ├── pyproject.toml                   # Ruff configuration for Python
 ├── package.json                     # Frontend dependencies & pnpm scripts
-└── requirements.txt                 # Python dependencies (vnstock, pandas, numpy, jsonschema, ruff)
+└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==2.3.3, etc.)
 ```
 
 ---
@@ -64,12 +67,22 @@ pnpm build
 
 ### B. Python Quantitative Engine Verification
 
+Môi trường Python hỗ trợ: Python 3.10 trở lên (khuyến nghị Python 3.10 - 3.12).
+
 ```bash
+pip install -r requirements.txt
 python scripts/tests/run_tests.py
-ruff check scripts
-ruff format --check scripts
+ruff check .
+ruff format --check .
 python scripts/generate_report.py
 ```
+
+### C. Dependency & Version Policy
+
+- Tất cả các gói phụ thuộc Python chính cho active quant pipeline được ghim phiên bản chính xác tại `requirements.txt`.
+- Phiên bản `vnstock` hỗ trợ chính thức là **4.0.7**.
+- Nâng cấp phụ thuộc: Khi cần nâng cấp dependency, phải kiểm tra khả năng tương thích của API (đặc biệt là `vnstock` quote/history unit contract) và chạy toàn bộ unit test suite trước khi cập nhật phiên bản ghim trong `requirements.txt`.
+- `scripts/update_stocks.py` không thuộc phạm vi active pipeline và được loại trừ khỏi dependency contract này.
 
 <!-- vnai-bootstrap | auto-generated -->
 
