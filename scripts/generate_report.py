@@ -89,20 +89,11 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     stock_data_map = {}
     bullish_count = 0
-    all_dates = []
-
-    vnindex_date = extract_latest_trading_date(df_vnindex)
-    if vnindex_date:
-        all_dates.append(vnindex_date)
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
         df_stock, tag, warns = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
         stock_data_map[sym] = (df_stock, tag, warns)
-
-        stock_date = extract_latest_trading_date(df_stock)
-        if stock_date:
-            all_dates.append(stock_date)
 
         # Pre-breadth check: price above MA20
         if not df_stock.empty and len(df_stock) >= 20:
@@ -111,9 +102,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             if c > ma20:
                 bullish_count += 1
 
-    # Market data date is determined from validated OHLCV datasets.
-    # Never fall back to datetime.now() when datasets are empty.
-    data_as_of = max(all_dates) if all_dates else None
+    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
+    # It must NOT be affected by a stock having a later data date.
+    data_as_of = extract_latest_trading_date(df_vnindex)
     source_date = data_as_of  # Backward compatibility alias
     data_source = vn_source if not df_vnindex.empty else None
 
@@ -243,21 +234,26 @@ def main():
     logger.info("JSON Schema validation passed successfully!")
 
     data_as_of = recs_data.get("data_as_of")
-    history_filename_date = data_as_of or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Save outputs
     save_json_files("recommendations.json", recs_data)
     save_json_files("market.json", market_data)
-    save_json_files(os.path.join("history", f"{history_filename_date}.json"), history_data)
+
     if data_as_of:
+        save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
         update_history_index(data_as_of)
+    else:
+        logger.warning(
+            "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
+        )
 
     logger.info("Report generation complete!")
     logger.info("Outputs written to generated/ and public/generated/:")
     logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
     logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
-    logger.info("  - history/%s.json", history_filename_date)
-    logger.info("  - history/index.json")
+    if data_as_of:
+        logger.info("  - history/%s.json", data_as_of)
+        logger.info("  - history/index.json")
 
 
 if __name__ == "__main__":

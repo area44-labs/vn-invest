@@ -39,7 +39,8 @@ Timezone and Date Semantics Policy:
 def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
     """Extract the latest validated EOD trading session date (YYYY-MM-DD) from OHLCV DataFrame.
 
-    Returns None if DataFrame is empty, None, or lacks date information.
+    Parses all dates in the date column, ignores invalid/null values, and returns the maximum date.
+    Returns None if DataFrame is empty, None, or contains no valid date entries.
     """
     if df is None or df.empty:
         return None
@@ -58,28 +59,13 @@ def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
     if series.empty:
         return None
 
-    latest_val = series.iloc[-1]
-    if isinstance(latest_val, (pd.Timestamp, datetime)):
-        return latest_val.strftime("%Y-%m-%d")
-
-    val_str = str(latest_val).strip()
-    if not val_str:
+    parsed_series = pd.to_datetime(series, errors="coerce")
+    valid_dates = parsed_series.dropna()
+    if valid_dates.empty:
         return None
 
-    match = re.search(r"\d{4}-\d{2}-\d{2}", val_str)
-    if match:
-        return match.group(0)
-
-    try:
-        parsed = pd.to_datetime(val_str)
-        if pd.notna(parsed):
-            return parsed.strftime("%Y-%m-%d")
-    except (ValueError, TypeError) as e:
-        logger.debug("Date string parsing failed for '%s': %s", val_str, e)
-    except Exception as e:  # noqa: BLE001
-        logger.debug("Unexpected error parsing date string '%s': %s", val_str, e)
-
-    return None
+    max_date = valid_dates.max()
+    return max_date.strftime("%Y-%m-%d")
 
 
 class UniverseProvider:
