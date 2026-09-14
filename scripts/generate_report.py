@@ -32,6 +32,7 @@ from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     extract_latest_trading_date,
+    get_clean_ohlcv_data,
     get_historical_data,
 )
 
@@ -95,10 +96,11 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         df_stock, tag, warns = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
         stock_data_map[sym] = (df_stock, tag, warns)
 
-        # Pre-breadth check: price above MA20
-        if not df_stock.empty and len(df_stock) >= 20:
-            c = df_stock["close"].iloc[-1]
-            ma20 = df_stock["close"].tail(20).mean()
+        # Pre-breadth check: price above MA20 using clean OHLCV data
+        df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
+        if not df_clean_stock.empty and len(df_clean_stock) >= 20:
+            c = df_clean_stock["close"].iloc[-1]
+            ma20 = df_clean_stock["close"].tail(20).mean()
             if c > ma20:
                 bullish_count += 1
 
