@@ -28,9 +28,13 @@ VOLUME_UNIT = "shares"
 TRADING_VALUE_UNIT = "VND"
 AVG_TRADING_VALUE_UNIT = "billion_VND"
 
-# Source unit contracts for upstream data providers
+# Source unit contracts for upstream data providers:
+# - Stock data (via vnstock KBS/MSN quotes): Prices (open, high, low, close) are in `thousand_VND/share` (e.g. 128.40 = 128,400 VND/share). Volume is in `shares` (e.g. 3,172,800 shares).
+# - Index data (VNINDEX, VN30, etc.): Values represent composite market index points (e.g. 1269.71 points), not equity stock prices, and are already in canonical benchmark units.
 SOURCE_PRICE_UNIT_VNSTOCK = "thousand_VND/share"
 SOURCE_VOLUME_UNIT_VNSTOCK = "shares"
+VALID_PRICE_UNITS = {"VND/share", "thousand_VND/share"}
+VALID_VOLUME_UNITS = {"shares", "thousand_shares"}
 INDEX_SYMBOLS = {"VNINDEX", "VN30", "HNXINDEX", "UPCOMINDEX", "VN30INDEX"}
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -386,8 +390,18 @@ def normalize_ohlcv_units(
     - price: VND/share
     - volume: shares
 
+    Raises ValueError if an unsupported price or volume unit configuration is provided.
     Does NOT perform magnitude checks (e.g., if price > X) to infer units.
     """
+    if source_price_unit not in VALID_PRICE_UNITS:
+        raise ValueError(
+            f"Unsupported price unit '{source_price_unit}'. Must be one of {sorted(VALID_PRICE_UNITS)}"
+        )
+    if source_volume_unit not in VALID_VOLUME_UNITS:
+        raise ValueError(
+            f"Unsupported volume unit '{source_volume_unit}'. Must be one of {sorted(VALID_VOLUME_UNITS)}"
+        )
+
     if df is None or df.empty:
         return df
 

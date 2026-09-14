@@ -13,19 +13,17 @@ from scripts.lib.risk import (
 
 class TestRiskModel(unittest.TestCase):
     def test_risk_metrics_sufficient_data(self):
-        np.random.seed(42)
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_prices = 50.0 + np.cumsum(np.random.normal(0, 0.5, n))
-        close_prices = np.clip(close_prices, 10.0, 100.0)
-        volumes = np.random.randint(100000, 500000, n)
+        close_prices = np.linspace(20000.0, 35000.0, n)
+        volumes = np.linspace(100000.0, 500000.0, n)
 
         df = pd.DataFrame(
             {
                 "time": dates,
-                "open": close_prices - 0.1,
-                "high": close_prices + 0.5,
-                "low": close_prices - 0.5,
+                "open": close_prices - 100.0,
+                "high": close_prices + 500.0,
+                "low": close_prices - 500.0,
                 "close": close_prices,
                 "volume": volumes,
             }
