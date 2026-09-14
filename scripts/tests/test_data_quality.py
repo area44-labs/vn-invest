@@ -258,7 +258,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         df_raw = make_valid_df(30, start_date="2026-08-01")
         df_raw.loc[15, "close"] = -999.0
 
-        clean_df, val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+        clean_df, _val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
 
         regime_clean = detect_market_regime(df_vnindex=clean_df)
         self.assertGreater(regime_clean["metrics"]["vnindex_value"], 0)
