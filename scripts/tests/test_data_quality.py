@@ -4,10 +4,13 @@ Covers Tests A through M without live API dependencies.
 """
 
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
+from scripts.generate_report import run_pipeline
 from scripts.lib.recommendation import generate_recommendation
+from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 
@@ -206,6 +209,103 @@ class TestDataQualityGate(unittest.TestCase):
         _res = validate_ohlcv_data(df_orig, "MUTATE_TEST")
 
         pd.testing.assert_frame_equal(df_orig, df_copy)
+
+
+class TestMarketCleanDataBoundary(unittest.TestCase):
+    def test_a_invalid_latest_vnindex_row(self):
+        """Test A — Invalid latest VNINDEX row: data_as_of uses latest clean valid date (2026-09-11), not invalid date (2026-09-12)."""
+        df_raw = make_valid_df(30, start_date="2026-08-14")
+        df_raw.loc[29, "close"] = -100.0
+
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+
+        self.assertEqual(val_res["latest_date"], "2026-09-11")
+        self.assertNotIn("2026-09-12", clean_df["time"].values)
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get:
+
+            def side_effect(symbol, **_kwargs):
+                if symbol == "VNINDEX":
+                    return df_raw, "REAL_DATA", []
+                elif symbol == "VN30":
+                    return make_valid_df(30), "REAL_DATA", []
+                else:
+                    return make_valid_df(30), "REAL_DATA", []
+
+            mock_get.side_effect = side_effect
+
+            recs_data, market_data, _ = run_pipeline(update_data=False)
+            self.assertEqual(recs_data["data_as_of"], "2026-09-11")
+            self.assertEqual(market_data["data_as_of"], "2026-09-11")
+            self.assertNotEqual(recs_data["data_as_of"], "2026-09-12")
+
+    def test_b_duplicate_benchmark_date(self):
+        """Test B — Duplicate benchmark date: all duplicate occurrences excluded from clean data, data_as_of and regime unaffected by excluded duplicates."""
+        df_raw = make_valid_df(30, start_date="2026-08-01")
+        dup_date = df_raw.loc[14, "time"]
+        df_raw.loc[15, "time"] = dup_date
+
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+        self.assertIn("duplicate_dates", val_res["issues"])
+        self.assertNotIn(dup_date, clean_df["time"].values)
+
+        regime = detect_market_regime(df_vnindex=clean_df)
+        self.assertIsNotNone(regime["regime"])
+        self.assertNotEqual(val_res["latest_date"], dup_date)
+
+    def test_c_invalid_historical_row_does_not_affect_regime(self):
+        """Test C — Invalid historical row: one invalid row that would materially change MA/return calculation if included does not affect regime(clean_df)."""
+        df_raw = make_valid_df(30, start_date="2026-08-01")
+        df_raw.loc[15, "close"] = -999.0
+
+        clean_df, _val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+
+        regime_clean = detect_market_regime(df_vnindex=clean_df)
+        self.assertGreater(regime_clean["metrics"]["vnindex_value"], 0)
+        self.assertNotIn(-999.0, clean_df["close"].values)
+
+    def test_d_partial_benchmark(self):
+        """Test D — PARTIAL benchmark: fixture with >=20 valid rows + >=1 invalid row results in status PARTIAL and market calculations consume clean_df only."""
+        df_raw = make_valid_df(30, start_date="2026-08-01")
+        df_raw.loc[5, "high"] = 10.0
+
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+        self.assertEqual(val_res["status"], "PARTIAL")
+        self.assertEqual(len(clean_df), 29)
+
+        regime = detect_market_regime(df_vnindex=clean_df)
+        self.assertIn(regime["regime"], ["STRONG_BULL", "BULL", "DEFENSIVE", "BEAR", "PANIC"])
+
+    def test_e_insufficient_clean_benchmark(self):
+        """Test E — Insufficient clean benchmark: fixture with >=20 raw rows but <20 valid rows produces INSUFFICIENT status and graceful fallback."""
+        df_raw = make_valid_df(25, start_date="2026-08-01")
+        for i in range(10):
+            df_raw.loc[i, "close"] = -1.0
+
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "VNINDEX")
+        self.assertEqual(val_res["status"], "INSUFFICIENT")
+        self.assertEqual(len(clean_df), 15)
+
+        regime = detect_market_regime(df_vnindex=clean_df)
+        self.assertEqual(regime["regime"], "DEFENSIVE")
+        self.assertEqual(regime["confidence"], 0.40)
+        self.assertIsNone(regime["metrics"]["vnindex_value"])
+
+    def test_f_no_mutation(self):
+        """Test F — No mutation: Raw VNINDEX/VN30 DataFrames remain unchanged after validation and cleaning."""
+        df_vnindex_raw = make_valid_df(30, start_date="2026-08-01")
+        df_vnindex_raw.loc[5, "close"] = -50.0
+        df_vn30_raw = make_valid_df(30, start_date="2026-08-01")
+        df_vn30_raw.loc[10, "volume"] = -100.0
+
+        copy_vnindex = df_vnindex_raw.copy(deep=True)
+        copy_vn30 = df_vn30_raw.copy(deep=True)
+
+        _clean_vnindex, _val_vnindex = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+        _clean_vn30, _val_vn30 = get_clean_ohlcv_data(df_vn30_raw, "VN30")
+
+        pd.testing.assert_frame_equal(df_vnindex_raw, copy_vnindex)
+        pd.testing.assert_frame_equal(df_vn30_raw, copy_vn30)
 
 
 if __name__ == "__main__":

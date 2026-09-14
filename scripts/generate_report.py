@@ -31,7 +31,6 @@ from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
-    extract_latest_trading_date,
     get_clean_ohlcv_data,
     get_historical_data,
 )
@@ -81,12 +80,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     universe_info = provider.get_info()
 
     logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
-    df_vnindex, vn_source, _vn_warns = get_historical_data(
+    df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
         "VNINDEX", max_retries=2 if update_data else 1, use_cache_only=use_cache
     )
-    df_vn30, _, _ = get_historical_data(
+    df_vn30_raw, _, _ = get_historical_data(
         "VN30", max_retries=2 if update_data else 1, use_cache_only=use_cache
     )
+
+    # All quantitative consumers must receive clean OHLCV data.
+    # Raw provider data may be retained for diagnostics only.
+    df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+    df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
 
     stock_data_map = {}
     bullish_count = 0
@@ -105,17 +109,19 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 bullish_count += 1
 
     # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
-    # It must NOT be affected by a stock having a later data date.
-    data_as_of = extract_latest_trading_date(df_vnindex)
+    # Invariant: data_as_of == latest usable VNINDEX trading date
+    data_as_of = vnindex_val.get("latest_date")
     source_date = data_as_of  # Backward compatibility alias
-    data_source = vn_source if not df_vnindex.empty else None
+    data_source = vn_source if not df_vnindex_clean.empty else None
 
     logger.info("Step 2: Calculating Market Breadth...")
     breadth_ratio = round(bullish_count / len(candidate_stocks), 2) if candidate_stocks else 0.50
 
     logger.info("Step 3: Calculating Final Market Regime...")
     final_market_regime = detect_market_regime(
-        df_vnindex=df_vnindex, df_vn30=df_vn30, breadth_ratio=breadth_ratio
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
+        breadth_ratio=breadth_ratio,
     )
 
     logger.info("Step 4: Generating Stock Recommendations using Final Market Regime...")
@@ -135,7 +141,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             exchange=ex,
             df_stock=df_stock,
             market_regime_info=final_market_regime,
-            df_vnindex=df_vnindex,
+            df_vnindex=df_vnindex_clean,
             data_source=tag if not df_stock.empty else None,
         )
         scanned_recs.append(rec)

@@ -3,6 +3,10 @@
 Determines multi-factor Vietnam market regime:
 STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC
 Evaluating VNINDEX, VN30, breadth, volatility, volume, and momentum.
+
+Invariant:
+All quantitative consumers must receive clean OHLCV data.
+Raw provider data may be retained for diagnostics only.
 """
 
 import logging
@@ -19,6 +23,7 @@ def detect_market_regime(
 ) -> dict:
     """Evaluate multi-factor Vietnam market regime.
 
+    Expects clean benchmark DataFrames (df_vnindex, df_vn30).
     Returns dict containing regime, regime_score, confidence, and metrics.
     """
     if df_vnindex is None or df_vnindex.empty or len(df_vnindex) < 20:
