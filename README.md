@@ -45,7 +45,7 @@ pnpm build
 
 ### 2. Backend Quantitative Pipeline
 
-Hỗ trợ Python >= 3.10 (khuyến nghị Python 3.10 - 3.12).
+Hỗ trợ Python >= 3.11 (khuyến nghị Python 3.11 - 3.12).
 
 ```bash
 # Cài đặt Python dependencies có tính tái lập cao (reproducible)

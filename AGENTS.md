@@ -46,7 +46,7 @@ vn-invest/
 │   └── types/                       # TypeScript interfaces mirroring JSON schema (recommendation.ts)
 ├── pyproject.toml                   # Ruff configuration for Python
 ├── package.json                     # Frontend dependencies & pnpm scripts
-└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==2.3.3, etc.)
+└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==3.0.5, etc.)
 ```
 
 ---
@@ -65,7 +65,7 @@ pnpm build
 
 ### B. Python Quantitative Engine Verification
 
-Môi trường Python hỗ trợ: Python 3.10 trở lên (khuyến nghị Python 3.10 - 3.12).
+Môi trường Python hỗ trợ: Python 3.11 trở lên (khuyến nghị Python 3.11 - 3.12).
 
 ```bash
 pip install -r requirements.txt
@@ -97,7 +97,7 @@ Execute these steps sequentially. If a step fails, attempt to auto-remediate. If
 
 - Identify the Operating System (macOS, Linux, or Windows).
 - Verify `python3` (or `python`/`py` on Windows) is in the PATH.
-- Verify Python version is **>= 3.10**.
+- Verify Python version is **>= 3.11**.
 - **Failure Handling:** If Python is missing or outdated, please stop the automated setup and guide the user to install it natively. Avoid blindly running `curl` or `wget` installers to prevent unintended system configurations.
 
 ### 2. Virtual Environment Setup
