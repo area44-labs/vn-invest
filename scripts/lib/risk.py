@@ -14,21 +14,25 @@ import pandas as pd
 
 
 def calculate_t25_returns(price_series: pd.Series) -> pd.Series:
-    """Calculate Vietnam T+2.5 settlement horizon returns from sequential daily EOD price observations.
+    """Calculate 3-session EOD proxy returns for the Vietnam T+2.5 settlement horizon.
 
     Vietnam Market T+2.5 Settlement & Holding Horizon Context:
     Under Vietnamese equity market settlement rules (T+2.5), securities purchased in trading
     session T complete settlement on the afternoon of T+2. Consequently, the investor can first
     trade or dispose of the position during trading session T+3.
 
-    EOD Data Approximation vs Settlement Mechanics:
+    EOD Data Proxy & Limitations:
     Daily EOD OHLCV data consists of discrete trading-session closing/VWAP prices without intra-day
-    half-session observations. The effective percentage return from trade entry at session T to first
-    tradable session T+3 is defined as (P_{T+3} - P_T) / P_T.
+    half-session observations. Exact intra-day settlement mechanics (e.g. trading at T+2 afternoon)
+    cannot be reconstructed from daily EOD data alone.
 
-    Therefore, 3 daily trading sessions (periods=3 on validated clean trading-session rows) is the
-    explicit, deterministic EOD risk-return horizon approximation for T+2.5. This helper operates
-    strictly on clean trading sessions without calendar interpolation, synthetic prices, or forward fills.
+    Therefore, a 3-trading-session return (R_{T+3} = (P_{T+3} - P_T) / P_T) serves as the project's
+    explicit, deterministic EOD risk-horizon proxy for T+2.5.
+
+    Input-Order & Clean-Data Contract:
+    `price_series` MUST be a chronologically ordered sequence of validated clean trading-session
+    prices produced upstream by the clean-data boundary (`get_clean_ohlcv_data`). This helper does
+    NOT perform calendar interpolation, date reindexing, price forward-filling, or synthetic row creation.
 
     Requires at least 4 valid price observations (periods=3 + 1) to yield the first valid return.
     """

@@ -134,44 +134,100 @@ class TestRiskModel(unittest.TestCase):
         self.assertAlmostEqual(returns.iloc[0], 0.50, places=4)
 
     def test_f_t25_unsorted_input(self):
-        """Test F — Explicit helper relies on sorted index/series order from upstream contract."""
-        prices_sorted = pd.Series([100.0, 102.0, 104.0, 106.0])
-        returns = calculate_t25_returns(prices_sorted)
-        self.assertAlmostEqual(returns.iloc[0], 0.06, places=4)
+        """Test F — Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
+        chronological_prices = pd.Series([100.0, 102.0, 104.0, 106.0])
+        unsorted_prices = pd.Series([106.0, 100.0, 104.0, 102.0])
+
+        returns_chrono = calculate_t25_returns(chronological_prices)
+        returns_unsorted = calculate_t25_returns(unsorted_prices)
+
+        # Expected chronological return at 4th session: (106 - 100) / 100 = 0.06
+        # If passed unsorted data, pct_change(3) computes (102 - 106) / 106 = -0.0377
+        self.assertAlmostEqual(returns_chrono.iloc[0], 0.06, places=4)
+        self.assertAlmostEqual(returns_unsorted.iloc[0], -0.037736, places=4)
+        self.assertNotEqual(returns_chrono.iloc[0], returns_unsorted.iloc[0])
 
     def test_g_t25_duplicate_invalid_rows_clean_boundary(self):
-        """Test G — Duplicate/invalid rows: T+2.5 calculation operates on clean dataset."""
-        dates = pd.date_range("2026-01-01", periods=25, freq="D").strftime("%Y-%m-%d").tolist()
-        # Add duplicate date and invalid row
-        dates.insert(3, dates[2])  # Duplicate date at index 3
-        closes = [100.0 + i for i in range(len(dates))]
-        closes[3] = -99.0  # Invalid non-positive close on duplicate row
-
+        """Test G — Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
+        # Construct synthetic price series where raw data has duplicate date and an extreme invalid price
+        # Clean prices: 100.0, 102.0, 104.0, 106.0 -> 3-session return = (106.0 - 100.0) / 100.0 = 0.06
         df_raw = pd.DataFrame(
             {
-                "time": dates,
-                "open": [p - 1 for p in closes],
-                "high": [p + 5 for p in closes],
-                "low": [p - 5 for p in closes],
-                "close": closes,
-                "volume": [1000] * len(dates),
+                "time": [
+                    "2026-01-01",
+                    "2026-01-02",
+                    "2026-01-03",
+                    "2026-01-03",
+                    "2026-01-04",
+                    "2026-01-05",
+                ],
+                "open": [99.0, 101.0, 103.0, 50.0, 105.0, 107.0],
+                "high": [105.0, 105.0, 105.0, 50.0, 110.0, 110.0],
+                "low": [95.0, 95.0, 95.0, 10.0, 95.0, 95.0],
+                "close": [100.0, 102.0, 104.0, 500.0, 106.0, 108.0],  # 500.0 is invalid duplicate
+                "volume": [1000, 1000, 1000, 1000, 1000, 1000],
             }
         )
+
         clean_df, _ = get_clean_ohlcv_data(df_raw, "TEST")
 
-        # Excludes duplicate date rows (index 2 & 3), keeping 24 clean rows
-        self.assertNotIn(-99.0, clean_df["close"].values)
+        # Raw calculation (if clean boundary were bypassed)
+        raw_returns = df_raw["close"].pct_change(periods=3).dropna()
+        # Clean calculation (production pipeline)
+        clean_returns = calculate_t25_returns(clean_df["close"])
 
-        returns_clean = calculate_t25_returns(clean_df["close"])
-        self.assertFalse(returns_clean.empty)
-        # Verify first valid return (4th clean session vs 1st clean session)
-        first_ret = (clean_df["close"].iloc[3] - clean_df["close"].iloc[0]) / clean_df[
-            "close"
-        ].iloc[0]
-        self.assertAlmostEqual(returns_clean.iloc[0], first_ret, places=4)
+        # Both occurrences of duplicate date '2026-01-03' are excluded by get_clean_ohlcv_data
+        # Clean dates remaining: '2026-01-01' (100.0), '2026-01-02' (102.0), '2026-01-04' (106.0), '2026-01-05' (108.0)
+        # Expected first clean T+2.5 return: (108.0 - 100.0) / 100.0 = 0.08
+        self.assertAlmostEqual(clean_returns.iloc[0], 0.08, places=4)
 
-    def test_h_t25_other_risk_metrics_unchanged(self):
-        """Test H — Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
+        # Confirm that bypassing clean data boundary produces a completely different (corrupted) return
+        self.assertNotEqual(clean_returns.iloc[0], raw_returns.iloc[0])
+
+    def test_h_update_stocks_integration(self):
+        """Test H — Integration test for calculate_advanced_vn_risk_metrics in update_stocks.py."""
+        from scripts.update_stocks import calculate_advanced_vn_risk_metrics
+
+        n = 30
+        dates = pd.date_range("2026-01-01", periods=n, freq="D").strftime("%Y-%m-%d").tolist()
+        close_prices = np.linspace(20000.0, 35000.0, n)
+        volumes = np.linspace(100000.0, 500000.0, n)
+
+        df = pd.DataFrame(
+            {
+                "time": dates,
+                "open": close_prices - 100.0,
+                "high": close_prices + 500.0,
+                "low": close_prices - 500.0,
+                "close": close_prices,
+                "volume": volumes,
+            }
+        )
+
+        res = calculate_advanced_vn_risk_metrics(df, exchange="HOSE")
+
+        # Verify risk metrics dictionary keys and populated values
+        self.assertEqual(res["status"], "PASSED")
+        self.assertIsNotNone(res["historical_var_t25"])
+        self.assertIn("returns_t25", df.columns)
+        self.assertEqual(len(df["returns_t25"]), len(df))
+
+        # Verify index alignment and first valid T+2.5 return at index 3
+        first_valid_t25 = df["returns_t25"].dropna().iloc[0]
+        expected_first_t25 = (df["close"].iloc[3] - df["close"].iloc[0]) / df["close"].iloc[0]
+        self.assertAlmostEqual(first_valid_t25, expected_first_t25, places=4)
+
+        # Verify anti-lookahead in df["returns_t25"]
+        df_modified = df.copy()
+        df_modified.loc[29, "close"] = 999999.0
+        _ = calculate_advanced_vn_risk_metrics(df_modified, exchange="HOSE")
+
+        self.assertAlmostEqual(
+            df["returns_t25"].iloc[3], df_modified["returns_t25"].iloc[3], places=6
+        )
+
+    def test_i_other_risk_metrics_unchanged(self):
+        """Test I — Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_prices = np.linspace(20000.0, 35000.0, n)
