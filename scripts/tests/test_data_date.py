@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from scripts.generate_report import main as generate_report_main, run_pipeline
+from scripts.generate_report import main as generate_report_main
+from scripts.generate_report import run_pipeline
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.vietnam_market import extract_latest_trading_date
 
