@@ -9,7 +9,6 @@ Outputs:
     generated/market.json
     generated/history/index.json
     generated/history/YYYY-MM-DD.json
-    (Synchronized under public/generated/ for static Vite frontend)
 """
 
 import argparse
@@ -40,21 +39,17 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
 GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
-PUBLIC_GENERATED_DIR = os.path.join(ROOT_DIR, "public", "generated")
 
 
 def save_json_files(relative_path: str, data: dict):
-    """Save JSON data atomically to both generated/ and public/generated/."""
-    path1 = os.path.join(GENERATED_DIR, relative_path)
-    path2 = os.path.join(PUBLIC_GENERATED_DIR, relative_path)
-
-    for p in [path1, path2]:
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        tmp_p = f"{p}.tmp"
-        with open(tmp_p, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.replace(tmp_p, p)
+    """Save JSON data atomically to generated/."""
+    p = os.path.join(GENERATED_DIR, relative_path)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp_p = f"{p}.tmp"
+    with open(tmp_p, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp_p, p)
 
 
 def load_schema():
@@ -256,7 +251,7 @@ def main():
         )
 
     logger.info("Report generation complete!")
-    logger.info("Outputs written to generated/ and public/generated/:")
+    logger.info("Outputs written to generated/:")
     logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
     logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
     if data_as_of:

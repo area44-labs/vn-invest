@@ -9,9 +9,18 @@ class TestSSGStaticHTML(unittest.TestCase):
     Prevents regression back to initial loading placeholders and useEffect-only loading.
     """
 
+    def test_single_source_of_truth_no_duplicate_public_generated(self):
+        """Verify generated/ is the single source of truth and public/generated does not exist."""
+        public_generated_path = os.path.join(os.getcwd(), "public", "generated")
+        self.assertFalse(
+            os.path.exists(public_generated_path),
+            f"Duplicate data source found at '{public_generated_path}'. "
+            "generated/ must be the single source of truth; public/generated/ must not exist.",
+        )
+
     def test_dashboard_static_html_contains_recommendation_data(self):
         index_html_path = os.path.join(os.getcwd(), "dist", "client", "index.html")
-        rec_json_path = os.path.join(os.getcwd(), "public", "generated", "recommendations.json")
+        rec_json_path = os.path.join(os.getcwd(), "generated", "recommendations.json")
 
         self.assertTrue(
             os.path.exists(index_html_path),
@@ -56,7 +65,7 @@ class TestSSGStaticHTML(unittest.TestCase):
         recommendations = rec_data.get("recommendations", [])
         self.assertTrue(
             len(recommendations) > 0,
-            "No recommendations found in public/generated/recommendations.json",
+            "No recommendations found in generated/recommendations.json",
         )
 
         # Filter top Buys & Sells as rendered on Dashboard cards
@@ -121,7 +130,7 @@ class TestSSGStaticHTML(unittest.TestCase):
                 )
 
     def test_stock_detail_static_html_for_all_prerendered_symbols(self):
-        rec_json_path = os.path.join(os.getcwd(), "public", "generated", "recommendations.json")
+        rec_json_path = os.path.join(os.getcwd(), "generated", "recommendations.json")
         self.assertTrue(
             os.path.exists(rec_json_path),
             f"Canonical data artifact missing: {rec_json_path}.",
@@ -135,7 +144,7 @@ class TestSSGStaticHTML(unittest.TestCase):
             len(recommendations) > 0, "No recommendations found in recommendations.json"
         )
 
-        # 1. Derive EXPECTED stock symbols directly from public/generated/recommendations.json
+        # 1. Derive EXPECTED stock symbols directly from generated/recommendations.json
         expected_symbols = sorted(
             {
                 r.get("symbol").strip()

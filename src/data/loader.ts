@@ -22,16 +22,13 @@ async function loadArtifact<T>(relativePath: string): Promise<T | null> {
       const fs = await import(/* @vite-ignore */ fsModule);
       const path = await import(/* @vite-ignore */ pathModule);
 
-      const filePath = path.join(process.cwd(), "public", relativePath);
+      const filePath = path.join(process.cwd(), relativePath);
       const content = await fs.readFile(filePath, "utf-8");
       return JSON.parse(content) as T;
     } catch (err) {
-      console.error(
-        `[SSG Fatal Error] Failed to read static artifact public/${relativePath}:`,
-        err,
-      );
+      console.error(`[SSG Fatal Error] Failed to read static artifact ${relativePath}:`, err);
       throw new Error(
-        `[SSG Build Error] Required static artifact public/${relativePath} is missing or invalid: ${(err as Error).message}`,
+        `[SSG Build Error] Required static artifact ${relativePath} is missing or invalid: ${(err as Error).message}`,
       );
     }
   }
