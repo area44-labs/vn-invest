@@ -398,9 +398,8 @@ def normalize_ohlcv_units(
         for col in price_cols:
             df_norm[col] = df_norm[col] * 1000.0
 
-    if source_volume_unit == "thousand_shares":
-        if "volume" in df_norm.columns:
-            df_norm["volume"] = df_norm["volume"] * 1000.0
+    if source_volume_unit == "thousand_shares" and "volume" in df_norm.columns:
+        df_norm["volume"] = df_norm["volume"] * 1000.0
 
     return df_norm
 
