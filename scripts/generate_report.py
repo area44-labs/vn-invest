@@ -25,7 +25,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.lib.recommendation import generate_recommendation
+from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
@@ -163,6 +163,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     recommendations_payload = {
         "schema_version": "2.0",
+        "signal_model_version": SIGNAL_MODEL_VERSION,
         "generated_at": generated_at,
         "data_as_of": data_as_of,
         "source_date": source_date,
