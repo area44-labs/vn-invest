@@ -7,6 +7,7 @@ by VN Invest Signal Engine.
 Key Architectural Principles:
 1. Temporal Separation & As-Of Semantics:
    At evaluation date T, the quantitative engine strictly receives data timestamped <= T.
+   Point-in-time dataset slicing strictly uses date comparison (date <= T), NOT positional iloc.
    Future data (> T) is strictly isolated and used solely for forward outcome evaluation.
    Future data quality (> T) does NOT affect signal generation at T.
    All market-level inputs (VNINDEX, VN30, and universe market breadth as-of T) are
@@ -25,10 +26,10 @@ Key Architectural Principles:
 4. Strategy Return Diagnostic Semantics:
    The metric `sum_strategy_return` represents the arithmetic sum of individual signal strategy returns.
    It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
-5. Fail-Closed Validation & Error Handling:
-   Signal-time datasets (<= T) are validated against canonical OHLCV and temporal contracts.
-   Malformed dates, duplicate dates, or invalid price/volume structures <= T raise explicit errors
-   rather than being silently swallowed into default values or fake valid outputs.
+5. Fail-Closed Temporal Contract & Validation:
+   Datasets must have parseable, unique, and strictly increasing chronological dates.
+   Unsorted dates or duplicate dates raise explicit ValueError exceptions rather than being
+   silently swallowed or positionally misindexed.
 6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
@@ -172,11 +173,13 @@ def validate_backtest_dataset(df: pd.DataFrame, dataset_name: str = "Dataset") -
 def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> pd.DataFrame:
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
-    Temporal Isolation & Fail-Closed Validation:
-    1. Slices raw DataFrame to rows timestamped <= evaluation_date BEFORE validating OHLCV quality.
-       Future data (> T) quality or malformed rows strictly after T NEVER affect or fail signal generation at T.
-    2. Validates the point-in-time slice (<= T) strictly against OHLCV and temporal contracts.
-    3. Requires evaluation_date to exist as an actual trading session in the dataset price history.
+    Temporal Contract & Fail-Closed Validation:
+    1. Filters raw DataFrame strictly by date comparison (row_date <= T), NEVER by positional iloc!
+       Future rows (> T) with invalid dates/prices never leak into or fail signal generation at T.
+    2. Requires exact evaluation_date T to exist in price history.
+    3. Validates that the point-in-time sequence (<= T) has parseable, unique, and strictly increasing
+       chronological dates. Raises ValueError if dates <= T are unsorted or contain duplicates.
+    4. Validates point-in-time OHLCV data <= T strictly via validate_backtest_dataset().
     """
     if df is None or df.empty:
         raise ValueError("Cannot slice empty or None DataFrame.")
@@ -190,11 +193,9 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    # Parse dates
-    parsed_dates = pd.to_datetime(df[date_col], errors="coerce")
     df_temp = df.copy()
-
-    formatted_dates = parsed_dates.dt.strftime("%Y-%m-%d")
+    parsed_dates = pd.to_datetime(df_temp[date_col], errors="coerce")
+    formatted_dates = [d.strftime("%Y-%m-%d") if pd.notna(d) else None for d in parsed_dates]
     df_temp["_date_str"] = formatted_dates
 
     # Check if target evaluation_date exists in dataset
@@ -212,15 +213,43 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
             f"DataFrame column '{date_col}' contains invalid unparseable date entries prior to or on evaluation date '{target_date_str}'."
         )
 
-    # Slice point-in-time raw dataset strictly <= T
-    as_of_raw = df_temp.iloc[: target_idx + 1].drop(columns=["_date_str"])
+    # Point-in-time filter strictly by date comparison (date <= T), NEVER by positional iloc!
+    as_of_mask = (df_temp["_date_str"].notna()) & (df_temp["_date_str"] <= target_date_str)
+    as_of_raw = df_temp[as_of_mask].drop(columns=["_date_str"]).copy()
 
     if as_of_raw.empty:
         raise ValueError(
             f"No historical data available on or before evaluation date '{target_date_str}'."
         )
 
-    # Validate point-in-time slice (<= T) strictly
+    as_of_dates = pd.to_datetime(as_of_raw[date_col], errors="coerce")
+    if as_of_dates.isna().any():
+        raise ValueError(
+            f"Point-in-time dataset <= '{target_date_str}' contains unparseable invalid dates."
+        )
+
+    as_of_date_strs = as_of_dates.dt.strftime("%Y-%m-%d")
+
+    # Verify exact evaluation date T exists in dataset history
+    if target_date_str not in as_of_date_strs.values:
+        raise ValueError(
+            f"Evaluation date '{target_date_str}' not present in dataset price history."
+        )
+
+    # Validate temporal sequence <= T: unique and strictly increasing chronological order
+    if (
+        not as_of_dates.is_monotonic_increasing
+        or (as_of_dates.diff().dt.total_seconds() <= 0).iloc[1:].any()
+    ):
+        if as_of_dates.duplicated().any():
+            raise ValueError(
+                f"Point-in-time dataset <= '{target_date_str}' contains duplicate dates."
+            )
+        raise ValueError(
+            f"Point-in-time dataset <= '{target_date_str}' is unsorted or not strictly increasing in chronological order."
+        )
+
+    # Validate point-in-time OHLCV data <= T
     val_res = validate_backtest_dataset(as_of_raw, "Point-in-time Dataset")
     clean_df = val_res["clean_df"]
 
@@ -252,7 +281,7 @@ def calculate_as_of_market_breadth(
     valid_stocks_count = 0
 
     for sym, df_stock in valid_entries.items():
-        # Extract point-in-time dataset. Fails closed if data <= T is malformed.
+        # Extract point-in-time dataset. Fails closed if data <= T is malformed or unsorted.
         try:
             df_stock_as_of = get_as_of_dataset(df_stock, evaluation_date)
         except ValueError as err:
@@ -290,10 +319,10 @@ def evaluate_forward_outcomes(
     Forward return formula at T + N trading sessions:
         forward_return_N = (Price[T + N] / Price[T]) - 1.0
 
-    Strategy return semantics:
-        - BUY: +forward_return
-        - SELL: -forward_return
-        - HOLD / WATCH / AVOID: 0.0
+    Temporal Contract & Fail-Closed Validation:
+    - Requires dataset dates to be parseable, unique, and strictly increasing in chronological order.
+    - Requires evaluation date T to exist uniquely in price history.
+    - Position T + N corresponds strictly to the N-th valid trading session observation after T.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
@@ -310,10 +339,31 @@ def evaluate_forward_outcomes(
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    # Parse dates and match target
-    df_clean = df_stock.copy()
-    parsed_dates = pd.to_datetime(df_clean[date_col_raw], errors="coerce")
-    df_clean["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
+    # Parse and validate dates across entire outcome dataset strictly
+    parsed_dates = pd.to_datetime(df_stock[date_col_raw], errors="coerce")
+    if parsed_dates.isna().any():
+        raise ValueError("Outcome dataset contains unparseable or invalid date entries.")
+
+    if parsed_dates.duplicated().any():
+        raise ValueError("Outcome dataset contains duplicate date entries.")
+
+    if (
+        not parsed_dates.is_monotonic_increasing
+        or (parsed_dates.diff().dt.total_seconds() <= 0).iloc[1:].any()
+    ):
+        raise ValueError(
+            "Outcome dataset dates are unsorted or not strictly increasing in chronological order."
+        )
+
+    # Validate OHLCV quality across dataset
+    validate_backtest_dataset(df_stock, "Outcome Dataset")
+
+    df_clean, _ = get_clean_ohlcv_data(df_stock, "SYMBOL")
+    if df_clean.empty:
+        raise ValueError("Stock DataFrame contains no valid OHLCV data.")
+
+    clean_date_col = _find_date_column(df_clean)
+    df_clean["_date_str"] = pd.to_datetime(df_clean[clean_date_col]).dt.strftime("%Y-%m-%d")
 
     matches = df_clean[df_clean["_date_str"] == target_date_str]
 

@@ -235,16 +235,12 @@ class TestBacktestFramework(unittest.TestCase):
         """Test E: Future Data Quality Isolation ('future data quality != signal at T').
 
         Corrupting/malforming data strictly AFTER T (e.g., unparseable dates, negative prices, bad OHLC)
-        must NOT affect or fail signal generation at T.
+        must NOT affect or fail point-in-time signal generation at T.
         """
         eval_d = self.df_stock["date"].iloc[50]  # T = index 50
 
-        # Original signal at T
-        res_orig = run_backtest_for_symbol(
-            symbol="TCB",
-            df_stock=self.df_stock,
-            evaluation_dates=[eval_d],
-        )[0]
+        # Point-in-time dataset as-of T from clean original stock
+        df_as_of_orig = get_as_of_dataset(self.df_stock, eval_d)
 
         # Corrupt stock data strictly AFTER T
         df_corrupted_post_t = self.df_stock.copy()
@@ -256,17 +252,15 @@ class TestBacktestFramework(unittest.TestCase):
         df_corrupted_post_t.loc[post_t_idx[2], "high"] = 5.0
         df_corrupted_post_t.loc[post_t_idx[2], "low"] = 500.0
 
-        res_corrupted = run_backtest_for_symbol(
-            symbol="TCB",
-            df_stock=df_corrupted_post_t,
-            evaluation_dates=[eval_d],
-        )[0]
+        # Point-in-time dataset as-of T MUST succeed without error despite post-T corruption
+        df_as_of_corrupted = get_as_of_dataset(df_corrupted_post_t, eval_d)
 
-        # Signal at T MUST be 100% identical
-        self.assertEqual(res_orig.signal.action, res_corrupted.signal.action)
-        self.assertEqual(res_orig.signal.signal_score, res_corrupted.signal.signal_score)
-        self.assertEqual(res_orig.signal.confidence, res_corrupted.signal.confidence)
-        self.assertEqual(res_orig.signal.market_regime, res_corrupted.signal.market_regime)
+        # Datasets <= T MUST be 100% identical
+        pd.testing.assert_frame_equal(df_as_of_orig, df_as_of_corrupted)
+
+        # Outcome evaluation on corrupted future data raises ValueError fitting outcome contract
+        with self.assertRaises(ValueError):
+            evaluate_forward_outcomes(df_corrupted_post_t, eval_d)
 
     def test_f_determinism(self):
         """Test F: Determinism verification across multiple invocations."""
@@ -459,7 +453,15 @@ class TestBacktestFramework(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_as_of_dataset(df_bad_date, eval_d)
 
-        # 7. Malformed market data (<= T) fails closed in run_backtest_for_symbol
+        # 7. Unsorted input dates prior to T fail validation (fail closed)
+        df_unsorted = self.df_stock.copy()
+        tmp_row = df_unsorted.iloc[10].copy()
+        df_unsorted.iloc[10] = df_unsorted.iloc[15]
+        df_unsorted.iloc[15] = tmp_row
+        with self.assertRaises(ValueError):
+            get_as_of_dataset(df_unsorted, eval_d)
+
+        # 8. Malformed market data (<= T) fails closed in run_backtest_for_symbol
         with self.assertRaises(ValueError):
             run_backtest_for_symbol(
                 symbol="TCB",
@@ -468,7 +470,7 @@ class TestBacktestFramework(unittest.TestCase):
                 df_vnindex=df_dup,  # Malformed VNINDEX with duplicate dates <= T
             )
 
-        # 8. Malformed universe stock data (<= T) fails closed in breadth calculation
+        # 9. Malformed universe stock data (<= T) fails closed in breadth calculation
         bad_univ_map = {"BAD_STOCK": df_dup}
         with self.assertRaises(ValueError):
             calculate_as_of_market_breadth(bad_univ_map, eval_d)
@@ -484,6 +486,24 @@ class TestBacktestFramework(unittest.TestCase):
         # Map with only empty dataframes fails closed
         with self.assertRaises(ValueError):
             calculate_as_of_market_breadth({"BAD1": pd.DataFrame(), "BAD2": None}, eval_d)
+
+    def test_l_unsorted_and_duplicate_outcome_dataset_validation(self):
+        """Test L: Unsorted and duplicate outcome dataset fail-closed validation."""
+        eval_d = self.df_stock["date"].iloc[10]
+
+        # Unsorted outcome dataset
+        df_unsorted = self.df_stock.copy()
+        tmp = df_unsorted.iloc[20].copy()
+        df_unsorted.iloc[20] = df_unsorted.iloc[30]
+        df_unsorted.iloc[30] = tmp
+        with self.assertRaises(ValueError):
+            evaluate_forward_outcomes(df_unsorted, eval_d)
+
+        # Duplicate date outcome dataset
+        df_dup = self.df_stock.copy()
+        df_dup.iloc[25] = df_dup.iloc[24]
+        with self.assertRaises(ValueError):
+            evaluate_forward_outcomes(df_dup, eval_d)
 
 
 if __name__ == "__main__":
