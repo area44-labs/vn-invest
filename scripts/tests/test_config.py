@@ -146,19 +146,19 @@ class TestScoringFunctionsAndThresholds(unittest.TestCase):
     def test_calculate_signal_score(self):
         """Verify composite signal score weight normalization and data quality status."""
         # All 5 components present
-        score, comps, quality = calculate_signal_score(100.0, 100.0, 100.0, 100.0, 100.0)
+        score, _comps, quality = calculate_signal_score(100.0, 100.0, 100.0, 100.0, 100.0)
         self.assertEqual(score, 100.0)
         self.assertEqual(quality, "SUFFICIENT")
 
         # 3 components present (partial quality)
-        score, comps, quality = calculate_signal_score(80.0, 60.0, 40.0, None, None)
+        score, _comps, quality = calculate_signal_score(80.0, 60.0, 40.0, None, None)
         # Weights: trend (0.30), momentum (0.25), volume (0.15) => sum = 0.70
         # Weighted sum: (80*0.30 + 60*0.25 + 40*0.15) / 0.70 = 45 / 0.70 = 64.2857 -> 64.3
         self.assertEqual(score, 64.3)
         self.assertEqual(quality, "PARTIAL")
 
         # Fewer than 3 components present => INSUFFICIENT
-        score, comps, quality = calculate_signal_score(80.0, 60.0, None, None, None)
+        score, _comps, quality = calculate_signal_score(80.0, 60.0, None, None, None)
         self.assertIsNone(score)
         self.assertEqual(quality, "INSUFFICIENT")
 
