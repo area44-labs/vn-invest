@@ -9,7 +9,10 @@ when intraday data is absent.
 import pandas as pd
 
 
-def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+from scripts.lib import config
+
+
+def calculate_atr(df: pd.DataFrame, period: int = config.ATR_DEFAULT_PERIOD) -> pd.Series:
     """Calculate Average True Range (ATR)."""
     high, low, close = df["high"], df["low"], df["close"]
     close_prev = close.shift(1)
@@ -22,30 +25,40 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 def calculate_single_tf_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate single timeframe indicators (MA20, MA50, RSI, MACD, ATR, Returns)."""
     df_calc = df.copy()
-    df_calc["ma20"] = df_calc["close"].rolling(window=20, min_periods=1).mean()
-    df_calc["ma50"] = df_calc["close"].rolling(window=50, min_periods=1).mean()
-    df_calc["vol_ma20"] = df_calc["volume"].rolling(window=20, min_periods=1).mean()
+    df_calc["ma20"] = df_calc["close"].rolling(window=config.MA_SHORT_PERIOD, min_periods=1).mean()
+    df_calc["ma50"] = df_calc["close"].rolling(window=config.MA_LONG_PERIOD, min_periods=1).mean()
+    df_calc["vol_ma20"] = (
+        df_calc["volume"].rolling(window=config.MA_SHORT_PERIOD, min_periods=1).mean()
+    )
 
     delta = df_calc["close"].diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=14, min_periods=1).mean()
-    avg_loss = loss.rolling(window=14, min_periods=1).mean().replace(0, 0.00001)
+    avg_gain = gain.rolling(window=config.RSI_DEFAULT_PERIOD, min_periods=1).mean()
+    avg_loss = (
+        loss.rolling(window=config.RSI_DEFAULT_PERIOD, min_periods=1).mean().replace(0, 0.00001)
+    )
     df_calc["rsi"] = (100 - (100 / (1 + (avg_gain / avg_loss)))).fillna(50)
 
-    df_calc["ema12"] = df_calc["close"].ewm(span=12, adjust=False, min_periods=1).mean()
-    df_calc["ema26"] = df_calc["close"].ewm(span=26, adjust=False, min_periods=1).mean()
+    df_calc["ema12"] = (
+        df_calc["close"].ewm(span=config.MACD_FAST_PERIOD, adjust=False, min_periods=1).mean()
+    )
+    df_calc["ema26"] = (
+        df_calc["close"].ewm(span=config.MACD_SLOW_PERIOD, adjust=False, min_periods=1).mean()
+    )
     df_calc["macd"] = df_calc["ema12"] - df_calc["ema26"]
-    df_calc["signal"] = df_calc["macd"].ewm(span=9, adjust=False, min_periods=1).mean()
+    df_calc["signal"] = (
+        df_calc["macd"].ewm(span=config.MACD_SIGNAL_PERIOD, adjust=False, min_periods=1).mean()
+    )
     df_calc["hist"] = df_calc["macd"] - df_calc["signal"]
-    df_calc["atr"] = calculate_atr(df_calc, 14)
+    df_calc["atr"] = calculate_atr(df_calc, config.ATR_DEFAULT_PERIOD)
     df_calc["daily_return"] = df_calc["close"].pct_change()
     return df_calc
 
 
-def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
+def detect_divergence(df: pd.DataFrame, lookback: int = config.DIVERGENCE_LOOKBACK_1D) -> dict:
     """Detect RSI and MACD bullish and bearish divergences."""
-    if len(df) < 15:
+    if len(df) < config.DIVERGENCE_MIN_HISTORY:
         return {
             "rsi_bullish": False,
             "rsi_bearish": False,
@@ -86,9 +99,15 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
         rsi1, rsi2 = df_sub["rsi"].iloc[t1], df_sub["rsi"].iloc[t2]
         macd1, macd2 = df_sub["hist"].iloc[t1], df_sub["hist"].iloc[t2]
 
-        if p2 <= p1 * 1.01 and rsi2 > rsi1 + 1.5:
+        if (
+            p2 <= p1 * config.DIVERGENCE_TROUGH_PRICE_TOLERANCE
+            and rsi2 > rsi1 + config.DIVERGENCE_RSI_DELTA
+        ):
             rsi_bullish = True
-        if p2 <= p1 * 1.01 and macd2 > macd1 + 0.05:
+        if (
+            p2 <= p1 * config.DIVERGENCE_TROUGH_PRICE_TOLERANCE
+            and macd2 > macd1 + config.DIVERGENCE_MACD_DELTA
+        ):
             macd_bullish = True
 
     if len(peaks) >= 2:
@@ -97,17 +116,23 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
         rsi1, rsi2 = df_sub["rsi"].iloc[pk1], df_sub["rsi"].iloc[pk2]
         macd1, macd2 = df_sub["hist"].iloc[pk1], df_sub["hist"].iloc[pk2]
 
-        if p2 >= p1 * 0.99 and rsi2 < rsi1 - 1.5:
+        if (
+            p2 >= p1 * config.DIVERGENCE_PEAK_PRICE_TOLERANCE
+            and rsi2 < rsi1 - config.DIVERGENCE_RSI_DELTA
+        ):
             rsi_bearish = True
-        if p2 >= p1 * 0.99 and macd2 < macd1 - 0.05:
+        if (
+            p2 >= p1 * config.DIVERGENCE_PEAK_PRICE_TOLERANCE
+            and macd2 < macd1 - config.DIVERGENCE_MACD_DELTA
+        ):
             macd_bearish = True
 
     last_5 = df_sub.tail(5)
     if (
         not rsi_bullish
         and (last_5["low"].iloc[-1] <= last_5["low"].min())
-        and (last_5["rsi"].iloc[-1] > last_5["rsi"].iloc[0] + 3.0)
-        and (last_5["rsi"].min() < 40)
+        and (last_5["rsi"].iloc[-1] > last_5["rsi"].iloc[0] + config.DIVERGENCE_FALLBACK_RSI_DELTA)
+        and (last_5["rsi"].min() < config.DIVERGENCE_FALLBACK_RSI_MAX)
     ):
         rsi_bullish = True
 
@@ -170,10 +195,10 @@ def calculate_multi_timeframe_features(
         )
 
     df_w = calculate_single_tf_indicators(df_weekly)
-    div_w = detect_divergence(df_w, lookback=30)
+    div_w = detect_divergence(df_w, lookback=config.DIVERGENCE_LOOKBACK_1W)
 
     df_m = calculate_single_tf_indicators(df_monthly)
-    div_m = detect_divergence(df_m, lookback=24)
+    div_m = detect_divergence(df_m, lookback=config.DIVERGENCE_LOOKBACK_1M)
 
     tf_summary = {
         "1h": {

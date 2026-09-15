@@ -13,6 +13,8 @@ import logging
 
 import pandas as pd
 
+from scripts.lib import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,10 +28,10 @@ def detect_market_regime(
     Expects clean benchmark DataFrames (df_vnindex, df_vn30).
     Returns dict containing regime, regime_score, confidence, and metrics.
     """
-    if df_vnindex is None or df_vnindex.empty or len(df_vnindex) < 20:
+    if df_vnindex is None or df_vnindex.empty or len(df_vnindex) < config.REGIME_MIN_HISTORY:
         return {
             "regime": "DEFENSIVE",
-            "regime_score": 50.0,
+            "regime_score": config.REGIME_BASE_SCORE,
             "confidence": 0.40,
             "metrics": {
                 "vnindex_value": None,
@@ -46,23 +48,37 @@ def detect_market_regime(
     prev_vn = float(close_vn.iloc[-2]) if len(close_vn) >= 2 else latest_vn
     vn_change_pct = float((latest_vn - prev_vn) / prev_vn * 100) if prev_vn > 0 else 0.0
 
-    ma20_vn = float(close_vn.tail(20).mean())
-    ma50_vn = float(close_vn.tail(50).mean()) if len(close_vn) >= 50 else ma20_vn
+    ma20_vn = float(close_vn.tail(config.MA_SHORT_PERIOD).mean())
+    ma50_vn = (
+        float(close_vn.tail(config.MA_LONG_PERIOD).mean())
+        if len(close_vn) >= config.MA_LONG_PERIOD
+        else ma20_vn
+    )
 
     ret_20d = (
-        float((latest_vn - close_vn.iloc[-20]) / close_vn.iloc[-20] * 100)
-        if len(close_vn) >= 20
+        float(
+            (latest_vn - close_vn.iloc[-config.MA_SHORT_PERIOD])
+            / close_vn.iloc[-config.MA_SHORT_PERIOD]
+            * 100
+        )
+        if len(close_vn) >= config.MA_SHORT_PERIOD
         else 0.0
     )
 
     vol_col = "volume" if "volume" in df_vnindex.columns else None
-    if vol_col and len(df_vnindex) >= 20 and df_vnindex[vol_col].tail(20).mean() > 0:
-        vol_ratio = float(df_vnindex[vol_col].iloc[-1] / df_vnindex[vol_col].tail(20).mean())
+    if (
+        vol_col
+        and len(df_vnindex) >= config.MA_SHORT_PERIOD
+        and df_vnindex[vol_col].tail(config.MA_SHORT_PERIOD).mean() > 0
+    ):
+        vol_ratio = float(
+            df_vnindex[vol_col].iloc[-1] / df_vnindex[vol_col].tail(config.MA_SHORT_PERIOD).mean()
+        )
     else:
         vol_ratio = 1.0
 
     # Volatility 20d std of daily return
-    returns_20d = close_vn.pct_change().tail(20)
+    returns_20d = close_vn.pct_change().tail(config.MA_SHORT_PERIOD)
     vn_volatility = float(returns_20d.std() * (252**0.5)) if len(returns_20d) >= 5 else 0.15
 
     # VN30 metrics
@@ -72,57 +88,64 @@ def detect_market_regime(
         vn30_change_pct = float((c30.iloc[-1] - c30.iloc[-2]) / c30.iloc[-2] * 100)
 
     # Multi-factor score calculation (0 - 100)
-    score = 50.0
+    score = config.REGIME_BASE_SCORE
 
     # Trend component (+/- 25)
     if latest_vn > ma20_vn:
-        score += 15.0
+        score += config.REGIME_TREND_MA20_WEIGHT
     else:
-        score -= 15.0
+        score -= config.REGIME_TREND_MA20_WEIGHT
 
     if latest_vn > ma50_vn:
-        score += 10.0
+        score += config.REGIME_TREND_MA50_WEIGHT
     else:
-        score -= 10.0
+        score -= config.REGIME_TREND_MA50_WEIGHT
 
     # Momentum component (+/- 15)
-    if ret_20d > 5.0:
-        score += 15.0
-    elif ret_20d > 1.0:
-        score += 8.0
-    elif ret_20d < -5.0:
-        score -= 15.0
-    elif ret_20d < -1.0:
-        score -= 8.0
+    if ret_20d > config.REGIME_RET_20D_STRONG_BULL:
+        score += config.REGIME_RET_20D_STRONG_BULL_SCORE
+    elif ret_20d > config.REGIME_RET_20D_BULL:
+        score += config.REGIME_RET_20D_BULL_SCORE
+    elif ret_20d < config.REGIME_RET_20D_STRONG_BEAR:
+        score += config.REGIME_RET_20D_STRONG_BEAR_SCORE
+    elif ret_20d < config.REGIME_RET_20D_BEAR:
+        score += config.REGIME_RET_20D_BEAR_SCORE
 
     # Market breadth (+/- 10)
     if breadth_ratio is not None:
-        if breadth_ratio >= 0.65:
-            score += 10.0
-        elif breadth_ratio >= 0.50:
-            score += 5.0
-        elif breadth_ratio <= 0.35:
-            score -= 10.0
+        if breadth_ratio >= config.REGIME_BREADTH_HIGH:
+            score += config.REGIME_BREADTH_HIGH_SCORE
+        elif breadth_ratio >= config.REGIME_BREADTH_MED:
+            score += config.REGIME_BREADTH_MED_SCORE
+        elif breadth_ratio <= config.REGIME_BREADTH_LOW:
+            score += config.REGIME_BREADTH_LOW_SCORE
 
     # Volatility / Panic penalty (-15)
-    if vn_volatility > 0.35 or vn_change_pct < -3.0:
-        score -= 15.0
+    if (
+        vn_volatility > config.REGIME_PANIC_VOLATILITY
+        or vn_change_pct < config.REGIME_PANIC_DAILY_DROP_PCT
+    ):
+        score += config.REGIME_PANIC_PENALTY
 
     score = max(0.0, min(100.0, round(score, 1)))
 
     # Classification
-    if score >= 80.0:
+    if score >= config.REGIME_THRESHOLD_STRONG_BULL:
         regime = "STRONG_BULL"
-    elif score >= 60.0:
+    elif score >= config.REGIME_THRESHOLD_BULL:
         regime = "BULL"
-    elif score >= 40.0:
+    elif score >= config.REGIME_THRESHOLD_DEFENSIVE:
         regime = "DEFENSIVE"
-    elif score >= 20.0:
+    elif score >= config.REGIME_THRESHOLD_BEAR:
         regime = "BEAR"
     else:
         regime = "PANIC"
 
-    confidence = 0.85 if len(df_vnindex) >= 50 else 0.60
+    confidence = (
+        config.REGIME_CONFIDENCE_SUFFICIENT
+        if len(df_vnindex) >= config.REGIME_CONFIDENCE_HISTORY_THRESHOLD
+        else config.REGIME_CONFIDENCE_PARTIAL
+    )
 
     return {
         "regime": regime,
