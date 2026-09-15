@@ -54,7 +54,8 @@
         "confidence": {
           "type": ["number", "null"],
           "minimum": 0.0,
-          "maximum": 1.0
+          "maximum": 1.0,
+          "description": "Deterministic heuristic market regime confidence score (0.0 to 1.0), derived from data completeness rules and historical sequence length. Not a statistically calibrated probability."
         },
         "regime_score": {
           "type": ["number", "null"],
@@ -176,7 +177,8 @@
         "confidence": {
           "type": ["number", "null"],
           "minimum": 0.0,
-          "maximum": 1.0
+          "maximum": 1.0,
+          "description": "Deterministic heuristic model-confidence score (0.0 to 1.0) derived from data completeness, signal component agreement, volatility/drawdown bounds, and RSI extremes. Not a statistically calibrated probability."
         },
         "risk_level": {
           "type": ["string", "null"],

@@ -293,7 +293,15 @@ def calculate_confidence(
     risk_metrics: dict,
     rsi: float | None = None,
 ) -> float:
-    """Calculate deterministic confidence score (0.10 to 0.95) based on data quality, dispersion/agreement, and risk indicators."""
+    """Calculate deterministic confidence score (0.10 to 0.95) based on data quality, dispersion/agreement, and risk indicators.
+
+    Note on Semantics:
+    The returned confidence value is a deterministic heuristic / model-confidence score,
+    not a statistically calibrated probability. It is derived from explicit rules combining
+    data availability, signal component agreement, volatility/drawdown bounds, and RSI extremes.
+    The same inputs produce the exact same confidence value. A confidence of 0.80 must NOT be
+    interpreted as an 80% statistical probability or win rate for the recommendation.
+    """
     if data_quality == "INSUFFICIENT":
         return 0.10
 

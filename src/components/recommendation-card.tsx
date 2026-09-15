@@ -70,7 +70,9 @@ export function RecommendationCard({ recommendation: r, rank }: RecommendationCa
           </span>
         </div>
         <div className="rounded-sm border border-border bg-background p-2">
-          <span className="block text-[9px] text-muted-foreground uppercase">Độ Tin Cậy</span>
+          <span className="block text-[9px] text-muted-foreground uppercase">
+            Độ Tin Cậy (Model)
+          </span>
           <span className="font-bold text-foreground">
             {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : "—"}
           </span>

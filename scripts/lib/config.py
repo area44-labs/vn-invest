@@ -133,6 +133,11 @@ DIVERGENCE_FALLBACK_RSI_DELTA = 3.0
 DIVERGENCE_FALLBACK_RSI_MAX = 40.0
 
 # Confidence Calculation Parameters
+# Note on Semantics:
+# "confidence" values are deterministic heuristic / model-confidence scores, not statistically
+# calibrated probabilities. They represent internal model data completeness, signal agreement,
+# and volatility bounds rules. The same inputs produce identical confidence outputs. A value
+# of 0.80 does NOT imply an 80% statistical probability of recommendation accuracy.
 CONFIDENCE_MIN = 0.10
 CONFIDENCE_MAX = 0.95
 CONFIDENCE_BASE_SUFFICIENT = 0.70
