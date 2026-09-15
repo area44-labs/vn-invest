@@ -8,6 +8,7 @@ Key Architectural Principles:
 1. Temporal Separation & As-Of Semantics:
    At evaluation date T, the quantitative engine strictly receives data timestamped <= T.
    Future data (> T) is strictly isolated and used solely for forward outcome evaluation.
+   Future data quality (> T) does NOT affect signal generation at T.
    All market-level inputs (VNINDEX, VN30, and universe market breadth as-of T) are
    strictly bounded <= T before evaluating market regime and signal recommendations.
 2. Forward Return Calculation:
@@ -23,10 +24,10 @@ Key Architectural Principles:
 4. Strategy Return Diagnostic Semantics:
    The metric `sum_strategy_return` represents the arithmetic sum of individual signal strategy returns.
    It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
-5. Fail-Closed Validation:
-   Input datasets are validated against canonical OHLCV and temporal contracts.
+5. Fail-Closed Validation & Error Handling:
+   Signal-time datasets (<= T) are validated against canonical OHLCV and temporal contracts.
    Malformed dates, duplicate dates, or invalid price/volume structures raise explicit errors
-   rather than being silently swallowed or converted into fake valid outputs.
+   rather than being silently swallowed into default values or fake valid outputs.
 6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
@@ -170,35 +171,55 @@ def validate_backtest_dataset(df: pd.DataFrame, dataset_name: str = "Dataset") -
 def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> pd.DataFrame:
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
-    Validates dataset contract and raises ValueError if data is malformed, dates are invalid/duplicate,
-    or evaluation_date is out-of-bounds.
+    Temporal Isolation & Fail-Closed Validation:
+    1. Slices raw DataFrame to rows timestamped <= evaluation_date. Future data (> T) is NOT processed or validated here.
+    2. Validates the point-in-time slice (<= T) against OHLCV and temporal contracts.
+    3. Requires evaluation_date to exist in the dataset price history.
     """
-    val_res = validate_backtest_dataset(df, "OHLCV Dataset")
-    clean_df = val_res["clean_df"]
+    if df is None or df.empty:
+        raise ValueError("Cannot slice empty or None DataFrame.")
 
-    if clean_df.empty:
-        raise ValueError("Cannot slice point-in-time dataset from empty clean OHLCV data.")
+    date_col = _find_date_column(df)
+    if not date_col:
+        raise ValueError("DataFrame missing required 'date' or 'time' column.")
 
     try:
         target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    date_col = _find_date_column(clean_df)
-    clean_df_sorted = clean_df.copy()
-    clean_df_sorted["_date_str"] = pd.to_datetime(clean_df_sorted[date_col]).dt.strftime("%Y-%m-%d")
-    clean_df_sorted = clean_df_sorted.sort_values("_date_str").reset_index(drop=True)
+    # Parse dates strictly
+    parsed_dates = pd.to_datetime(df[date_col], errors="coerce")
+    if parsed_dates.isna().any():
+        raise ValueError(
+            f"DataFrame column '{date_col}' contains invalid unparseable date entries."
+        )
 
-    as_of_df = clean_df_sorted[clean_df_sorted["_date_str"] <= target_date_str].drop(
-        columns=["_date_str"]
-    )
+    df_temp = df.copy()
+    df_temp["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
 
-    if as_of_df.empty:
+    # Verify evaluation_date exists in dataset
+    if target_date_str not in df_temp["_date_str"].values:
+        raise ValueError(
+            f"Evaluation date '{target_date_str}' not present in dataset price history."
+        )
+
+    # Slice point-in-time dataset (<= T)
+    as_of_raw = df_temp[df_temp["_date_str"] <= target_date_str].drop(columns=["_date_str"])
+
+    if as_of_raw.empty:
         raise ValueError(
             f"No historical data available on or before evaluation date '{target_date_str}'."
         )
 
-    return as_of_df.reset_index(drop=True)
+    # Validate point-in-time slice (<= T) strictly
+    val_res = validate_backtest_dataset(as_of_raw, "Point-in-time Dataset")
+    clean_df = val_res["clean_df"]
+
+    if clean_df.empty:
+        raise ValueError("Point-in-time dataset contains no valid clean OHLCV rows.")
+
+    return clean_df.reset_index(drop=True)
 
 
 def calculate_as_of_market_breadth(
@@ -208,6 +229,7 @@ def calculate_as_of_market_breadth(
     """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20).
 
     Strictly slices each universe stock dataset <= T before calculating MA20.
+    Fails closed on malformed universe stock datasets (propagates ValueError).
     """
     if not universe_stock_map:
         return 0.50
@@ -219,19 +241,24 @@ def calculate_as_of_market_breadth(
         if df_stock is None or df_stock.empty:
             continue
 
+        # Extract point-in-time dataset. Fails closed if data is malformed.
         try:
             df_stock_as_of = get_as_of_dataset(df_stock, evaluation_date)
-            df_clean, val_res = get_clean_ohlcv_data(df_stock_as_of, sym)
-            if val_res["status"] != "INSUFFICIENT" and len(df_clean) >= 20:
-                c = _safe_float(df_clean["close"].iloc[-1])
-                ma20 = _safe_float(df_clean["close"].tail(20).mean())
-                if c is not None and ma20 is not None and ma20 > 0:
-                    valid_stocks_count += 1
-                    if c > ma20:
-                        bullish_count += 1
-        except ValueError:
-            # Expected when a stock has no history prior to evaluation date
-            continue
+        except ValueError as err:
+            # Expected when stock has no history prior to evaluation date
+            if "No historical data available" in str(err) or "not present in dataset" in str(err):
+                continue
+            raise
+
+        df_clean, val_res = get_clean_ohlcv_data(df_stock_as_of, sym)
+
+        if val_res["status"] != "INSUFFICIENT" and len(df_clean) >= 20:
+            c = _safe_float(df_clean["close"].iloc[-1])
+            ma20 = _safe_float(df_clean["close"].tail(20).mean())
+            if c is not None and ma20 is not None and ma20 > 0:
+                valid_stocks_count += 1
+                if c > ma20:
+                    bullish_count += 1
 
     if valid_stocks_count == 0:
         return 0.50
@@ -258,23 +285,23 @@ def evaluate_forward_outcomes(
     if horizons is None:
         horizons = DEFAULT_HORIZONS
 
-    validate_backtest_dataset(df_stock, "Stock Dataset")
+    if df_stock is None or df_stock.empty:
+        raise ValueError("Cannot evaluate outcomes on empty or None DataFrame.")
 
-    df_clean, _ = get_clean_ohlcv_data(df_stock, "SYMBOL")
-    if df_clean.empty:
-        raise ValueError("Stock DataFrame contains no valid OHLCV data.")
-
-    clean_date_col = _find_date_column(df_clean)
-    if not clean_date_col:
-        raise ValueError("Clean DataFrame missing date/time column.")
-
-    df_clean["_date_str"] = pd.to_datetime(df_clean[clean_date_col]).dt.strftime("%Y-%m-%d")
-    df_sorted = df_clean.sort_values("_date_str").reset_index(drop=True)
+    date_col_raw = _find_date_column(df_stock)
+    if not date_col_raw or "close" not in df_stock.columns:
+        raise ValueError("DataFrame missing required date or 'close' column.")
 
     try:
         target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
+
+    # Parse dates and sort chronologically
+    df_clean = df_stock.copy()
+    parsed_dates = pd.to_datetime(df_clean[date_col_raw], errors="coerce")
+    df_clean["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
+    df_sorted = df_clean.sort_values("_date_str").reset_index(drop=True)
 
     matches = df_sorted[df_sorted["_date_str"] == target_date_str]
 
