@@ -528,25 +528,32 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec_a["risk_metrics"], rec_b["risk_metrics"])
         self.assertEqual(rec_a["trade_plan"], rec_b["trade_plan"])
 
-    def test_divergence_pivot_temporal_lookahead_detection(self):
-        """Targeted temporal-causality regression test for divergence pivot detection.
+    def test_divergence_requires_future_pivot_confirmation(self):
+        """Targeted temporal-causality regression test for divergence pivot confirmation.
 
-        CONFIRMED PRODUCTION LOOK-AHEAD ISSUE DETECTED:
+        CONFIRMED TEMPORAL DEPENDENCY IN PIVOT DETECTION:
         `detect_divergence()` in `scripts/lib/features.py` identifies local troughs and peaks
         using a 5-bar window check (`i - 2`, `i - 1`, `i`, `i + 1`, `i + 2`).
-        Consequently, confirming a trough/peak at historical date T requires two future bars (`i + 1` and `i + 2`).
+        Consequently, confirming a pivot at historical timestamp T requires two subsequent bars (`i + 1` and `i + 2`).
+
+        Technical Interpretation & Scope Boundary:
+        - This test demonstrates that `detect_divergence()` has a non-causal temporal dependency at the
+          pivot timestamp itself due to pivot-confirmation lag.
+        - This test alone does NOT prove that live production recommendations at time T leak future market
+          data, because live recommendations are evaluated on historical data available up to time T.
+        - The test exercises `detect_divergence` directly on Dataset B (keeping future rows T+1, T+2 present
+          during calculation) vs Dataset A (ending at T).
 
         Test Logic:
-        1. Dataset A: Small deterministic OHLCV dataset ending at date T (index 28).
-           At date T, trough 2 cannot be confirmed because future bars T+1 and T+2 do not exist.
+        1. Dataset A: Deterministic OHLCV dataset ending at date T (index 28).
+           At date T, trough 2 cannot be confirmed because subsequent bars T+1 and T+2 do not exist in Dataset A.
            `detect_divergence(df_a)` returns `macd_bullish = False`.
         2. Dataset B: Dataset A + future sessions T+1 (index 29) and T+2 (index 30) with rising prices.
-           Passing full Dataset B (without slicing) allows `detect_divergence` to evaluate index 28 using
-           future rows T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
-        3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` proves that appending future rows
-           directly alters historical divergence state evaluated at date T.
+           Passing full Dataset B (with future rows present during execution) allows `detect_divergence`
+           to evaluate index 28 using bars T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
+        3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` accurately captures the temporal dependency.
 
-        Per PR #83 instructions, production quantitative logic is intentionally NOT modified in this PR.
+        Per PR #83 scope restrictions, production quantitative logic is intentionally NOT modified in this PR.
         """
         n = 29  # Rows 0..28 (date T is index 28)
         dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
