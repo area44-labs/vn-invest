@@ -188,23 +188,65 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     return recommendations_payload, market_payload, history_payload
 
 
-def update_history_index(data_date: str | None):
+def load_history_index(index_path: str | None = None) -> dict:
+    """Load and validate history index file (history/index.json).
+
+    Fail-Closed Semantics:
+    - Missing file (FileNotFoundError): returns empty initialized index {"dates": []}.
+    - Malformed JSON (JSONDecodeError): raises ValueError with file context.
+    - Valid JSON but invalid structure (non-dict root, missing or non-list 'dates', or non-string items): raises ValueError.
+    - Filesystem/read errors (PermissionError, OSError): propagates/wraps with context.
+    """
+    if index_path is None:
+        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {"dates": []}
+    except json.JSONDecodeError as err:
+        raise ValueError(f"Failed to load history index '{index_path}': invalid JSON") from err
+    except (PermissionError, OSError) as err:
+        raise OSError(f"Failed to read history index '{index_path}': {err}") from err
+
+    if not isinstance(data, dict):
+        raise TypeError(
+            f"Invalid history index structure in '{index_path}': expected object root, got {type(data).__name__}"
+        )
+
+    if "dates" not in data:
+        raise ValueError(
+            f"Invalid history index structure in '{index_path}': missing required 'dates' field"
+        )
+
+    dates = data["dates"]
+    if not isinstance(dates, list):
+        raise TypeError(
+            f"Invalid history index structure in '{index_path}': 'dates' field must be a list"
+        )
+
+    if not all(isinstance(d, str) for d in dates):
+        raise TypeError(
+            f"Invalid history index structure in '{index_path}': all items in 'dates' must be strings"
+        )
+
+    return data
+
+
+def update_history_index(data_date: str | None, index_path: str | None = None):
     """Maintain history/index.json with list of available historical dates."""
     if not data_date:
         return
 
-    index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-    history_dates = []
+    if index_path is None:
+        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
 
-    if os.path.exists(index_path):
-        try:
-            with open(index_path, "r", encoding="utf-8") as f:
-                index_data = json.load(f)
-                history_dates = index_data.get("dates", [])
-        except Exception:  # noqa: BLE001
-            history_dates = []
+    index_data = load_history_index(index_path)
+    history_dates = index_data.get("dates", [])
 
     if data_date not in history_dates:
+        history_dates = list(history_dates)
         history_dates.append(data_date)
         history_dates.sort(reverse=True)
 
@@ -214,7 +256,18 @@ def update_history_index(data_date: str | None):
         "dates": history_dates,
     }
 
-    save_json_files(os.path.join("history", "index.json"), index_payload)
+    rel_path = (
+        os.path.relpath(index_path, GENERATED_DIR) if index_path.startswith(GENERATED_DIR) else None
+    )
+    if rel_path and not rel_path.startswith(".."):
+        save_json_files(rel_path, index_payload)
+    else:
+        os.makedirs(os.path.dirname(index_path), exist_ok=True)
+        tmp_p = f"{index_path}.tmp"
+        with open(tmp_p, "w", encoding="utf-8") as f:
+            json.dump(index_payload, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp_p, index_path)
 
 
 def main():
