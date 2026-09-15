@@ -8,19 +8,13 @@ Explicitly tags data sources: REAL_DATA or INSUFFICIENT_HISTORICAL_DATA.
 import logging
 import os
 import re
-import time
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-try:
-    from vnstock.api.quote import Quote as VnQuote
-
-    VNSTOCK_AVAILABLE = True
-except ImportError:
-    VNSTOCK_AVAILABLE = False
+from scripts.data_provider import VnstockDataProvider
 
 # Explicit internal unit contract constants
 PRICE_UNIT = "VND/share"
@@ -625,56 +619,27 @@ def get_historical_data(
     use_cache_only: bool = False,
     allow_synthetic: bool = False,
 ):
-    """Fetch real historical EOD OHLCV data for a given symbol from vnstock."""
+    """Fetch real historical EOD OHLCV data for a given symbol via provider boundary."""
     sym = normalize_symbol(symbol)
     if not start_date or not end_date:
         now_dt = datetime.now(UTC)
         end_date = now_dt.strftime("%Y-%m-%d")
         start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
-    INDEX_SYMBOLS = {"VNINDEX", "VN30", "HNXINDEX", "UPCOMINDEX", "VN30INDEX"}
-
-    if VNSTOCK_AVAILABLE:
-        sources = ["kbs", "msn"]
-        for attempt in range(max_retries):
-            for source in sources:
-                try:
-                    q = VnQuote(symbol=sym, source=source)
-                    df = q.history(start=start_date, end=end_date)
-                    if df is not None and not df.empty:
-                        val_res = validate_ohlcv_data(df, sym)
-                        if val_res["status"] != "INSUFFICIENT":
-                            df_out = df.copy()
-                            df_out.columns = [c.lower() for c in df_out.columns]
-                            if sym not in INDEX_SYMBOLS:
-                                df_out = normalize_ohlcv_units(
-                                    df_out,
-                                    source_price_unit=SOURCE_PRICE_UNIT_VNSTOCK,
-                                    source_volume_unit=SOURCE_VOLUME_UNIT_VNSTOCK,
-                                )
-                            return df_out, "REAL_DATA", val_res["issues"]
-                except (Exception, SystemExit, BaseException) as e:  # noqa: BLE001
-                    err_str = str(e).lower()
-                    if any(
-                        x in err_str
-                        for x in [
-                            "rate limit",
-                            "giới hạn",
-                            "wait",
-                            "systemexit",
-                            "quota",
-                            "429",
-                        ]
-                    ):
-                        wait_sec = parse_wait_seconds(str(e))
-                        time.sleep(wait_sec)
-                    else:
-                        time.sleep(0.1)
-            if attempt < max_retries - 1:
-                time.sleep(0.2)
-
-    return (
-        pd.DataFrame(),
-        "INSUFFICIENT_HISTORICAL_DATA",
-        [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock."],
-    )
+    try:
+        provider = VnstockDataProvider()
+        df_out = provider.fetch_ohlcv(
+            symbol=sym,
+            start_date=start_date,
+            end_date=end_date,
+            max_retries=max_retries,
+        )
+        val_res = validate_ohlcv_data(df_out, sym)
+        return df_out, "REAL_DATA", val_res["issues"]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
+        return (
+            pd.DataFrame(),
+            "INSUFFICIENT_HISTORICAL_DATA",
+            [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock."],
+        )
