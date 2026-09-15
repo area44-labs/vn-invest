@@ -256,18 +256,12 @@ def update_history_index(data_date: str | None, index_path: str | None = None):
         "dates": history_dates,
     }
 
-    rel_path = (
-        os.path.relpath(index_path, GENERATED_DIR) if index_path.startswith(GENERATED_DIR) else None
+    relative_path = (
+        os.path.relpath(index_path, GENERATED_DIR)
+        if index_path.startswith(GENERATED_DIR)
+        else os.path.join("history", "index.json")
     )
-    if rel_path and not rel_path.startswith(".."):
-        save_json_files(rel_path, index_payload)
-    else:
-        os.makedirs(os.path.dirname(index_path), exist_ok=True)
-        tmp_p = f"{index_path}.tmp"
-        with open(tmp_p, "w", encoding="utf-8") as f:
-            json.dump(index_payload, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.replace(tmp_p, index_path)
+    save_json_files(relative_path, index_payload)
 
 
 def main():

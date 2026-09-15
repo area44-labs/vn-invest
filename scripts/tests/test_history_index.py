@@ -11,16 +11,18 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.generate_report import load_history_index, update_history_index
+from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
 
 
 class TestHistoryIndexLoader(unittest.TestCase):
     """Test suite for history index loader and updater fail-closed semantics."""
 
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
+        history_dir = os.path.join(GENERATED_DIR, "history")
+        os.makedirs(history_dir, exist_ok=True)
+        self.temp_dir = tempfile.TemporaryDirectory(dir=history_dir)
         self.addCleanup(self.temp_dir.cleanup)
-        self.index_path = os.path.join(self.temp_dir.name, "history", "index.json")
+        self.index_path = os.path.join(self.temp_dir.name, "index.json")
 
     def test_1_missing_file_returns_initialized_empty_index(self):
         """Test 1: Non-existent history index file initializes an empty index contract."""
