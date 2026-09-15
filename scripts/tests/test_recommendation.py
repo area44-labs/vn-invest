@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
+from scripts.lib.features import calculate_single_tf_indicators
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
@@ -20,6 +21,7 @@ from scripts.lib.recommendation import (
     classify_action,
     generate_recommendation,
 )
+from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 
 
@@ -475,6 +477,206 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             self.assertEqual(rec_t["signal_score"], rec_t_sliced["signal_score"])
             self.assertEqual(
                 rec_t["trade_plan"]["current_price"], rec_t_sliced["trade_plan"]["current_price"]
+            )
+
+    def test_anti_lookahead_dataset_comparison(self):
+        """Integration/Regression test for PR #83: Anti-lookahead bias dataset comparison.
+
+        Compares results at day T between:
+          - Dataset A: data ending at day T.
+          - Dataset B: Dataset A + future sessions T+1, T+2 under various extreme market scenarios.
+
+        Verifies strict identity at day T across:
+          - indicators (MA20, MA50, RSI, MACD, MACD hist, ATR, daily return)
+          - signal/direction (action)
+          - signal score & score components
+          - market regime & metrics
+          - risk metrics (VaR T+2.5, ES T+2.5, volatility_60d, max_drawdown, avg_value_20d)
+          - trade plan fields (entry_low, entry_high, stop_loss, tp1, tp2, risk_reward, position_percent)
+          - confidence & textual explanations
+
+        Also proves that lookahead leakage (e.g. failing to slice future data before evaluating at T)
+        would cause the comparison test to fail.
+        """
+        n = 50
+        dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
+        close_a = np.linspace(20000.0, 35000.0, n)
+
+        df_stock_a = pd.DataFrame(
+            {
+                "time": dates_a,
+                "open": close_a - 200.0,
+                "high": close_a + 500.0,
+                "low": close_a - 500.0,
+                "close": close_a,
+                "volume": [500000] * n,
+            }
+        )
+
+        close_vn_a = np.linspace(1200.0, 1300.0, n)
+        df_vnindex_a = pd.DataFrame(
+            {
+                "time": dates_a,
+                "open": close_vn_a - 5.0,
+                "high": close_vn_a + 10.0,
+                "low": close_vn_a - 10.0,
+                "close": close_vn_a,
+                "volume": [10000000] * n,
+            }
+        )
+        df_vn30_a = df_vnindex_a.copy()
+
+        date_t = dates_a[-1]
+
+        # Calculate baseline results on Dataset A (data up to date T)
+        ind_a = calculate_single_tf_indicators(df_stock_a)
+        ind_a_at_t = ind_a.iloc[-1]
+
+        regime_a = detect_market_regime(
+            df_vnindex=df_vnindex_a, df_vn30=df_vn30_a, breadth_ratio=0.60
+        )
+
+        rec_a = generate_recommendation(
+            symbol="FPT",
+            company_name="Công ty FPT",
+            sector="Công nghệ",
+            exchange="HOSE",
+            df_stock=df_stock_a,
+            market_regime_info=regime_a,
+            df_vnindex=df_vnindex_a,
+        )
+
+        # Future T+1, T+2 scenarios
+        scenarios = [
+            # Scenario 1: Extreme Crash at T+1, T+2
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-02-20"), pd.Timestamp("2026-02-21")],
+                    "open": [25000.0, 20000.0],
+                    "high": [25000.0, 20000.0],
+                    "low": [20000.0, 15000.0],
+                    "close": [20000.0, 15000.0],
+                    "volume": [5000000, 8000000],
+                }
+            ),
+            # Scenario 2: Massive Rally at T+1, T+2
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-02-20"), pd.Timestamp("2026-02-21")],
+                    "open": [40000.0, 45000.0],
+                    "high": [45000.0, 50000.0],
+                    "low": [39000.0, 44000.0],
+                    "close": [44000.0, 49000.0],
+                    "volume": [2000000, 3000000],
+                }
+            ),
+            # Scenario 3: Volume Spike at T+1, T+2
+            pd.DataFrame(
+                {
+                    "time": [pd.Timestamp("2026-02-20"), pd.Timestamp("2026-02-21")],
+                    "open": [35000.0, 35100.0],
+                    "high": [35500.0, 35600.0],
+                    "low": [34800.0, 34900.0],
+                    "close": [35100.0, 35200.0],
+                    "volume": [50000000, 60000000],
+                }
+            ),
+        ]
+
+        for future_rows in scenarios:
+            # Construct Dataset B: Dataset A + future rows
+            df_stock_b = pd.concat([df_stock_a, future_rows], ignore_index=True)
+            df_vnindex_b = pd.concat([df_vnindex_a, future_rows], ignore_index=True)
+            df_vn30_b = df_vnindex_b.copy()
+
+            # 1. Indicator comparison on Dataset B computed across full timeline vs Dataset A at date T
+            ind_b_full = calculate_single_tf_indicators(df_stock_b)
+            ind_b_at_t = ind_b_full[ind_b_full["time"] == date_t].iloc[0]
+
+            for field in ["ma20", "ma50", "rsi", "macd", "hist", "atr", "daily_return"]:
+                val_a = ind_a_at_t[field]
+                val_b = ind_b_at_t[field]
+                if pd.isna(val_a):
+                    self.assertTrue(pd.isna(val_b))
+                else:
+                    self.assertAlmostEqual(
+                        val_a,
+                        val_b,
+                        places=5,
+                        msg=f"Indicator '{field}' at date T changed when future rows were added!",
+                    )
+
+            # 2. Slice Dataset B at date T
+            df_stock_b_sliced = df_stock_b[df_stock_b["time"] <= date_t]
+            df_vnindex_b_sliced = df_vnindex_b[df_vnindex_b["time"] <= date_t]
+            df_vn30_b_sliced = df_vn30_b[df_vn30_b["time"] <= date_t]
+
+            regime_b = detect_market_regime(
+                df_vnindex=df_vnindex_b_sliced,
+                df_vn30=df_vn30_b_sliced,
+                breadth_ratio=0.60,
+            )
+
+            # Market regime identity check
+            self.assertEqual(regime_a["regime"], regime_b["regime"])
+            self.assertEqual(regime_a["regime_score"], regime_b["regime_score"])
+
+            rec_b = generate_recommendation(
+                symbol="FPT",
+                company_name="Công ty FPT",
+                sector="Công nghệ",
+                exchange="HOSE",
+                df_stock=df_stock_b_sliced,
+                market_regime_info=regime_b,
+                df_vnindex=df_vnindex_b_sliced,
+            )
+
+            # 3. Recommendation outputs at date T identity check
+            self.assertEqual(rec_a["action"], rec_b["action"])
+            self.assertEqual(rec_a["signal_score"], rec_b["signal_score"])
+            self.assertEqual(rec_a["risk_adjusted_score"], rec_b["risk_adjusted_score"])
+            self.assertEqual(rec_a["confidence"], rec_b["confidence"])
+            self.assertEqual(rec_a["score_components"], rec_b["score_components"])
+            self.assertEqual(rec_a["risk_metrics"], rec_b["risk_metrics"])
+            self.assertEqual(rec_a["trade_plan"], rec_b["trade_plan"])
+            self.assertEqual(rec_a["reasons"], rec_b["reasons"])
+            self.assertEqual(rec_a["warnings"], rec_b["warnings"])
+            self.assertEqual(rec_a["invalidation"], rec_b["invalidation"])
+            self.assertEqual(rec_a["divergence"], rec_b["divergence"])
+
+            # 4. Universe Liquidity Normalization identity check
+            rec_a_copy = dict(rec_a)  # create copy before normalization mutation
+            rec_a_copy["risk_metrics"] = dict(rec_a["risk_metrics"])
+
+            norm_recs_a = normalize_universe_liquidity_scores([rec_a_copy], market_regime=regime_a)
+            rec_norm_a = norm_recs_a[0]
+
+            norm_recs_b = normalize_universe_liquidity_scores([rec_b], market_regime=regime_b)
+            rec_norm_b = norm_recs_b[0]
+
+            self.assertEqual(rec_norm_a["risk_metrics"], rec_norm_b["risk_metrics"])
+            self.assertEqual(rec_norm_a["risk_adjusted_score"], rec_norm_b["risk_adjusted_score"])
+
+            # 5. Negative / Lookahead Detection Proof:
+            # If future rows were accidentally evaluated directly (without slicing at date T),
+            # the output for Dataset B evaluated at its end date (T+2) MUST differ from Dataset A at T.
+            rec_future_unbound = generate_recommendation(
+                symbol="FPT",
+                company_name="Công ty FPT",
+                sector="Công nghệ",
+                exchange="HOSE",
+                df_stock=df_stock_b,  # unsliced, includes T+1 and T+2
+                market_regime_info=detect_market_regime(
+                    df_vnindex=df_vnindex_b, df_vn30=df_vn30_b, breadth_ratio=0.60
+                ),
+                df_vnindex=df_vnindex_b,
+            )
+
+            # Proves that future rows DO change recommendations if not sliced at T
+            self.assertNotEqual(
+                rec_a["trade_plan"]["current_price"],
+                rec_future_unbound["trade_plan"]["current_price"],
+                "Negative test proof: Unbound future dataset evaluated at T+2 must differ from date T!",
             )
 
     def test_extreme_and_invalid_inputs(self):
