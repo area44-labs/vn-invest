@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
+from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
@@ -20,6 +21,7 @@ from scripts.lib.recommendation import (
     classify_action,
     generate_recommendation,
 )
+from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 
 
@@ -388,94 +390,230 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             self.assertIsNone(tp["entry_low"])
             self.assertIsNone(tp["stop_loss"])
 
-    def test_anti_lookahead_bias_extended(self):
-        """Verify recommendation at day T does not change when future crash, price spike, volume spike, or volatility spike occurs at T+1."""
-        n = 60
-        dates = pd.date_range("2026-01-01", periods=n, freq="D")
-        close_bull = np.linspace(20000.0, 35000.0, n)
-        df_base = pd.DataFrame(
+    def test_anti_lookahead_module_level_regression(self):
+        """Module-level regression test for anti-lookahead bias (PR #83).
+
+        Note on Pipeline Entry Point & Temporal Isolation Scope:
+        The repository's current report generation pipeline (`run_pipeline` in `scripts/generate_report.py`
+        and `generate_recommendation` in `scripts/lib/recommendation.py`) evaluates the latest state of
+        supplied DataFrames without a native temporal `as_of` date cutoff parameter.
+        Therefore, this regression test operates at the highest available module-level boundaries
+        (`calculate_single_tf_indicators` and `generate_recommendation`).
+
+        Test Logic:
+        1. Dataset A: Clean historical dataset ending at date T.
+        2. Dataset B: Dataset A + future sessions (T+1, T+2) containing an extreme market crash.
+        3. Indicator Causality: Computes indicators on full Dataset B and asserts that indicator values
+           extracted at date T match Dataset A exactly.
+        4. Recommendation Output at T: Asserts identity between Dataset A and Dataset B (sliced at T)
+           across key quantitative fields:
+           - indicators (ma20, ma50, rsi, macd, hist, atr, daily_return)
+           - action / direction
+           - signal score & risk_adjusted_score
+           - score components
+           - market regime & regime_score
+           - risk metrics (var_t25, es_t25, volatility_60d, max_drawdown, avg_value_20d)
+           - trade plan (entry_low, entry_high, stop_loss, tp1, tp2, risk_reward, position_percent)
+        """
+        n = 50
+        dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
+        close_a = np.linspace(20000.0, 35000.0, n)
+
+        df_stock_a = pd.DataFrame(
             {
-                "time": dates,
-                "open": close_bull - 200.0,
-                "high": close_bull + 500.0,
-                "low": close_bull - 500.0,
-                "close": close_bull,
+                "time": dates_a,
+                "open": close_a - 200.0,
+                "high": close_a + 500.0,
+                "low": close_a - 500.0,
+                "close": close_a,
                 "volume": [500000] * n,
             }
         )
 
-        regime = {"regime": "BULL", "regime_score": 75.0}
-        rec_t = generate_recommendation(
-            symbol="FPT",
-            company_name="FPT",
-            sector="Tech",
-            exchange="HOSE",
-            df_stock=df_base.iloc[:50],  # up to day 50
-            market_regime_info=regime,
+        close_vn_a = np.linspace(1200.0, 1300.0, n)
+        df_vnindex_a = pd.DataFrame(
+            {
+                "time": dates_a,
+                "open": close_vn_a - 5.0,
+                "high": close_vn_a + 10.0,
+                "low": close_vn_a - 10.0,
+                "close": close_vn_a,
+                "volume": [10000000] * n,
+            }
+        )
+        df_vn30_a = df_vnindex_a.copy()
+
+        date_t = dates_a[-1]
+
+        # Calculate baseline results on Dataset A (data up to date T)
+        ind_a = calculate_single_tf_indicators(df_stock_a)
+        ind_a_at_t = ind_a.iloc[-1]
+
+        regime_a = detect_market_regime(
+            df_vnindex=df_vnindex_a, df_vn30=df_vn30_a, breadth_ratio=0.60
         )
 
-        scenarios = [
-            # Future crash
-            pd.DataFrame(
-                {
-                    "time": [pd.Timestamp("2026-03-01")],
-                    "open": [10.0],
-                    "high": [10.0],
-                    "low": [1.0],
-                    "close": [1.0],
-                    "volume": [10000000],
-                }
-            ),
-            # Future price spike
-            pd.DataFrame(
-                {
-                    "time": [pd.Timestamp("2026-03-01")],
-                    "open": [100.0],
-                    "high": [200.0],
-                    "low": [95.0],
-                    "close": [190.0],
-                    "volume": [500000],
-                }
-            ),
-            # Future volume spike
-            pd.DataFrame(
-                {
-                    "time": [pd.Timestamp("2026-03-01")],
-                    "open": [35.0],
-                    "high": [36.0],
-                    "low": [34.0],
-                    "close": [35.5],
-                    "volume": [50000000],
-                }
-            ),
-            # Future volatility spike
-            pd.DataFrame(
-                {
-                    "time": [pd.Timestamp("2026-03-01")],
-                    "open": [35.0],
-                    "high": [50.0],
-                    "low": [10.0],
-                    "close": [25.0],
-                    "volume": [100000],
-                }
-            ),
-        ]
+        rec_a = generate_recommendation(
+            symbol="FPT",
+            company_name="Công ty FPT",
+            sector="Công nghệ",
+            exchange="HOSE",
+            df_stock=df_stock_a,
+            market_regime_info=regime_a,
+            df_vnindex=df_vnindex_a,
+        )
 
-        for future_row in scenarios:
-            df_future = pd.concat([df_base.iloc[:50], future_row], ignore_index=True)
-            rec_t_sliced = generate_recommendation(
-                symbol="FPT",
-                company_name="FPT",
-                sector="Tech",
-                exchange="HOSE",
-                df_stock=df_future.iloc[:50],  # sliced back to day 50
-                market_regime_info=regime,
-            )
+        # Construct Dataset B: Dataset A + future rows T+1, T+2 (extreme future crash)
+        future_rows = pd.DataFrame(
+            {
+                "time": [pd.Timestamp("2026-02-20"), pd.Timestamp("2026-02-21")],
+                "open": [25000.0, 20000.0],
+                "high": [25000.0, 20000.0],
+                "low": [20000.0, 15000.0],
+                "close": [20000.0, 15000.0],
+                "volume": [5000000, 8000000],
+            }
+        )
 
-            self.assertEqual(rec_t["signal_score"], rec_t_sliced["signal_score"])
-            self.assertEqual(
-                rec_t["trade_plan"]["current_price"], rec_t_sliced["trade_plan"]["current_price"]
-            )
+        df_stock_b = pd.concat([df_stock_a, future_rows], ignore_index=True)
+        df_vnindex_b = pd.concat([df_vnindex_a, future_rows], ignore_index=True)
+        df_vn30_b = df_vnindex_b.copy()
+
+        # 1. Verify Indicator Causality: Indicator values at row T in full Dataset B match Dataset A at T
+        ind_b_full = calculate_single_tf_indicators(df_stock_b)
+        ind_b_at_t = ind_b_full[ind_b_full["time"] == date_t].iloc[0]
+
+        for field in ["ma20", "ma50", "rsi", "macd", "hist", "atr", "daily_return"]:
+            val_a = ind_a_at_t[field]
+            val_b = ind_b_at_t[field]
+            if pd.isna(val_a):
+                self.assertTrue(pd.isna(val_b))
+            else:
+                self.assertAlmostEqual(
+                    val_a,
+                    val_b,
+                    places=5,
+                    msg=f"Indicator '{field}' at date T changed when future rows were added!",
+                )
+
+        # 2. Slice Dataset B at date T and verify recommendation identity
+        df_stock_b_sliced = df_stock_b[df_stock_b["time"] <= date_t]
+        df_vnindex_b_sliced = df_vnindex_b[df_vnindex_b["time"] <= date_t]
+        df_vn30_b_sliced = df_vn30_b[df_vn30_b["time"] <= date_t]
+
+        regime_b = detect_market_regime(
+            df_vnindex=df_vnindex_b_sliced,
+            df_vn30=df_vn30_b_sliced,
+            breadth_ratio=0.60,
+        )
+
+        rec_b = generate_recommendation(
+            symbol="FPT",
+            company_name="Công ty FPT",
+            sector="Công nghệ",
+            exchange="HOSE",
+            df_stock=df_stock_b_sliced,
+            market_regime_info=regime_b,
+            df_vnindex=df_vnindex_b_sliced,
+        )
+
+        # 3. Assert equality across key quantitative fields at date T
+        self.assertEqual(regime_a["regime"], regime_b["regime"])
+        self.assertEqual(regime_a["regime_score"], regime_b["regime_score"])
+
+        self.assertEqual(rec_a["action"], rec_b["action"])
+        self.assertEqual(rec_a["signal_score"], rec_b["signal_score"])
+        self.assertEqual(rec_a["risk_adjusted_score"], rec_b["risk_adjusted_score"])
+        self.assertEqual(rec_a["score_components"], rec_b["score_components"])
+        self.assertEqual(rec_a["risk_metrics"], rec_b["risk_metrics"])
+        self.assertEqual(rec_a["trade_plan"], rec_b["trade_plan"])
+
+    def test_divergence_requires_future_pivot_confirmation(self):
+        """Targeted temporal-causality regression test for divergence pivot confirmation.
+
+        CONFIRMED TEMPORAL DEPENDENCY IN PIVOT DETECTION:
+        `detect_divergence()` in `scripts/lib/features.py` identifies local troughs and peaks
+        using a 5-bar window check (`i - 2`, `i - 1`, `i`, `i + 1`, `i + 2`).
+        Consequently, confirming a pivot at historical timestamp T requires two subsequent bars (`i + 1` and `i + 2`).
+
+        Technical Interpretation & Scope Boundary:
+        - This test demonstrates that `detect_divergence()` has a non-causal temporal dependency at the
+          pivot timestamp itself due to pivot-confirmation lag.
+        - This test alone does NOT prove that live production recommendations at time T leak future market
+          data, because live recommendations are evaluated on historical data available up to time T.
+        - The test exercises `detect_divergence` directly on Dataset B (keeping future rows T+1, T+2 present
+          during calculation) vs Dataset A (ending at T).
+
+        Test Logic:
+        1. Dataset A: Deterministic OHLCV dataset ending at date T (index 28).
+           At date T, trough 2 cannot be confirmed because subsequent bars T+1 and T+2 do not exist in Dataset A.
+           `detect_divergence(df_a)` returns `macd_bullish = False`.
+        2. Dataset B: Dataset A + future sessions T+1 (index 29) and T+2 (index 30) with rising prices.
+           Passing full Dataset B (with future rows present during execution) allows `detect_divergence`
+           to evaluate index 28 using bars T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
+        3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` accurately captures the temporal dependency.
+
+        Per PR #83 scope restrictions, production quantitative logic is intentionally NOT modified in this PR.
+        """
+        n = 29  # Rows 0..28 (date T is index 28)
+        dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
+
+        close_a = np.linspace(30000.0, 26000.0, n)
+        low_a = close_a - 500.0
+        high_a = close_a + 500.0
+
+        # Dip 1 at index 10 (trough 1)
+        close_a[10] = 23000.0
+        low_a[10] = 22000.0
+
+        # Dip 2 at index 28 (date T, trough 2 candidate)
+        close_a[28] = 25000.0
+        low_a[28] = 22100.0
+
+        df_a = pd.DataFrame(
+            {
+                "time": dates_a,
+                "open": close_a,
+                "high": high_a,
+                "low": low_a,
+                "close": close_a,
+                "volume": [500000] * n,
+            }
+        )
+        df_a = calculate_single_tf_indicators(df_a)
+        div_a = detect_divergence(df_a)
+
+        # Baseline on Dataset A: date T cannot confirm trough 2 -> macd_bullish is False
+        self.assertFalse(div_a["macd_bullish"])
+
+        # Dataset B: Dataset A + future rows T+1 (index 29) and T+2 (index 30)
+        dates_b = pd.date_range("2026-01-01", periods=n + 2, freq="D")
+        close_b = list(close_a) + [27000.0, 28000.0]
+        low_b = list(low_a) + [26000.0, 27000.0]
+        high_b = list(high_a) + [28000.0, 29000.0]
+
+        df_b = pd.DataFrame(
+            {
+                "time": dates_b,
+                "open": close_b,
+                "high": high_b,
+                "low": low_b,
+                "close": close_b,
+                "volume": [500000] * (n + 2),
+            }
+        )
+        df_b = calculate_single_tf_indicators(df_b)
+        div_b = detect_divergence(df_b)
+
+        # On full Dataset B (including future rows T+1, T+2): date T is now confirmed as trough 2 -> macd_bullish is True
+        self.assertTrue(div_b["macd_bullish"])
+
+        # Proves future rows T+1, T+2 change historical divergence outputs evaluated at T
+        self.assertNotEqual(
+            div_a["macd_bullish"],
+            div_b["macd_bullish"],
+            "Confirmed lookahead dependency: detect_divergence() outputs differ at date T when future rows T+1, T+2 are present!",
+        )
 
     def test_extreme_and_invalid_inputs(self):
         """Verify engine does not produce NaN, Inf, or crash on extreme/abnormal inputs."""
