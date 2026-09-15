@@ -649,7 +649,7 @@ class TestBacktestFramework(unittest.TestCase):
             df_vnindex=self.df_vnindex,
             df_vn30=self.df_vn30,
         )
-        sig_orig = [r.signal for r in res_orig.results if r.signal.symbol == "TCB"][0]
+        sig_orig = next(r.signal for r in res_orig.results if r.signal.symbol == "TCB")
 
         # Mutate post-T VNINDEX, VN30, and universe stock history
         df_vnindex_mut = self.df_vnindex.copy()
@@ -672,7 +672,7 @@ class TestBacktestFramework(unittest.TestCase):
             df_vnindex=df_vnindex_mut,
             df_vn30=df_vn30_mut,
         )
-        sig_mut = [r.signal for r in res_mut.results if r.signal.symbol == "TCB"][0]
+        sig_mut = next(r.signal for r in res_mut.results if r.signal.symbol == "TCB")
 
         self.assertEqual(sig_orig.action, sig_mut.action)
         self.assertEqual(sig_orig.signal_score, sig_mut.signal_score)

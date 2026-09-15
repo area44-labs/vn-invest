@@ -876,13 +876,10 @@ def run_walk_forward_backtest(
 
     # Determine reference dataset for date generation or validation
     ref_df = df_stock
-    if ref_df is None or ref_df.empty:
-        if universe_stock_map:
-            valid_entries = [
-                v for v in universe_stock_map.values() if v is not None and not v.empty
-            ]
-            if valid_entries:
-                ref_df = valid_entries[0]
+    if (ref_df is None or ref_df.empty) and universe_stock_map:
+        valid_entries = [v for v in universe_stock_map.values() if v is not None and not v.empty]
+        if valid_entries:
+            ref_df = valid_entries[0]
 
     # Generate or validate evaluation_dates
     if evaluation_dates is None:
