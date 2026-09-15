@@ -29,8 +29,8 @@ Key Architectural Principles:
    leverage, or trade execution dynamics.
 """
 
-from dataclasses import dataclass, field
 import math
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
