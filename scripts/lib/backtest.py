@@ -30,8 +30,8 @@ Key Architectural Principles:
    - `validate_backtest_dataset()` validates canonical OHLCV data-quality contracts.
    - `get_as_of_dataset()` and `evaluate_forward_outcomes()` are the temporal-sensitive entry points
      explicitly enforcing strict chronological ordering (is_monotonic_increasing) and unique dates.
-   - Unsorted dates or duplicate dates raise explicit ValueError exceptions rather than being
-     silently swallowed or positionally misindexed.
+   - Unsorted dates, duplicate dates, or future observations physically placed prior to T raise explicit
+     ValueError exceptions rather than being silently swallowed, sorted, or positionally misindexed.
 6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
@@ -182,12 +182,13 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
     Temporal Contract & Fail-Closed Validation:
-    1. Filters raw DataFrame strictly by date comparison (row_date <= T), NEVER by positional iloc!
+    1. Parse and format target evaluation_date T as YYYY-MM-DD string.
+    2. Check if exact evaluation_date T exists in dataset price history.
+    3. Verify that raw input dates up to T are parseable, unique, and strictly increasing in chronological order.
+       Raises ValueError if a future row (date > T) or unsorted date is physically placed prior to T.
+    4. Slices raw DataFrame strictly by date comparison (row_date <= T), NEVER by positional iloc!
        Future rows (> T) with invalid dates/prices never leak into or fail signal generation at T.
-    2. Requires exact evaluation_date T to exist in price history.
-    3. Validates that the point-in-time sequence (<= T) has parseable, unique, and strictly increasing
-       chronological dates. Raises ValueError if dates <= T are unsorted or contain duplicates.
-    4. Validates point-in-time OHLCV data <= T strictly via validate_backtest_dataset().
+    5. Validates point-in-time OHLCV data <= T strictly via validate_backtest_dataset().
     """
     if df is None or df.empty:
         raise ValueError("Cannot slice empty or None DataFrame.")
@@ -215,10 +216,30 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
 
     target_idx = matches.index[0]
 
-    # Verify if any unparseable invalid dates occur prior to or on evaluation date (<= T)
-    if parsed_dates.iloc[: target_idx + 1].isna().any():
+    # Verify if any unparseable invalid dates occur prior to or on evaluation date (<= target_idx)
+    raw_dates_up_to_t = parsed_dates.iloc[: target_idx + 1]
+    if raw_dates_up_to_t.isna().any():
         raise ValueError(
             f"DataFrame column '{date_col}' contains invalid unparseable date entries prior to or on evaluation date '{target_date_str}'."
+        )
+
+    # Check if any future observation (date > T) or unsorted/duplicate date is physically placed prior to target_idx
+    date_strs_up_to_t = df_temp["_date_str"].iloc[: target_idx + 1]
+    if (date_strs_up_to_t > target_date_str).any():
+        raise ValueError(
+            f"Point-in-time dataset input contains future observations (date > '{target_date_str}') physically placed before evaluation date."
+        )
+
+    if (
+        not raw_dates_up_to_t.is_monotonic_increasing
+        or (raw_dates_up_to_t.diff().dt.total_seconds() <= 0).iloc[1:].any()
+    ):
+        if raw_dates_up_to_t.duplicated().any():
+            raise ValueError(
+                f"Point-in-time dataset <= '{target_date_str}' contains duplicate dates."
+            )
+        raise ValueError(
+            f"Point-in-time dataset <= '{target_date_str}' is unsorted or not strictly increasing in chronological order."
         )
 
     # Point-in-time filter strictly by date comparison (date <= T), NEVER by positional iloc!
@@ -228,33 +249,6 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     if as_of_raw.empty:
         raise ValueError(
             f"No historical data available on or before evaluation date '{target_date_str}'."
-        )
-
-    as_of_dates = pd.to_datetime(as_of_raw[date_col], errors="coerce")
-    if as_of_dates.isna().any():
-        raise ValueError(
-            f"Point-in-time dataset <= '{target_date_str}' contains unparseable invalid dates."
-        )
-
-    as_of_date_strs = as_of_dates.dt.strftime("%Y-%m-%d")
-
-    # Verify exact evaluation date T exists in dataset history
-    if target_date_str not in as_of_date_strs.values:
-        raise ValueError(
-            f"Evaluation date '{target_date_str}' not present in dataset price history."
-        )
-
-    # Validate temporal sequence <= T: unique and strictly increasing chronological order
-    if (
-        not as_of_dates.is_monotonic_increasing
-        or (as_of_dates.diff().dt.total_seconds() <= 0).iloc[1:].any()
-    ):
-        if as_of_dates.duplicated().any():
-            raise ValueError(
-                f"Point-in-time dataset <= '{target_date_str}' contains duplicate dates."
-            )
-        raise ValueError(
-            f"Point-in-time dataset <= '{target_date_str}' is unsorted or not strictly increasing in chronological order."
         )
 
     # Validate point-in-time OHLCV data <= T

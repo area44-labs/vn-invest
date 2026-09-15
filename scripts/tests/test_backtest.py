@@ -9,7 +9,6 @@ from scripts.lib.backtest import (
     BacktestResult,
     BacktestSignal,
     ForwardOutcome,
-    _find_date_column,
     aggregate_backtest_results,
     calculate_as_of_market_breadth,
     evaluate_forward_outcomes,
@@ -506,30 +505,29 @@ class TestBacktestFramework(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate_forward_outcomes(df_dup, eval_d)
 
-    def test_m_future_row_physically_placed_before_t_isolated(self):
+    def test_m_future_row_physically_placed_before_t_fails_closed(self):
         """Test M: Regression test where a future row (> T) is physically placed before T in DataFrame.
 
         Example physical sequence: T-3, T-2, T-1, T+10 (future row), T, T+1.
-        get_as_of_dataset(df, evaluation_date=T) uses strict date comparison (date <= T), NOT positional iloc,
-        so the future row (> T) is cleanly excluded from the Point-in-Time dataset.
-        The resulting Point-in-Time dataset <= T is 100% identical to the normal sorted dataset <= T.
+        get_as_of_dataset(df, evaluation_date=T) MUST fail closed with ValueError because dates <= T are non-monotonic,
+        proving that a future observation physically before T is detected and fails closed.
         """
         df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
         eval_d = df_normal["date"].iloc[20]  # T = index 20
 
-        # Construct DataFrame with future row (T+10) physically inserted before T at index 18
-        df_misordered = df_normal.copy()
-        row_t_plus_10 = df_misordered.iloc[30].copy()  # T+10 row (date > T)
-        df_misordered.iloc[18] = row_t_plus_10
+        # Construct DataFrame with future row (T+10) physically inserted before T at index 18 without removing any rows
+        df_misordered = pd.concat(
+            [
+                df_normal.iloc[:18],
+                df_normal.iloc[30:31],  # T+10 row physically placed before T
+                df_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
 
-        # Slicing as-of T MUST filter out the future row by date comparison (date <= T)
-        df_as_of_misordered = get_as_of_dataset(df_misordered, eval_d)
-
-        date_col_clean = _find_date_column(df_as_of_misordered)
-
-        # The resulting point-in-time dataset <= T MUST NOT contain T+10 row
-        self.assertTrue((df_as_of_misordered[date_col_clean] <= eval_d).all())
-        self.assertNotIn(row_t_plus_10["date"], df_as_of_misordered[date_col_clean].values)
+        # get_as_of_dataset <= T must fail closed with ValueError because input dates prior to T contain future observation / non-monotonic dates
+        with self.assertRaises(ValueError):
+            get_as_of_dataset(df_misordered, eval_d)
 
 
 if __name__ == "__main__":
