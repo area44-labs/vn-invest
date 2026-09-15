@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from scripts.lib.features import calculate_single_tf_indicators
+from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
@@ -527,6 +527,86 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec_a["score_components"], rec_b["score_components"])
         self.assertEqual(rec_a["risk_metrics"], rec_b["risk_metrics"])
         self.assertEqual(rec_a["trade_plan"], rec_b["trade_plan"])
+
+    def test_divergence_pivot_temporal_lookahead_detection(self):
+        """Targeted temporal-causality regression test for divergence pivot detection.
+
+        CONFIRMED PRODUCTION LOOK-AHEAD ISSUE DETECTED:
+        `detect_divergence()` in `scripts/lib/features.py` identifies local troughs and peaks
+        using a 5-bar window check (`i - 2`, `i - 1`, `i`, `i + 1`, `i + 2`).
+        Consequently, confirming a trough/peak at historical date T requires two future bars (`i + 1` and `i + 2`).
+
+        Test Logic:
+        1. Dataset A: Small deterministic OHLCV dataset ending at date T (index 28).
+           At date T, trough 2 cannot be confirmed because future bars T+1 and T+2 do not exist.
+           `detect_divergence(df_a)` returns `macd_bullish = False`.
+        2. Dataset B: Dataset A + future sessions T+1 (index 29) and T+2 (index 30) with rising prices.
+           Passing full Dataset B (without slicing) allows `detect_divergence` to evaluate index 28 using
+           future rows T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
+        3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` proves that appending future rows
+           directly alters historical divergence state evaluated at date T.
+
+        Per PR #83 instructions, production quantitative logic is intentionally NOT modified in this PR.
+        """
+        n = 29  # Rows 0..28 (date T is index 28)
+        dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
+
+        close_a = np.linspace(30000.0, 26000.0, n)
+        low_a = close_a - 500.0
+        high_a = close_a + 500.0
+
+        # Dip 1 at index 10 (trough 1)
+        close_a[10] = 23000.0
+        low_a[10] = 22000.0
+
+        # Dip 2 at index 28 (date T, trough 2 candidate)
+        close_a[28] = 25000.0
+        low_a[28] = 22100.0
+
+        df_a = pd.DataFrame(
+            {
+                "time": dates_a,
+                "open": close_a,
+                "high": high_a,
+                "low": low_a,
+                "close": close_a,
+                "volume": [500000] * n,
+            }
+        )
+        df_a = calculate_single_tf_indicators(df_a)
+        div_a = detect_divergence(df_a)
+
+        # Baseline on Dataset A: date T cannot confirm trough 2 -> macd_bullish is False
+        self.assertFalse(div_a["macd_bullish"])
+
+        # Dataset B: Dataset A + future rows T+1 (index 29) and T+2 (index 30)
+        dates_b = pd.date_range("2026-01-01", periods=n + 2, freq="D")
+        close_b = list(close_a) + [27000.0, 28000.0]
+        low_b = list(low_a) + [26000.0, 27000.0]
+        high_b = list(high_a) + [28000.0, 29000.0]
+
+        df_b = pd.DataFrame(
+            {
+                "time": dates_b,
+                "open": close_b,
+                "high": high_b,
+                "low": low_b,
+                "close": close_b,
+                "volume": [500000] * (n + 2),
+            }
+        )
+        df_b = calculate_single_tf_indicators(df_b)
+        div_b = detect_divergence(df_b)
+
+        # On full Dataset B (including future rows T+1, T+2): date T is now confirmed as trough 2 -> macd_bullish is True
+        self.assertTrue(div_b["macd_bullish"])
+
+        # Proves future rows T+1, T+2 change historical divergence outputs evaluated at T
+        self.assertNotEqual(
+            div_a["macd_bullish"],
+            div_b["macd_bullish"],
+            "Confirmed lookahead dependency: detect_divergence() outputs differ at date T when future rows T+1, T+2 are present!",
+        )
 
     def test_extreme_and_invalid_inputs(self):
         """Verify engine does not produce NaN, Inf, or crash on extreme/abnormal inputs."""
