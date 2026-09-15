@@ -24,8 +24,8 @@ Key Architectural Principles:
    leverage, or trade execution dynamics.
 """
 
-from dataclasses import dataclass, field
 import math
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -431,7 +431,7 @@ def aggregate_backtest_results(
         }
 
     # Breakdown by action
-    actions = sorted(list(set(res.signal.action for res in results)))
+    actions = sorted({res.signal.action for res in results})
     breakdown_by_action: dict[str, dict[int, dict[str, Any]]] = {}
 
     for act in actions:
@@ -450,7 +450,7 @@ def aggregate_backtest_results(
             }
 
     # Breakdown by market regime
-    regimes = sorted(list(set(res.signal.market_regime for res in results)))
+    regimes = sorted({res.signal.market_regime for res in results})
     breakdown_by_regime: dict[str, dict[int, dict[str, Any]]] = {}
 
     for reg in regimes:
