@@ -8,7 +8,6 @@ when intraday data is absent.
 
 import pandas as pd
 
-
 from scripts.lib import config
 
 
