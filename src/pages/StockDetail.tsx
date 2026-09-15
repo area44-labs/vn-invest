@@ -142,7 +142,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
 
         <div className="space-y-1 rounded-sm border border-border bg-card p-4 text-center">
           <span className="block text-[10px] text-muted-foreground uppercase">
-            Độ Tin Cậy Confidence
+            Độ Tin Cậy Model (Heuristic)
           </span>
           <span className="text-2xl font-extrabold text-foreground">
             {stock.confidence != null ? `${Math.round(stock.confidence * 100)}%` : "—"}

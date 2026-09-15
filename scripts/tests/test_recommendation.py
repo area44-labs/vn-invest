@@ -133,6 +133,64 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertGreaterEqual(conf_conflict, 0.10)
         self.assertLessEqual(conf_conflict, 0.95)
 
+    def test_deterministic_confidence_exact_numerical_fixtures(self):
+        """Verify exact numeric confidence values for representative cases.
+
+        Proves semantic clarification != model modification.
+        """
+        from scripts.lib.recommendation import calculate_confidence
+
+        # Case 1: INSUFFICIENT data quality -> exactly 0.10
+        conf_insufficient = calculate_confidence(
+            data_quality="INSUFFICIENT",
+            components={"trend": 80.0, "momentum": None},
+            risk_metrics={},
+        )
+        self.assertEqual(conf_insufficient, 0.10)
+
+        # Case 2: Standard/Normal confidence
+        # SUFFICIENT data quality (base = 0.70), std_dev = 0 (low dispersion < 12 -> +0.10), normal risk (vol < 0.22 & mdd < 0.12 -> +0.05), safe rsi -> 0.70 + 0.10 + 0.05 = 0.85
+        conf_high_ideal = calculate_confidence(
+            data_quality="SUFFICIENT",
+            components={
+                "trend": 80.0,
+                "momentum": 80.0,
+                "volume": 80.0,
+                "relative_strength": 80.0,
+                "divergence": 80.0,
+            },
+            risk_metrics={"volatility_60d": 0.15, "max_drawdown": -0.10},
+            rsi=50.0,
+        )
+        self.assertEqual(conf_high_ideal, 0.85)
+
+        # Case 3: High dispersion & high risk & extreme RSI penalties
+        # SUFFICIENT (base = 0.70), std_dev = 40 (>30 -> -0.15), high risk (vol > 0.35 -> -0.05), extreme RSI (>78 -> -0.05)
+        # Expected: 0.70 - 0.15 - 0.05 - 0.05 = 0.45
+        conf_low_penalized = calculate_confidence(
+            data_quality="SUFFICIENT",
+            components={
+                "trend": 100.0,
+                "momentum": 20.0,
+                "volume": 100.0,
+                "relative_strength": 20.0,
+                "divergence": 60.0,
+            },
+            risk_metrics={"volatility_60d": 0.40, "max_drawdown": -0.30},
+            rsi=82.0,
+        )
+        self.assertEqual(conf_low_penalized, 0.45)
+
+        # Case 4: Upper boundary clamping (0.95 cap)
+        # PARTIAL base 0.55 + 0.10 + 0.05 = 0.70
+        conf_partial = calculate_confidence(
+            data_quality="PARTIAL",
+            components={"trend": 50.0, "momentum": 50.0, "volume": 50.0},
+            risk_metrics={"volatility_60d": 0.15, "max_drawdown": -0.10},
+            rsi=50.0,
+        )
+        self.assertEqual(conf_partial, 0.70)
+
     def test_divergence_timeframe_weighting_and_conflict(self):
         """Test P1: Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
         # 1D Bullish only
