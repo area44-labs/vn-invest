@@ -14,7 +14,6 @@ Raw provider data may be retained for diagnostics only.
 
 import math
 
-from scripts.lib import config
 from scripts.lib.features import calculate_multi_timeframe_features
 from scripts.lib.risk import calculate_t25_risk_metrics
 from scripts.lib.vietnam_market import (
@@ -25,11 +24,39 @@ from scripts.lib.vietnam_market import (
     validate_ohlcv_data,
 )
 
-# Centralized configuration re-exports for backward compatibility
-SIGNAL_MODEL_VERSION = config.SIGNAL_MODEL_VERSION
-SIGNAL_WEIGHTS = config.SIGNAL_WEIGHTS
-DIVERGENCE_TIMEFRAME_WEIGHTS = config.DIVERGENCE_TIMEFRAME_WEIGHTS
-VALID_MARKET_REGIMES = config.VALID_MARKET_REGIMES
+SIGNAL_MODEL_VERSION = "2.0"
+
+# Centralized component weights for VN Invest Signal Engine.
+# Rationale:
+# - Trend (30%): Primary direction vector based on price relative to moving averages (MA20, MA50).
+# - Momentum (25%): RSI and MACD indicator confirmation evaluating move strength and momentum decay.
+# - Volume (15%): Volume ratio confirming institutional participation vs lack of market liquidity.
+# - Relative Strength (15%): Performance relative to benchmark (VN-Index) over 20 sessions.
+# - Divergence (15%): Multi-timeframe bullish/bearish divergence signals indicating potential trend reversals.
+SIGNAL_WEIGHTS = {
+    "trend": 0.30,
+    "momentum": 0.25,
+    "volume": 0.15,
+    "relative_strength": 0.15,
+    "divergence": 0.15,
+}
+
+# Timeframe weights for divergence component scoring.
+# Rationale: Short-to-intermediate timeframes (1D, 1W) take precedence over monthly (1M) setups.
+DIVERGENCE_TIMEFRAME_WEIGHTS = {
+    "1D": 0.50,
+    "1W": 0.30,
+    "1M": 0.20,
+}
+
+VALID_MARKET_REGIMES = {
+    "STRONG_BULL",
+    "BULL",
+    "NEUTRAL",
+    "DEFENSIVE",
+    "BEAR",
+    "PANIC",
+}
 
 
 def format_vnd(price: float) -> str:
@@ -63,25 +90,25 @@ def calculate_trend_score(
     if c is None or c <= 0 or (ma20 is None and ma50 is None):
         return None
 
-    score = config.TREND_BASE_SCORE
+    score = 50.0
 
     if ma20 is not None and ma20 > 0:
         if c > ma20:
-            score += config.TREND_MA20_WEIGHT
+            score += 25.0
         else:
-            score -= config.TREND_MA20_WEIGHT
+            score -= 25.0
 
     if ma50 is not None and ma50 > 0:
         if c > ma50:
-            score += config.TREND_MA50_WEIGHT
+            score += 15.0
         else:
-            score -= config.TREND_MA50_WEIGHT
+            score -= 15.0
 
     if ma20 is not None and ma50 is not None and ma20 > 0 and ma50 > 0:
         if ma20 > ma50:
-            score += config.TREND_MA20_VS_MA50_WEIGHT
+            score += 10.0
         else:
-            score -= config.TREND_MA20_VS_MA50_WEIGHT
+            score -= 10.0
 
     return max(0.0, min(100.0, round(score, 1)))
 
@@ -99,37 +126,37 @@ def calculate_momentum_score(
     if r is None and hist is None:
         return None
 
-    score = config.MOMENTUM_BASE_SCORE
+    score = 50.0
 
     if r is not None:
-        if r > config.RSI_OVERBOUGHT_EXTREME:
-            score -= config.RSI_SCORE_OVERBOUGHT_EXTREME_PENALTY
-        elif r > config.RSI_OVERBOUGHT:
-            score -= config.RSI_SCORE_OVERBOUGHT_PENALTY
-        elif config.RSI_STRONG_MOMENTUM_LOWER < r <= config.RSI_OVERBOUGHT:
-            score += config.RSI_SCORE_STRONG_MOMENTUM_BONUS
-        elif config.RSI_SAFE_LOWER <= r <= config.RSI_SAFE_UPPER:
-            score += config.RSI_SCORE_SAFE_BONUS
-        elif config.RSI_WEAK_LOWER <= r < config.RSI_SAFE_LOWER:
-            score -= config.RSI_SCORE_WEAK_PENALTY
-        elif r < config.RSI_WEAK_LOWER:
-            score -= config.RSI_SCORE_OVERSOLD_PENALTY
+        if r > 78.0:
+            score -= 25.0
+        elif r > 70.0:
+            score -= 15.0
+        elif 65.0 < r <= 70.0:
+            score += 10.0
+        elif 45.0 <= r <= 65.0:
+            score += 20.0
+        elif 35.0 <= r < 45.0:
+            score -= 10.0
+        elif r < 35.0:
+            score -= 20.0
 
     if hist is not None:
         if prev_hist is not None:
             if hist > 0 and hist > prev_hist:
-                score += config.MACD_SCORE_POS_EXPANDING
+                score += 25.0
             elif hist > 0 and hist <= prev_hist:
-                score += config.MACD_SCORE_POS_CONTRACTING
+                score += 10.0
             elif hist < 0 and hist < prev_hist:
-                score -= config.MACD_SCORE_NEG_EXPANDING
+                score -= 25.0
             elif hist < 0 and hist >= prev_hist:
-                score -= config.MACD_SCORE_NEG_CONTRACTING
+                score -= 10.0
         else:
             if hist > 0:
-                score += config.MACD_SCORE_POS_SINGLE
+                score += 15.0
             elif hist < 0:
-                score -= config.MACD_SCORE_NEG_SINGLE
+                score -= 15.0
 
     return max(0.0, min(100.0, round(score, 1)))
 
@@ -140,18 +167,18 @@ def calculate_volume_score(volume_ratio: float | None) -> float | None:
     if vr is None or vr <= 0:
         return None
 
-    if vr >= config.VOLUME_RATIO_VERY_HIGH:
-        score = config.VOLUME_SCORE_VERY_HIGH
-    elif vr >= config.VOLUME_RATIO_HIGH:
-        score = config.VOLUME_SCORE_HIGH
-    elif vr >= config.VOLUME_RATIO_ABOVE_AVG:
-        score = config.VOLUME_SCORE_ABOVE_AVG
-    elif vr >= config.VOLUME_RATIO_NORMAL:
-        score = config.VOLUME_SCORE_NORMAL
-    elif vr >= config.VOLUME_RATIO_LOW:
-        score = config.VOLUME_SCORE_LOW
+    if vr >= 2.0:
+        score = 100.0
+    elif vr >= 1.5:
+        score = 85.0
+    elif vr >= 1.2:
+        score = 70.0
+    elif vr >= 0.8:
+        score = 50.0
+    elif vr >= 0.5:
+        score = 35.0
     else:
-        score = config.VOLUME_SCORE_VERY_LOW
+        score = 20.0
 
     return max(0.0, min(100.0, round(score, 1)))
 
@@ -162,18 +189,18 @@ def calculate_relative_strength_score(rs_diff: float | None) -> float | None:
     if diff is None:
         return None
 
-    if diff >= config.RS_DIFF_STRONG_OUTPERFORM:
-        score = config.RS_SCORE_STRONG_OUTPERFORM
-    elif diff >= config.RS_DIFF_OUTPERFORM:
-        score = config.RS_SCORE_OUTPERFORM
-    elif diff >= config.RS_DIFF_MILD_OUTPERFORM:
-        score = config.RS_SCORE_MILD_OUTPERFORM
-    elif diff >= config.RS_DIFF_NEUTRAL:
-        score = config.RS_SCORE_NEUTRAL
-    elif diff >= config.RS_DIFF_UNDERPERFORM:
-        score = config.RS_SCORE_UNDERPERFORM
+    if diff >= 0.10:
+        score = 100.0
+    elif diff >= 0.05:
+        score = 80.0
+    elif diff >= 0.02:
+        score = 65.0
+    elif diff >= -0.02:
+        score = 50.0
+    elif diff >= -0.05:
+        score = 35.0
     else:
-        score = config.RS_SCORE_STRONG_UNDERPERFORM
+        score = 15.0
 
     return max(0.0, min(100.0, round(score, 1)))
 
@@ -204,13 +231,13 @@ def calculate_divergence_score(tf_summary: dict | None) -> float | None:
         bearish = bool(div.get("rsi_bearish") or div.get("macd_bearish"))
 
         if bullish and not bearish:
-            tf_score = config.DIVERGENCE_SCORE_BULLISH
+            tf_score = 90.0
         elif bearish and not bullish:
-            tf_score = config.DIVERGENCE_SCORE_BEARISH
+            tf_score = 10.0
         elif bullish and bearish:
-            tf_score = config.DIVERGENCE_SCORE_CONFLICT  # Conflict penalty
+            tf_score = 40.0  # Conflict penalty
         else:
-            tf_score = config.DIVERGENCE_SCORE_NEUTRAL  # Neutral
+            tf_score = 50.0  # Neutral
 
         weight = DIVERGENCE_TIMEFRAME_WEIGHTS[tf_label] / total_tf_weight
         tf_scores.append(tf_score * weight)
@@ -242,7 +269,7 @@ def calculate_signal_score(
     available_keys = [k for k, v in components.items() if v is not None]
     num_available = len(available_keys)
 
-    if num_available < config.MIN_COMPONENTS_FOR_SIGNAL:
+    if num_available < 3:
         return None, components, "INSUFFICIENT"
 
     total_weight = sum(SIGNAL_WEIGHTS[k] for k in available_keys)
@@ -252,7 +279,7 @@ def calculate_signal_score(
     weighted_sum = sum(components[k] * (SIGNAL_WEIGHTS[k] / total_weight) for k in available_keys)
     signal_score = max(0.0, min(100.0, round(weighted_sum, 1)))
 
-    if num_available >= config.MIN_COMPONENTS_FOR_SUFFICIENT_QUALITY:
+    if num_available >= 5:
         data_quality = "SUFFICIENT"
     else:
         data_quality = "PARTIAL"
@@ -268,13 +295,9 @@ def calculate_confidence(
 ) -> float:
     """Calculate deterministic confidence score (0.10 to 0.95) based on data quality, dispersion/agreement, and risk indicators."""
     if data_quality == "INSUFFICIENT":
-        return config.CONFIDENCE_MIN
+        return 0.10
 
-    base_conf = (
-        config.CONFIDENCE_BASE_SUFFICIENT
-        if data_quality == "SUFFICIENT"
-        else config.CONFIDENCE_BASE_PARTIAL
-    )
+    base_conf = 0.70 if data_quality == "SUFFICIENT" else 0.55
 
     available_scores = [v for v in components.values() if v is not None]
     if len(available_scores) >= 2:
@@ -283,28 +306,28 @@ def calculate_confidence(
         std_dev = math.sqrt(variance)
 
         # High agreement (std_dev < 12.0) increases confidence; strong dispersion (std_dev > 22.0) decreases confidence.
-        if std_dev < config.DISPERSION_STD_VERY_LOW:
-            base_conf += config.CONFIDENCE_ADJ_VERY_LOW_DISPERSION
-        elif std_dev < config.DISPERSION_STD_LOW:
-            base_conf += config.CONFIDENCE_ADJ_LOW_DISPERSION
-        elif std_dev > config.DISPERSION_STD_HIGH:
-            base_conf += config.CONFIDENCE_ADJ_HIGH_DISPERSION
-        elif std_dev > config.DISPERSION_STD_MODERATE_HIGH:
-            base_conf += config.CONFIDENCE_ADJ_MODERATE_HIGH_DISPERSION
+        if std_dev < 12.0:
+            base_conf += 0.10
+        elif std_dev < 18.0:
+            base_conf += 0.05
+        elif std_dev > 30.0:
+            base_conf -= 0.15
+        elif std_dev > 22.0:
+            base_conf -= 0.08
 
     vol60 = _safe_float(risk_metrics.get("volatility_60d"))
     mdd = _safe_float(risk_metrics.get("max_drawdown"))
 
     if vol60 is not None and mdd is not None:
-        if vol60 > config.RISK_VOLATILITY_HIGH or abs(mdd) > config.RISK_DRAWDOWN_HIGH:
-            base_conf += config.CONFIDENCE_ADJ_HIGH_RISK
-        elif vol60 < config.RISK_VOLATILITY_LOW and abs(mdd) < config.RISK_DRAWDOWN_LOW:
-            base_conf += config.CONFIDENCE_ADJ_LOW_RISK
+        if vol60 > 0.35 or abs(mdd) > 0.25:
+            base_conf -= 0.05
+        elif vol60 < 0.22 and abs(mdd) < 0.12:
+            base_conf += 0.05
 
-    if rsi is not None and (rsi > config.RSI_OVERBOUGHT_EXTREME or rsi < config.RSI_WEAK_LOWER):
-        base_conf += config.CONFIDENCE_ADJ_EXTREME_RSI
+    if rsi is not None and (rsi > 78.0 or rsi < 35.0):
+        base_conf -= 0.05
 
-    return round(max(config.CONFIDENCE_MIN, min(config.CONFIDENCE_MAX, base_conf)), 2)
+    return round(max(0.10, min(0.95, base_conf)), 2)
 
 
 def calculate_risk_adjusted_score(
@@ -318,7 +341,14 @@ def calculate_risk_adjusted_score(
     if signal_score is None:
         return None
 
-    regime_map = config.REGIME_SCORE_FACTORS
+    regime_map = {
+        "STRONG_BULL": 1.05,
+        "BULL": 1.00,
+        "NEUTRAL": 0.90,
+        "DEFENSIVE": 0.90,
+        "BEAR": 0.75,
+        "PANIC": 0.50,
+    }
     if regime not in regime_map:
         raise ValueError(
             f"Invalid market regime: '{regime}'. Must be one of {VALID_MARKET_REGIMES}"
@@ -328,30 +358,17 @@ def calculate_risk_adjusted_score(
     vol_penalty = 0.0
     vol60 = _safe_float(volatility_60d)
     if vol60 is not None:
-        vol_penalty = min(
-            config.VOLATILITY_PENALTY_MAX,
-            max(
-                0.0,
-                (vol60 - config.VOLATILITY_PENALTY_THRESHOLD) * config.VOLATILITY_PENALTY_FACTOR,
-            ),
-        )
+        vol_penalty = min(0.25, max(0.0, (vol60 - 0.20) * 0.5))
 
     mdd_penalty = 0.0
     mdd = _safe_float(max_drawdown)
     if mdd is not None:
-        mdd_penalty = min(
-            config.DRAWDOWN_PENALTY_MAX,
-            max(
-                0.0, (abs(mdd) - config.DRAWDOWN_PENALTY_THRESHOLD) * config.DRAWDOWN_PENALTY_FACTOR
-            ),
-        )
+        mdd_penalty = min(0.25, max(0.0, (abs(mdd) - 0.15) * 0.5))
 
     liq_factor = 1.0
     liq = _safe_float(liquidity_score)
     if liq is not None:
-        liq_factor = config.LIQUIDITY_FACTOR_BASE + config.LIQUIDITY_FACTOR_SCALE * (
-            max(0.0, min(100.0, liq)) / 100.0
-        )
+        liq_factor = 0.85 + 0.15 * (max(0.0, min(100.0, liq)) / 100.0)
 
     score = signal_score * regime_factor * (1.0 - vol_penalty) * (1.0 - mdd_penalty) * liq_factor
     return max(0.0, min(100.0, round(score, 1)))
@@ -385,23 +402,23 @@ def classify_action(
         else False
     )
 
-    if score < config.SCORE_THRESHOLD_SELL:
+    if score < 35.0:
         return "AVOID" if regime in ["BEAR", "PANIC"] else "SELL"
 
-    if score >= config.SCORE_THRESHOLD_STRONG_BUY:
-        if regime in config.REGIMES_STRONG_BUY and close_above_ma20:
+    if score >= 75.0:
+        if regime in ["STRONG_BULL", "BULL"] and close_above_ma20:
             return "BUY"
         return "WATCH"
 
-    if score >= config.SCORE_THRESHOLD_BUY:
-        if regime in config.REGIMES_BUY and close_above_ma20:
+    if score >= 65.0:
+        if regime in ["STRONG_BULL", "BULL", "DEFENSIVE"] and close_above_ma20:
             return "BUY"
         return "WATCH"
 
-    if score >= config.SCORE_THRESHOLD_WATCH:
+    if score >= 55.0:
         return "WATCH"
 
-    if score >= config.SCORE_THRESHOLD_HOLD:
+    if score >= 45.0:
         return "HOLD"
 
     return "SELL"
@@ -429,11 +446,7 @@ def generate_recommendation(
         data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_clean)
     )
 
-    if (
-        val_res["status"] == "INSUFFICIENT"
-        or df_clean.empty
-        or len(df_clean) < config.MIN_HISTORY_SESSIONS
-    ):
+    if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
         return {
             "symbol": symbol,
             "company_name": company_name,
@@ -514,14 +527,10 @@ def generate_recommendation(
     if df_vnindex is not None and not df_vnindex.empty:
         df_vnindex_clean, _ = get_clean_ohlcv_data(df_vnindex, "VNINDEX")
 
-    if (
-        df_vnindex_clean is not None
-        and len(df_vnindex_clean) >= config.MA_SHORT_PERIOD
-        and len(df_d) >= config.MA_SHORT_PERIOD
-    ):
-        c0 = _safe_float(df_d["close"].iloc[-config.MA_SHORT_PERIOD])
+    if df_vnindex_clean is not None and len(df_vnindex_clean) >= 20 and len(df_d) >= 20:
+        c0 = _safe_float(df_d["close"].iloc[-20])
         vn_c1 = _safe_float(df_vnindex_clean["close"].iloc[-1])
-        vn_c0 = _safe_float(df_vnindex_clean["close"].iloc[-config.MA_SHORT_PERIOD])
+        vn_c0 = _safe_float(df_vnindex_clean["close"].iloc[-20])
         if (
             raw_close is not None
             and c0 is not None
@@ -572,27 +581,27 @@ def generate_recommendation(
         elif macd_hist < 0:
             warnings.append("MACD Histogram âm, báo hiệu áp lực điều chỉnh.")
 
-    if vol_ratio is not None and vol_ratio > config.VOLUME_RATIO_ABOVE_AVG:
+    if vol_ratio is not None and vol_ratio > 1.2:
         reasons.append(f"Khối lượng bùng nổ {vol_ratio:.1f}x so với bình quân 20 phiên.")
 
     if rsi is not None:
-        if config.RSI_SAFE_LOWER <= rsi <= config.RSI_SAFE_UPPER:
+        if 45.0 <= rsi <= 65.0:
             reasons.append(f"Chỉ báo RSI ({rsi:.1f}) nằm trong vùng an toàn (45 - 65).")
-        elif rsi > config.RSI_OVERBOUGHT_EXTREME:
+        elif rsi > 78.0:
             warnings.append(
                 f"RSI ({rsi:.1f}) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
             )
-        elif rsi > config.RSI_OVERBOUGHT:
+        elif rsi > 70.0:
             warnings.append(f"RSI ({rsi:.1f}) thuộc vùng quá mua (> 70).")
-        elif rsi < config.RSI_WEAK_LOWER:
+        elif rsi < 35.0:
             warnings.append(f"RSI ({rsi:.1f}) quá bán nặng (< 35).")
 
     if rs_diff is not None:
-        if rs_diff > config.RS_DIFF_OUTPERFORM:
+        if rs_diff > 0.05:
             reasons.append(
                 f"Sức mạnh tương quan (RS) vượt trội so với VN-Index (+{rs_diff * 100:.1f}%)."
             )
-        elif rs_diff < config.RS_DIFF_UNDERPERFORM:
+        elif rs_diff < -0.05:
             warnings.append(f"Sức mạnh tương quan (RS) yếu hơn VN-Index ({rs_diff * 100:.1f}%).")
 
     for tf_key, tf_label in [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]:
@@ -617,9 +626,9 @@ def generate_recommendation(
     vol60 = risk_metrics.get("volatility_60d")
     mdd = risk_metrics.get("max_drawdown")
     if vol60 is not None and mdd is not None:
-        if vol60 > config.RISK_VOLATILITY_HIGH or abs(mdd) > config.RISK_DRAWDOWN_HIGH:
+        if vol60 > 0.35 or abs(mdd) > 0.25:
             risk_level = "HIGH"
-        elif vol60 < config.RISK_VOLATILITY_LOW and abs(mdd) < config.RISK_DRAWDOWN_LOW:
+        elif vol60 < 0.22 and abs(mdd) < 0.12:
             risk_level = "LOW"
         else:
             risk_level = "MEDIUM"
@@ -633,55 +642,33 @@ def generate_recommendation(
     invalidation = []
 
     if action in ["BUY", "WATCH"] and raw_close is not None:
-        stop_atr_component = (
-            (raw_close - config.TRADE_PLAN_STOP_ATR_MULT * atr)
-            if atr is not None
-            else (raw_close * config.TRADE_PLAN_DEFAULT_STOP_PCT)
-        )
+        stop_atr_component = (raw_close - 1.8 * atr) if atr is not None else (raw_close * 0.95)
         sl_raw = max(
             stop_atr_component,
             lowest_5d,
-            (
-                raw_ma20 * config.TRADE_PLAN_MA20_STOP_PCT
-                if raw_ma20
-                else raw_close * config.TRADE_PLAN_DEFAULT_STOP_PCT
-            ),
-            raw_close * config.TRADE_PLAN_MAX_STOP_PCT,
+            (raw_ma20 * 0.98 if raw_ma20 else raw_close * 0.95),
+            raw_close * 0.93,
         )
-        sl_p = min(sl_raw, raw_close * config.TRADE_PLAN_STOP_CLAMP_CAP)
+        sl_p = min(sl_raw, raw_close * 0.99)
         sl_p = clamp_price_limits(sl_p, raw_close, ex)
-        risk_amt = max(raw_close - sl_p, raw_close * config.TRADE_PLAN_MIN_RISK_PCT)
+        risk_amt = max(raw_close - sl_p, raw_close * 0.03)
 
         entry_low_p = round_tick_size(raw_close, ex)
-        entry_high_p = clamp_price_limits(
-            max(entry_low_p, raw_close * config.TRADE_PLAN_ENTRY_HIGH_MULT), raw_close, ex
-        )
-        tp1_p = clamp_price_limits(
-            max(entry_high_p, raw_close + config.TRADE_PLAN_TP1_RR_MULT * risk_amt), raw_close, ex
-        )
-        tp2_p = clamp_price_limits(
-            max(tp1_p, raw_close + config.TRADE_PLAN_TP2_RR_MULT * risk_amt), raw_close, ex
-        )
+        entry_high_p = clamp_price_limits(max(entry_low_p, raw_close * 1.02), raw_close, ex)
+        tp1_p = clamp_price_limits(max(entry_high_p, raw_close + 2.0 * risk_amt), raw_close, ex)
+        tp2_p = clamp_price_limits(max(tp1_p, raw_close + 3.0 * risk_amt), raw_close, ex)
 
-        rr_num = (
-            round((tp1_p - raw_close) / risk_amt, 2)
-            if risk_amt > 0
-            else config.TRADE_PLAN_DEFAULT_RR
-        )
+        rr_num = round((tp1_p - raw_close) / risk_amt, 2) if risk_amt > 0 else 1.0
 
         stop_distance_pct = (
             abs(raw_close - sl_p) / raw_close
             if raw_close > 0 and abs(raw_close - sl_p) > 1e-4
-            else config.TRADE_PLAN_DEFAULT_STOP_DIST_PCT
+            else 0.05
         )
-        portfolio_risk_budget_pct = config.TRADE_PLAN_PORTFOLIO_RISK_BUDGET_PCT
+        portfolio_risk_budget_pct = 1.0
         calc_position_pct = round(portfolio_risk_budget_pct / stop_distance_pct, 1)
 
-        max_position_cap = (
-            config.TRADE_PLAN_MAX_POSITION_BUY_PCT
-            if action == "BUY"
-            else config.TRADE_PLAN_MAX_POSITION_WATCH_PCT
-        )
+        max_position_cap = 20.0 if action == "BUY" else 10.0
         final_position_pct = min(calc_position_pct, max_position_cap)
 
         trade_plan = {
