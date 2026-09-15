@@ -8,6 +8,8 @@ Key Architectural Principles:
 1. Temporal Separation & As-Of Semantics:
    At evaluation date T, the quantitative engine strictly receives data timestamped <= T.
    Future data (> T) is strictly isolated and used solely for forward outcome evaluation.
+   All market-level inputs (VNINDEX, VN30, and universe market breadth as-of T) are
+   strictly bounded <= T before evaluating market regime and signal recommendations.
 2. Forward Return Calculation:
    Forward return at horizon N (e.g., 5, 10, 20 trading sessions) is defined as:
        forward_return_N = (Price[T + N] / Price[T]) - 1.0
@@ -18,14 +20,17 @@ Key Architectural Principles:
        - BUY: +forward_return
        - SELL: -forward_return
        - HOLD / WATCH / AVOID: 0.0
-4. Scope Notice:
+4. Strategy Return Diagnostic Semantics:
+   The metric `sum_strategy_return` represents the arithmetic sum of individual signal strategy returns.
+   It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
+5. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
    leverage, or trade execution dynamics.
 """
 
-import math
 from dataclasses import dataclass, field
+import math
 from typing import Any
 
 import numpy as np
@@ -128,7 +133,7 @@ class BacktestResult:
 def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> pd.DataFrame:
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
-    Raises ValueError if required columns are missing, dataset is empty, or evaluation_date is invalid.
+    Raises ValueError if required columns are missing, dataset is empty, or evaluation_date is invalid/out-of-bounds.
     """
     if df is None or df.empty:
         raise ValueError("Cannot slice empty or None DataFrame.")
@@ -137,11 +142,18 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     if not date_col:
         raise ValueError("DataFrame missing required 'date' or 'time' column.")
 
-    target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
+    try:
+        target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
+    except Exception as err:
+        raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
     # Ensure clean OHLCV sorting and format
     df_sorted = df.copy()
-    df_sorted["_date_str"] = pd.to_datetime(df_sorted[date_col]).dt.strftime("%Y-%m-%d")
+    parsed_dates = pd.to_datetime(df_sorted[date_col], errors="coerce")
+    if parsed_dates.isna().all():
+        raise ValueError(f"DataFrame column '{date_col}' contains no valid dates.")
+
+    df_sorted["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
     df_sorted = df_sorted.sort_values("_date_str").reset_index(drop=True)
 
     as_of_df = df_sorted[df_sorted["_date_str"] <= target_date_str].drop(columns=["_date_str"])
@@ -152,6 +164,41 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
         )
 
     return as_of_df.reset_index(drop=True)
+
+
+def calculate_as_of_market_breadth(
+    universe_stock_map: dict[str, pd.DataFrame],
+    evaluation_date: str,
+) -> float:
+    """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20)."""
+    if not universe_stock_map:
+        return 0.50
+
+    bullish_count = 0
+    valid_stocks_count = 0
+
+    for sym, df_stock in universe_stock_map.items():
+        if df_stock is None or df_stock.empty:
+            continue
+
+        try:
+            df_stock_as_of = get_as_of_dataset(df_stock, evaluation_date)
+            df_clean, val_res = get_clean_ohlcv_data(df_stock_as_of, sym)
+            if val_res["status"] != "INSUFFICIENT" and len(df_clean) >= 20:
+                c = _safe_float(df_clean["close"].iloc[-1])
+                ma20 = _safe_float(df_clean["close"].tail(20).mean())
+                if c is not None and ma20 is not None and ma20 > 0:
+                    valid_stocks_count += 1
+                    if c > ma20:
+                        bullish_count += 1
+        except ValueError:
+            # Expected when stock has no history prior to evaluation date
+            continue
+
+    if valid_stocks_count == 0:
+        return 0.50
+
+    return round(bullish_count / valid_stocks_count, 2)
 
 
 def evaluate_forward_outcomes(
@@ -182,7 +229,7 @@ def evaluate_forward_outcomes(
 
     df_clean, _ = get_clean_ohlcv_data(df_stock, "SYMBOL")
     if df_clean.empty:
-        raise ValueError("Cleaned DataFrame is empty.")
+        raise ValueError("Stock DataFrame contains no valid OHLCV data.")
 
     clean_date_col = _find_date_column(df_clean)
     if not clean_date_col:
@@ -191,7 +238,11 @@ def evaluate_forward_outcomes(
     df_clean["_date_str"] = pd.to_datetime(df_clean[clean_date_col]).dt.strftime("%Y-%m-%d")
     df_sorted = df_clean.sort_values("_date_str").reset_index(drop=True)
 
-    target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
+    try:
+        target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
+    except Exception as err:
+        raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
+
     matches = df_sorted[df_sorted["_date_str"] == target_date_str]
 
     if matches.empty:
@@ -252,11 +303,15 @@ def run_backtest_for_symbol(
     sector: str = "",
     exchange: str = "HOSE",
     df_vnindex: pd.DataFrame | None = None,
+    df_vn30: pd.DataFrame | None = None,
+    breadth_ratio: float | None = None,
+    universe_stock_map: dict[str, pd.DataFrame] | None = None,
     horizons: list[int] | None = None,
 ) -> list[BacktestResult]:
     """Run point-in-time deterministic backtest for a single symbol over multiple evaluation dates.
 
-    Guarantees no lookahead bias by slicing dataset <= T for recommendation generation.
+    Guarantees strict no-lookahead bias by slicing stock data and all market-level inputs
+    (VNINDEX, VN30, and universe market breadth as-of T) strictly <= T before calling production engine.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
@@ -266,24 +321,43 @@ def run_backtest_for_symbol(
     for eval_date in evaluation_dates:
         target_date_str = pd.to_datetime(eval_date).strftime("%Y-%m-%d")
 
-        # 1. As-of data slicing (strict point-in-time <= T)
+        # 1. Point-in-time stock data slicing (<= T)
         df_stock_as_of = get_as_of_dataset(df_stock, target_date_str)
 
-        df_vnindex_as_of = None
+        # 2. Point-in-time market data slicing (<= T) for production regime inputs
+        df_vnindex_clean_as_of = None
         if df_vnindex is not None and not df_vnindex.empty:
             try:
                 df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
+                df_vnindex_clean_as_of, val_vn = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
+                if val_vn["status"] == "INSUFFICIENT":
+                    df_vnindex_clean_as_of = None
             except ValueError:
-                df_vnindex_as_of = None
+                df_vnindex_clean_as_of = None
 
-        # 2. Market regime at T
+        df_vn30_clean_as_of = None
+        if df_vn30 is not None and not df_vn30.empty:
+            try:
+                df_vn30_as_of = get_as_of_dataset(df_vn30, target_date_str)
+                df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+                if val_30["status"] == "INSUFFICIENT":
+                    df_vn30_clean_as_of = None
+            except ValueError:
+                df_vn30_clean_as_of = None
+
+        # Point-in-time market breadth as-of T
+        effective_breadth = breadth_ratio
+        if effective_breadth is None and universe_stock_map:
+            effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
+
+        # 3. Market regime evaluation at T using production regime engine
         market_regime_info = detect_market_regime(
-            df_vnindex=df_vnindex_as_of,
-            df_vn30=None,
-            breadth_ratio=None,
+            df_vnindex=df_vnindex_clean_as_of,
+            df_vn30=df_vn30_clean_as_of,
+            breadth_ratio=effective_breadth,
         )
 
-        # 3. Recommendation generation at T
+        # 4. Recommendation generation at T using production engine
         rec = generate_recommendation(
             symbol=symbol,
             company_name=company_name,
@@ -291,7 +365,7 @@ def run_backtest_for_symbol(
             exchange=exchange,
             df_stock=df_stock_as_of,
             market_regime_info=market_regime_info,
-            df_vnindex=df_vnindex_as_of,
+            df_vnindex=df_vnindex_clean_as_of,
             data_as_of=target_date_str,
         )
 
@@ -312,7 +386,7 @@ def run_backtest_for_symbol(
             score_components=rec["score_components"],
         )
 
-        # 4. Forward outcome evaluation (> T)
+        # 5. Forward outcome evaluation (> T)
         outcome = evaluate_forward_outcomes(
             df_stock=df_stock,
             evaluation_date=target_date_str,
@@ -323,6 +397,51 @@ def run_backtest_for_symbol(
         results.append(BacktestResult(signal=signal, outcome=outcome))
 
     return results
+
+
+def run_backtest_for_universe(
+    universe_stock_map: dict[str, pd.DataFrame],
+    evaluation_dates: list[str],
+    candidate_metadata: list[dict] | None = None,
+    df_vnindex: pd.DataFrame | None = None,
+    df_vn30: pd.DataFrame | None = None,
+    horizons: list[int] | None = None,
+) -> list[BacktestResult]:
+    """Run point-in-time deterministic backtest across an entire stock universe.
+
+    Computes point-in-time market breadth as-of T across all stocks in universe_stock_map.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    meta_map = {}
+    if candidate_metadata:
+        for item in candidate_metadata:
+            meta_map[item["symbol"]] = item
+
+    all_results: list[BacktestResult] = []
+
+    for sym, df_stock in universe_stock_map.items():
+        item = meta_map.get(sym, {})
+        comp = item.get("companyName", "")
+        sec = item.get("sector", "")
+        ex = item.get("exchange", "HOSE")
+
+        res_sym = run_backtest_for_symbol(
+            symbol=sym,
+            df_stock=df_stock,
+            evaluation_dates=evaluation_dates,
+            company_name=comp,
+            sector=sec,
+            exchange=ex,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+            universe_stock_map=universe_stock_map,
+            horizons=horizons,
+        )
+        all_results.extend(res_sym)
+
+    return all_results
 
 
 def calculate_return_stats(return_series: list[float]) -> dict[str, float | None]:
@@ -356,14 +475,23 @@ def aggregate_backtest_results(
       - BUY hit rate: ratio of BUY signals where forward return > 0
       - SELL hit rate: ratio of SELL signals where forward return < 0
       - Combined directional hit rate: ratio of directional (BUY/SELL) signals with positive direction outcome
-    - Strategy Returns: mean, median, cumulative strategy return (diagnostic metric).
+    - Strategy Returns:
+      - mean: average directional strategy return
+      - median: median directional strategy return
+      - sum_strategy_return: arithmetic sum of individual signal strategy returns (diagnostic metric only)
     - Breakdown by action and market regime.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
 
     total_signals = len(results)
-    action_counts: dict[str, int] = {"BUY": 0, "HOLD": 0, "SELL": 0, "WATCH": 0, "AVOID": 0}
+    action_counts: dict[str, int] = {
+        "BUY": 0,
+        "HOLD": 0,
+        "SELL": 0,
+        "WATCH": 0,
+        "AVOID": 0,
+    }
 
     for res in results:
         act = res.signal.action
@@ -413,7 +541,7 @@ def aggregate_backtest_results(
         combined_hits = buy_hits + sell_hits
         combined_hit_rate = round(combined_hits / combined_total, 4) if combined_total > 0 else None
 
-        cum_strat_return = round(float(sum(strat_returns)), 6) if strat_returns else 0.0
+        sum_strat_return = round(float(sum(strat_returns)), 6) if strat_returns else 0.0
 
         horizon_metrics[h] = {
             "valid_signals": valid_outcome_counts[h],
@@ -421,7 +549,7 @@ def aggregate_backtest_results(
             "strategy_return": {
                 "mean": strat_stats["mean"],
                 "median": strat_stats["median"],
-                "cumulative": cum_strat_return,
+                "sum_strategy_return": sum_strat_return,
             },
             "buy_hit_rate": buy_hit_rate,
             "buy_signals_count": buy_total,

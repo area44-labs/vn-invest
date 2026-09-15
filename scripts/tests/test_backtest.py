@@ -1,5 +1,6 @@
 """Unit Test Suite for Deterministic No-Lookahead Backtesting Framework."""
 
+import math
 import unittest
 
 import pandas as pd
@@ -9,10 +10,17 @@ from scripts.lib.backtest import (
     BacktestSignal,
     ForwardOutcome,
     aggregate_backtest_results,
+    calculate_as_of_market_breadth,
     evaluate_forward_outcomes,
     get_as_of_dataset,
     run_backtest_for_symbol,
+    run_backtest_for_universe,
 )
+
+
+def math_sin(x: float) -> float:
+    """Simple deterministic sine helper using Taylor series expansion to avoid random noise."""
+    return math.sin(x)
 
 
 def generate_synthetic_ohlcv(
@@ -49,19 +57,24 @@ def generate_synthetic_ohlcv(
     return pd.DataFrame(data)
 
 
-def math_sin(x: float) -> float:
-    """Simple deterministic sine helper using Taylor series expansion to avoid random noise."""
-    import math
-
-    return math.sin(x)
-
-
 class TestBacktestFramework(unittest.TestCase):
     """Test suite verifying backtesting framework requirements."""
 
     def setUp(self):
         self.df_stock = generate_synthetic_ohlcv(
             num_days=100, start_date="2025-01-01", base_price=50.0, daily_trend=0.002
+        )
+        self.df_vnindex = generate_synthetic_ohlcv(
+            num_days=100,
+            start_date="2025-01-01",
+            base_price=1200.0,
+            daily_trend=0.001,
+        )
+        self.df_vn30 = generate_synthetic_ohlcv(
+            num_days=100,
+            start_date="2025-01-01",
+            base_price=1250.0,
+            daily_trend=0.001,
         )
         self.evaluation_date = self.df_stock["date"].iloc[50]  # T = day 50
 
@@ -132,9 +145,19 @@ class TestBacktestFramework(unittest.TestCase):
             self.assertIsNone(outcome.returns[h])
             self.assertIsNone(outcome.strategy_returns[h])
 
-    def test_d_no_lookahead_critical(self):
-        """Test D: Critical no-lookahead test. Mutating post-T data leaves signal at T unchanged."""
+    def test_d_no_lookahead_stock_and_market_level_critical(self):
+        """Test D: Critical market-level and stock-level no-lookahead regression test.
+
+        Mutating post-T data in stock price, VNINDEX, VN30, and universe breadth
+        leaves the market regime and recommendation at T 100% identical.
+        """
         eval_d = self.df_stock["date"].iloc[60]  # T = session index 60
+
+        universe_stock_map = {
+            "TCB": self.df_stock,
+            "ACB": generate_synthetic_ohlcv(num_days=100, base_price=25.0, daily_trend=0.0015),
+            "FPT": generate_synthetic_ohlcv(num_days=100, base_price=130.0, daily_trend=0.002),
+        }
 
         # Original run
         results_orig = run_backtest_for_symbol(
@@ -144,30 +167,47 @@ class TestBacktestFramework(unittest.TestCase):
             company_name="Techcombank",
             sector="Banking",
             exchange="HOSE",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            universe_stock_map=universe_stock_map,
         )
         sig_orig = results_orig[0].signal
 
-        # Create mutated dataset where all prices/volumes AFTER T are drastically modified
-        df_mutated = self.df_stock.copy()
-        post_t_mask = df_mutated["date"] > eval_d
+        # Create mutated market & stock datasets where all data strictly AFTER T is drastically altered
+        df_stock_mut = self.df_stock.copy()
+        df_vnindex_mut = self.df_vnindex.copy()
+        df_vn30_mut = self.df_vn30.copy()
 
-        df_mutated.loc[post_t_mask, "close"] = df_mutated.loc[post_t_mask, "close"] * 5.0
-        df_mutated.loc[post_t_mask, "open"] = df_mutated.loc[post_t_mask, "open"] * 5.0
-        df_mutated.loc[post_t_mask, "high"] = df_mutated.loc[post_t_mask, "high"] * 5.0
-        df_mutated.loc[post_t_mask, "low"] = df_mutated.loc[post_t_mask, "low"] * 5.0
-        df_mutated.loc[post_t_mask, "volume"] = df_mutated.loc[post_t_mask, "volume"] * 10
+        universe_mut = {}
+        for s, df_s in universe_stock_map.items():
+            df_m = df_s.copy()
+            post_t = df_m["date"] > eval_d
+            df_m.loc[post_t, "close"] = df_m.loc[post_t, "close"] * 10.0
+            universe_mut[s] = df_m
+
+        post_t_stock = df_stock_mut["date"] > eval_d
+        df_stock_mut.loc[post_t_stock, "close"] = df_stock_mut.loc[post_t_stock, "close"] * 0.10
+
+        post_t_vn = df_vnindex_mut["date"] > eval_d
+        df_vnindex_mut.loc[post_t_vn, "close"] = df_vnindex_mut.loc[post_t_vn, "close"] * 0.20
+
+        post_t_30 = df_vn30_mut["date"] > eval_d
+        df_vn30_mut.loc[post_t_30, "close"] = df_vn30_mut.loc[post_t_30, "close"] * 0.20
 
         results_mutated = run_backtest_for_symbol(
             symbol="TCB",
-            df_stock=df_mutated,
+            df_stock=df_stock_mut,
             evaluation_dates=[eval_d],
             company_name="Techcombank",
             sector="Banking",
             exchange="HOSE",
+            df_vnindex=df_vnindex_mut,
+            df_vn30=df_vn30_mut,
+            universe_stock_map=universe_mut,
         )
         sig_mutated = results_mutated[0].signal
 
-        # Signal generated at T must be 100% IDENTICAL
+        # Signal generated at T must be 100% IDENTICAL across all fields
         self.assertEqual(sig_orig.action, sig_mutated.action)
         self.assertEqual(sig_orig.signal_score, sig_mutated.signal_score)
         self.assertEqual(sig_orig.confidence, sig_mutated.confidence)
@@ -176,7 +216,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(sig_orig.entry_price, sig_mutated.entry_price)
         self.assertEqual(sig_orig.score_components, sig_mutated.score_components)
 
-        # However, forward outcomes AFTER T SHOULD differ
+        # Forward outcomes AFTER T SHOULD differ due to mutated future prices
         outcome_orig = results_orig[0].outcome
         outcome_mutated = results_mutated[0].outcome
         self.assertNotEqual(outcome_orig.returns[5], outcome_mutated.returns[5])
@@ -224,7 +264,6 @@ class TestBacktestFramework(unittest.TestCase):
 
     def test_g_aggregation_metrics_exact_assertions(self):
         """Test G: Aggregation and breakdown metrics with exact numerical assertions."""
-        # Create synthetic test signals and outcomes
         sig1 = BacktestSignal(
             symbol="AAA",
             evaluation_date="2025-01-10",
@@ -300,10 +339,12 @@ class TestBacktestFramework(unittest.TestCase):
 
         # Horizon 5 metrics
         m5 = summary["horizon_metrics"][5]
-        # Forward returns: 0.10, 0.05, -0.02 -> mean = 0.13 / 3 = 0.043333
         self.assertAlmostEqual(m5["forward_return"]["mean"], 0.043333, places=5)
         self.assertAlmostEqual(m5["forward_return"]["min"], -0.02, places=4)
         self.assertAlmostEqual(m5["forward_return"]["max"], 0.10, places=4)
+
+        # Strategy return diagnostic sum: 0.10 - 0.05 + 0.0 = 0.05
+        self.assertAlmostEqual(m5["strategy_return"]["sum_strategy_return"], 0.05, places=4)
 
         # BUY hit rate: 1 BUY signal with fwd return 0.10 > 0 -> 1.0 (100%)
         self.assertEqual(m5["buy_hit_rate"], 1.0)
@@ -319,8 +360,28 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(act_bd["BUY"][5]["count"], 1)
         self.assertAlmostEqual(act_bd["BUY"][5]["stats"]["mean"], 0.10, places=4)
 
-    def test_h_error_handling(self):
-        """Test H: Error handling for invalid inputs."""
+    def test_h_market_breadth_and_universe_backtest(self):
+        """Test H: Point-in-time market breadth calculation and universe-wide backtest."""
+        universe_map = {
+            "TCB": self.df_stock,
+            "ACB": generate_synthetic_ohlcv(num_days=100, base_price=25.0, daily_trend=0.001),
+        }
+        eval_d = self.df_stock["date"].iloc[50]
+
+        breadth = calculate_as_of_market_breadth(universe_map, eval_d)
+        self.assertGreaterEqual(breadth, 0.0)
+        self.assertLessEqual(breadth, 1.0)
+
+        univ_results = run_backtest_for_universe(
+            universe_stock_map=universe_map,
+            evaluation_dates=[eval_d],
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        self.assertEqual(len(univ_results), 2)
+
+    def test_i_error_handling(self):
+        """Test I: Error handling for invalid inputs."""
         # Empty DataFrame
         with self.assertRaises(ValueError):
             get_as_of_dataset(pd.DataFrame(), "2025-01-01")
@@ -328,6 +389,10 @@ class TestBacktestFramework(unittest.TestCase):
         # Missing date column
         with self.assertRaises(ValueError):
             get_as_of_dataset(pd.DataFrame({"close": [10, 20]}), "2025-01-01")
+
+        # Invalid date format
+        with self.assertRaises(ValueError):
+            get_as_of_dataset(self.df_stock, "invalid-date-string")
 
         # Evaluation date not in dataset
         with self.assertRaises(ValueError):
