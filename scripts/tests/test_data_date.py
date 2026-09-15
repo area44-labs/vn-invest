@@ -4,13 +4,11 @@ import unittest
 from datetime import UTC, datetime
 from unittest.mock import patch
 
+import jsonschema
 import pandas as pd
 
-import jsonschema
-
-from scripts.generate_report import load_schema
+from scripts.generate_report import load_schema, run_pipeline
 from scripts.generate_report import main as generate_report_main
-from scripts.generate_report import run_pipeline
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.vietnam_market import extract_latest_trading_date
 
