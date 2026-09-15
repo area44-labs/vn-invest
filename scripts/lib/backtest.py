@@ -23,7 +23,11 @@ Key Architectural Principles:
 4. Strategy Return Diagnostic Semantics:
    The metric `sum_strategy_return` represents the arithmetic sum of individual signal strategy returns.
    It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
-5. Scope Notice:
+5. Fail-Closed Validation:
+   Input datasets are validated against canonical OHLCV and temporal contracts.
+   Malformed dates, duplicate dates, or invalid price/volume structures raise explicit errors
+   rather than being silently swallowed or converted into fake valid outputs.
+6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
    leverage, or trade execution dynamics.
@@ -38,7 +42,7 @@ import pandas as pd
 
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
-from scripts.lib.vietnam_market import get_clean_ohlcv_data
+from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 DEFAULT_HORIZONS = [5, 10, 20]
 
@@ -130,33 +134,64 @@ class BacktestResult:
         }
 
 
+def validate_backtest_dataset(df: pd.DataFrame, dataset_name: str = "Dataset") -> dict:
+    """Validate DataFrame against canonical OHLCV and temporal contracts for backtesting.
+
+    Fail-Closed Semantics:
+    Raises ValueError on malformed data (invalid dates, duplicate dates, missing columns, etc.)
+    rather than silently swallowing errors.
+    """
+    if df is None or df.empty:
+        raise ValueError(f"{dataset_name} cannot be empty or None.")
+
+    val_res = validate_ohlcv_data(df, dataset_name)
+    issues = val_res["issues"]
+
+    critical_errors = [
+        "missing_required_columns",
+        "missing_date_column",
+        "invalid_dates",
+        "duplicate_dates",
+        "non_numeric_values",
+        "non_positive_prices",
+        "negative_volume",
+        "invalid_ohlc_relationship",
+    ]
+
+    found_critical = [iss for iss in issues if iss in critical_errors]
+    if found_critical:
+        raise ValueError(
+            f"{dataset_name} validation failed due to critical data issues: {sorted(found_critical)}"
+        )
+
+    return val_res
+
+
 def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> pd.DataFrame:
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
-    Raises ValueError if required columns are missing, dataset is empty, or evaluation_date is invalid/out-of-bounds.
+    Validates dataset contract and raises ValueError if data is malformed, dates are invalid/duplicate,
+    or evaluation_date is out-of-bounds.
     """
-    if df is None or df.empty:
-        raise ValueError("Cannot slice empty or None DataFrame.")
+    val_res = validate_backtest_dataset(df, "OHLCV Dataset")
+    clean_df = val_res["clean_df"]
 
-    date_col = _find_date_column(df)
-    if not date_col:
-        raise ValueError("DataFrame missing required 'date' or 'time' column.")
+    if clean_df.empty:
+        raise ValueError("Cannot slice point-in-time dataset from empty clean OHLCV data.")
 
     try:
         target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
-    except Exception as err:
+    except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    # Ensure clean OHLCV sorting and format
-    df_sorted = df.copy()
-    parsed_dates = pd.to_datetime(df_sorted[date_col], errors="coerce")
-    if parsed_dates.isna().all():
-        raise ValueError(f"DataFrame column '{date_col}' contains no valid dates.")
+    date_col = _find_date_column(clean_df)
+    clean_df_sorted = clean_df.copy()
+    clean_df_sorted["_date_str"] = pd.to_datetime(clean_df_sorted[date_col]).dt.strftime("%Y-%m-%d")
+    clean_df_sorted = clean_df_sorted.sort_values("_date_str").reset_index(drop=True)
 
-    df_sorted["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
-    df_sorted = df_sorted.sort_values("_date_str").reset_index(drop=True)
-
-    as_of_df = df_sorted[df_sorted["_date_str"] <= target_date_str].drop(columns=["_date_str"])
+    as_of_df = clean_df_sorted[clean_df_sorted["_date_str"] <= target_date_str].drop(
+        columns=["_date_str"]
+    )
 
     if as_of_df.empty:
         raise ValueError(
@@ -170,7 +205,10 @@ def calculate_as_of_market_breadth(
     universe_stock_map: dict[str, pd.DataFrame],
     evaluation_date: str,
 ) -> float:
-    """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20)."""
+    """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20).
+
+    Strictly slices each universe stock dataset <= T before calculating MA20.
+    """
     if not universe_stock_map:
         return 0.50
 
@@ -192,7 +230,7 @@ def calculate_as_of_market_breadth(
                     if c > ma20:
                         bullish_count += 1
         except ValueError:
-            # Expected when stock has no history prior to evaluation date
+            # Expected when a stock has no history prior to evaluation date
             continue
 
     if valid_stocks_count == 0:
@@ -220,12 +258,7 @@ def evaluate_forward_outcomes(
     if horizons is None:
         horizons = DEFAULT_HORIZONS
 
-    if df_stock is None or df_stock.empty:
-        raise ValueError("Cannot evaluate outcomes on empty or None DataFrame.")
-
-    date_col_raw = _find_date_column(df_stock)
-    if not date_col_raw or "close" not in df_stock.columns:
-        raise ValueError("DataFrame missing required date or 'close' column.")
+    validate_backtest_dataset(df_stock, "Stock Dataset")
 
     df_clean, _ = get_clean_ohlcv_data(df_stock, "SYMBOL")
     if df_clean.empty:
@@ -240,7 +273,7 @@ def evaluate_forward_outcomes(
 
     try:
         target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
-    except Exception as err:
+    except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
     matches = df_sorted[df_sorted["_date_str"] == target_date_str]
@@ -312,6 +345,7 @@ def run_backtest_for_symbol(
 
     Guarantees strict no-lookahead bias by slicing stock data and all market-level inputs
     (VNINDEX, VN30, and universe market breadth as-of T) strictly <= T before calling production engine.
+    Fails closed on malformed market datasets.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
@@ -327,22 +361,16 @@ def run_backtest_for_symbol(
         # 2. Point-in-time market data slicing (<= T) for production regime inputs
         df_vnindex_clean_as_of = None
         if df_vnindex is not None and not df_vnindex.empty:
-            try:
-                df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
-                df_vnindex_clean_as_of, val_vn = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
-                if val_vn["status"] == "INSUFFICIENT":
-                    df_vnindex_clean_as_of = None
-            except ValueError:
+            df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
+            df_vnindex_clean_as_of, val_vn = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
+            if val_vn["status"] == "INSUFFICIENT":
                 df_vnindex_clean_as_of = None
 
         df_vn30_clean_as_of = None
         if df_vn30 is not None and not df_vn30.empty:
-            try:
-                df_vn30_as_of = get_as_of_dataset(df_vn30, target_date_str)
-                df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
-                if val_30["status"] == "INSUFFICIENT":
-                    df_vn30_clean_as_of = None
-            except ValueError:
+            df_vn30_as_of = get_as_of_dataset(df_vn30, target_date_str)
+            df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+            if val_30["status"] == "INSUFFICIENT":
                 df_vn30_clean_as_of = None
 
         # Point-in-time market breadth as-of T

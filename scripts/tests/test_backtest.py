@@ -149,7 +149,7 @@ class TestBacktestFramework(unittest.TestCase):
         """Test D: Critical market-level and stock-level no-lookahead regression test.
 
         Mutating post-T data in stock price, VNINDEX, VN30, and universe breadth
-        leaves the market regime and recommendation at T 100% identical.
+        leaves the market regime, breadth, and recommendation at T 100% identical.
         """
         eval_d = self.df_stock["date"].iloc[60]  # T = session index 60
 
@@ -158,6 +158,9 @@ class TestBacktestFramework(unittest.TestCase):
             "ACB": generate_synthetic_ohlcv(num_days=100, base_price=25.0, daily_trend=0.0015),
             "FPT": generate_synthetic_ohlcv(num_days=100, base_price=130.0, daily_trend=0.002),
         }
+
+        # Calculate breadth before mutation
+        breadth_orig = calculate_as_of_market_breadth(universe_stock_map, eval_d)
 
         # Original run
         results_orig = run_backtest_for_symbol(
@@ -182,17 +185,24 @@ class TestBacktestFramework(unittest.TestCase):
         for s, df_s in universe_stock_map.items():
             df_m = df_s.copy()
             post_t = df_m["date"] > eval_d
-            df_m.loc[post_t, "close"] = df_m.loc[post_t, "close"] * 10.0
+            price_cols = ["open", "high", "low", "close"]
+            df_m.loc[post_t, price_cols] = df_m.loc[post_t, price_cols] * 10.0
             universe_mut[s] = df_m
 
         post_t_stock = df_stock_mut["date"] > eval_d
-        df_stock_mut.loc[post_t_stock, "close"] = df_stock_mut.loc[post_t_stock, "close"] * 0.10
+        price_cols = ["open", "high", "low", "close"]
+        df_stock_mut.loc[post_t_stock, price_cols] = (
+            df_stock_mut.loc[post_t_stock, price_cols] * 0.10
+        )
 
         post_t_vn = df_vnindex_mut["date"] > eval_d
-        df_vnindex_mut.loc[post_t_vn, "close"] = df_vnindex_mut.loc[post_t_vn, "close"] * 0.20
+        df_vnindex_mut.loc[post_t_vn, price_cols] = df_vnindex_mut.loc[post_t_vn, price_cols] * 0.20
 
         post_t_30 = df_vn30_mut["date"] > eval_d
-        df_vn30_mut.loc[post_t_30, "close"] = df_vn30_mut.loc[post_t_30, "close"] * 0.20
+        df_vn30_mut.loc[post_t_30, price_cols] = df_vn30_mut.loc[post_t_30, price_cols] * 0.20
+
+        breadth_mutated = calculate_as_of_market_breadth(universe_mut, eval_d)
+        self.assertEqual(breadth_orig, breadth_mutated)
 
         results_mutated = run_backtest_for_symbol(
             symbol="TCB",
@@ -380,23 +390,44 @@ class TestBacktestFramework(unittest.TestCase):
         )
         self.assertEqual(len(univ_results), 2)
 
-    def test_i_error_handling(self):
-        """Test I: Error handling for invalid inputs."""
-        # Empty DataFrame
+    def test_i_strict_validation_and_fail_closed_error_handling(self):
+        """Test I: Strict input validation and fail-closed error handling."""
+        # 1. Empty DataFrame
         with self.assertRaises(ValueError):
             get_as_of_dataset(pd.DataFrame(), "2025-01-01")
 
-        # Missing date column
+        # 2. Missing date column
         with self.assertRaises(ValueError):
             get_as_of_dataset(pd.DataFrame({"close": [10, 20]}), "2025-01-01")
 
-        # Invalid date format
+        # 3. Invalid date format
         with self.assertRaises(ValueError):
             get_as_of_dataset(self.df_stock, "invalid-date-string")
 
-        # Evaluation date not in dataset
+        # 4. Evaluation date out of bounds
         with self.assertRaises(ValueError):
-            evaluate_forward_outcomes(self.df_stock, "2020-01-01")
+            get_as_of_dataset(self.df_stock, "2020-01-01")
+
+        # 5. Duplicate dates fail validation
+        df_dup = self.df_stock.copy()
+        df_dup.iloc[5] = df_dup.iloc[4]  # Create duplicate date row
+        with self.assertRaises(ValueError):
+            get_as_of_dataset(df_dup, self.evaluation_date)
+
+        # 6. Invalid dates fail validation
+        df_bad_date = self.df_stock.copy()
+        df_bad_date.loc[3, "date"] = "bad-date-entry"
+        with self.assertRaises(ValueError):
+            get_as_of_dataset(df_bad_date, self.evaluation_date)
+
+        # 7. Malformed market data fails closed in run_backtest_for_symbol
+        with self.assertRaises(ValueError):
+            run_backtest_for_symbol(
+                symbol="TCB",
+                df_stock=self.df_stock,
+                evaluation_dates=[self.evaluation_date],
+                df_vnindex=df_dup,  # Malformed VNINDEX with duplicate dates
+            )
 
 
 if __name__ == "__main__":
