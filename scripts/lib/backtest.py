@@ -27,9 +27,11 @@ Key Architectural Principles:
    The metric `sum_strategy_return` represents the arithmetic sum of individual signal strategy returns.
    It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
 5. Fail-Closed Temporal Contract & Validation:
-   Datasets must have parseable, unique, and strictly increasing chronological dates.
-   Unsorted dates or duplicate dates raise explicit ValueError exceptions rather than being
-   silently swallowed or positionally misindexed.
+   - `validate_backtest_dataset()` validates canonical OHLCV data-quality contracts.
+   - `get_as_of_dataset()` and `evaluate_forward_outcomes()` are the temporal-sensitive entry points
+     explicitly enforcing strict chronological ordering (is_monotonic_increasing) and unique dates.
+   - Unsorted dates or duplicate dates raise explicit ValueError exceptions rather than being
+     silently swallowed or positionally misindexed.
 6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
    It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
@@ -138,11 +140,17 @@ class BacktestResult:
 
 
 def validate_backtest_dataset(df: pd.DataFrame, dataset_name: str = "Dataset") -> dict:
-    """Validate DataFrame against canonical OHLCV and temporal contracts for backtesting.
+    """Validate DataFrame against canonical OHLCV data-quality contracts for backtesting.
+
+    Contract & Scope:
+    - This function checks canonical OHLCV data quality (missing required columns, non-numeric values,
+      invalid OHLC relationships, non-positive prices, negative volume).
+    - Temporal-sensitive entry points (`get_as_of_dataset()` and `evaluate_forward_outcomes()`)
+      are explicitly responsible for enforcing strict chronological ordering (`is_monotonic_increasing`)
+      and unique dates before applying date or session indexing.
 
     Fail-Closed Semantics:
-    Raises ValueError on malformed data (invalid dates, duplicate dates, missing columns, etc.)
-    rather than silently swallowing errors.
+    Raises ValueError on malformed OHLCV data rather than silently swallowing errors.
     """
     if df is None or df.empty:
         raise ValueError(f"{dataset_name} cannot be empty or None.")
