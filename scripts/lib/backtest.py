@@ -866,13 +866,19 @@ def run_walk_forward_backtest(
       from dataset history via `generate_walk_forward_dates()`.
     - Supports single-stock evaluation (`df_stock` and `symbol`) or universe-wide evaluation (`universe_stock_map`).
     - Explicit evaluation_dates must be chronologically ordered, unique, and valid dates existing in the dataset.
+    - `min_history` is strictly enforced for both generated evaluation dates and explicitly provided evaluation dates.
+      Each evaluation date T must have at least `min_history` valid historical sessions <= T.
 
     Fail-Closed Validation:
     - Unsorted, duplicate, or invalid evaluation dates raise explicit ValueError exceptions.
+    - Evaluation dates with fewer than `min_history` historical sessions <= T raise explicit ValueError exceptions.
     - Fails closed if required datasets are missing or invalid.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
+
+    if min_history < 1:
+        raise ValueError(f"min_history must be a positive integer >= 1, got {min_history}")
 
     # Determine reference dataset for date generation or validation
     ref_df = df_stock
@@ -914,6 +920,17 @@ def run_walk_forward_backtest(
 
         if sorted(eval_dates) != eval_dates:
             raise ValueError("Provided evaluation_dates list is not sorted in chronological order.")
+
+        # Enforce min_history for explicit evaluation_dates using point-in-time validation <= T
+        if ref_df is not None and not ref_df.empty:
+            for target_d in eval_dates:
+                df_pit = get_as_of_dataset(ref_df, target_d)
+                avail_sessions = len(df_pit)
+                if avail_sessions < min_history:
+                    raise ValueError(
+                        f"Evaluation date '{target_d}' has insufficient history ({avail_sessions} sessions) "
+                        f"for min_history requirement ({min_history})."
+                    )
 
     # Execute backtest across dates
     if universe_stock_map:

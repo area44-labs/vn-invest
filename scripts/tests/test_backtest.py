@@ -703,7 +703,7 @@ class TestBacktestFramework(unittest.TestCase):
 
     def test_wf_g_deterministic_rerun(self):
         """Test WF-G: Running walk-forward evaluation twice yields identical outputs."""
-        eval_dates = [self.df_stock["date"].iloc[40], self.df_stock["date"].iloc[50]]
+        eval_dates = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[60]]
 
         run1 = run_walk_forward_backtest(
             evaluation_dates=eval_dates,
@@ -789,6 +789,53 @@ class TestBacktestFramework(unittest.TestCase):
                 df_stock=self.df_stock,
                 symbol="TCB",
             )
+
+    def test_wf_min_history_explicit_evaluation_date_too_early(self):
+        """Test PR #87 Fix 1: Explicit evaluation date with insufficient history <= T raises ValueError."""
+        # Date at index 3 has only 4 historical sessions <= T
+        early_date = self.df_stock["date"].iloc[3]
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[early_date],
+                df_stock=self.df_stock,
+                symbol="TCB",
+                min_history=5,
+            )
+        self.assertIn("insufficient history", str(cm.exception))
+        self.assertIn(early_date, str(cm.exception))
+
+    def test_wf_min_history_explicit_evaluation_date_exact_minimum(self):
+        """Test PR #87 Fix 2: Explicit evaluation date with exact min_history sessions succeeds."""
+        # Date at index 4 has exactly 5 historical sessions <= T (indices 0, 1, 2, 3, 4)
+        exact_date = self.df_stock["date"].iloc[4]
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=[exact_date],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            min_history=5,
+        )
+        self.assertEqual(wf_res.evaluation_dates, [exact_date])
+        self.assertEqual(len(wf_res.results), 1)
+
+    def test_wf_min_history_future_mutation_cannot_satisfy_min_history(self):
+        """Test PR #87 Fix 4: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
+        # Date at index 3 has 4 sessions <= T
+        early_date = self.df_stock["date"].iloc[3]
+
+        # Duplicate/append future rows strictly AFTER early_date
+        df_future_mut = pd.concat([self.df_stock, self.df_stock.iloc[10:]], ignore_index=True)
+
+        # Evaluating at early_date still only sees 4 sessions <= T and MUST fail min_history=5
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[early_date],
+                df_stock=df_future_mut,
+                symbol="TCB",
+                min_history=5,
+            )
+        self.assertIn("insufficient history", str(cm.exception))
 
         # 2. Duplicate evaluation dates
         dates_dup = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[50]]
