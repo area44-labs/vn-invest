@@ -14,7 +14,8 @@ Key Architectural Principles:
 2. Forward Return Calculation:
    Forward return at horizon N (e.g., 5, 10, 20 trading sessions) is defined as:
        forward_return_N = (Price[T + N] / Price[T]) - 1.0
-   If fewer than N future trading sessions exist after T, the outcome is marked as unavailable.
+   If fewer than N future trading sessions exist after T or if future prices/dates are malformed,
+   the outcome horizon is marked as unavailable (returns = None, availability = False).
    No extrapolation, interpolation, or fake fill values are used.
 3. Direction-Aware Evaluation:
    Directional strategy return is calculated as:
@@ -26,7 +27,7 @@ Key Architectural Principles:
    It serves as a simple diagnostic indicator of signal directionality, NOT a portfolio/compounded return.
 5. Fail-Closed Validation & Error Handling:
    Signal-time datasets (<= T) are validated against canonical OHLCV and temporal contracts.
-   Malformed dates, duplicate dates, or invalid price/volume structures raise explicit errors
+   Malformed dates, duplicate dates, or invalid price/volume structures <= T raise explicit errors
    rather than being silently swallowed into default values or fake valid outputs.
 6. Scope Notice:
    Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
@@ -172,9 +173,10 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     """Extract a strict non-mutating point-in-time dataset containing rows with timestamp <= evaluation_date.
 
     Temporal Isolation & Fail-Closed Validation:
-    1. Slices raw DataFrame to rows timestamped <= evaluation_date. Future data (> T) is NOT processed or validated here.
-    2. Validates the point-in-time slice (<= T) against OHLCV and temporal contracts.
-    3. Requires evaluation_date to exist in the dataset price history.
+    1. Slices raw DataFrame to rows timestamped <= evaluation_date BEFORE validating OHLCV quality.
+       Future data (> T) quality or malformed rows strictly after T NEVER affect or fail signal generation at T.
+    2. Validates the point-in-time slice (<= T) strictly against OHLCV and temporal contracts.
+    3. Requires evaluation_date to exist as an actual trading session in the dataset price history.
     """
     if df is None or df.empty:
         raise ValueError("Cannot slice empty or None DataFrame.")
@@ -188,24 +190,30 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    # Parse dates strictly
+    # Parse dates
     parsed_dates = pd.to_datetime(df[date_col], errors="coerce")
-    if parsed_dates.isna().any():
-        raise ValueError(
-            f"DataFrame column '{date_col}' contains invalid unparseable date entries."
-        )
-
     df_temp = df.copy()
-    df_temp["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
 
-    # Verify evaluation_date exists in dataset
-    if target_date_str not in df_temp["_date_str"].values:
+    formatted_dates = parsed_dates.dt.strftime("%Y-%m-%d")
+    df_temp["_date_str"] = formatted_dates
+
+    # Check if target evaluation_date exists in dataset
+    matches = df_temp[df_temp["_date_str"] == target_date_str]
+    if matches.empty:
         raise ValueError(
             f"Evaluation date '{target_date_str}' not present in dataset price history."
         )
 
-    # Slice point-in-time dataset (<= T)
-    as_of_raw = df_temp[df_temp["_date_str"] <= target_date_str].drop(columns=["_date_str"])
+    target_idx = matches.index[0]
+
+    # Verify if any unparseable invalid dates occur prior to or on evaluation date (<= T)
+    if parsed_dates.iloc[: target_idx + 1].isna().any():
+        raise ValueError(
+            f"DataFrame column '{date_col}' contains invalid unparseable date entries prior to or on evaluation date '{target_date_str}'."
+        )
+
+    # Slice point-in-time raw dataset strictly <= T
+    as_of_raw = df_temp.iloc[: target_idx + 1].drop(columns=["_date_str"])
 
     if as_of_raw.empty:
         raise ValueError(
@@ -229,19 +237,22 @@ def calculate_as_of_market_breadth(
     """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20).
 
     Strictly slices each universe stock dataset <= T before calculating MA20.
-    Fails closed on malformed universe stock datasets (propagates ValueError).
+    Fails closed on empty universe or malformed universe stock datasets (propagates ValueError).
     """
     if not universe_stock_map:
-        return 0.50
+        raise ValueError("Cannot calculate market breadth: universe_stock_map is empty or None.")
+
+    valid_entries = {k: v for k, v in universe_stock_map.items() if v is not None and not v.empty}
+    if not valid_entries:
+        raise ValueError(
+            "Cannot calculate market breadth: universe_stock_map contains no valid non-empty stock datasets."
+        )
 
     bullish_count = 0
     valid_stocks_count = 0
 
-    for sym, df_stock in universe_stock_map.items():
-        if df_stock is None or df_stock.empty:
-            continue
-
-        # Extract point-in-time dataset. Fails closed if data is malformed.
+    for sym, df_stock in valid_entries.items():
+        # Extract point-in-time dataset. Fails closed if data <= T is malformed.
         try:
             df_stock_as_of = get_as_of_dataset(df_stock, evaluation_date)
         except ValueError as err:
@@ -261,7 +272,9 @@ def calculate_as_of_market_breadth(
                     bullish_count += 1
 
     if valid_stocks_count == 0:
-        return 0.50
+        raise ValueError(
+            f"Cannot calculate market breadth as-of '{evaluation_date}': zero stocks in universe had sufficient historical data (>= 20 sessions) <= T."
+        )
 
     return round(bullish_count / valid_stocks_count, 2)
 
@@ -297,19 +310,18 @@ def evaluate_forward_outcomes(
     except (ValueError, TypeError) as err:
         raise ValueError(f"Invalid evaluation date format '{evaluation_date}': {err}") from err
 
-    # Parse dates and sort chronologically
+    # Parse dates and match target
     df_clean = df_stock.copy()
     parsed_dates = pd.to_datetime(df_clean[date_col_raw], errors="coerce")
     df_clean["_date_str"] = parsed_dates.dt.strftime("%Y-%m-%d")
-    df_sorted = df_clean.sort_values("_date_str").reset_index(drop=True)
 
-    matches = df_sorted[df_sorted["_date_str"] == target_date_str]
+    matches = df_clean[df_clean["_date_str"] == target_date_str]
 
     if matches.empty:
         raise ValueError(f"Evaluation date '{target_date_str}' not present in stock price history.")
 
     idx_T = matches.index[0]
-    price_T = _safe_float(df_sorted.iloc[idx_T]["close"])
+    price_T = _safe_float(df_clean.iloc[idx_T]["close"])
 
     if price_T is None or price_T <= 0:
         raise ValueError(f"Invalid price at evaluation date '{target_date_str}': {price_T}")
@@ -318,7 +330,7 @@ def evaluate_forward_outcomes(
     availability: dict[int, bool] = {}
     strategy_returns: dict[int, float | None] = {}
 
-    total_sessions = len(df_sorted)
+    total_sessions = len(df_clean)
 
     for h in horizons:
         if h <= 0:
@@ -326,8 +338,16 @@ def evaluate_forward_outcomes(
 
         future_idx = idx_T + h
         if future_idx < total_sessions:
-            price_future = _safe_float(df_sorted.iloc[future_idx]["close"])
-            if price_future is not None and price_future > 0:
+            row_future = df_clean.iloc[future_idx]
+            date_future = row_future["_date_str"]
+            price_future = _safe_float(row_future["close"])
+
+            if (
+                date_future is not None
+                and not pd.isna(date_future)
+                and price_future is not None
+                and price_future > 0
+            ):
                 ret_val = round((price_future / price_T) - 1.0, 6)
                 returns[h] = ret_val
                 availability[h] = True

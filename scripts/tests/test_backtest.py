@@ -234,7 +234,7 @@ class TestBacktestFramework(unittest.TestCase):
     def test_e_future_data_quality_isolation(self):
         """Test E: Future Data Quality Isolation ('future data quality != signal at T').
 
-        Corrupting/malforming data strictly AFTER T (e.g., negative prices, duplicate dates, bad OHLC)
+        Corrupting/malforming data strictly AFTER T (e.g., unparseable dates, negative prices, bad OHLC)
         must NOT affect or fail signal generation at T.
         """
         eval_d = self.df_stock["date"].iloc[50]  # T = index 50
@@ -250,10 +250,11 @@ class TestBacktestFramework(unittest.TestCase):
         df_corrupted_post_t = self.df_stock.copy()
         post_t_idx = df_corrupted_post_t.index[df_corrupted_post_t["date"] > eval_d]
 
-        # Inject negative price and bad OHLC strictly after T
-        df_corrupted_post_t.loc[post_t_idx[0], "close"] = -10.0
-        df_corrupted_post_t.loc[post_t_idx[1], "high"] = 5.0
-        df_corrupted_post_t.loc[post_t_idx[1], "low"] = 500.0
+        # Inject invalid date, negative price, and bad OHLC strictly after T
+        df_corrupted_post_t.loc[post_t_idx[0], "date"] = "bad-future-date-entry"
+        df_corrupted_post_t.loc[post_t_idx[1], "close"] = -10.0
+        df_corrupted_post_t.loc[post_t_idx[2], "high"] = 5.0
+        df_corrupted_post_t.loc[post_t_idx[2], "low"] = 500.0
 
         res_corrupted = run_backtest_for_symbol(
             symbol="TCB",
@@ -471,6 +472,18 @@ class TestBacktestFramework(unittest.TestCase):
         bad_univ_map = {"BAD_STOCK": df_dup}
         with self.assertRaises(ValueError):
             calculate_as_of_market_breadth(bad_univ_map, eval_d)
+
+    def test_k_fail_closed_empty_or_malformed_breadth(self):
+        """Test K: Fail-closed market breadth validation on empty or malformed universe."""
+        eval_d = self.df_stock["date"].iloc[30]
+
+        # Empty universe map fails closed
+        with self.assertRaises(ValueError):
+            calculate_as_of_market_breadth({}, eval_d)
+
+        # Map with only empty dataframes fails closed
+        with self.assertRaises(ValueError):
+            calculate_as_of_market_breadth({"BAD1": pd.DataFrame(), "BAD2": None}, eval_d)
 
 
 if __name__ == "__main__":
