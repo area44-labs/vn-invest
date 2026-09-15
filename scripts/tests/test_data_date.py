@@ -4,11 +4,12 @@ import unittest
 from datetime import UTC, datetime
 from unittest.mock import patch
 
+import jsonschema
 import pandas as pd
 
+from scripts.generate_report import load_schema, run_pipeline
 from scripts.generate_report import main as generate_report_main
-from scripts.generate_report import run_pipeline
-from scripts.lib.recommendation import generate_recommendation
+from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.vietnam_market import extract_latest_trading_date
 
 
@@ -159,6 +160,133 @@ class TestDataDateSemantics(unittest.TestCase):
 
         days_diff = (current_date - data_date).days
         self.assertGreater(days_diff, 100)  # Clearly stale
+
+
+class TestReportProvenanceMetadata(unittest.TestCase):
+    def test_top_level_provenance_metadata_presence(self):
+        """Verify report payload contains all required provenance metadata fields."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+            recs_payload, _mkt_payload, history_payload = run_pipeline(update_data=False)
+
+            required_provenance_fields = [
+                "schema_version",
+                "signal_model_version",
+                "generated_at",
+                "data_as_of",
+                "source_date",
+                "data_source",
+            ]
+            for field in required_provenance_fields:
+                self.assertIn(field, recs_payload, f"Missing required provenance field: {field}")
+                self.assertIn(
+                    field, history_payload, f"Missing required provenance field in history: {field}"
+                )
+
+    def test_generated_at_is_valid_utc_timestamp(self):
+        """Verify generated_at is a valid ISO 8601 UTC timestamp."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+            recs_payload, _, _ = run_pipeline(update_data=False)
+
+            gen_at_str = recs_payload["generated_at"]
+            self.assertIsInstance(gen_at_str, str)
+            dt = datetime.fromisoformat(gen_at_str)
+            self.assertIsNotNone(dt.tzinfo)
+            self.assertEqual(dt.utcoffset().total_seconds(), 0)
+
+    def test_schema_and_signal_model_versions(self):
+        """Verify schema_version is '2.0' and signal_model_version matches SIGNAL_MODEL_VERSION."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+            recs_payload, _, _ = run_pipeline(update_data=False)
+
+            self.assertEqual(recs_payload["schema_version"], "2.0")
+            self.assertEqual(recs_payload["signal_model_version"], SIGNAL_MODEL_VERSION)
+            self.assertEqual(SIGNAL_MODEL_VERSION, "2.0")
+
+    def test_data_as_of_and_source_date_reflect_pipeline_data(self):
+        """Verify data_as_of and source_date reflect actual latest trading date from pipeline."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+            recs_payload, _, _ = run_pipeline(update_data=False)
+
+            self.assertEqual(recs_payload["data_as_of"], "2026-09-20")
+            self.assertEqual(recs_payload["source_date"], "2026-09-20")
+
+    def test_provider_metadata_is_not_fabricated(self):
+        """Verify provider metadata (data_source) reflects actual provider boundary result."""
+        empty_df = pd.DataFrame()
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
+            recs_payload, _, _ = run_pipeline(update_data=False)
+
+            self.assertIsNone(recs_payload["data_source"])
+
+    def test_schema_validation_passes_with_provenance_metadata(self):
+        """Verify recommendations payload with provenance metadata validates against JSON schema."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+            recs_payload, _, _ = run_pipeline(update_data=False)
+
+            schema = load_schema()
+            jsonschema.validate(instance=recs_payload, schema=schema)
 
 
 if __name__ == "__main__":
