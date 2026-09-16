@@ -891,17 +891,17 @@ def run_walk_forward_backtest(
             raise ValueError(
                 "Cannot run universe walk-forward evaluation: universe_stock_map is empty."
             )
-        valid_entries = [
-            (sym, df_s)
-            for sym, df_s in universe_stock_map.items()
-            if df_s is not None and not df_s.empty
-        ]
-        if not valid_entries:
-            raise ValueError(
-                "Cannot run universe walk-forward evaluation: universe_stock_map contains no non-empty DataFrames."
-            )
-        stocks_to_validate = valid_entries
-        ref_df = valid_entries[0][1]
+        for sym, df_s in universe_stock_map.items():
+            if df_s is None:
+                raise ValueError(
+                    f"Stock '{sym}' cannot participate in walk-forward evaluation: dataset is None."
+                )
+            if df_s.empty:
+                raise ValueError(
+                    f"Stock '{sym}' cannot participate in walk-forward evaluation: dataset is empty."
+                )
+            stocks_to_validate.append((sym, df_s))
+        ref_df = stocks_to_validate[0][1]
     elif df_stock is not None and not df_stock.empty and symbol:
         stocks_to_validate = [(symbol, df_stock)]
         ref_df = df_stock
@@ -910,37 +910,15 @@ def run_walk_forward_backtest(
             "Must provide either 'universe_stock_map' or both 'symbol' and 'df_stock' for walk-forward evaluation."
         )
 
-    # Generate or validate evaluation_dates
+    # Determine evaluation_dates
     if evaluation_dates is None:
-        candidate_dates = generate_walk_forward_dates(
+        eval_dates = generate_walk_forward_dates(
             df=ref_df,
             min_history=min_history,
             step=step,
             start_date=start_date,
             end_date=end_date,
         )
-
-        # Enforce strict universe contract for generated evaluation_dates:
-        # Keep candidate date T only if EVERY stock in universe has valid historical sessions >= min_history <= T
-        eval_dates = []
-        for cand_d in candidate_dates:
-            valid_for_all = True
-            for sym, df_s in stocks_to_validate:
-                try:
-                    df_pit = get_as_of_dataset(df_s, cand_d)
-                    if len(df_pit) < min_history:
-                        valid_for_all = False
-                        break
-                except ValueError:
-                    valid_for_all = False
-                    break
-            if valid_for_all:
-                eval_dates.append(cand_d)
-
-        if not eval_dates:
-            raise ValueError(
-                "No eligible walk-forward evaluation dates matched strict universe min_history criteria."
-            )
     else:
         if not evaluation_dates:
             raise ValueError("evaluation_dates list cannot be empty.")
@@ -962,22 +940,22 @@ def run_walk_forward_backtest(
         if sorted(eval_dates) != eval_dates:
             raise ValueError("Provided evaluation_dates list is not sorted in chronological order.")
 
-        # Enforce min_history for explicit evaluation_dates per stock using PIT validation <= T
-        for target_d in eval_dates:
-            for sym, df_s in stocks_to_validate:
-                try:
-                    df_pit = get_as_of_dataset(df_s, target_d)
-                except ValueError as err:
-                    raise ValueError(
-                        f"Stock '{sym}' on evaluation date '{target_d}' failed point-in-time validation: {err}"
-                    ) from err
+    # Fail-closed point-in-time and min_history validation for EVERY evaluation date across ALL stocks
+    for target_d in eval_dates:
+        for sym, df_s in stocks_to_validate:
+            try:
+                df_pit = get_as_of_dataset(df_s, target_d)
+            except ValueError as err:
+                raise ValueError(
+                    f"Stock '{sym}' on evaluation date '{target_d}' failed point-in-time validation: {err}"
+                ) from err
 
-                avail_sessions = len(df_pit)
-                if avail_sessions < min_history:
-                    raise ValueError(
-                        f"Stock '{sym}' on evaluation date '{target_d}' has insufficient history "
-                        f"({avail_sessions} sessions) for min_history requirement ({min_history})."
-                    )
+            avail_sessions = len(df_pit)
+            if avail_sessions < min_history:
+                raise ValueError(
+                    f"Stock '{sym}' on evaluation date '{target_d}' has insufficient history "
+                    f"({avail_sessions} sessions) for min_history requirement ({min_history})."
+                )
 
     # Execute backtest across dates
     if universe_stock_map:

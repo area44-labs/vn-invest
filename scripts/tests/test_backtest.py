@@ -820,8 +820,65 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(wf_res.evaluation_dates, [exact_date])
         self.assertEqual(len(wf_res.results), 1)
 
+    def test_wf_universe_none_stock_fails_closed(self):
+        """Test Fail-Closed 1: None stock value in universe_stock_map raises ValueError identifying symbol."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        univ_map = {"AAA": df_stock_a, "BBB": None}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(universe_stock_map=univ_map, min_history=10)
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("None", str(cm.exception))
+
+    def test_wf_universe_empty_stock_fails_closed(self):
+        """Test Fail-Closed 2: Empty DataFrame stock value in universe_stock_map raises ValueError identifying symbol."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        univ_map = {"AAA": df_stock_a, "BBB": pd.DataFrame()}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(universe_stock_map=univ_map, min_history=10)
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("empty", str(cm.exception))
+
+    def test_wf_universe_missing_exact_evaluation_date_fails_closed(self):
+        """Test Fail-Closed 3: Stock in universe lacking exact evaluation date T raises ValueError identifying symbol and date."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        # df_stock_b starts at a different start_date so exact evaluation date on day 5 of A does not exist in B
+        df_stock_b = generate_synthetic_ohlcv(50, start_date="2025-03-01")
+
+        eval_early_a = df_stock_a["date"].iloc[10]  # January 2025 date not in df_stock_b
+
+        univ_map = {"AAA": df_stock_a, "BBB": df_stock_b}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_early_a],
+                universe_stock_map=univ_map,
+                min_history=5,
+            )
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("failed point-in-time validation", str(cm.exception))
+
+    def test_wf_universe_invalid_unsorted_stock_fails_closed(self):
+        """Test Fail-Closed 4: Stock in universe with unsorted/duplicate dates fails closed with ValueError."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        df_stock_b = df_stock_a.copy()
+        # Create duplicate date in df_stock_b
+        df_stock_b.iloc[10] = df_stock_b.iloc[9]
+
+        univ_map = {"AAA": df_stock_a, "BBB": df_stock_b}
+        eval_d = df_stock_a["date"].iloc[50]
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_d],
+                universe_stock_map=univ_map,
+                min_history=10,
+            )
+        self.assertIn("BBB", str(cm.exception))
+
     def test_wf_universe_explicit_dates_per_stock_min_history(self):
-        """Test PR #87 Fix Test B: Universe explicit evaluation date fails closed if ANY stock lacks min_history."""
+        """Test PR #87 Fix Test B / Test 5: Universe explicit evaluation date fails closed if ANY stock lacks min_history."""
         # Stock A starts at index 0 (2025-01-01) -> 50 sessions at index 49
         df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
         # Stock B starts later at 2025-02-15 -> on 2025-02-20, Stock B only has 4 sessions
@@ -846,16 +903,18 @@ class TestBacktestFramework(unittest.TestCase):
         """Test PR #87 Fix Test C: Generated universe dates strictly require ALL stocks to satisfy min_history."""
         # Stock A starts 2025-01-01 (100 sessions)
         df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
-        # Stock B starts 2025-02-01 (70 sessions)
-        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-02-01", base_price=30.0)
+        # Stock B starts 2025-01-01 (70 sessions)
+        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-01-01", base_price=30.0)
 
         univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
 
-        # Auto-generate dates with min_history=20, step=10
+        # Auto-generate dates with min_history=20, step=10 (end_date bounded to Stock B history)
+        end_d = df_stock_b["date"].iloc[-1]
         wf_res = run_walk_forward_backtest(
             universe_stock_map=univ_map,
             min_history=20,
             step=10,
+            end_date=end_d,
         )
 
         # Confirm every generated date satisfies min_history=20 for BOTH Stock A and Stock B
@@ -864,6 +923,25 @@ class TestBacktestFramework(unittest.TestCase):
             len_b = len(get_as_of_dataset(df_stock_b, gen_d))
             self.assertGreaterEqual(len_a, 20)
             self.assertGreaterEqual(len_b, 20)
+
+    def test_wf_universe_generated_dates_stock_missing_candidate_date_fails_closed(self):
+        """Test Fail-Closed: If auto-generated candidate date is missing from a universe stock, fails closed with ValueError."""
+        # Stock A starts 2025-01-01
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts later at 2025-02-01
+        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-02-01", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+
+        # Auto-generate dates from Stock A starting in Jan 2025 -> candidate date in Jan fails in Stock B
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                universe_stock_map=univ_map,
+                min_history=20,
+                step=10,
+            )
+        self.assertIn("STOCK_B", str(cm.exception))
+        self.assertIn("failed point-in-time validation", str(cm.exception))
 
     def test_wf_min_history_future_mutation_cannot_satisfy_min_history(self):
         """Test PR #87 Fix Test D: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
