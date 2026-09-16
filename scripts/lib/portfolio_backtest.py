@@ -155,14 +155,27 @@ def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str
 
 
 def _parse_canonical_date(eval_date: Any) -> str:
-    """Parse and validate evaluation date into YYYY-MM-DD canonical format."""
+    """Parse and validate evaluation date into YYYY-MM-DD canonical format.
+
+    Fail-Closed Validation:
+    - Rejects None, booleans, and timezone-aware timestamps/datetimes.
+    - Rejects invalid or unparseable date strings.
+    """
     if eval_date is None or isinstance(eval_date, bool):
         raise ValueError(f"Invalid evaluation date: {eval_date}")
 
+    if hasattr(eval_date, "tzinfo") and getattr(eval_date, "tzinfo") is not None:
+        raise ValueError(
+            f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
+        )
+
+    if isinstance(eval_date, str) and ("+" in eval_date or "Z" in eval_date or "UTC" in eval_date):
+        raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
+
     try:
         ts = pd.to_datetime(eval_date)
-        if pd.isna(ts):
-            raise ValueError(f"Invalid evaluation date: {eval_date}")
+        if pd.isna(ts) or getattr(ts, "tz", None) is not None:
+            raise ValueError(f"Invalid or timezone-aware evaluation date: {eval_date}")
         return ts.strftime("%Y-%m-%d")
     except (ValueError, TypeError, OverflowError) as err:
         raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
@@ -178,6 +191,9 @@ class PortfolioConfig:
     - min_confidence: Minimum confidence score (0.0-1.0) required for candidate eligibility (default: None).
     - allowed_actions: Tuple of stock recommendation actions eligible for portfolio entry (default: ("BUY",)).
     - max_weight_per_position: Maximum weight allocated to any single position in (0.0, 1.0] (default: None).
+      Position weights are capped at max_weight_per_position without silent re-normalization or redistribution.
+      Unallocated weight is preserved explicitly (allocated_weight + unallocated_weight == 1.0).
+    - min_history: Minimum required historical sessions timestamped <= T for every stock in the universe (default: 50).
     - require_executable: If True, execution eligibility is enforced as a strict candidate selection constraint
       (stocks failing execution eligibility are excluded). If False, execution eligibility is evaluated if
       execution_config is present and attached to PortfolioPosition.is_executable, but does NOT exclude candidate securities.
@@ -189,6 +205,7 @@ class PortfolioConfig:
     min_confidence: float | None = None
     allowed_actions: tuple[str, ...] = ("BUY",)
     max_weight_per_position: float | None = None
+    min_history: int = 50
     require_executable: bool = False
     execution_config: ExecutionConfig | None = None
 
@@ -198,6 +215,13 @@ class PortfolioConfig:
             "max_positions",
             min_val=1,
             allow_zero=True,
+            strict_int=True,
+        )
+        _validate_numeric_param(
+            self.min_history,
+            "min_history",
+            min_val=1,
+            allow_zero=False,
             strict_int=True,
         )
         _validate_numeric_param(
@@ -378,13 +402,25 @@ def evaluate_portfolio_at_date(
     if not universe_stock_map:
         raise ValueError("universe_stock_map cannot be empty or None.")
 
-    for sym, df_s in universe_stock_map.items():
+    target_date_str = _parse_canonical_date(evaluation_date)
+
+    # 1. Fail-closed point-in-time and min_history validation for EVERY stock in universe
+    df_stock_as_of_map: dict[str, pd.DataFrame] = {}
+    for sym in sorted(universe_stock_map.keys()):
+        df_s = universe_stock_map[sym]
         if df_s is None:
             raise ValueError(f"Stock '{sym}' dataset cannot be None in universe_stock_map.")
         if df_s.empty:
             raise ValueError(f"Stock '{sym}' dataset cannot be empty in universe_stock_map.")
 
-    target_date_str = _parse_canonical_date(evaluation_date)
+        df_as_of = get_as_of_dataset(df_s, target_date_str)
+        avail_sessions = len(df_as_of)
+        if avail_sessions < config.min_history:
+            raise ValueError(
+                f"Stock '{sym}' on evaluation date '{target_date_str}' has insufficient history "
+                f"({avail_sessions} sessions) for min_history requirement ({config.min_history})."
+            )
+        df_stock_as_of_map[sym] = df_as_of
 
     # 1. Point-in-time market data slicing <= T
     df_vnindex_clean_as_of = None
@@ -418,14 +454,12 @@ def evaluate_portfolio_at_date(
 
     for sym in sorted(universe_stock_map.keys()):
         df_stock = universe_stock_map[sym]
+        df_stock_as_of = df_stock_as_of_map[sym]
 
         item = meta_map.get(sym, {})
         comp = item.get("companyName", "")
         sec = item.get("sector", "")
         ex = item.get("exchange", "HOSE")
-
-        # Point-in-time stock history <= T
-        df_stock_as_of = get_as_of_dataset(df_stock, target_date_str)
 
         rec = generate_recommendation(
             symbol=sym,

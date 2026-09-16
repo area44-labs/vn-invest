@@ -251,6 +251,7 @@ class TestPortfolioConstruction(unittest.TestCase):
         cfg = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
+            min_history=40,
             allowed_actions=("BUY", "HOLD", "WATCH"),
         )
         eval_res = evaluate_portfolio_at_date(
@@ -287,6 +288,32 @@ class TestPortfolioConstruction(unittest.TestCase):
         self.assertEqual(eval_res.positions[1].weight, 0.30)
         self.assertEqual(eval_res.allocated_weight, 0.60)
         self.assertEqual(eval_res.unallocated_weight, 0.40)
+        self.assertAlmostEqual(
+            eval_res.allocated_weight + eval_res.unallocated_weight, 1.0, places=6
+        )
+
+    def test_capped_equal_weight_allocation_3_positions(self) -> None:
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            max_weight_per_position=0.20,  # 3 positions * 0.20 = 0.60 allocated, 0.40 unallocated
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+        )
+        self.assertEqual(len(eval_res.positions), 3)
+        for pos in eval_res.positions:
+            self.assertEqual(pos.weight, 0.20)
+        self.assertEqual(eval_res.allocated_weight, 0.60)
+        self.assertEqual(eval_res.unallocated_weight, 0.40)
+        self.assertAlmostEqual(
+            eval_res.allocated_weight + eval_res.unallocated_weight, 1.0, places=6
+        )
 
     def test_exclusion_of_non_executable_securities(self) -> None:
         # AAA volume low, configured min volume high -> AAA excluded when require_executable=True
@@ -368,6 +395,20 @@ class TestPortfolioConstruction(unittest.TestCase):
                 config=cfg,
             )
 
+    def test_one_stock_insufficient_min_history_fails_closed(self) -> None:
+        df_short = create_synthetic_ohlcv("2024-03-01", 10, 10000.0, 100.0)
+        universe_short = {
+            "AAA": self.df_aaa,
+            "SHORT": df_short,
+        }
+        cfg = PortfolioConfig(min_history=50)
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=universe_short,
+                config=cfg,
+            )
+
     def test_empty_portfolio_when_no_candidates_qualify(self) -> None:
         cfg = PortfolioConfig(
             min_signal_score=99.0,  # Unreasonably high threshold
@@ -439,7 +480,10 @@ class TestPortfolioReturnCalculation(unittest.TestCase):
         # Date 48 of 50 -> 5D horizon exceeds total dataset length
         eval_d = df_aaa["date"].iloc[47]
         cfg = PortfolioConfig(
-            max_positions=1, min_signal_score=0.0, allowed_actions=("BUY", "HOLD", "WATCH")
+            max_positions=1,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
         )
         eval_res = evaluate_portfolio_at_date(
             evaluation_date=eval_d,
@@ -466,6 +510,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
     def test_mutating_data_after_T_does_not_affect_portfolio_at_T(self) -> None:
         cfg = PortfolioConfig(
             min_signal_score=0.0,
+            min_history=30,
             allowed_actions=("BUY", "HOLD", "WATCH"),
         )
         eval1 = evaluate_portfolio_at_date(
@@ -508,7 +553,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
         df_corrupted.iloc[10] = corrupted_row
 
         universe_corrupted = {"AAA": df_corrupted, "BBB": self.df_bbb}
-        cfg = PortfolioConfig()
+        cfg = PortfolioConfig(min_history=30)
 
         with self.assertRaises(ValueError):
             evaluate_portfolio_at_date(
@@ -518,6 +563,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
             )
 
     def test_duplicate_and_unsorted_dates_fail_closed(self) -> None:
+        cfg = PortfolioConfig(min_history=30)
         df_dup = self.df_aaa.copy()
         df_dup.iloc[5] = df_dup.iloc[4]  # duplicate date
         universe_dup = {"AAA": df_dup}
@@ -526,6 +572,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_dup,
+                config=cfg,
             )
 
         df_unsorted = self.df_aaa.iloc[::-1].copy().reset_index(drop=True)
@@ -535,17 +582,37 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_unsorted,
+                config=cfg,
             )
 
     def test_missing_exact_evaluation_date_raises_error(self) -> None:
+        cfg = PortfolioConfig(min_history=30)
         with self.assertRaises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date="2099-01-01",  # Not in history
                 universe_stock_map=self.universe,
+                config=cfg,
+            )
+
+    def test_timezone_aware_evaluation_date_raises_value_error(self) -> None:
+        cfg = PortfolioConfig(min_history=30)
+        tz_ts = pd.Timestamp("2024-03-15 00:00:00+00:00")
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=tz_ts,
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date="2024-03-15T00:00:00Z",
+                universe_stock_map=self.universe,
+                config=cfg,
             )
 
     def test_invalid_and_duplicate_evaluation_dates_in_run_portfolio_backtest(self) -> None:
-        cfg = PortfolioConfig()
+        cfg = PortfolioConfig(min_history=30)
 
         # Invalid evaluation date
         with self.assertRaises(ValueError):
@@ -588,6 +655,7 @@ class TestPortfolioDeterminism(unittest.TestCase):
         cfg = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
+            min_history=30,
             allowed_actions=("BUY", "HOLD", "WATCH"),
         )
 
@@ -707,6 +775,7 @@ class TestPortfolioIntegration(unittest.TestCase):
         cfg = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
+            min_history=40,
             allowed_actions=("BUY", "HOLD", "WATCH"),
         )
         port_res = run_portfolio_backtest(
