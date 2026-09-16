@@ -6,13 +6,23 @@ import unittest
 import pandas as pd
 
 from scripts.lib.backtest import (
+    REASON_BELOW_MIN_PRICE,
+    REASON_BELOW_MIN_TRADED_VALUE,
+    REASON_BELOW_MIN_VOLUME,
+    REASON_EXCEEDS_MAX_PARTICIPATION,
+    REASON_INSUFFICIENT_LOOKBACK_SESSIONS,
+    STATUS_EXECUTABLE,
+    STATUS_INSUFFICIENT_LIQUIDITY_HISTORY,
+    STATUS_NOT_EXECUTABLE,
     BacktestResult,
     BacktestSignal,
     ComponentEvaluationResult,
+    ExecutionConfig,
     ForwardOutcome,
     WalkForwardResult,
     aggregate_backtest_results,
     calculate_as_of_market_breadth,
+    evaluate_execution_eligibility,
     evaluate_forward_outcomes,
     evaluate_signal_components,
     generate_walk_forward_dates,
@@ -1270,6 +1280,343 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(obs_5.forward_return, expected_ret5, places=5)
         self.assertAlmostEqual(obs_10.forward_return, expected_ret10, places=5)
         self.assertAlmostEqual(obs_20.forward_return, expected_ret20, places=5)
+
+
+class TestExecutionEligibilityFramework(unittest.TestCase):
+    """Test suite verifying execution eligibility and liquidity assumption framework."""
+
+    def setUp(self):
+        # 100-day clean stock dataset with high price and volume
+        # Price = 50,000 VND/share, Volume = 100,000 shares
+        # Traded value = 5,000,000,000 VND/day = 5.0 billion VND/day
+        self.df_stock = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=50000.0, daily_trend=0.001
+        )
+        self.evaluation_date = self.df_stock["date"].iloc[50]  # Day 50
+
+    def test_exec_config_validation_lookback_window(self):
+        """Test ExecutionConfig raises ValueError for lookback_window <= 0 or invalid types."""
+        with self.assertRaises(ValueError):
+            ExecutionConfig(lookback_window=0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(lookback_window=-10)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(lookback_window=True)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(lookback_window=20.5)
+
+    def test_exec_config_validation_nan_and_inf(self):
+        """Test ExecutionConfig raises ValueError for NaN or Inf thresholds or order sizes."""
+        for bad_val in [float("nan"), float("inf"), float("-inf")]:
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_traded_value_bn=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_volume=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_price=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(max_participation_rate=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_size_shares=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_value_vnd=bad_val)
+
+    def test_exec_config_validation_bool_and_str(self):
+        """Test ExecutionConfig raises ValueError for boolean or string numeric configuration fields."""
+        for bad_val in [True, False, "1.0", "invalid"]:
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_traded_value_bn=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_volume=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_price=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(max_participation_rate=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_size_shares=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_value_vnd=bad_val)
+
+    def test_exec_config_validation_negative_thresholds(self):
+        """Test ExecutionConfig raises ValueError for negative liquidity thresholds."""
+        with self.assertRaises(ValueError):
+            ExecutionConfig(min_avg_traded_value_bn=-1.0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(min_avg_volume=-500.0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(min_price=-1000.0)
+
+    def test_exec_config_validation_participation_rate(self):
+        """Test ExecutionConfig raises ValueError for invalid max_participation_rate <= 0 or > 1.0."""
+        with self.assertRaises(ValueError):
+            ExecutionConfig(max_participation_rate=0.0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(max_participation_rate=-0.1)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(max_participation_rate=1.05)
+
+    def test_exec_config_validation_negative_order_size_or_value(self):
+        """Test ExecutionConfig raises ValueError for negative order size or order value."""
+        with self.assertRaises(ValueError):
+            ExecutionConfig(estimated_order_size_shares=-100.0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(estimated_order_value_vnd=-50000.0)
+
+    def test_exec_config_validation_both_order_sizes_supplied(self):
+        """Test ExecutionConfig raises ValueError when both order size fields are supplied."""
+        with self.assertRaises(ValueError):
+            ExecutionConfig(
+                estimated_order_size_shares=1000.0,
+                estimated_order_value_vnd=50000000.0,
+            )
+
+    def test_exec_config_neither_order_size_supplied_unevaluated(self):
+        """Test participation rate remains unevaluated (None) when neither order size field is supplied."""
+        cfg = ExecutionConfig(
+            max_participation_rate=0.01,
+            estimated_order_size_shares=None,
+            estimated_order_value_vnd=None,
+            lookback_window=20,
+        )
+        elig = evaluate_execution_eligibility(self.df_stock, self.evaluation_date, cfg)
+        self.assertIsNone(elig.metrics["estimated_participation_rate"])
+        # Should remain executable because participation rate check was not triggered
+        self.assertEqual(elig.status, STATUS_EXECUTABLE)
+
+    def test_exec_config_valid_boundary_values_accepted(self):
+        """Test ExecutionConfig accepts valid boundary values (0.0 for thresholds, 1.0 for participation, 1 for lookback)."""
+        cfg = ExecutionConfig(
+            min_avg_traded_value_bn=0.0,
+            min_avg_volume=0.0,
+            min_price=0.0,
+            max_participation_rate=1.0,
+            estimated_order_size_shares=0.0,
+            lookback_window=1,
+        )
+        self.assertEqual(cfg.lookback_window, 1)
+        self.assertEqual(cfg.min_avg_traded_value_bn, 0.0)
+
+    def test_exec_a_exact_t_boundary(self):
+        """Test Exec A: Exact T boundary - observation <= T used, > T ignored."""
+        elig_t = evaluate_execution_eligibility(
+            self.df_stock, self.evaluation_date, ExecutionConfig(lookback_window=20)
+        )
+        self.assertEqual(elig_t.status, STATUS_EXECUTABLE)
+        self.assertTrue(elig_t.is_executable)
+        self.assertEqual(elig_t.metrics["available_lookback_sessions"], 20)
+
+    def test_exec_b_future_mutation_isolation(self):
+        """Test Exec B: Future mutation - altering volume/turnover > T leaves eligibility at T identical."""
+        config = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=50_000.0,
+            min_price=10_000.0,
+            max_participation_rate=0.10,
+            estimated_order_size_shares=5_000.0,
+            lookback_window=20,
+        )
+
+        elig_orig = evaluate_execution_eligibility(self.df_stock, self.evaluation_date, config)
+
+        # Mutate post-T volume and price drastically (1,000x and 0.001x)
+        df_mut = self.df_stock.copy()
+        post_t = df_mut["date"] > self.evaluation_date
+        df_mut.loc[post_t, "volume"] = 1.0
+        df_mut.loc[post_t, "close"] = 1.0
+
+        elig_mut = evaluate_execution_eligibility(df_mut, self.evaluation_date, config)
+
+        self.assertEqual(elig_orig.to_dict(), elig_mut.to_dict())
+
+    def test_exec_c_physically_misplaced_future_row_raises(self):
+        """Test Exec C: Physically misplaced future row (> T before T) raises ValueError through evaluate_execution_eligibility."""
+        df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01", base_price=50000.0)
+        eval_d = df_normal["date"].iloc[20]
+
+        df_misordered = pd.concat(
+            [
+                df_normal.iloc[:18],
+                df_normal.iloc[30:31],  # Future row physically before T
+                df_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
+
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_misordered, eval_d, ExecutionConfig())
+
+    def test_exec_d_insufficient_history(self):
+        """Test Exec D: Insufficient history <= T produces INSUFFICIENT_LIQUIDITY_HISTORY without falling back to future."""
+        # Dataset with only 15 sessions <= T, but lookback_window = 20
+        df_short = generate_synthetic_ohlcv(15, start_date="2025-01-01", base_price=50000.0)
+        eval_d = df_short["date"].iloc[-1]
+
+        elig = evaluate_execution_eligibility(df_short, eval_d, ExecutionConfig(lookback_window=20))
+
+        self.assertEqual(elig.status, STATUS_INSUFFICIENT_LIQUIDITY_HISTORY)
+        self.assertFalse(elig.is_executable)
+        self.assertIn(REASON_INSUFFICIENT_LOOKBACK_SESSIONS, elig.reasons)
+        self.assertEqual(elig.metrics["available_lookback_sessions"], 15)
+
+    def test_exec_e_temporal_violations_raise_value_error(self):
+        """Test Exec E: Duplicate dates, unsorted dates, or missing evaluation date raise ValueError."""
+        eval_d = self.df_stock["date"].iloc[30]
+
+        # Duplicate dates <= T
+        df_dup = self.df_stock.copy()
+        df_dup.iloc[5] = df_dup.iloc[4]
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_dup, eval_d)
+
+        # Unsorted dates <= T
+        df_unsorted = self.df_stock.copy()
+        tmp = df_unsorted.iloc[10].copy()
+        df_unsorted.iloc[10] = df_unsorted.iloc[12]
+        df_unsorted.iloc[12] = tmp
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_unsorted, eval_d)
+
+        # Missing exact evaluation date
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(self.df_stock, "2020-01-01")
+
+    def test_exec_f_deterministic_rerun(self):
+        """Test Exec F: Deterministic rerun gives identical byte-for-byte / struct output."""
+        config = ExecutionConfig(
+            min_avg_traded_value_bn=2.0,
+            min_avg_volume=100_000.0,
+            min_price=20_000.0,
+            max_participation_rate=0.05,
+            estimated_order_size_shares=20_000.0,
+        )
+
+        run1 = evaluate_execution_eligibility(self.df_stock, self.evaluation_date, config)
+        run2 = evaluate_execution_eligibility(self.df_stock, self.evaluation_date, config)
+
+        self.assertEqual(run1.to_dict(), run2.to_dict())
+
+    def test_exec_g_threshold_boundary_and_precision(self):
+        """Test Exec G: Threshold boundary checks (exact, below, above, participation boundary)."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        # Fixed 20 sessions: close = 10,000 VND, volume = 100,000 shares
+        # Daily traded value = 1,000,000,000 VND = 1.0 billion VND
+        df_exact = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [10000.0] * 20,
+                "close": [10000.0] * 20,
+                "volume": [100000.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        # 1. Exact minimums -> Executable
+        config_exact = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=100_000.0,
+            min_price=10_000.0,
+            max_participation_rate=0.10,
+            estimated_order_size_shares=10_000.0,  # 10,000 / 100,000 = 0.10 participation
+            lookback_window=20,
+        )
+        elig = evaluate_execution_eligibility(df_exact, eval_d, config_exact)
+        self.assertEqual(elig.status, STATUS_EXECUTABLE)
+        self.assertTrue(elig.is_executable)
+        self.assertEqual(elig.reasons, [])
+
+        # 2. Below minimum traded value
+        config_high_tv = ExecutionConfig(min_avg_traded_value_bn=1.5, lookback_window=20)
+        elig_high_tv = evaluate_execution_eligibility(df_exact, eval_d, config_high_tv)
+        self.assertEqual(elig_high_tv.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn(REASON_BELOW_MIN_TRADED_VALUE, elig_high_tv.reasons)
+
+        # 3. Below minimum volume
+        config_high_vol = ExecutionConfig(min_avg_volume=200_000.0, lookback_window=20)
+        elig_high_vol = evaluate_execution_eligibility(df_exact, eval_d, config_high_vol)
+        self.assertEqual(elig_high_vol.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn(REASON_BELOW_MIN_VOLUME, elig_high_vol.reasons)
+
+        # 4. Below minimum price
+        config_high_p = ExecutionConfig(min_price=20_000.0, lookback_window=20)
+        elig_high_p = evaluate_execution_eligibility(df_exact, eval_d, config_high_p)
+        self.assertEqual(elig_high_p.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn(REASON_BELOW_MIN_PRICE, elig_high_p.reasons)
+
+        # 5. Exceeds max participation rate
+        config_part = ExecutionConfig(
+            max_participation_rate=0.05,
+            estimated_order_size_shares=10_000.0,  # 10,000 / 100,000 = 0.10 > 0.05
+            lookback_window=20,
+        )
+        elig_part = evaluate_execution_eligibility(df_exact, eval_d, config_part)
+        self.assertEqual(elig_part.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn(REASON_EXCEEDS_MAX_PARTICIPATION, elig_part.reasons)
+
+    def test_exec_h_walk_forward_integration(self):
+        """Test Exec H: Walk-forward integration consistently evaluates execution eligibility across dates."""
+        eval_dates = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[60]]
+
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=50_000.0,
+            min_price=10_000.0,
+            lookback_window=20,
+        )
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            execution_config=exec_cfg,
+        )
+
+        for res in wf_res.results:
+            self.assertIsNotNone(res.signal.execution_eligibility)
+            self.assertEqual(res.signal.execution_eligibility.status, STATUS_EXECUTABLE)
+
+        exec_sum = wf_res.aggregate.get("execution_summary")
+        self.assertIsNotNone(exec_sum)
+        self.assertEqual(exec_sum["total_evaluation_points"], 2)
+        self.assertEqual(exec_sum["execution_evaluated_points"], 2)
+        self.assertEqual(exec_sum["executable_count"], 2)
+        self.assertEqual(exec_sum["executable_ratio"], 1.0)
+
+    def test_exec_mixed_inputs_aggregation(self):
+        """Test aggregate_backtest_results() correctly handles mixed results (some with execution eligibility, some without)."""
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=50_000.0,
+            min_price=10_000.0,
+            lookback_window=20,
+        )
+
+        # 2 results WITH execution eligibility (both executable)
+        res_exec1 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[50]], execution_config=exec_cfg
+        )[0]
+        res_exec2 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[60]], execution_config=exec_cfg
+        )[0]
+
+        # 2 results WITHOUT execution eligibility (execution_config=None)
+        res_no_exec1 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[70]], execution_config=None
+        )[0]
+        res_no_exec2 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[80]], execution_config=None
+        )[0]
+
+        mixed_results = [res_exec1, res_exec2, res_no_exec1, res_no_exec2]
+        summary = aggregate_backtest_results(mixed_results, horizons=[5, 10, 20])
+
+        exec_sum = summary.get("execution_summary")
+        self.assertIsNotNone(exec_sum)
+        self.assertEqual(exec_sum["total_evaluation_points"], 4)
+        self.assertEqual(exec_sum["execution_evaluated_points"], 2)
+        self.assertEqual(exec_sum["executable_count"], 2)
+        self.assertEqual(exec_sum["executable_ratio"], 1.0)
 
 
 if __name__ == "__main__":

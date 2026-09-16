@@ -33,21 +33,28 @@ Key Architectural Principles:
    - Unsorted dates, duplicate dates, or future observations physically placed prior to T raise explicit
      ValueError exceptions rather than being silently swallowed, sorted, or positionally misindexed.
 6. Framework Distinction & Disclaimers:
-   This module explicitly distinguishes three separate concepts:
+   This module explicitly distinguishes four separate concepts:
    - Production Signal Generation: Real-time, point-in-time calculation of complete signal
      recommendations using production model weights, confidence rules, and trade plans.
    - Historical Component Evaluation: Point-in-time measurement of individual signal component scores
      (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
      on identical evaluation dates and horizons without model or weight modification.
+   - Execution & Liquidity Eligibility Evaluation: Point-in-time evaluation of whether historical observable
+     market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
+     min price, max participation rate) without altering production signal scores or model weights.
    - Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
-     slippage, transaction costs, leverage, and execution dynamics (OUT OF SCOPE for this framework).
+     slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
+     (OUT OF SCOPE for this framework).
 
-   Important Disclaimers for Historical Component Evaluation:
+   Important Disclaimers for Historical Component & Execution Evaluation:
    - Does NOT demonstrate causal relationships.
    - Does NOT prove statistical significance (no p-values, hypothesis tests, or multiple-testing corrections).
-   - Does NOT represent portfolio performance or trade execution returns.
+   - Does NOT represent portfolio performance or real-world trade execution.
    - Does NOT perform parameter or model optimization (no threshold tuning, weight optimization, or feature selection).
-   - Does NOT automatically prove economic value of any individual component.
+   - Does NOT automatically prove economic value of any individual component or execution threshold.
+   - "Executable" in this framework strictly means that observable market liquidity timestamped <= T satisfies defined assumptions;
+     "Executable" trong framework này chỉ có nghĩa là thỏa execution/liquidity assumptions đã định nghĩa; nó không chứng minh rằng một lệnh thực tế chắc chắn được khớp.
+   - Daily EOD OHLCV data does NOT model bid/ask spread, market impact, order book queue, intraday liquidity, trading halts, or broker/exchange execution behavior.
 """
 
 import math
@@ -69,6 +76,170 @@ DEFAULT_SIGNAL_COMPONENTS = [
     "relative_strength",
     "divergence",
 ]
+
+# Execution Eligibility Status Constants
+STATUS_EXECUTABLE = "executable"
+STATUS_NOT_EXECUTABLE = "not_executable"
+STATUS_INSUFFICIENT_LIQUIDITY_HISTORY = "insufficient_liquidity_history"
+STATUS_INVALID_MARKET_DATA = "invalid_market_data"
+
+# Execution Eligibility Reason Code Constants
+REASON_BELOW_MIN_TRADED_VALUE = "below_min_traded_value"
+REASON_BELOW_MIN_VOLUME = "below_min_volume"
+REASON_BELOW_MIN_PRICE = "below_min_price"
+REASON_EXCEEDS_MAX_PARTICIPATION = "exceeds_max_participation"
+REASON_INSUFFICIENT_LOOKBACK_SESSIONS = "insufficient_lookback_sessions"
+REASON_INVALID_OHLCV_DATA = "invalid_ohlcv_data"
+REASON_ZERO_OR_NEGATIVE_LIQUIDITY = "zero_or_negative_liquidity"
+
+
+def _validate_config_number(
+    val: Any,
+    field_name: str,
+    min_val: float = 0.0,
+    max_val: float | None = None,
+    allow_zero: bool = True,
+    strict_int: bool = False,
+) -> None:
+    """Validate numeric configuration parameters deterministically, raising ValueError on failure."""
+    if val is None:
+        return
+
+    if isinstance(val, bool):
+        raise ValueError(f"{field_name} cannot be a boolean, got {val}")  # noqa: TRY004
+
+    if not isinstance(val, (int, float)):
+        raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")  # noqa: TRY004
+
+    if strict_int and not isinstance(val, int):
+        raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")
+
+    f = float(val)
+    if math.isnan(f) or math.isinf(f):
+        raise ValueError(f"{field_name} cannot be NaN or Inf, got {val}")
+
+    if allow_zero:
+        if f < min_val:
+            raise ValueError(f"{field_name} must be >= {min_val}, got {val}")
+    else:
+        if f <= min_val:
+            raise ValueError(f"{field_name} must be > {min_val}, got {val}")
+
+    if max_val is not None and f > max_val:
+        raise ValueError(f"{field_name} must be <= {max_val}, got {val}")
+
+
+@dataclass
+class ExecutionConfig:
+    """Execution and liquidity assumption parameters for backtest signal evaluation layer.
+
+    Parameters:
+    - min_avg_traded_value_bn: Minimum average trading value over lookback window in billion VND
+      (default: 1.0 billion VND = 1,000,000,000 VND).
+    - min_avg_volume: Minimum average trading volume over lookback window in shares (default: 50,000 shares).
+    - min_price: Minimum close price in VND/share (default: 5,000 VND/share).
+    - max_participation_rate: Maximum order size participation rate ratio relative to average market volume (default: 0.10 = 10%).
+    - estimated_order_size_shares: Optional estimated order size in shares for participation rate calculation.
+    - estimated_order_value_vnd: Optional estimated order value in VND for participation rate calculation.
+    - lookback_window: Historical session lookback window <= T used to calculate average liquidity metrics (default: 20 sessions).
+
+    Disclaimers & Scope:
+    - Conservative default thresholds are configurable and non-optimized.
+    - No parameter optimization or curve-fitting based on historical returns is performed.
+    - Slicing strictly enforces point-in-time rules timestamped <= T without lookahead bias.
+    """
+
+    min_avg_traded_value_bn: float | None = 1.0
+    min_avg_volume: float | None = 50_000.0
+    min_price: float | None = 5_000.0
+    max_participation_rate: float | None = 0.10
+    estimated_order_size_shares: float | None = None
+    estimated_order_value_vnd: float | None = None
+    lookback_window: int = 20
+
+    def __post_init__(self) -> None:
+        _validate_config_number(
+            self.lookback_window,
+            "lookback_window",
+            min_val=1,
+            allow_zero=True,
+            strict_int=True,
+        )
+        _validate_config_number(
+            self.min_avg_traded_value_bn,
+            "min_avg_traded_value_bn",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.min_avg_volume,
+            "min_avg_volume",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.min_price,
+            "min_price",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.max_participation_rate,
+            "max_participation_rate",
+            min_val=0.0,
+            max_val=1.0,
+            allow_zero=False,
+        )
+        _validate_config_number(
+            self.estimated_order_size_shares,
+            "estimated_order_size_shares",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.estimated_order_value_vnd,
+            "estimated_order_value_vnd",
+            min_val=0.0,
+            allow_zero=True,
+        )
+
+        if (
+            self.estimated_order_size_shares is not None
+            and self.estimated_order_value_vnd is not None
+        ):
+            raise ValueError(
+                "estimated_order_size_shares and estimated_order_value_vnd cannot both be provided simultaneously."
+            )
+
+
+@dataclass
+class ExecutionEligibility:
+    """Execution and market-liquidity eligibility status at evaluation date T.
+
+    Attributes:
+    - status: Deterministic status identifier ('executable', 'not_executable', 'insufficient_liquidity_history', 'invalid_market_data').
+    - is_executable: True if status == 'executable', False otherwise.
+    - reasons: List of deterministic reason codes explaining non-executability.
+    - metrics: Point-in-time liquidity metrics at signal date T over lookback window <= T.
+
+    Disclaimer:
+    "Executable" in this framework strictly means that historical observable market liquidity timestamped <= T
+    satisfies the defined execution/liquidity assumptions. It does NOT guarantee or prove that a real-world market order
+    would be filled at or near the evaluation price.
+    """
+
+    status: str
+    is_executable: bool
+    reasons: list[str] = field(default_factory=list)
+    metrics: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "is_executable": self.is_executable,
+            "reasons": self.reasons,
+            "metrics": self.metrics,
+        }
 
 
 def _safe_float(val: Any) -> float | None:
@@ -109,6 +280,7 @@ class BacktestSignal:
     model_version: str
     entry_price: float | None
     score_components: dict[str, float | None] = field(default_factory=dict)
+    execution_eligibility: ExecutionEligibility | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -123,6 +295,9 @@ class BacktestSignal:
             "model_version": self.model_version,
             "entry_price": self.entry_price,
             "score_components": self.score_components,
+            "execution_eligibility": self.execution_eligibility.to_dict()
+            if self.execution_eligibility
+            else None,
         }
 
 
@@ -345,6 +520,158 @@ def get_as_of_dataset(df: pd.DataFrame, evaluation_date: str | pd.Timestamp) -> 
     return clean_df.reset_index(drop=True)
 
 
+def evaluate_execution_eligibility(
+    df_stock: pd.DataFrame,
+    evaluation_date: str | pd.Timestamp,
+    config: ExecutionConfig | None = None,
+) -> ExecutionEligibility:
+    """Evaluate market-liquidity execution eligibility for a signal at evaluation date T.
+
+    Point-In-Time Contract:
+    - Slices raw stock dataset strictly <= evaluation_date via `get_as_of_dataset()`.
+    - Calculates average liquidity metrics (average traded value in billion VND, average volume, close price)
+      strictly over the historical lookback window (last N trading sessions <= T).
+    - Future observations (> T) are strictly isolated and never influence liquidity evaluation at T.
+
+    Execution Assumptions & Deterministic Checks:
+    - min_avg_traded_value_bn: checks if average daily turnover (billion VND) >= min threshold.
+    - min_avg_volume: checks if average daily volume (shares) >= min threshold.
+    - min_price: checks if EOD close price (VND/share) >= min threshold.
+    - max_participation_rate: if estimated order size (shares or VND value) is configured, checks if order size ratio <= max participation rate.
+
+    Status Classifications:
+    - EXECUTABLE ('executable'): satisfies all execution/liquidity assumptions.
+    - NOT_EXECUTABLE ('not_executable'): fails one or more execution/liquidity assumptions.
+    - INSUFFICIENT_LIQUIDITY_HISTORY ('insufficient_liquidity_history'): fewer than lookback_window historical sessions exist <= T.
+    - INVALID_MARKET_DATA ('invalid_market_data'): point-in-time market data <= T is missing, empty, or malformed.
+
+    Important Disclaimer:
+    "Executable" in this framework strictly means that observable market liquidity timestamped <= T
+    satisfies defined assumptions. It does NOT prove or guarantee that a real-world market order would be filled.
+    Daily OHLCV data does not model bid/ask spread, order book queue, market impact, intraday volatility, trading halts,
+    or broker execution behavior.
+    """
+    if config is None:
+        config = ExecutionConfig()
+
+    # Allow get_as_of_dataset() temporal fail-closed validation errors (ValueError) to propagate
+    df_as_of = get_as_of_dataset(df_stock, evaluation_date)
+
+    df_clean, val_res = get_clean_ohlcv_data(df_as_of)
+    if (
+        df_clean.empty
+        or "missing_required_columns" in val_res["issues"]
+        or "missing_date_column" in val_res["issues"]
+    ):
+        return ExecutionEligibility(
+            status=STATUS_INVALID_MARKET_DATA,
+            is_executable=False,
+            reasons=[REASON_INVALID_OHLCV_DATA],
+            metrics={},
+        )
+
+    available_history_sessions = len(df_clean)
+    if available_history_sessions < config.lookback_window:
+        return ExecutionEligibility(
+            status=STATUS_INSUFFICIENT_LIQUIDITY_HISTORY,
+            is_executable=False,
+            reasons=[REASON_INSUFFICIENT_LOOKBACK_SESSIONS],
+            metrics={
+                "available_history_sessions": available_history_sessions,
+                "available_lookback_sessions": available_history_sessions,
+                "lookback_window": config.lookback_window,
+            },
+        )
+
+    window_df = df_clean.tail(config.lookback_window)
+    available_lookback_sessions = len(window_df)
+    close_price = _safe_float(window_df["close"].iloc[-1])
+    avg_volume = _safe_float(window_df["volume"].mean())
+
+    trading_value_series = window_df["close"] * window_df["volume"]
+    avg_traded_value_vnd = _safe_float(trading_value_series.mean())
+    avg_traded_value_bn = (
+        round(avg_traded_value_vnd / 1e9, 6) if avg_traded_value_vnd is not None else None
+    )
+
+    if close_price is not None:
+        close_price = round(close_price, 2)
+    if avg_volume is not None:
+        avg_volume = round(avg_volume, 2)
+    if avg_traded_value_vnd is not None:
+        avg_traded_value_vnd = round(avg_traded_value_vnd, 2)
+
+    # Estimate participation rate if order size or order value is specified
+    estimated_participation_rate = None
+    if config.estimated_order_size_shares is not None and avg_volume is not None and avg_volume > 0:
+        estimated_participation_rate = round(config.estimated_order_size_shares / avg_volume, 6)
+    elif (
+        config.estimated_order_value_vnd is not None
+        and avg_traded_value_vnd is not None
+        and avg_traded_value_vnd > 0
+    ):
+        estimated_participation_rate = round(
+            config.estimated_order_value_vnd / avg_traded_value_vnd, 6
+        )
+
+    reasons = []
+
+    if (
+        close_price is None
+        or avg_volume is None
+        or avg_traded_value_vnd is None
+        or avg_traded_value_vnd <= 0
+        or avg_volume <= 0
+        or close_price <= 0
+    ):
+        reasons.append(REASON_ZERO_OR_NEGATIVE_LIQUIDITY)
+
+    if config.min_avg_traded_value_bn is not None and (
+        avg_traded_value_bn is None or avg_traded_value_bn < config.min_avg_traded_value_bn
+    ):
+        reasons.append(REASON_BELOW_MIN_TRADED_VALUE)
+
+    if config.min_avg_volume is not None and (
+        avg_volume is None or avg_volume < config.min_avg_volume
+    ):
+        reasons.append(REASON_BELOW_MIN_VOLUME)
+
+    if config.min_price is not None and (close_price is None or close_price < config.min_price):
+        reasons.append(REASON_BELOW_MIN_PRICE)
+
+    if (
+        config.max_participation_rate is not None
+        and estimated_participation_rate is not None
+        and estimated_participation_rate > config.max_participation_rate
+    ):
+        reasons.append(REASON_EXCEEDS_MAX_PARTICIPATION)
+
+    metrics = {
+        "close_price": close_price,
+        "avg_volume": avg_volume,
+        "avg_traded_value_vnd": avg_traded_value_vnd,
+        "avg_traded_value_bn": avg_traded_value_bn,
+        "estimated_participation_rate": estimated_participation_rate,
+        "available_history_sessions": available_history_sessions,
+        "available_lookback_sessions": available_lookback_sessions,
+        "lookback_window": config.lookback_window,
+    }
+
+    if reasons:
+        status = STATUS_NOT_EXECUTABLE
+        is_executable = False
+    else:
+        status = STATUS_EXECUTABLE
+        is_executable = True
+
+    return ExecutionEligibility(
+        status=status,
+        is_executable=is_executable,
+        reasons=sorted(set(reasons)),
+        metrics=metrics,
+    )
+
+
 def calculate_as_of_market_breadth(
     universe_stock_map: dict[str, pd.DataFrame],
     evaluation_date: str,
@@ -523,12 +850,14 @@ def run_backtest_for_symbol(
     breadth_ratio: float | None = None,
     universe_stock_map: dict[str, pd.DataFrame] | None = None,
     horizons: list[int] | None = None,
+    execution_config: ExecutionConfig | None = None,
 ) -> list[BacktestResult]:
     """Run point-in-time deterministic backtest for a single symbol over multiple evaluation dates.
 
     Guarantees strict no-lookahead bias by slicing stock data and all market-level inputs
     (VNINDEX, VN30, and universe market breadth as-of T) strictly <= T before calling production engine.
     Fails closed on malformed market datasets.
+    Optionally evaluates point-in-time execution/liquidity eligibility if execution_config is supplied.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
@@ -583,6 +912,14 @@ def run_backtest_for_symbol(
         raw_entry_price = rec["trade_plan"].get("current_price")
         entry_price = _safe_float(raw_entry_price)
 
+        exec_eligibility = None
+        if execution_config is not None:
+            exec_eligibility = evaluate_execution_eligibility(
+                df_stock=df_stock_as_of,
+                evaluation_date=target_date_str,
+                config=execution_config,
+            )
+
         signal = BacktestSignal(
             symbol=symbol,
             evaluation_date=target_date_str,
@@ -595,6 +932,7 @@ def run_backtest_for_symbol(
             model_version=rec["model_version"],
             entry_price=entry_price,
             score_components=rec["score_components"],
+            execution_eligibility=exec_eligibility,
         )
 
         # 5. Forward outcome evaluation (> T)
@@ -617,6 +955,7 @@ def run_backtest_for_universe(
     df_vnindex: pd.DataFrame | None = None,
     df_vn30: pd.DataFrame | None = None,
     horizons: list[int] | None = None,
+    execution_config: ExecutionConfig | None = None,
 ) -> list[BacktestResult]:
     """Run point-in-time deterministic backtest across an entire stock universe.
 
@@ -649,6 +988,7 @@ def run_backtest_for_universe(
             df_vn30=df_vn30,
             universe_stock_map=universe_stock_map,
             horizons=horizons,
+            execution_config=execution_config,
         )
         all_results.extend(res_sym)
 
@@ -807,6 +1147,74 @@ def aggregate_backtest_results(
                 "stats": calculate_return_stats(sub_rets),
             }
 
+    # Aggregate execution summary if execution eligibility is populated across signals
+    execution_evaluated_points = sum(
+        1 for res in results if res.signal.execution_eligibility is not None
+    )
+    execution_summary: dict[str, Any] | None = None
+
+    if execution_evaluated_points > 0:
+        total_eval_points = len(results)
+        exec_count = sum(
+            1
+            for res in results
+            if res.signal.execution_eligibility and res.signal.execution_eligibility.is_executable
+        )
+        non_exec_count = sum(
+            1
+            for res in results
+            if res.signal.execution_eligibility
+            and res.signal.execution_eligibility.status == STATUS_NOT_EXECUTABLE
+        )
+        insufficient_hist_count = sum(
+            1
+            for res in results
+            if res.signal.execution_eligibility
+            and res.signal.execution_eligibility.status == STATUS_INSUFFICIENT_LIQUIDITY_HISTORY
+        )
+        invalid_data_count = sum(
+            1
+            for res in results
+            if res.signal.execution_eligibility
+            and res.signal.execution_eligibility.status == STATUS_INVALID_MARKET_DATA
+        )
+
+        exec_ratio = (
+            round(exec_count / execution_evaluated_points, 4)
+            if execution_evaluated_points > 0
+            else None
+        )
+
+        traded_value_bn_list = [
+            _safe_float(res.signal.execution_eligibility.metrics.get("avg_traded_value_bn"))
+            for res in results
+            if res.signal.execution_eligibility
+            and res.signal.execution_eligibility.metrics.get("avg_traded_value_bn") is not None
+        ]
+        traded_value_bn_valid = [v for v in traded_value_bn_list if v is not None]
+
+        volume_list = [
+            _safe_float(res.signal.execution_eligibility.metrics.get("avg_volume"))
+            for res in results
+            if res.signal.execution_eligibility
+            and res.signal.execution_eligibility.metrics.get("avg_volume") is not None
+        ]
+        volume_valid = [v for v in volume_list if v is not None]
+
+        execution_summary = {
+            "total_evaluation_points": total_eval_points,
+            "execution_evaluated_points": execution_evaluated_points,
+            "executable_count": exec_count,
+            "non_executable_count": non_exec_count,
+            "insufficient_history_count": insufficient_hist_count,
+            "invalid_data_count": invalid_data_count,
+            "executable_ratio": exec_ratio,
+            "liquidity_summary": {
+                "avg_traded_value_bn": calculate_return_stats(traded_value_bn_valid),
+                "avg_volume": calculate_return_stats(volume_valid),
+            },
+        }
+
     return {
         "signal_statistics": {
             "total_signals": total_signals,
@@ -816,6 +1224,7 @@ def aggregate_backtest_results(
         "horizon_metrics": horizon_metrics,
         "breakdown_by_action": breakdown_by_action,
         "breakdown_by_regime": breakdown_by_regime,
+        "execution_summary": execution_summary,
     }
 
 
@@ -915,6 +1324,7 @@ def run_walk_forward_backtest(
     step: int = 10,
     start_date: str | None = None,
     end_date: str | None = None,
+    execution_config: ExecutionConfig | None = None,
 ) -> WalkForwardResult:
     """Run deterministic, no-lookahead walk-forward evaluation over a sequence of historical evaluation dates.
 
@@ -1034,6 +1444,7 @@ def run_walk_forward_backtest(
             df_vnindex=df_vnindex,
             df_vn30=df_vn30,
             horizons=horizons,
+            execution_config=execution_config,
         )
     elif df_stock is not None and not df_stock.empty and symbol:
         results = run_backtest_for_symbol(
@@ -1046,6 +1457,7 @@ def run_walk_forward_backtest(
             df_vnindex=df_vnindex,
             df_vn30=df_vn30,
             horizons=horizons,
+            execution_config=execution_config,
         )
     else:
         raise ValueError(
