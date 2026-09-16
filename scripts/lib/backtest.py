@@ -50,6 +50,13 @@ from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 DEFAULT_HORIZONS = [5, 10, 20]
+DEFAULT_SIGNAL_COMPONENTS = [
+    "trend",
+    "momentum",
+    "volume",
+    "relative_strength",
+    "divergence",
+]
 
 
 def _safe_float(val: Any) -> float | None:
@@ -151,6 +158,55 @@ class WalkForwardResult:
         return {
             "evaluation_dates": self.evaluation_dates,
             "results": [r.to_dict() for r in self.results],
+            "aggregate": self.aggregate,
+        }
+
+
+@dataclass
+class ComponentObservation:
+    """Individual signal component evaluation observation at evaluation date T.
+
+    Represents the mapping: (symbol, evaluation_date, component, horizon) -> (component_score, forward_return).
+
+    Notice:
+    Component evaluation measures point-in-time signal attribution vs forward outcomes.
+    It does not demonstrate causality, statistical significance, or portfolio performance.
+    """
+
+    evaluation_date: str
+    symbol: str
+    component: str
+    component_score: float | None
+    horizon: int
+    forward_return: float | None
+    score_bucket: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "evaluation_date": self.evaluation_date,
+            "symbol": self.symbol,
+            "component": self.component,
+            "component_score": self.component_score,
+            "horizon": self.horizon,
+            "forward_return": self.forward_return,
+            "score_bucket": self.score_bucket,
+        }
+
+
+@dataclass
+class ComponentEvaluationResult:
+    """Container for signal component historical evaluation across a walk-forward dataset.
+
+    Contains raw granular observations mapping each score component and horizon to future return,
+    plus aggregated neutral performance metrics grouped by component, horizon, and score bucket.
+    """
+
+    observations: list[ComponentObservation]
+    aggregate: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observations": [o.to_dict() for o in self.observations],
             "aggregate": self.aggregate,
         }
 
@@ -991,4 +1047,194 @@ def run_walk_forward_backtest(
         evaluation_dates=eval_dates,
         results=results,
         aggregate=aggregate_summary,
+    )
+
+
+def classify_component_score_bucket(score: float | None) -> str | None:
+    """Classify a component score (0-100) into neutral directional observation buckets.
+
+    Buckets:
+    - 'negative' : score < 45.0
+    - 'neutral'  : 45.0 <= score <= 55.0
+    - 'positive' : score > 55.0
+
+    Note:
+    Bucket boundaries reflect neutral observation ranges without threshold optimization or curve-fitting.
+    Returns None if score is None.
+    """
+    s = _safe_float(score)
+    if s is None:
+        return None
+    if s < 45.0:
+        return "negative"
+    if s <= 55.0:
+        return "neutral"
+    return "positive"
+
+
+def aggregate_component_evaluation_results(
+    observations: list[ComponentObservation],
+    horizons: list[int] | None = None,
+    components: list[str] | None = None,
+) -> dict[str, Any]:
+    """Aggregate component evaluation observations into neutral performance metrics per component, horizon, and bucket.
+
+    Notice & Assumptions:
+    - Component evaluation measures point-in-time signal attribution vs forward outcomes.
+    - It does NOT establish causal relationships, statistical significance (no p-values/hypothesis tests),
+      model optimization, or portfolio returns.
+    - Hit rate for signed component scores:
+      - 'positive' bucket: hit rate = ratio of observations with forward_return > 0
+      - 'negative' bucket: hit rate = ratio of observations with forward_return < 0
+      - 'neutral' bucket: hit rate = ratio of observations with |forward_return| <= 0.01 (near-zero price change)
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    if components is None:
+        components = DEFAULT_SIGNAL_COMPONENTS
+
+    by_component: dict[str, dict[int, dict[str, Any]]] = {}
+
+    for comp in components:
+        by_component[comp] = {}
+        for h in horizons:
+            comp_h_obs = [
+                o
+                for o in observations
+                if o.component == comp and o.horizon == h and o.forward_return is not None
+            ]
+
+            valid_rets = [o.forward_return for o in comp_h_obs if o.forward_return is not None]
+            stats = calculate_return_stats(valid_rets)
+
+            # Bucket breakdown
+            bucket_metrics: dict[str, dict[str, Any]] = {}
+            for b_name in ["negative", "neutral", "positive"]:
+                b_obs = [o for o in comp_h_obs if o.score_bucket == b_name]
+                b_rets = [o.forward_return for o in b_obs if o.forward_return is not None]
+                b_stats = calculate_return_stats(b_rets)
+
+                hit_rate = None
+                if b_rets:
+                    if b_name == "positive":
+                        hits = sum(1 for r in b_rets if r > 0)
+                    elif b_name == "negative":
+                        hits = sum(1 for r in b_rets if r < 0)
+                    else:  # neutral
+                        hits = sum(1 for r in b_rets if abs(r) <= 0.01)
+                    hit_rate = round(hits / len(b_rets), 4)
+
+                bucket_metrics[b_name] = {
+                    "count": len(b_rets),
+                    "mean_return": b_stats["mean"],
+                    "median_return": b_stats["median"],
+                    "hit_rate": hit_rate,
+                }
+
+            by_component[comp][h] = {
+                "total_observations": len(valid_rets),
+                "stats": stats,
+                "buckets": bucket_metrics,
+            }
+
+    return {
+        "by_component": by_component,
+        "total_observations": len(observations),
+    }
+
+
+def evaluate_signal_components(
+    evaluation_dates: list[str] | None = None,
+    df_stock: pd.DataFrame | None = None,
+    symbol: str = "",
+    universe_stock_map: dict[str, pd.DataFrame] | None = None,
+    candidate_metadata: list[dict] | None = None,
+    df_vnindex: pd.DataFrame | None = None,
+    df_vn30: pd.DataFrame | None = None,
+    company_name: str = "",
+    sector: str = "",
+    exchange: str = "HOSE",
+    horizons: list[int] | None = None,
+    components: list[str] | None = None,
+    min_history: int = 50,
+    step: int = 10,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> ComponentEvaluationResult:
+    """Evaluate historical performance of individual signal model components under walk-forward evaluation.
+
+    Strict Evaluation & Temporal Guarantee:
+    - Every component (Trend, Momentum, Volume, Relative Strength, Divergence) is evaluated
+      on the EXACT SAME universe, EXACT SAME evaluation dates T, and EXACT SAME forward horizon outcomes.
+    - Component scores are extracted directly from the production signal engine (`rec["score_components"]`)
+      derived strictly from point-in-time data <= T (`get_as_of_dataset`), without score or weight modification.
+    - Market inputs (VNINDEX, VN30, and universe breadth as-of T) are strictly bounded <= T.
+    - Forward outcomes (> T) are evaluated using the existing deterministic forward-horizon primitive (`evaluate_forward_outcomes`).
+    - Fail-closed validation rules from PR #86 / #87 are fully preserved.
+
+    Returns:
+    `ComponentEvaluationResult` containing granular component observations and aggregated metrics.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    if components is None:
+        components = DEFAULT_SIGNAL_COMPONENTS
+
+    wf_res = run_walk_forward_backtest(
+        evaluation_dates=evaluation_dates,
+        df_stock=df_stock,
+        symbol=symbol,
+        universe_stock_map=universe_stock_map,
+        candidate_metadata=candidate_metadata,
+        df_vnindex=df_vnindex,
+        df_vn30=df_vn30,
+        company_name=company_name,
+        sector=sector,
+        exchange=exchange,
+        horizons=horizons,
+        min_history=min_history,
+        step=step,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    observations: list[ComponentObservation] = []
+
+    for res in wf_res.results:
+        eval_d = res.signal.evaluation_date
+        sym = res.signal.symbol
+        score_comp_map = res.signal.score_components
+
+        for comp_key in components:
+            raw_comp_score = score_comp_map.get(comp_key)
+            comp_score = _safe_float(raw_comp_score)
+            bucket = classify_component_score_bucket(comp_score)
+
+            for h in horizons:
+                fwd_ret = None
+                if res.outcome.availability.get(h, False):
+                    fwd_ret = res.outcome.returns.get(h)
+
+                obs = ComponentObservation(
+                    evaluation_date=eval_d,
+                    symbol=sym,
+                    component=comp_key,
+                    component_score=comp_score,
+                    horizon=h,
+                    forward_return=fwd_ret,
+                    score_bucket=bucket,
+                )
+                observations.append(obs)
+
+    agg_summary = aggregate_component_evaluation_results(
+        observations=observations,
+        horizons=horizons,
+        components=components,
+    )
+
+    return ComponentEvaluationResult(
+        observations=observations,
+        aggregate=agg_summary,
     )
