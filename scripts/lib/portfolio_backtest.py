@@ -133,15 +133,13 @@ def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str
     meta_map: dict[str, dict] = {}
     for idx, item in enumerate(candidate_metadata):
         if not isinstance(item, dict):
-            raise ValueError(
-                f"candidate_metadata[{idx}] must be a dictionary, got {type(item).__name__}"
-            )  # noqa: TRY004
+            raise ValueError(f"candidate_metadata[{idx}] must be a dictionary, got {type(item).__name__}")  # noqa: TRY004
 
         sym = item.get("symbol")
         if not isinstance(sym, str) or not sym.strip():
             raise ValueError(
                 f"candidate_metadata[{idx}] missing or invalid required 'symbol' string: {sym}"
-            )  # noqa: TRY004
+            )
 
         sym_clean = sym.strip()
         if sym_clean in meta_map:
@@ -157,7 +155,7 @@ def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str
 def _parse_canonical_date(eval_date: Any) -> str:
     """Parse and validate evaluation date into YYYY-MM-DD canonical format."""
     if eval_date is None or isinstance(eval_date, bool):
-        raise ValueError(f"Invalid evaluation date: {eval_date}")  # noqa: TRY004
+        raise ValueError(f"Invalid evaluation date: {eval_date}")
 
     try:
         ts = pd.to_datetime(eval_date)
