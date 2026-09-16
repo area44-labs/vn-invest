@@ -169,9 +169,9 @@ class PortfolioConfig:
         )
 
         if not isinstance(self.require_executable, bool):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004
                 f"require_executable must be a boolean, got {type(self.require_executable).__name__}"
-            )  # noqa: TRY004
+            )
 
         if not isinstance(self.allowed_actions, (list, tuple)):
             raise ValueError("allowed_actions must be a list or tuple of action strings.")  # noqa: TRY004
@@ -181,7 +181,7 @@ class PortfolioConfig:
 
         for act in self.allowed_actions:
             if not isinstance(act, str) or not act.strip():
-                raise ValueError(f"allowed_actions contains invalid action: {act}")
+                raise ValueError(f"allowed_actions contains invalid action: {act}")  # noqa: TRY004
 
 
 def validate_portfolio_weights(weights: list[float]) -> None:
