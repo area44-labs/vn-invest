@@ -121,6 +121,50 @@ class ExecutionConfig:
     estimated_order_value_vnd: float | None = None
     lookback_window: int = 20
 
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.lookback_window, int)
+            or isinstance(self.lookback_window, bool)
+            or self.lookback_window <= 0
+        ):
+            raise ValueError(f"lookback_window must be an integer > 0, got {self.lookback_window}")
+
+        if self.min_avg_traded_value_bn is not None and self.min_avg_traded_value_bn < 0:
+            raise ValueError(
+                f"min_avg_traded_value_bn must be None or >= 0, got {self.min_avg_traded_value_bn}"
+            )
+
+        if self.min_avg_volume is not None and self.min_avg_volume < 0:
+            raise ValueError(f"min_avg_volume must be None or >= 0, got {self.min_avg_volume}")
+
+        if self.min_price is not None and self.min_price < 0:
+            raise ValueError(f"min_price must be None or >= 0, got {self.min_price}")
+
+        if self.max_participation_rate is not None and (
+            self.max_participation_rate <= 0 or self.max_participation_rate > 1.0
+        ):
+            raise ValueError(
+                f"max_participation_rate must be None or in (0, 1], got {self.max_participation_rate}"
+            )
+
+        if self.estimated_order_size_shares is not None and self.estimated_order_size_shares < 0:
+            raise ValueError(
+                f"estimated_order_size_shares must be None or >= 0, got {self.estimated_order_size_shares}"
+            )
+
+        if self.estimated_order_value_vnd is not None and self.estimated_order_value_vnd < 0:
+            raise ValueError(
+                f"estimated_order_value_vnd must be None or >= 0, got {self.estimated_order_value_vnd}"
+            )
+
+        if (
+            self.estimated_order_size_shares is not None
+            and self.estimated_order_value_vnd is not None
+        ):
+            raise ValueError(
+                "estimated_order_size_shares and estimated_order_value_vnd cannot both be provided simultaneously."
+            )
+
 
 @dataclass
 class ExecutionEligibility:
@@ -464,15 +508,8 @@ def evaluate_execution_eligibility(
     if config is None:
         config = ExecutionConfig()
 
-    try:
-        df_as_of = get_as_of_dataset(df_stock, evaluation_date)
-    except ValueError:
-        return ExecutionEligibility(
-            status=STATUS_INVALID_MARKET_DATA,
-            is_executable=False,
-            reasons=[REASON_INVALID_OHLCV_DATA],
-            metrics={},
-        )
+    # Allow get_as_of_dataset() temporal fail-closed validation errors (ValueError) to propagate
+    df_as_of = get_as_of_dataset(df_stock, evaluation_date)
 
     df_clean, val_res = get_clean_ohlcv_data(df_as_of)
     if (
