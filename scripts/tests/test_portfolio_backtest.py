@@ -110,7 +110,7 @@ class TestPortfolioConfigValidation(unittest.TestCase):
         with self.assertRaises(ValueError):
             PortfolioConfig(min_signal_score="invalid")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises((ValueError, TypeError)):
             PortfolioConfig(require_executable="true")  # type: ignore[arg-type]
 
     def test_deterministic_boundary_values(self) -> None:
@@ -184,7 +184,7 @@ class TestCandidateMetadataValidation(unittest.TestCase):
 
         cfg = PortfolioConfig()
         for meta in [invalid_meta_no_symbol, invalid_meta_empty_symbol, invalid_meta_bad_type]:
-            with self.assertRaises(ValueError):
+            with self.assertRaises((ValueError, TypeError)):
                 evaluate_portfolio_at_date(
                     evaluation_date=self.eval_date,
                     universe_stock_map=self.universe,

@@ -128,12 +128,14 @@ def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str
         return {}
 
     if not isinstance(candidate_metadata, (list, tuple)):
-        raise ValueError("candidate_metadata must be a list or tuple of dictionaries.")  # noqa: TRY004
+        raise TypeError("candidate_metadata must be a list or tuple of dictionaries.")
 
     meta_map: dict[str, dict] = {}
     for idx, item in enumerate(candidate_metadata):
         if not isinstance(item, dict):
-            raise ValueError(f"candidate_metadata[{idx}] must be a dictionary, got {type(item).__name__}")  # noqa: TRY004
+            raise TypeError(
+                f"candidate_metadata[{idx}] must be a dictionary, got {type(item).__name__}"
+            )
 
         sym = item.get("symbol")
         if not isinstance(sym, str) or not sym.strip():
@@ -221,12 +223,12 @@ class PortfolioConfig:
         )
 
         if not isinstance(self.require_executable, bool):
-            raise ValueError(  # noqa: TRY004
+            raise TypeError(
                 f"require_executable must be a boolean, got {type(self.require_executable).__name__}"
             )
 
         if not isinstance(self.allowed_actions, (list, tuple)):
-            raise ValueError("allowed_actions must be a list or tuple of action strings.")  # noqa: TRY004
+            raise TypeError("allowed_actions must be a list or tuple of action strings.")
 
         if not self.allowed_actions:
             raise ValueError("allowed_actions cannot be empty.")
@@ -245,7 +247,7 @@ def validate_portfolio_weights(weights: list[float]) -> None:
     - Never silently normalize or adjust invalid weights.
     """
     if not isinstance(weights, list):
-        raise ValueError(f"Weights must be a list, got {type(weights).__name__}")  # noqa: TRY004
+        raise TypeError(f"Weights must be a list, got {type(weights).__name__}")
 
     total_w = 0.0
     for idx, w in enumerate(weights):
