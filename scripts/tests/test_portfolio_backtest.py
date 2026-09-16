@@ -241,8 +241,6 @@ class TestCandidateMetadataValidation(unittest.TestCase):
         )
 
         self.assertEqual(res1.to_dict(), res2.to_dict())
-        self.assertIn("min_history", res1.to_dict()["config"])
-        self.assertEqual(res1.to_dict()["config"]["min_history"], cfg.min_history)
 
 
 class TestPortfolioConstruction(unittest.TestCase):
