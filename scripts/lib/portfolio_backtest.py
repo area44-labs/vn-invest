@@ -116,6 +116,58 @@ def _validate_numeric_param(
         raise ValueError(f"{field_name} must be <= {max_val}, got {val}")
 
 
+def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str, dict]:
+    """Validate and map candidate metadata list by symbol deterministically.
+
+    Fail-Closed Validation:
+    - If candidate_metadata is None or empty, returns empty dict.
+    - Each entry must be a dictionary containing a valid, non-empty string 'symbol'.
+    - Duplicate symbols raise ValueError.
+    """
+    if not candidate_metadata:
+        return {}
+
+    if not isinstance(candidate_metadata, (list, tuple)):
+        raise ValueError("candidate_metadata must be a list or tuple of dictionaries.")  # noqa: TRY004
+
+    meta_map: dict[str, dict] = {}
+    for idx, item in enumerate(candidate_metadata):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"candidate_metadata[{idx}] must be a dictionary, got {type(item).__name__}"
+            )  # noqa: TRY004
+
+        sym = item.get("symbol")
+        if not isinstance(sym, str) or not sym.strip():
+            raise ValueError(
+                f"candidate_metadata[{idx}] missing or invalid required 'symbol' string: {sym}"
+            )  # noqa: TRY004
+
+        sym_clean = sym.strip()
+        if sym_clean in meta_map:
+            raise ValueError(
+                f"Duplicate symbol '{sym_clean}' found in candidate_metadata at index {idx}."
+            )
+
+        meta_map[sym_clean] = item
+
+    return meta_map
+
+
+def _parse_canonical_date(eval_date: Any) -> str:
+    """Parse and validate evaluation date into YYYY-MM-DD canonical format."""
+    if eval_date is None or isinstance(eval_date, bool):
+        raise ValueError(f"Invalid evaluation date: {eval_date}")  # noqa: TRY004
+
+    try:
+        ts = pd.to_datetime(eval_date)
+        if pd.isna(ts):
+            raise ValueError(f"Invalid evaluation date: {eval_date}")
+        return ts.strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OverflowError) as err:
+        raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
+
+
 @dataclass
 class PortfolioConfig:
     """Configuration for deterministic portfolio construction and backtesting.
@@ -126,7 +178,9 @@ class PortfolioConfig:
     - min_confidence: Minimum confidence score (0.0-1.0) required for candidate eligibility (default: None).
     - allowed_actions: Tuple of stock recommendation actions eligible for portfolio entry (default: ("BUY",)).
     - max_weight_per_position: Maximum weight allocated to any single position in (0.0, 1.0] (default: None).
-    - require_executable: If True, candidate stocks failing execution eligibility are excluded (default: False).
+    - require_executable: If True, execution eligibility is enforced as a strict candidate selection constraint
+      (stocks failing execution eligibility are excluded). If False, execution eligibility is evaluated if
+      execution_config is present and attached to PortfolioPosition.is_executable, but does NOT exclude candidate securities.
     - execution_config: ExecutionConfig parameters used when require_executable is True or when evaluating eligibility.
     """
 
@@ -330,7 +384,7 @@ def evaluate_portfolio_at_date(
         if df_s.empty:
             raise ValueError(f"Stock '{sym}' dataset cannot be empty in universe_stock_map.")
 
-    target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
+    target_date_str = _parse_canonical_date(evaluation_date)
 
     # 1. Point-in-time market data slicing <= T
     df_vnindex_clean_as_of = None
@@ -355,10 +409,7 @@ def evaluate_portfolio_at_date(
         breadth_ratio=breadth_ratio,
     )
 
-    meta_map = {}
-    if candidate_metadata:
-        for item in candidate_metadata:
-            meta_map[item["symbol"]] = item
+    meta_map = _build_candidate_meta_map(candidate_metadata)
 
     # 2. Evaluate signals and execution eligibility for all universe stocks at T
     candidates: list[dict[str, Any]] = []
@@ -665,10 +716,7 @@ def run_portfolio_backtest(
     # Validate date strings and chronological sorting
     parsed_eval_dates = []
     for d in evaluation_dates:
-        try:
-            parsed_eval_dates.append(pd.to_datetime(d).strftime("%Y-%m-%d"))
-        except (ValueError, TypeError) as err:
-            raise ValueError(f"Invalid evaluation date format '{d}': {err}") from err
+        parsed_eval_dates.append(_parse_canonical_date(d))
 
     if len(parsed_eval_dates) != len(set(parsed_eval_dates)):
         raise ValueError("evaluation_dates list contains duplicate entries.")

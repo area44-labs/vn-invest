@@ -154,6 +154,81 @@ class TestPortfolioWeightValidation(unittest.TestCase):
             validate_portfolio_weights([0.5, True])
 
 
+class TestCandidateMetadataValidation(unittest.TestCase):
+    """Test Suite for candidate_metadata validation and error handling."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
+        self.universe = {"AAA": self.df_aaa}
+        self.eval_date = "2024-03-15"
+
+    def test_duplicate_symbol_in_candidate_metadata_raises_value_error(self) -> None:
+        duplicate_meta = [
+            {"symbol": "AAA", "companyName": "AAA Company 1"},
+            {"symbol": "AAA", "companyName": "AAA Company 2"},
+        ]
+        cfg = PortfolioConfig()
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=self.universe,
+                config=cfg,
+                candidate_metadata=duplicate_meta,
+            )
+
+    def test_missing_or_invalid_symbol_in_candidate_metadata_raises_value_error(self) -> None:
+        invalid_meta_no_symbol = [{"companyName": "No Symbol Corp"}]
+        invalid_meta_empty_symbol = [{"symbol": "   "}]
+        invalid_meta_bad_type = [{"symbol": 123}]
+
+        cfg = PortfolioConfig()
+        for meta in [invalid_meta_no_symbol, invalid_meta_empty_symbol, invalid_meta_bad_type]:
+            with self.assertRaises(ValueError):
+                evaluate_portfolio_at_date(
+                    evaluation_date=self.eval_date,
+                    universe_stock_map=self.universe,
+                    config=cfg,
+                    candidate_metadata=meta,  # type: ignore[arg-type]
+                )
+
+    def test_valid_unique_metadata_order_invariance(self) -> None:
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
+        universe = {"AAA": self.df_aaa, "BBB": df_bbb}
+
+        meta1 = [
+            {"symbol": "AAA", "companyName": "Comp AAA"},
+            {"symbol": "BBB", "companyName": "Comp BBB"},
+        ]
+        meta2 = [
+            {"symbol": "BBB", "companyName": "Comp BBB"},
+            {"symbol": "AAA", "companyName": "Comp AAA"},
+        ]
+
+        cfg = PortfolioConfig(
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe,
+            config=cfg,
+            candidate_metadata=meta1,
+            df_vnindex=self.df_vni,
+        )
+
+        res2 = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe,
+            config=cfg,
+            candidate_metadata=meta2,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+
+
 class TestPortfolioConstruction(unittest.TestCase):
     """Test Suite for portfolio candidate selection and construction."""
 
@@ -214,7 +289,7 @@ class TestPortfolioConstruction(unittest.TestCase):
         self.assertEqual(eval_res.unallocated_weight, 0.40)
 
     def test_exclusion_of_non_executable_securities(self) -> None:
-        # AAA volume low, configured min volume high -> AAA excluded
+        # AAA volume low, configured min volume high -> AAA excluded when require_executable=True
         df_low_vol = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 1000.0)
         universe_exec = {
             "LOW_VOL": df_low_vol,
@@ -238,6 +313,34 @@ class TestPortfolioConstruction(unittest.TestCase):
         selected_symbols = [p.symbol for p in eval_res.positions]
         self.assertNotIn("LOW_VOL", selected_symbols)
         self.assertIn("LOW_VOL", eval_res.excluded_non_executable)
+
+    def test_require_executable_false_retains_is_executable_without_excluding(self) -> None:
+        # When require_executable=False, LOW_VOL is included and has is_executable=False
+        df_low_vol = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 1000.0)
+        universe_exec = {
+            "LOW_VOL": df_low_vol,
+            "BBB": self.df_bbb,
+        }
+        exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=False,
+            execution_config=exec_cfg,
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe_exec,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+        )
+        selected_symbols = [p.symbol for p in eval_res.positions]
+        self.assertIn("LOW_VOL", selected_symbols)
+
+        low_vol_pos = next(p for p in eval_res.positions if p.symbol == "LOW_VOL")
+        self.assertFalse(low_vol_pos.is_executable)
 
     def test_universe_with_none_stock_raises_value_error(self) -> None:
         universe_corrupted = {
@@ -439,6 +542,36 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
             evaluate_portfolio_at_date(
                 evaluation_date="2099-01-01",  # Not in history
                 universe_stock_map=self.universe,
+            )
+
+    def test_invalid_and_duplicate_evaluation_dates_in_run_portfolio_backtest(self) -> None:
+        cfg = PortfolioConfig()
+
+        # Invalid evaluation date
+        with self.assertRaises(ValueError):
+            run_portfolio_backtest(
+                evaluation_dates=["invalid-date"],
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+
+        # Duplicate evaluation date
+        eval_d = self.df_aaa["date"].iloc[40]
+        with self.assertRaises(ValueError):
+            run_portfolio_backtest(
+                evaluation_dates=[eval_d, eval_d],
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+
+        # Unsorted evaluation dates
+        eval_d1 = self.df_aaa["date"].iloc[40]
+        eval_d2 = self.df_aaa["date"].iloc[30]
+        with self.assertRaises(ValueError):
+            run_portfolio_backtest(
+                evaluation_dates=[eval_d1, eval_d2],
+                universe_stock_map=self.universe,
+                config=cfg,
             )
 
 
