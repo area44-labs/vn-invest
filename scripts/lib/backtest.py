@@ -32,10 +32,22 @@ Key Architectural Principles:
      explicitly enforcing strict chronological ordering (is_monotonic_increasing) and unique dates.
    - Unsorted dates, duplicate dates, or future observations physically placed prior to T raise explicit
      ValueError exceptions rather than being silently swallowed, sorted, or positionally misindexed.
-6. Scope Notice:
-   Backtest này đánh giá historical signal outcomes, chưa phải portfolio/execution backtest.
-   It does not simulate portfolio allocation, position sizing, slippage, transaction costs,
-   leverage, or trade execution dynamics.
+6. Framework Distinction & Disclaimers:
+   This module explicitly distinguishes three separate concepts:
+   - Production Signal Generation: Real-time, point-in-time calculation of complete signal
+     recommendations using production model weights, confidence rules, and trade plans.
+   - Historical Component Evaluation: Point-in-time measurement of individual signal component scores
+     (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
+     on identical evaluation dates and horizons without model or weight modification.
+   - Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
+     slippage, transaction costs, leverage, and execution dynamics (OUT OF SCOPE for this framework).
+
+   Important Disclaimers for Historical Component Evaluation:
+   - Does NOT demonstrate causal relationships.
+   - Does NOT prove statistical significance (no p-values, hypothesis tests, or multiple-testing corrections).
+   - Does NOT represent portfolio performance or trade execution returns.
+   - Does NOT perform parameter or model optimization (no threshold tuning, weight optimization, or feature selection).
+   - Does NOT automatically prove economic value of any individual component.
 """
 
 import math
@@ -1163,6 +1175,22 @@ def evaluate_signal_components(
     end_date: str | None = None,
 ) -> ComponentEvaluationResult:
     """Evaluate historical performance of individual signal model components under walk-forward evaluation.
+
+    Framework Distinction:
+    - Production Signal Generation: Real-time, point-in-time calculation of complete signal
+      recommendations using production model weights, confidence rules, and trade plans.
+    - Historical Component Evaluation: Isolated measurement of point-in-time component scores
+      (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
+      on identical evaluation dates and horizons without model or weight modification.
+    - Portfolio Backtesting: Simulation of portfolio execution, position sizing, and transaction costs
+      (NOT performed by this function).
+
+    Explicit Disclaimers:
+    - Component evaluation does NOT prove causal relationships between component scores and future returns.
+    - Does NOT prove statistical significance (no p-values, hypothesis tests, or multiple-testing corrections).
+    - Does NOT represent portfolio performance or trade execution.
+    - Does NOT perform model, weight, or threshold optimization.
+    - Does NOT automatically prove economic value of any component.
 
     Strict Evaluation & Temporal Guarantee:
     - Every component (Trend, Momentum, Volume, Relative Strength, Divergence) is evaluated
