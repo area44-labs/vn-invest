@@ -42,10 +42,10 @@ Key Architectural Principles:
    3. Historical Component Evaluation (PR #88): Point-in-time measurement of individual signal component scores
       (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
       on identical evaluation dates and horizons without model or weight modification.
-   4. Execution & Liquidity Eligibility Evaluation (PR #89): Point-in-time evaluation of whether historical observable
+   4. Execution & Liquidity Eligibility Evaluation (PR #90): Point-in-time evaluation of whether historical observable
       market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
       min price, max participation rate) without altering production signal scores or model weights.
-   5. Portfolio Backtesting (PR #90): Simulation of portfolio-level capital allocation, position sizing,
+   5. Portfolio Backtesting (PR #91): Simulation of portfolio-level capital allocation, position sizing,
       slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
       (OUT OF SCOPE for this framework).
 
@@ -266,6 +266,33 @@ def _find_date_column(df: pd.DataFrame) -> str | None:
         if col in df.columns:
             return col
     return None
+
+
+def _parse_canonical_date(eval_date: Any) -> str:
+    """Parse and validate evaluation date into YYYY-MM-DD canonical format.
+
+    Fail-Closed Validation:
+    - Rejects None, booleans, and timezone-aware timestamps/datetimes.
+    - Rejects invalid or unparseable date strings.
+    """
+    if eval_date is None or isinstance(eval_date, bool):
+        raise ValueError(f"Invalid evaluation date: {eval_date}")
+
+    if hasattr(eval_date, "tzinfo") and eval_date.tzinfo is not None:
+        raise ValueError(
+            f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
+        )
+
+    if isinstance(eval_date, str) and ("+" in eval_date or "Z" in eval_date or "UTC" in eval_date):
+        raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
+
+    try:
+        ts = pd.to_datetime(eval_date)
+        if pd.isna(ts) or ts.tz is not None:
+            raise ValueError(f"Invalid or timezone-aware evaluation date: {eval_date}")
+        return ts.strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OverflowError) as err:
+        raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
 
 
 @dataclass
@@ -1663,8 +1690,6 @@ def evaluate_market_regimes(
     else:
         if not evaluation_dates:
             raise ValueError("evaluation_dates list cannot be empty.")
-
-        from scripts.lib.portfolio_backtest import _parse_canonical_date
 
         eval_dates = []
         for d in evaluation_dates:

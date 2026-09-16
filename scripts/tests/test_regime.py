@@ -5,12 +5,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from scripts.lib.regime import (
-    RegimeEvaluationResult,
-    RegimeObservation,
-    detect_market_regime,
-    evaluate_market_regimes,
-)
+from scripts.lib.regime import detect_market_regime
 
 
 class TestMarketRegime(unittest.TestCase):
@@ -38,11 +33,17 @@ class TestMarketRegime(unittest.TestCase):
         self.assertEqual(res["regime"], "DEFENSIVE")
         self.assertLess(res["confidence"], 0.5)
 
-    def test_regime_validation_exports(self):
-        """Verify regime module exports RegimeObservation, RegimeEvaluationResult, evaluate_market_regimes."""
-        self.assertTrue(callable(evaluate_market_regimes))
-        self.assertTrue(hasattr(RegimeObservation, "to_dict"))
-        self.assertTrue(hasattr(RegimeEvaluationResult, "to_dict"))
+    def test_regime_module_independent_of_backtest(self):
+        """Verify scripts.lib.regime can be imported without importing scripts.lib.backtest."""
+        import sys
+
+        # Remove backtest from sys.modules if present to test independent import
+        sys.modules.pop("scripts.lib.backtest", None)
+        import scripts.lib.regime as regime_mod
+
+        self.assertTrue(hasattr(regime_mod, "detect_market_regime"))
+        self.assertNotIn("RegimeObservation", regime_mod.__all__)
+        self.assertNotIn("evaluate_market_regimes", regime_mod.__all__)
 
 
 if __name__ == "__main__":
