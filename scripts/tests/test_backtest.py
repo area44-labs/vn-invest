@@ -1979,10 +1979,11 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
                 df_vn30=df_vn30_different_dates,
             )
 
-    def test_regime_val_11_omitted_vn30_supported(self):
-        """Test Regime Val 11: Omitted VN30 (df_vn30=None) continues to work according to production regime contract."""
+    def test_regime_val_11_omitted_vn30_supported_empty_raises(self):
+        """Test Regime Val 11: Omitted VN30 (df_vn30=None) remains valid, while supplied empty VN30 (pd.DataFrame()) raises ValueError."""
         eval_d = self.df_vnindex["date"].iloc[50]
 
+        # Omitted VN30 (None) -> valid
         res = evaluate_market_regimes(
             df_vnindex=self.df_vnindex,
             evaluation_dates=[eval_d],
@@ -1991,24 +1992,47 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
         self.assertEqual(len(res.observations), 3)
         self.assertIsNotNone(res.observations[0].regime)
 
-    def test_regime_val_12_evaluation_date_canonicalization_and_timezone_rejection(self):
-        """Test Regime Val 12: Canonical YYYY-MM-DD output, invalid formats, booleans, and timezone-aware inputs rejected."""
-        # 1. Timezone-aware timestamp input raises ValueError
-        tz_aware_ts = pd.Timestamp("2025-01-10 00:00:00", tz="UTC")
+        # Supplied empty DataFrame -> raises ValueError fail-closed
         with self.assertRaises(ValueError):
-            evaluate_market_regimes(self.df_vnindex, evaluation_dates=[tz_aware_ts])
+            evaluate_market_regimes(
+                df_vnindex=self.df_vnindex,
+                evaluation_dates=[eval_d],
+                df_vn30=pd.DataFrame(),
+            )
 
-        # 2. Timezone string input raises ValueError
-        with self.assertRaises(ValueError):
-            evaluate_market_regimes(self.df_vnindex, evaluation_dates=["2025-01-10T00:00:00+07:00"])
+    def test_regime_val_12_parse_canonical_date_contract_rigorous(self):
+        """Test Regime Val 12: _parse_canonical_date accepts YYYY-MM-DD and naive calendar pd.Timestamp, rejecting time components, timezones, booleans, and invalid inputs."""
+        from scripts.lib.backtest import _parse_canonical_date
 
-        # 3. Boolean input raises ValueError
-        with self.assertRaises(ValueError):
-            evaluate_market_regimes(self.df_vnindex, evaluation_dates=[True])
+        # 1. "2025-01-10" -> accepted and canonicalized
+        self.assertEqual(_parse_canonical_date("2025-01-10"), "2025-01-10")
 
-        # 4. Invalid date string raises ValueError
+        # 2. Naive pd.Timestamp("2025-01-10") -> accepted
+        self.assertEqual(_parse_canonical_date(pd.Timestamp("2025-01-10")), "2025-01-10")
+
+        # 3. "2025-01-10 15:30:00" string containing time component -> rejected
         with self.assertRaises(ValueError):
-            evaluate_market_regimes(self.df_vnindex, evaluation_dates=["not-a-valid-date"])
+            _parse_canonical_date("2025-01-10 15:30:00")
+
+        # 4. Timestamp with non-zero time component -> rejected
+        with self.assertRaises(ValueError):
+            _parse_canonical_date(pd.Timestamp("2025-01-10 15:30:00"))
+
+        # 5. Timezone-aware pd.Timestamp -> rejected
+        with self.assertRaises(ValueError):
+            _parse_canonical_date(pd.Timestamp("2025-01-10 00:00:00", tz="UTC"))
+
+        # 6. Timezone-bearing string -> rejected
+        with self.assertRaises(ValueError):
+            _parse_canonical_date("2025-01-10T00:00:00+07:00")
+
+        # 7. Boolean -> rejected
+        with self.assertRaises(ValueError):
+            _parse_canonical_date(True)
+
+        # 8. Invalid date string -> rejected
+        with self.assertRaises(ValueError):
+            _parse_canonical_date("not-a-valid-date")
 
 
 if __name__ == "__main__":

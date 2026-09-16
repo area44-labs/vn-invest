@@ -62,6 +62,7 @@ Key Architectural Principles:
 """
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -272,7 +273,9 @@ def _parse_canonical_date(eval_date: Any) -> str:
     """Parse and validate evaluation date into YYYY-MM-DD canonical format.
 
     Fail-Closed Validation:
-    - Rejects None, booleans, and timezone-aware timestamps/datetimes.
+    - Accepts canonical YYYY-MM-DD strings and calendar-date naive timestamps/datetimes.
+    - Rejects None, booleans, timezone-aware timestamps/datetimes/strings.
+    - Rejects date strings containing time components (e.g. 'YYYY-MM-DD HH:MM:SS') or timestamps with non-zero time components.
     - Rejects invalid or unparseable date strings.
     """
     if eval_date is None or isinstance(eval_date, bool):
@@ -283,8 +286,28 @@ def _parse_canonical_date(eval_date: Any) -> str:
             f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
         )
 
-    if isinstance(eval_date, str) and ("+" in eval_date or "Z" in eval_date or "UTC" in eval_date):
-        raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
+    if isinstance(eval_date, str):
+        s = eval_date.strip()
+        if "+" in s or "Z" in s or "UTC" in s:
+            raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            raise ValueError(
+                f"Evaluation date string must be strictly canonical 'YYYY-MM-DD', got '{eval_date}'"
+            )
+        try:
+            ts = pd.to_datetime(s, format="%Y-%m-%d")
+            if pd.isna(ts):
+                raise ValueError(f"Invalid evaluation date: {eval_date}")
+            return ts.strftime("%Y-%m-%d")
+        except (ValueError, TypeError, OverflowError) as err:
+            raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
+
+    if hasattr(eval_date, "time") and callable(eval_date.time):
+        t = eval_date.time()
+        if t.hour != 0 or t.minute != 0 or t.second != 0 or t.microsecond != 0:
+            raise ValueError(
+                f"Evaluation date containing non-zero time component is rejected: {eval_date}"
+            )
 
     try:
         ts = pd.to_datetime(eval_date)
@@ -1712,7 +1735,9 @@ def evaluate_market_regimes(
 
         # 2. Point-in-time VN30 data slicing (<= T)
         df_vn30_clean_as_of = None
-        if df_vn30 is not None and not df_vn30.empty:
+        if df_vn30 is not None:
+            if df_vn30.empty:
+                raise ValueError("Supplied df_vn30 DataFrame is empty.")
             df_vn30_as_of = get_as_of_dataset(df_vn30, target_d)
             df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
             if val_30["status"] == "INSUFFICIENT":
