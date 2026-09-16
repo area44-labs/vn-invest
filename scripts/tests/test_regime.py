@@ -5,7 +5,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from scripts.lib.regime import detect_market_regime
+from scripts.lib.regime import (
+    RegimeEvaluationResult,
+    RegimeObservation,
+    detect_market_regime,
+    evaluate_market_regimes,
+)
 
 
 class TestMarketRegime(unittest.TestCase):
@@ -32,6 +37,12 @@ class TestMarketRegime(unittest.TestCase):
         res = detect_market_regime(df_vnindex=None)
         self.assertEqual(res["regime"], "DEFENSIVE")
         self.assertLess(res["confidence"], 0.5)
+
+    def test_regime_validation_exports(self):
+        """Verify regime module exports RegimeObservation, RegimeEvaluationResult, evaluate_market_regimes."""
+        self.assertTrue(callable(evaluate_market_regimes))
+        self.assertTrue(hasattr(RegimeObservation, "to_dict"))
+        self.assertTrue(hasattr(RegimeEvaluationResult, "to_dict"))
 
 
 if __name__ == "__main__":

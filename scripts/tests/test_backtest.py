@@ -19,11 +19,15 @@ from scripts.lib.backtest import (
     ComponentEvaluationResult,
     ExecutionConfig,
     ForwardOutcome,
+    RegimeEvaluationResult,
+    RegimeObservation,
     WalkForwardResult,
     aggregate_backtest_results,
+    aggregate_regime_evaluation_results,
     calculate_as_of_market_breadth,
     evaluate_execution_eligibility,
     evaluate_forward_outcomes,
+    evaluate_market_regimes,
     evaluate_signal_components,
     generate_walk_forward_dates,
     get_as_of_dataset,
@@ -1617,6 +1621,309 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(exec_sum["execution_evaluated_points"], 2)
         self.assertEqual(exec_sum["executable_count"], 2)
         self.assertEqual(exec_sum["executable_ratio"], 1.0)
+
+
+class TestMarketRegimeValidationFramework(unittest.TestCase):
+    """Test suite verifying PR #92 Market-Regime Validation Layer."""
+
+    def setUp(self):
+        self.df_vnindex = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=1200.0, daily_trend=0.001
+        )
+        self.df_vn30 = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=1250.0, daily_trend=0.001
+        )
+        self.evaluation_date = self.df_vnindex["date"].iloc[50]
+
+    def test_regime_val_1_basic_evaluation(self):
+        """Test Regime Val 1: Observation creation, regime label, regime score, evaluation date, and 5/10/20 forward outcomes."""
+        eval_d = self.df_vnindex["date"].iloc[50]  # T = index 50
+
+        res = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=[eval_d],
+            df_vn30=self.df_vn30,
+            breadth_ratio=0.70,
+            horizons=[5, 10, 20],
+        )
+
+        self.assertIsInstance(res, RegimeEvaluationResult)
+        self.assertEqual(len(res.observations), 3)  # 3 horizons: 5, 10, 20
+
+        # Check direct output of detect_market_regime for identical point-in-time input <= T
+        df_vn_pit = get_as_of_dataset(self.df_vnindex, eval_d)
+        df_vn30_pit = get_as_of_dataset(self.df_vn30, eval_d)
+        expected_regime = detect_market_regime(
+            df_vnindex=df_vn_pit,
+            df_vn30=df_vn30_pit,
+            breadth_ratio=0.70,
+        )
+
+        for obs in res.observations:
+            self.assertEqual(obs.evaluation_date, eval_d)
+            self.assertEqual(obs.regime, expected_regime["regime"])
+            self.assertEqual(obs.regime_score, expected_regime["regime_score"])
+            self.assertEqual(obs.confidence, expected_regime["confidence"])
+            self.assertTrue(obs.availability)
+
+        # Check forward return formula exactness
+        p_T = self.df_vnindex["close"].iloc[50]
+        p_T5 = self.df_vnindex["close"].iloc[55]
+        p_T10 = self.df_vnindex["close"].iloc[60]
+        p_T20 = self.df_vnindex["close"].iloc[70]
+
+        obs_5 = next(o for o in res.observations if o.horizon == 5)
+        obs_10 = next(o for o in res.observations if o.horizon == 10)
+        obs_20 = next(o for o in res.observations if o.horizon == 20)
+
+        self.assertAlmostEqual(obs_5.forward_return, round((p_T5 / p_T) - 1.0, 6), places=5)
+        self.assertAlmostEqual(obs_10.forward_return, round((p_T10 / p_T) - 1.0, 6), places=5)
+        self.assertAlmostEqual(obs_20.forward_return, round((p_T20 / p_T) - 1.0, 6), places=5)
+
+    def test_regime_val_2_no_lookahead_future_mutation(self):
+        """Test Regime Val 2: Mutating VNINDEX, VN30, or market breadth strictly AFTER T cannot change regime at T."""
+        eval_d = self.df_vnindex["date"].iloc[60]
+
+        universe_stock_map = {
+            "TCB": generate_synthetic_ohlcv(100, base_price=50.0),
+            "ACB": generate_synthetic_ohlcv(100, base_price=25.0),
+        }
+
+        res_orig = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=[eval_d],
+            df_vn30=self.df_vn30,
+            universe_stock_map=universe_stock_map,
+        )
+        obs_orig = res_orig.observations[0]
+
+        # Mutate post-T VNINDEX, VN30, and stock prices
+        df_vn_mut = self.df_vnindex.copy()
+        df_vn_mut.loc[df_vn_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= 0.05
+
+        df_vn30_mut = self.df_vn30.copy()
+        df_vn30_mut.loc[df_vn30_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= 0.05
+
+        univ_mut = {}
+        for s, df_s in universe_stock_map.items():
+            df_m = df_s.copy()
+            df_m.loc[df_m["date"] > eval_d, ["open", "high", "low", "close"]] *= 10.0
+            univ_mut[s] = df_m
+
+        res_mut = evaluate_market_regimes(
+            df_vnindex=df_vn_mut,
+            evaluation_dates=[eval_d],
+            df_vn30=df_vn30_mut,
+            universe_stock_map=univ_mut,
+        )
+        obs_mut = res_mut.observations[0]
+
+        self.assertEqual(obs_orig.regime, obs_mut.regime)
+        self.assertEqual(obs_orig.regime_score, obs_mut.regime_score)
+        self.assertEqual(obs_orig.confidence, obs_mut.confidence)
+        self.assertEqual(obs_orig.regime_metrics, obs_mut.regime_metrics)
+
+        # Future outcomes should differ due to mutated post-T VNINDEX prices
+        self.assertNotEqual(obs_orig.forward_return, obs_mut.forward_return)
+
+    def test_regime_val_3_misordered_future_row_fails_closed(self):
+        """Test Regime Val 3: Physically placing a future row (> T) before T fails closed."""
+        df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
+        eval_d = df_normal["date"].iloc[20]
+
+        df_misordered = pd.concat(
+            [
+                df_normal.iloc[:18],
+                df_normal.iloc[30:31],  # Future row physically placed before T
+                df_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
+
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(
+                df_vnindex=df_misordered,
+                evaluation_dates=[eval_d],
+            )
+
+    def test_regime_val_4_temporal_validation_fail_closed(self):
+        """Test Regime Val 4: Duplicate, unsorted, invalid, or missing dates fail closed."""
+        eval_d = self.df_vnindex["date"].iloc[30]
+
+        # 1. Duplicate dates <= T
+        df_dup = self.df_vnindex.copy()
+        df_dup.iloc[5] = df_dup.iloc[4]
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(df_vnindex=df_dup, evaluation_dates=[eval_d])
+
+        # 2. Unsorted dates <= T
+        df_unsorted = self.df_vnindex.copy()
+        tmp = df_unsorted.iloc[10].copy()
+        df_unsorted.iloc[10] = df_unsorted.iloc[12]
+        df_unsorted.iloc[12] = tmp
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(df_vnindex=df_unsorted, evaluation_dates=[eval_d])
+
+        # 3. Missing exact evaluation date
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(df_vnindex=self.df_vnindex, evaluation_dates=["2020-01-01"])
+
+        # 4. Unsorted evaluation_dates list
+        dates_unsorted = [self.df_vnindex["date"].iloc[40], self.df_vnindex["date"].iloc[30]]
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(df_vnindex=self.df_vnindex, evaluation_dates=dates_unsorted)
+
+        # 5. Duplicate evaluation_dates list
+        dates_dup = [eval_d, eval_d]
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(df_vnindex=self.df_vnindex, evaluation_dates=dates_dup)
+
+    def test_regime_val_5_insufficient_future_data(self):
+        """Test Regime Val 5: Evaluation date near end of history produces returns=None and availability=False."""
+        eval_d = self.df_vnindex["date"].iloc[-3]  # Only 2 future sessions remain
+
+        res = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=[eval_d],
+            horizons=[5, 10, 20],
+        )
+
+        for obs in res.observations:
+            self.assertFalse(obs.availability)
+            self.assertIsNone(obs.forward_return)
+
+    def test_regime_val_6_regime_consistency(self):
+        """Test Regime Val 6: Validation layer regime output matches direct detect_market_regime output for identical PIT inputs."""
+        eval_dates = [
+            self.df_vnindex["date"].iloc[30],
+            self.df_vnindex["date"].iloc[50],
+            self.df_vnindex["date"].iloc[70],
+        ]
+
+        res = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=eval_dates,
+            df_vn30=self.df_vn30,
+            breadth_ratio=0.60,
+        )
+
+        for eval_d in eval_dates:
+            df_vn_pit = get_as_of_dataset(self.df_vnindex, eval_d)
+            df_vn30_pit = get_as_of_dataset(self.df_vn30, eval_d)
+            direct_regime = detect_market_regime(
+                df_vnindex=df_vn_pit,
+                df_vn30=df_vn30_pit,
+                breadth_ratio=0.60,
+            )
+
+            obs_list = [o for o in res.observations if o.evaluation_date == eval_d]
+            for obs in obs_list:
+                self.assertEqual(obs.regime, direct_regime["regime"])
+                self.assertEqual(obs.regime_score, direct_regime["regime_score"])
+                self.assertEqual(obs.confidence, direct_regime["confidence"])
+
+    def test_regime_val_7_determinism(self):
+        """Test Regime Val 7: Repeated evaluations produce 100% identical observations and aggregate outputs."""
+        eval_dates = [
+            self.df_vnindex["date"].iloc[40],
+            self.df_vnindex["date"].iloc[60],
+        ]
+
+        res1 = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=eval_dates,
+            df_vn30=self.df_vn30,
+            breadth_ratio=0.55,
+        )
+        res2 = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=eval_dates,
+            df_vn30=self.df_vn30,
+            breadth_ratio=0.55,
+        )
+
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+
+    def test_regime_val_8_aggregation_and_denominators(self):
+        """Test Regime Val 8: Grouped metrics distinguish total_observations, available_count, unavailable_count."""
+        obs1 = RegimeObservation(
+            evaluation_date="2025-01-10",
+            regime="STRONG_BULL",
+            regime_score=85.0,
+            confidence=0.85,
+            horizon=5,
+            forward_return=0.03,
+            availability=True,
+        )
+        obs2 = RegimeObservation(
+            evaluation_date="2025-01-20",
+            regime="STRONG_BULL",
+            regime_score=80.0,
+            confidence=0.85,
+            horizon=5,
+            forward_return=0.01,
+            availability=True,
+        )
+        obs3 = RegimeObservation(
+            evaluation_date="2025-02-01",
+            regime="STRONG_BULL",
+            regime_score=82.0,
+            confidence=0.85,
+            horizon=5,
+            forward_return=None,
+            availability=False,
+        )
+
+        obs4 = RegimeObservation(
+            evaluation_date="2025-01-10",
+            regime="BEAR",
+            regime_score=30.0,
+            confidence=0.85,
+            horizon=5,
+            forward_return=-0.04,
+            availability=True,
+        )
+
+        agg = aggregate_regime_evaluation_results(
+            observations=[obs1, obs2, obs3, obs4],
+            horizons=[5],
+        )
+
+        sb_5 = agg["by_regime"]["STRONG_BULL"][5]
+        self.assertEqual(sb_5["observation_count"], 3)
+        self.assertEqual(sb_5["available_forward_outcome_count"], 2)
+        self.assertEqual(sb_5["unavailable_forward_outcome_count"], 1)
+        self.assertAlmostEqual(sb_5["mean"], 0.02, places=4)
+        self.assertEqual(sb_5["hit_rate"], 1.0)  # Both available returns > 0
+
+        bear_5 = agg["by_regime"]["BEAR"][5]
+        self.assertEqual(bear_5["observation_count"], 1)
+        self.assertEqual(bear_5["available_forward_outcome_count"], 1)
+        self.assertEqual(bear_5["unavailable_forward_outcome_count"], 0)
+        self.assertAlmostEqual(bear_5["mean"], -0.04, places=4)
+        self.assertEqual(bear_5["hit_rate"], 1.0)  # Return < 0 in BEAR regime -> hit
+
+    def test_regime_val_9_insufficient_history(self):
+        """Test Regime Val 9: Insufficient market history (< 20 sessions) preserves detect_market_regime insufficient result."""
+        # Single evaluation date on short history (10 sessions)
+        df_short = self.df_vnindex.iloc[:10].copy()
+        eval_d = df_short["date"].iloc[-1]
+
+        # detect_market_regime on < 20 sessions returns DEFENSIVE, 50.0 score, 0.40 confidence
+        res_direct = detect_market_regime(df_vnindex=df_short)
+        self.assertEqual(res_direct["regime"], "DEFENSIVE")
+        self.assertEqual(res_direct["regime_score"], 50.0)
+
+        res = evaluate_market_regimes(
+            df_vnindex=df_short,
+            evaluation_dates=[eval_d],
+            min_history=1,
+        )
+
+        for obs in res.observations:
+            self.assertEqual(obs.regime, "DEFENSIVE")
+            self.assertEqual(obs.regime_score, 50.0)
+            self.assertEqual(obs.confidence, 0.40)
 
 
 if __name__ == "__main__":
