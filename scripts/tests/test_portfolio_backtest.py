@@ -177,6 +177,20 @@ class TestCandidateMetadataValidation(unittest.TestCase):
                 candidate_metadata=duplicate_meta,
             )
 
+    def test_metadata_symbol_not_in_universe_raises_value_error(self) -> None:
+        unknown_meta = [
+            {"symbol": "AAA", "companyName": "AAA Company"},
+            {"symbol": "UNKNOWN_STOCK", "companyName": "Unknown Company"},
+        ]
+        cfg = PortfolioConfig()
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=self.universe,
+                config=cfg,
+                candidate_metadata=unknown_meta,
+            )
+
     def test_missing_or_invalid_symbol_in_candidate_metadata_raises_value_error(self) -> None:
         invalid_meta_no_symbol = [{"companyName": "No Symbol Corp"}]
         invalid_meta_empty_symbol = [{"symbol": "   "}]
@@ -227,6 +241,8 @@ class TestCandidateMetadataValidation(unittest.TestCase):
         )
 
         self.assertEqual(res1.to_dict(), res2.to_dict())
+        self.assertIn("min_history", res1.to_dict()["config"])
+        self.assertEqual(res1.to_dict()["config"]["min_history"], cfg.min_history)
 
 
 class TestPortfolioConstruction(unittest.TestCase):
@@ -674,6 +690,8 @@ class TestPortfolioDeterminism(unittest.TestCase):
         )
 
         self.assertEqual(res1.to_dict(), res2.to_dict())
+        self.assertIn("min_history", res1.to_dict()["config"])
+        self.assertEqual(res1.to_dict()["config"]["min_history"], cfg.min_history)
 
 
 class TestPortfolioAggregation(unittest.TestCase):

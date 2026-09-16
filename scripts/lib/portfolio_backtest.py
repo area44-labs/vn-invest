@@ -116,13 +116,17 @@ def _validate_numeric_param(
         raise ValueError(f"{field_name} must be <= {max_val}, got {val}")
 
 
-def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str, dict]:
+def _build_candidate_meta_map(
+    candidate_metadata: list[dict] | None,
+    universe_stock_map: dict[str, pd.DataFrame] | None = None,
+) -> dict[str, dict]:
     """Validate and map candidate metadata list by symbol deterministically.
 
     Fail-Closed Validation:
     - If candidate_metadata is None or empty, returns empty dict.
     - Each entry must be a dictionary containing a valid, non-empty string 'symbol'.
     - Duplicate symbols raise ValueError.
+    - Every symbol in candidate_metadata must exist in universe_stock_map.
     """
     if not candidate_metadata:
         return {}
@@ -147,6 +151,11 @@ def _build_candidate_meta_map(candidate_metadata: list[dict] | None) -> dict[str
         if sym_clean in meta_map:
             raise ValueError(
                 f"Duplicate symbol '{sym_clean}' found in candidate_metadata at index {idx}."
+            )
+
+        if universe_stock_map is not None and sym_clean not in universe_stock_map:
+            raise ValueError(
+                f"Candidate metadata symbol '{sym_clean}' at index {idx} does not exist in universe_stock_map."
             )
 
         meta_map[sym_clean] = item
@@ -360,6 +369,7 @@ class PortfolioBacktestResult:
                 "min_confidence": self.config.min_confidence,
                 "allowed_actions": list(self.config.allowed_actions),
                 "max_weight_per_position": self.config.max_weight_per_position,
+                "min_history": self.config.min_history,
                 "require_executable": self.config.require_executable,
             },
             "aggregate": self.aggregate,
@@ -445,7 +455,7 @@ def evaluate_portfolio_at_date(
         breadth_ratio=breadth_ratio,
     )
 
-    meta_map = _build_candidate_meta_map(candidate_metadata)
+    meta_map = _build_candidate_meta_map(candidate_metadata, universe_stock_map)
 
     # 2. Evaluate signals and execution eligibility for all universe stocks at T
     candidates: list[dict[str, Any]] = []
