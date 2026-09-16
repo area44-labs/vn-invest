@@ -164,7 +164,7 @@ def _parse_canonical_date(eval_date: Any) -> str:
     if eval_date is None or isinstance(eval_date, bool):
         raise ValueError(f"Invalid evaluation date: {eval_date}")
 
-    if hasattr(eval_date, "tzinfo") and getattr(eval_date, "tzinfo") is not None:
+    if hasattr(eval_date, "tzinfo") and eval_date.tzinfo is not None:
         raise ValueError(
             f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
         )
@@ -174,7 +174,7 @@ def _parse_canonical_date(eval_date: Any) -> str:
 
     try:
         ts = pd.to_datetime(eval_date)
-        if pd.isna(ts) or getattr(ts, "tz", None) is not None:
+        if pd.isna(ts) or ts.tz is not None:
             raise ValueError(f"Invalid or timezone-aware evaluation date: {eval_date}")
         return ts.strftime("%Y-%m-%d")
     except (ValueError, TypeError, OverflowError) as err:
