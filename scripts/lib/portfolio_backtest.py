@@ -324,6 +324,12 @@ def evaluate_portfolio_at_date(
     if not universe_stock_map:
         raise ValueError("universe_stock_map cannot be empty or None.")
 
+    for sym, df_s in universe_stock_map.items():
+        if df_s is None:
+            raise ValueError(f"Stock '{sym}' dataset cannot be None in universe_stock_map.")
+        if df_s.empty:
+            raise ValueError(f"Stock '{sym}' dataset cannot be empty in universe_stock_map.")
+
     target_date_str = pd.to_datetime(evaluation_date).strftime("%Y-%m-%d")
 
     # 1. Point-in-time market data slicing <= T
@@ -361,8 +367,6 @@ def evaluate_portfolio_at_date(
 
     for sym in sorted(universe_stock_map.keys()):
         df_stock = universe_stock_map[sym]
-        if df_stock is None or df_stock.empty:
-            continue
 
         item = meta_map.get(sym, {})
         comp = item.get("companyName", "")
@@ -553,13 +557,16 @@ def aggregate_portfolio_results(
     - non_empty_portfolios_count: number of evaluation points with active positions (> 0 positions)
     - empty_portfolios_count: number of evaluation points with no qualified positions
     - empty_reasons_breakdown: counts of empty portfolio reasons
-    - horizon_metrics: summary return statistics per horizon (mean, median, std, min, max, hit_rate, cumulative_compounded_return)
+    - horizon_metrics: summary return statistics per horizon (mean, median, std, min, max, hit_rate, sequential_compounded_return)
 
     Methodology & Disclaimer:
-    - Cumulative compounded return is calculated across sequential valid non-empty evaluation points:
-        cumulative_return = ∏(1 + r_i) - 1.0
-    - This compounding assumption serves as a diagnostic historical metric across sequential evaluation points.
-      It does NOT model a real-world investment account balance, dynamic cash flows, or transaction costs.
+    - Sequential compounded return (`sequential_compounded_return`) is calculated across sequential valid
+      non-empty evaluation points:
+        sequential_compounded_return = ∏(1 + r_i) - 1.0
+    - This metric is strictly diagnostic for historical descriptive comparison. It is NOT an equity curve,
+      realized account return, or non-overlapping investment-period return.
+    - Overlapping forward-return windows may exist across evaluation points when evaluation dates are closer
+      together than the forward horizon, so this metric must NOT be interpreted as compounded live or realized portfolio performance.
     """
     if horizons is None:
         horizons = DEFAULT_HORIZONS
@@ -596,11 +603,11 @@ def aggregate_portfolio_results(
             positive_count = sum(1 for r in valid_returns if r > 0)
             hit_rate = round(positive_count / num_valid, 4)
 
-            # Cumulative compounding: ∏(1 + r_i) - 1
+            # Sequential compounding: ∏(1 + r_i) - 1
             cum_factor = 1.0
             for r in valid_returns:
                 cum_factor *= 1.0 + r
-            cum_compounded_return = round(cum_factor - 1.0, 6)
+            seq_compounded_return = round(cum_factor - 1.0, 6)
         else:
             mean_ret = None
             median_ret = None
@@ -608,7 +615,7 @@ def aggregate_portfolio_results(
             min_ret = None
             max_ret = None
             hit_rate = None
-            cum_compounded_return = None
+            seq_compounded_return = None
 
         horizon_metrics[h] = {
             "valid_evaluation_points": num_valid,
@@ -618,7 +625,7 @@ def aggregate_portfolio_results(
             "min": min_ret,
             "max": max_ret,
             "hit_rate": hit_rate,
-            "cumulative_compounded_return": cum_compounded_return,
+            "sequential_compounded_return": seq_compounded_return,
         }
 
     return {

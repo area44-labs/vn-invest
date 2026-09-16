@@ -239,6 +239,32 @@ class TestPortfolioConstruction(unittest.TestCase):
         self.assertNotIn("LOW_VOL", selected_symbols)
         self.assertIn("LOW_VOL", eval_res.excluded_non_executable)
 
+    def test_universe_with_none_stock_raises_value_error(self) -> None:
+        universe_corrupted = {
+            "AAA": self.df_aaa,
+            "NONE_STOCK": None,
+        }
+        cfg = PortfolioConfig()
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=universe_corrupted,  # type: ignore[arg-type]
+                config=cfg,
+            )
+
+    def test_universe_with_empty_stock_raises_value_error(self) -> None:
+        universe_corrupted = {
+            "AAA": self.df_aaa,
+            "EMPTY_STOCK": pd.DataFrame(),
+        }
+        cfg = PortfolioConfig()
+        with self.assertRaises(ValueError):
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=universe_corrupted,
+                config=cfg,
+            )
+
     def test_empty_portfolio_when_no_candidates_qualify(self) -> None:
         cfg = PortfolioConfig(
             min_signal_score=99.0,  # Unreasonably high threshold
@@ -521,8 +547,9 @@ class TestPortfolioAggregation(unittest.TestCase):
         # hit rate = 1 positive out of 2 = 0.5
         self.assertEqual(h5["hit_rate"], 0.5)
 
-        # Cumulative compounding: (1 + 0.10) * (1 - 0.05) - 1 = 1.10 * 0.95 - 1 = 1.045 - 1 = 0.045
-        self.assertAlmostEqual(h5["cumulative_compounded_return"], 0.045, places=5)
+        # Sequential compounding: (1 + 0.10) * (1 - 0.05) - 1 = 1.10 * 0.95 - 1 = 1.045 - 1 = 0.045
+        self.assertIn("sequential_compounded_return", h5)
+        self.assertAlmostEqual(h5["sequential_compounded_return"], 0.045, places=5)
 
 
 class TestPortfolioIntegration(unittest.TestCase):
