@@ -8,17 +8,21 @@ import pandas as pd
 from scripts.lib.backtest import (
     BacktestResult,
     BacktestSignal,
+    ComponentEvaluationResult,
     ForwardOutcome,
     WalkForwardResult,
     aggregate_backtest_results,
     calculate_as_of_market_breadth,
     evaluate_forward_outcomes,
+    evaluate_signal_components,
     generate_walk_forward_dates,
     get_as_of_dataset,
     run_backtest_for_symbol,
     run_backtest_for_universe,
     run_walk_forward_backtest,
 )
+from scripts.lib.recommendation import generate_recommendation
+from scripts.lib.regime import detect_market_regime
 
 
 def math_sin(x: float) -> float:
@@ -985,6 +989,287 @@ class TestBacktestFramework(unittest.TestCase):
                 df_stock=self.df_stock,
                 symbol="TCB",
             )
+
+    # --- PR #88 Signal Component Evaluation Unit Tests ---
+
+    def test_comp_1_component_decomposition(self):
+        """Test Comp 1: Signal component decomposition returns Trend, Momentum, Volume, RS, and Divergence scores matching production recommendation engine."""
+        eval_d = self.df_stock["date"].iloc[50]
+
+        comp_res = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        self.assertIsInstance(comp_res, ComponentEvaluationResult)
+        obs_map = {o.component: o for o in comp_res.observations if o.horizon == 5}
+
+        # Validate all 5 production signal components exist
+        expected_comps = ["trend", "momentum", "volume", "relative_strength", "divergence"]
+        for c in expected_comps:
+            self.assertIn(c, obs_map)
+
+        # Compare directly with production recommendation engine
+        df_pit = get_as_of_dataset(self.df_stock, eval_d)
+        df_vn_pit = get_as_of_dataset(self.df_vnindex, eval_d)
+        df_vn30_pit = get_as_of_dataset(self.df_vn30, eval_d)
+
+        regime_info = detect_market_regime(df_vnindex=df_vn_pit, df_vn30=df_vn30_pit)
+        rec = generate_recommendation(
+            symbol="TCB",
+            company_name="",
+            sector="",
+            exchange="HOSE",
+            df_stock=df_pit,
+            market_regime_info=regime_info,
+            df_vnindex=df_vn_pit,
+            data_as_of=eval_d,
+        )
+
+        prod_comps = rec["score_components"]
+        for c in expected_comps:
+            self.assertEqual(obs_map[c].component_score, prod_comps[c])
+
+    def test_comp_2_same_evaluation_dates(self):
+        """Test Comp 2: All signal components are evaluated on the EXACT SAME evaluation dates."""
+        eval_dates = [
+            self.df_stock["date"].iloc[50],
+            self.df_stock["date"].iloc[60],
+        ]
+
+        comp_res = evaluate_signal_components(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        expected_comps = ["trend", "momentum", "volume", "relative_strength", "divergence"]
+
+        for eval_d in eval_dates:
+            for c in expected_comps:
+                c_obs = [
+                    o
+                    for o in comp_res.observations
+                    if o.evaluation_date == eval_d and o.component == c and o.horizon == 5
+                ]
+                self.assertEqual(len(c_obs), 1)
+
+    def test_comp_3_same_forward_outcomes(self):
+        """Test Comp 3: All signal components use the EXACT SAME forward outcome for each (evaluation_date, horizon)."""
+        eval_d = self.df_stock["date"].iloc[50]
+
+        comp_res = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            horizons=[5, 10, 20],
+        )
+
+        for h in [5, 10, 20]:
+            fwd_rets = [
+                o.forward_return
+                for o in comp_res.observations
+                if o.horizon == h and o.evaluation_date == eval_d
+            ]
+            # All 5 components must share identical forward return value at horizon h
+            self.assertEqual(len(fwd_rets), 5)
+            self.assertEqual(len(set(fwd_rets)), 1)
+
+    def test_comp_4_no_lookahead_stock_mutation(self):
+        """Test Comp 4: Mutating stock data strictly AFTER T does not alter component scores at T."""
+        eval_d = self.df_stock["date"].iloc[60]
+
+        res_orig = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        df_mut = self.df_stock.copy()
+        post_t = df_mut["date"] > eval_d
+        df_mut.loc[post_t, ["open", "high", "low", "close"]] *= 100.0
+
+        res_mut = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=df_mut,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        orig_scores = {
+            o.component: o.component_score for o in res_orig.observations if o.horizon == 5
+        }
+        mut_scores = {
+            o.component: o.component_score for o in res_mut.observations if o.horizon == 5
+        }
+
+        self.assertEqual(orig_scores, mut_scores)
+
+    def test_comp_5_no_lookahead_market_mutation(self):
+        """Test Comp 5: Mutating market-level data (VNINDEX, VN30) strictly AFTER T does not alter component scores at T."""
+        eval_d = self.df_stock["date"].iloc[60]
+
+        res_orig = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        df_vn_mut = self.df_vnindex.copy()
+        df_vn_mut.loc[df_vn_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= 0.01
+
+        df_30_mut = self.df_vn30.copy()
+        df_30_mut.loc[df_30_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= 0.01
+
+        res_mut = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=df_vn_mut,
+            df_vn30=df_30_mut,
+        )
+
+        orig_scores = {
+            o.component: o.component_score for o in res_orig.observations if o.horizon == 5
+        }
+        mut_scores = {
+            o.component: o.component_score for o in res_mut.observations if o.horizon == 5
+        }
+
+        self.assertEqual(orig_scores, mut_scores)
+
+    def test_comp_6_future_row_physically_before_t_fails_closed(self):
+        """Test Comp 6: Component evaluation fails closed if future row (> T) is physically placed before T."""
+        df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
+        eval_d = df_normal["date"].iloc[20]
+
+        df_misordered = pd.concat(
+            [
+                df_normal.iloc[:18],
+                df_normal.iloc[30:31],  # Future row physically placed before T
+                df_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
+
+        with self.assertRaises(ValueError):
+            evaluate_signal_components(
+                evaluation_dates=[eval_d],
+                df_stock=df_misordered,
+                symbol="TCB",
+            )
+
+    def test_comp_7_deterministic_rerun(self):
+        """Test Comp 7: Running component evaluation twice produces identical observations and aggregate metrics."""
+        eval_dates = [
+            self.df_stock["date"].iloc[50],
+            self.df_stock["date"].iloc[60],
+        ]
+
+        res1 = evaluate_signal_components(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        res2 = evaluate_signal_components(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+
+    def test_comp_8_missing_and_invalid_data_handling(self):
+        """Test Comp 8: Missing/invalid component inputs produce None score without crash or silent corruption."""
+        df_short = self.df_stock.iloc[:20].copy()  # Only 20 sessions (minimal history)
+        eval_d = df_short["date"].iloc[-1]
+
+        # In short history without benchmark, relative_strength component score will be None
+        comp_res = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=df_short,
+            symbol="TCB",
+            df_vnindex=None,
+            min_history=20,
+        )
+
+        rs_obs = [
+            o
+            for o in comp_res.observations
+            if o.component == "relative_strength" and o.horizon == 5
+        ]
+        self.assertEqual(len(rs_obs), 1)
+        self.assertIsNone(rs_obs[0].component_score)
+        self.assertIsNone(rs_obs[0].score_bucket)
+
+    def test_comp_9_production_regression(self):
+        """Test Comp 9: Production recommendation functions preserve 100% exact output on fixtures."""
+        df_pit = get_as_of_dataset(self.df_stock, self.evaluation_date)
+        df_vn_pit = get_as_of_dataset(self.df_vnindex, self.evaluation_date)
+        df_vn30_pit = get_as_of_dataset(self.df_vn30, self.evaluation_date)
+
+        regime_info = detect_market_regime(df_vnindex=df_vn_pit, df_vn30=df_vn30_pit)
+
+        rec = generate_recommendation(
+            symbol="TCB",
+            company_name="Techcombank",
+            sector="Banking",
+            exchange="HOSE",
+            df_stock=df_pit,
+            market_regime_info=regime_info,
+            df_vnindex=df_vn_pit,
+            data_as_of=self.evaluation_date,
+        )
+
+        # Verify production schema keys and version
+        self.assertEqual(rec["model_version"], "2.0")
+        self.assertIn("score_components", rec)
+        self.assertIn("signal_score", rec)
+        self.assertIn("action", rec)
+        self.assertIn("confidence", rec)
+
+    def test_comp_10_horizon_semantics(self):
+        """Test Comp 10: Component evaluation observations pair correctly with exact T+N forward outcome formula."""
+        eval_d = self.df_stock["date"].iloc[50]  # T = index 50
+
+        comp_res = evaluate_signal_components(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            horizons=[5, 10, 20],
+        )
+
+        p_T = self.df_stock["close"].iloc[50]
+        p_T5 = self.df_stock["close"].iloc[55]
+        p_T10 = self.df_stock["close"].iloc[60]
+        p_T20 = self.df_stock["close"].iloc[70]
+
+        expected_ret5 = round((p_T5 / p_T) - 1.0, 6)
+        expected_ret10 = round((p_T10 / p_T) - 1.0, 6)
+        expected_ret20 = round((p_T20 / p_T) - 1.0, 6)
+
+        obs_5 = next(o for o in comp_res.observations if o.horizon == 5)
+        obs_10 = next(o for o in comp_res.observations if o.horizon == 10)
+        obs_20 = next(o for o in comp_res.observations if o.horizon == 20)
+
+        self.assertAlmostEqual(obs_5.forward_return, expected_ret5, places=5)
+        self.assertAlmostEqual(obs_10.forward_return, expected_ret10, places=5)
+        self.assertAlmostEqual(obs_20.forward_return, expected_ret20, places=5)
 
 
 if __name__ == "__main__":
