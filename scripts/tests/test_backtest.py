@@ -1263,9 +1263,9 @@ class TestBacktestFramework(unittest.TestCase):
         expected_ret10 = round((p_T10 / p_T) - 1.0, 6)
         expected_ret20 = round((p_T20 / p_T) - 1.0, 6)
 
-        obs_5 = [o for o in comp_res.observations if o.horizon == 5][0]
-        obs_10 = [o for o in comp_res.observations if o.horizon == 10][0]
-        obs_20 = [o for o in comp_res.observations if o.horizon == 20][0]
+        obs_5 = next(o for o in comp_res.observations if o.horizon == 5)
+        obs_10 = next(o for o in comp_res.observations if o.horizon == 10)
+        obs_20 = next(o for o in comp_res.observations if o.horizon == 20)
 
         self.assertAlmostEqual(obs_5.forward_return, expected_ret5, places=5)
         self.assertAlmostEqual(obs_10.forward_return, expected_ret10, places=5)
