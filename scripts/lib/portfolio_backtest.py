@@ -181,7 +181,7 @@ class PortfolioConfig:
 
         for act in self.allowed_actions:
             if not isinstance(act, str) or not act.strip():
-                raise ValueError(f"allowed_actions contains invalid action: {act}")  # noqa: TRY004
+                raise ValueError(f"allowed_actions contains invalid action: {act}")
 
 
 def validate_portfolio_weights(weights: list[float]) -> None:
