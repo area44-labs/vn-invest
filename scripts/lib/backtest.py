@@ -1586,15 +1586,10 @@ def aggregate_regime_evaluation_results(
             valid_rets = [o.forward_return for o in avail_obs if o.forward_return is not None]
             stats = calculate_return_stats(valid_rets)
 
-            hit_rate = None
+            positive_return_rate = None
             if valid_rets:
-                if reg in ["STRONG_BULL", "BULL"]:
-                    hits = sum(1 for r in valid_rets if r > 0)
-                elif reg in ["BEAR", "PANIC"]:
-                    hits = sum(1 for r in valid_rets if r < 0)
-                else:  # DEFENSIVE or other
-                    hits = sum(1 for r in valid_rets if r >= 0)
-                hit_rate = round(hits / len(valid_rets), 4)
+                pos_count = sum(1 for r in valid_rets if r > 0)
+                positive_return_rate = round(pos_count / len(valid_rets), 4)
 
             std_dev = None
             if len(valid_rets) > 1:
@@ -1611,7 +1606,7 @@ def aggregate_regime_evaluation_results(
                 "std": std_dev,
                 "min": stats["min"],
                 "max": stats["max"],
-                "hit_rate": hit_rate,
+                "positive_return_rate": positive_return_rate,
             }
 
     return {
@@ -1669,14 +1664,11 @@ def evaluate_market_regimes(
         if not evaluation_dates:
             raise ValueError("evaluation_dates list cannot be empty.")
 
+        from scripts.lib.portfolio_backtest import _parse_canonical_date
+
         eval_dates = []
         for d in evaluation_dates:
-            try:
-                eval_dates.append(pd.to_datetime(d).strftime("%Y-%m-%d"))
-            except (ValueError, TypeError) as err:
-                raise ValueError(
-                    f"Invalid evaluation date format in evaluation_dates '{d}': {err}"
-                ) from err
+            eval_dates.append(_parse_canonical_date(d))
 
         if len(eval_dates) != len(set(eval_dates)):
             raise ValueError("Provided evaluation_dates list contains duplicate entries.")
@@ -1696,12 +1688,9 @@ def evaluate_market_regimes(
         # 2. Point-in-time VN30 data slicing (<= T)
         df_vn30_clean_as_of = None
         if df_vn30 is not None and not df_vn30.empty:
-            try:
-                df_vn30_as_of = get_as_of_dataset(df_vn30, target_d)
-                df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
-                if val_30["status"] == "INSUFFICIENT":
-                    df_vn30_clean_as_of = None
-            except ValueError:
+            df_vn30_as_of = get_as_of_dataset(df_vn30, target_d)
+            df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+            if val_30["status"] == "INSUFFICIENT":
                 df_vn30_clean_as_of = None
 
         # 3. Market breadth as-of T

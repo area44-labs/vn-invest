@@ -1894,14 +1894,16 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
         self.assertEqual(sb_5["available_forward_outcome_count"], 2)
         self.assertEqual(sb_5["unavailable_forward_outcome_count"], 1)
         self.assertAlmostEqual(sb_5["mean"], 0.02, places=4)
-        self.assertEqual(sb_5["hit_rate"], 1.0)  # Both available returns > 0
+        self.assertEqual(sb_5["positive_return_rate"], 1.0)  # Both available returns > 0
 
         bear_5 = agg["by_regime"]["BEAR"][5]
         self.assertEqual(bear_5["observation_count"], 1)
         self.assertEqual(bear_5["available_forward_outcome_count"], 1)
         self.assertEqual(bear_5["unavailable_forward_outcome_count"], 0)
         self.assertAlmostEqual(bear_5["mean"], -0.04, places=4)
-        self.assertEqual(bear_5["hit_rate"], 1.0)  # Return < 0 in BEAR regime -> hit
+        self.assertEqual(
+            bear_5["positive_return_rate"], 0.0
+        )  # Return -0.04 is not > 0 -> positive_return_rate = 0.0
 
     def test_regime_val_9_insufficient_history(self):
         """Test Regime Val 9: Insufficient market history (< 20 sessions) preserves detect_market_regime insufficient result."""
@@ -1924,6 +1926,89 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
             self.assertEqual(obs.regime, "DEFENSIVE")
             self.assertEqual(obs.regime_score, 50.0)
             self.assertEqual(obs.confidence, 0.40)
+
+    def test_regime_val_10_vn30_temporal_violations_fail_closed(self):
+        """Test Regime Val 10: Supplied VN30 with duplicate, unsorted, misordered future row, or missing T raises ValueError."""
+        eval_d = self.df_vnindex["date"].iloc[50]
+
+        # 1. Duplicate dates in VN30
+        df_vn30_dup = self.df_vn30.copy()
+        df_vn30_dup.iloc[5] = df_vn30_dup.iloc[4]
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(
+                df_vnindex=self.df_vnindex,
+                evaluation_dates=[eval_d],
+                df_vn30=df_vn30_dup,
+            )
+
+        # 2. Unsorted dates in VN30
+        df_vn30_unsorted = self.df_vn30.copy()
+        tmp = df_vn30_unsorted.iloc[10].copy()
+        df_vn30_unsorted.iloc[10] = df_vn30_unsorted.iloc[12]
+        df_vn30_unsorted.iloc[12] = tmp
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(
+                df_vnindex=self.df_vnindex,
+                evaluation_dates=[eval_d],
+                df_vn30=df_vn30_unsorted,
+            )
+
+        # 3. Misordered future row physically before T in VN30
+        df_vn30_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
+        df_vn30_misordered = pd.concat(
+            [
+                df_vn30_normal.iloc[:18],
+                df_vn30_normal.iloc[30:31],
+                df_vn30_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(
+                df_vnindex=self.df_vnindex,
+                evaluation_dates=[eval_d],
+                df_vn30=df_vn30_misordered,
+            )
+
+        # 4. Missing exact evaluation date T in VN30
+        df_vn30_different_dates = generate_synthetic_ohlcv(50, start_date="2026-01-01")
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(
+                df_vnindex=self.df_vnindex,
+                evaluation_dates=[eval_d],
+                df_vn30=df_vn30_different_dates,
+            )
+
+    def test_regime_val_11_omitted_vn30_supported(self):
+        """Test Regime Val 11: Omitted VN30 (df_vn30=None) continues to work according to production regime contract."""
+        eval_d = self.df_vnindex["date"].iloc[50]
+
+        res = evaluate_market_regimes(
+            df_vnindex=self.df_vnindex,
+            evaluation_dates=[eval_d],
+            df_vn30=None,
+        )
+        self.assertEqual(len(res.observations), 3)
+        self.assertIsNotNone(res.observations[0].regime)
+
+    def test_regime_val_12_evaluation_date_canonicalization_and_timezone_rejection(self):
+        """Test Regime Val 12: Canonical YYYY-MM-DD output, invalid formats, booleans, and timezone-aware inputs rejected."""
+        # 1. Timezone-aware timestamp input raises ValueError
+        tz_aware_ts = pd.Timestamp("2025-01-10 00:00:00", tz="UTC")
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(self.df_vnindex, evaluation_dates=[tz_aware_ts])
+
+        # 2. Timezone string input raises ValueError
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(self.df_vnindex, evaluation_dates=["2025-01-10T00:00:00+07:00"])
+
+        # 3. Boolean input raises ValueError
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(self.df_vnindex, evaluation_dates=[True])
+
+        # 4. Invalid date string raises ValueError
+        with self.assertRaises(ValueError):
+            evaluate_market_regimes(self.df_vnindex, evaluation_dates=["not-a-valid-date"])
 
 
 if __name__ == "__main__":
