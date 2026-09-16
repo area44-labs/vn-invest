@@ -9,12 +9,15 @@ from scripts.lib.backtest import (
     BacktestResult,
     BacktestSignal,
     ForwardOutcome,
+    WalkForwardResult,
     aggregate_backtest_results,
     calculate_as_of_market_breadth,
     evaluate_forward_outcomes,
+    generate_walk_forward_dates,
     get_as_of_dataset,
     run_backtest_for_symbol,
     run_backtest_for_universe,
+    run_walk_forward_backtest,
 )
 
 
@@ -528,6 +531,460 @@ class TestBacktestFramework(unittest.TestCase):
         # get_as_of_dataset <= T must fail closed with ValueError because input dates prior to T contain future observation / non-monotonic dates
         with self.assertRaises(ValueError):
             get_as_of_dataset(df_misordered, eval_d)
+
+    # --- Walk-Forward Validation Framework Unit Tests ---
+
+    def test_wf_a_chronological_evaluation(self):
+        """Test WF-A: Evaluation dates are processed in strict chronological order."""
+        eval_dates = [
+            self.df_stock["date"].iloc[50],
+            self.df_stock["date"].iloc[60],
+            self.df_stock["date"].iloc[70],
+        ]
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        self.assertIsInstance(wf_res, WalkForwardResult)
+        self.assertEqual(wf_res.evaluation_dates, eval_dates)
+        self.assertEqual(len(wf_res.results), 3)
+
+        res_dates = [r.signal.evaluation_date for r in wf_res.results]
+        self.assertEqual(res_dates, eval_dates)
+        self.assertEqual(res_dates, sorted(res_dates))
+
+    def test_wf_b_minimum_history(self):
+        """Test WF-B: Minimum history rule excludes dates with insufficient sessions."""
+        # Generating dates with min_history=50, step=10 on 100-day dataset
+        gen_dates = generate_walk_forward_dates(self.df_stock, min_history=50, step=10)
+
+        # Index 49 is the 50th session (first eligible)
+        expected_first = self.df_stock["date"].iloc[49]
+        self.assertEqual(gen_dates[0], expected_first)
+
+        # Confirm dates before min_history are omitted
+        early_date = self.df_stock["date"].iloc[20]
+        self.assertNotIn(early_date, gen_dates)
+
+        # Dataset with fewer sessions than min_history fails closed
+        df_short = self.df_stock.iloc[:30].copy()
+        with self.assertRaises(ValueError):
+            generate_walk_forward_dates(df_short, min_history=50)
+
+    def test_wf_c_exact_pit_boundary(self):
+        """Test WF-C: Exact Point-In-Time (PIT) boundary verification at T."""
+        eval_d = self.df_stock["date"].iloc[55]
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        sig = wf_res.results[0].signal
+        self.assertEqual(sig.evaluation_date, eval_d)
+
+        # Verify entry price matches exact price at evaluation date T (rounded to VND unit)
+        c_at_T = self.df_stock[self.df_stock["date"] == eval_d]["close"].iloc[0]
+        self.assertAlmostEqual(sig.entry_price, round(c_at_T, 0), places=2)
+
+    def test_wf_d_future_mutation_isolation(self):
+        """Test WF-D: Mutating post-T stock data leaves signal scores, confidence, regime, and components identical."""
+        eval_d = self.df_stock["date"].iloc[60]
+
+        res_orig = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        sig_orig = res_orig.results[0].signal
+
+        # Mutate post-T stock prices drastically (+1000%)
+        df_mut = self.df_stock.copy()
+        post_t_mask = df_mut["date"] > eval_d
+        df_mut.loc[post_t_mask, ["open", "high", "low", "close"]] *= 10.0
+
+        res_mut = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=df_mut,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        sig_mut = res_mut.results[0].signal
+
+        self.assertEqual(sig_orig.action, sig_mut.action)
+        self.assertEqual(sig_orig.signal_score, sig_mut.signal_score)
+        self.assertEqual(sig_orig.confidence, sig_mut.confidence)
+        self.assertEqual(sig_orig.market_regime, sig_mut.market_regime)
+        self.assertEqual(sig_orig.risk_adjusted_score, sig_mut.risk_adjusted_score)
+        self.assertEqual(sig_orig.score_components, sig_mut.score_components)
+
+        # Outcomes after T should differ
+        self.assertNotEqual(
+            res_orig.results[0].outcome.returns[5], res_mut.results[0].outcome.returns[5]
+        )
+
+    def test_wf_e_market_future_mutation_isolation(self):
+        """Test WF-E: Mutating market-level data (VNINDEX, VN30, breadth) after T leaves signal at T identical."""
+        eval_d = self.df_stock["date"].iloc[60]
+
+        universe_stock_map = {
+            "TCB": self.df_stock,
+            "ACB": generate_synthetic_ohlcv(num_days=100, base_price=25.0, daily_trend=0.001),
+        }
+
+        res_orig = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            universe_stock_map=universe_stock_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        sig_orig = next(r.signal for r in res_orig.results if r.signal.symbol == "TCB")
+
+        # Mutate post-T VNINDEX, VN30, and universe stock history
+        df_vnindex_mut = self.df_vnindex.copy()
+        df_vnindex_mut.loc[df_vnindex_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= (
+            0.10
+        )
+
+        df_vn30_mut = self.df_vn30.copy()
+        df_vn30_mut.loc[df_vn30_mut["date"] > eval_d, ["open", "high", "low", "close"]] *= 0.10
+
+        universe_mut = {}
+        for s, df_s in universe_stock_map.items():
+            df_m = df_s.copy()
+            df_m.loc[df_m["date"] > eval_d, ["open", "high", "low", "close"]] *= 5.0
+            universe_mut[s] = df_m
+
+        res_mut = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            universe_stock_map=universe_mut,
+            df_vnindex=df_vnindex_mut,
+            df_vn30=df_vn30_mut,
+        )
+        sig_mut = next(r.signal for r in res_mut.results if r.signal.symbol == "TCB")
+
+        self.assertEqual(sig_orig.action, sig_mut.action)
+        self.assertEqual(sig_orig.signal_score, sig_mut.signal_score)
+        self.assertEqual(sig_orig.confidence, sig_mut.confidence)
+        self.assertEqual(sig_orig.market_regime, sig_mut.market_regime)
+        self.assertEqual(sig_orig.risk_adjusted_score, sig_mut.risk_adjusted_score)
+
+    def test_wf_f_future_row_physically_before_t_fails_closed(self):
+        """Test WF-F: Misordered dataframe containing future row before T fails closed."""
+        df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
+        eval_d = df_normal["date"].iloc[20]
+
+        df_misordered = pd.concat(
+            [
+                df_normal.iloc[:18],
+                df_normal.iloc[30:31],  # Future row physically placed before T
+                df_normal.iloc[18:],
+            ],
+            ignore_index=True,
+        )
+
+        with self.assertRaises(ValueError):
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_d],
+                df_stock=df_misordered,
+                symbol="TCB",
+            )
+
+    def test_wf_g_deterministic_rerun(self):
+        """Test WF-G: Running walk-forward evaluation twice yields identical outputs."""
+        eval_dates = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[60]]
+
+        run1 = run_walk_forward_backtest(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        run2 = run_walk_forward_backtest(
+            evaluation_dates=eval_dates,
+            df_stock=self.df_stock,
+            symbol="TCB",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        self.assertEqual(run1.to_dict(), run2.to_dict())
+
+    def test_wf_h_forward_horizon_semantics(self):
+        """Test WF-H: Exact (Price[T+N] / Price[T]) - 1.0 forward return formula."""
+        eval_d = self.df_stock["date"].iloc[50]  # T = index 50
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            horizons=[5, 10, 20],
+        )
+
+        outcome = wf_res.results[0].outcome
+        p_T = self.df_stock["close"].iloc[50]
+        p_T5 = self.df_stock["close"].iloc[55]
+        expected_ret5 = round((p_T5 / p_T) - 1.0, 6)
+
+        self.assertAlmostEqual(outcome.returns[5], expected_ret5, places=5)
+
+    def test_wf_i_insufficient_future_data(self):
+        """Test WF-I: Evaluation date near end of history sets availability=False and returns=None."""
+        eval_d = self.df_stock["date"].iloc[-3]  # Only 2 future sessions remain
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            horizons=[5, 10, 20],
+        )
+
+        outcome = wf_res.results[0].outcome
+        self.assertFalse(outcome.availability[5])
+        self.assertIsNone(outcome.returns[5])
+
+    def test_wf_j_no_hidden_future_dependency(self):
+        """Test WF-J: Synthetic dataset with extreme post-T price shifts leaves signal at T completely unchanged."""
+        eval_d = self.df_stock["date"].iloc[50]
+
+        df_synth_a = generate_synthetic_ohlcv(num_days=80, start_date="2025-01-01", base_price=50.0)
+        df_synth_b = df_synth_a.copy()
+
+        # Invert future prices completely (> T)
+        post_t_mask = df_synth_b["date"] > eval_d
+        df_synth_b.loc[post_t_mask, ["open", "high", "low", "close"]] *= 0.01
+
+        res_a = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=df_synth_a,
+            symbol="TCB",
+        )
+        res_b = run_walk_forward_backtest(
+            evaluation_dates=[eval_d],
+            df_stock=df_synth_b,
+            symbol="TCB",
+        )
+
+        self.assertEqual(res_a.results[0].signal.to_dict(), res_b.results[0].signal.to_dict())
+
+    def test_wf_fail_closed_validation_errors(self):
+        """Test WF Fail-Closed: Unsorted, duplicate, or missing evaluation dates raise ValueError."""
+        # 1. Unsorted evaluation dates
+        dates_unsorted = [self.df_stock["date"].iloc[60], self.df_stock["date"].iloc[50]]
+        with self.assertRaises(ValueError):
+            run_walk_forward_backtest(
+                evaluation_dates=dates_unsorted,
+                df_stock=self.df_stock,
+                symbol="TCB",
+            )
+
+    def test_wf_min_history_explicit_evaluation_date_too_early(self):
+        """Test PR #87 Fix Test A1: Single stock explicit evaluation date with insufficient history <= T raises ValueError."""
+        # Date at index 3 has only 4 historical sessions <= T
+        early_date = self.df_stock["date"].iloc[3]
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[early_date],
+                df_stock=self.df_stock,
+                symbol="TCB",
+                min_history=5,
+            )
+        self.assertIn("insufficient history", str(cm.exception))
+        self.assertIn(early_date, str(cm.exception))
+        self.assertIn("TCB", str(cm.exception))
+
+    def test_wf_min_history_explicit_evaluation_date_exact_minimum(self):
+        """Test PR #87 Fix Test A2: Single stock explicit evaluation date with exact min_history sessions succeeds."""
+        # Date at index 4 has exactly 5 historical sessions <= T (indices 0, 1, 2, 3, 4)
+        exact_date = self.df_stock["date"].iloc[4]
+
+        wf_res = run_walk_forward_backtest(
+            evaluation_dates=[exact_date],
+            df_stock=self.df_stock,
+            symbol="TCB",
+            min_history=5,
+        )
+        self.assertEqual(wf_res.evaluation_dates, [exact_date])
+        self.assertEqual(len(wf_res.results), 1)
+
+    def test_wf_universe_none_stock_fails_closed(self):
+        """Test Fail-Closed 1: None stock value in universe_stock_map raises ValueError identifying symbol."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        univ_map = {"AAA": df_stock_a, "BBB": None}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(universe_stock_map=univ_map, min_history=10)
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("None", str(cm.exception))
+
+    def test_wf_universe_empty_stock_fails_closed(self):
+        """Test Fail-Closed 2: Empty DataFrame stock value in universe_stock_map raises ValueError identifying symbol."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        univ_map = {"AAA": df_stock_a, "BBB": pd.DataFrame()}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(universe_stock_map=univ_map, min_history=10)
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("empty", str(cm.exception))
+
+    def test_wf_universe_missing_exact_evaluation_date_fails_closed(self):
+        """Test Fail-Closed 3: Stock in universe lacking exact evaluation date T raises ValueError identifying symbol and date."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        # df_stock_b starts at a different start_date so exact evaluation date on day 5 of A does not exist in B
+        df_stock_b = generate_synthetic_ohlcv(50, start_date="2025-03-01")
+
+        eval_early_a = df_stock_a["date"].iloc[10]  # January 2025 date not in df_stock_b
+
+        univ_map = {"AAA": df_stock_a, "BBB": df_stock_b}
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_early_a],
+                universe_stock_map=univ_map,
+                min_history=5,
+            )
+        self.assertIn("BBB", str(cm.exception))
+        self.assertIn("failed point-in-time validation", str(cm.exception))
+
+    def test_wf_universe_invalid_unsorted_stock_fails_closed(self):
+        """Test Fail-Closed 4: Stock in universe with unsorted/duplicate dates fails closed with ValueError."""
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01")
+        df_stock_b = df_stock_a.copy()
+        # Create duplicate date in df_stock_b
+        df_stock_b.iloc[10] = df_stock_b.iloc[9]
+
+        univ_map = {"AAA": df_stock_a, "BBB": df_stock_b}
+        eval_d = df_stock_a["date"].iloc[50]
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_d],
+                universe_stock_map=univ_map,
+                min_history=10,
+            )
+        self.assertIn("BBB", str(cm.exception))
+
+    def test_wf_universe_explicit_dates_per_stock_min_history(self):
+        """Test PR #87 Fix Test B / Test 5: Universe explicit evaluation date fails closed if ANY stock lacks min_history."""
+        # Stock A starts at index 0 (2025-01-01) -> 50 sessions at index 49
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts later at 2025-02-15 -> on 2025-02-20, Stock B only has 4 sessions
+        df_stock_b = generate_synthetic_ohlcv(50, start_date="2025-02-15", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+        eval_d = df_stock_b["date"].iloc[
+            3
+        ]  # 4 sessions for STOCK_B <= eval_d, but >50 sessions for STOCK_A
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_d],
+                universe_stock_map=univ_map,
+                min_history=10,
+            )
+        self.assertIn("STOCK_B", str(cm.exception))
+        self.assertIn("insufficient history", str(cm.exception))
+        self.assertIn(eval_d, str(cm.exception))
+
+    def test_wf_universe_generated_dates_strict_contract(self):
+        """Test PR #87 Fix Test C: Generated universe dates strictly require ALL stocks to satisfy min_history."""
+        # Stock A starts 2025-01-01 (100 sessions)
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts 2025-01-01 (70 sessions)
+        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-01-01", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+
+        # Auto-generate dates with min_history=20, step=10 (end_date bounded to Stock B history)
+        end_d = df_stock_b["date"].iloc[-1]
+        wf_res = run_walk_forward_backtest(
+            universe_stock_map=univ_map,
+            min_history=20,
+            step=10,
+            end_date=end_d,
+        )
+
+        # Confirm every generated date satisfies min_history=20 for BOTH Stock A and Stock B
+        for gen_d in wf_res.evaluation_dates:
+            len_a = len(get_as_of_dataset(df_stock_a, gen_d))
+            len_b = len(get_as_of_dataset(df_stock_b, gen_d))
+            self.assertGreaterEqual(len_a, 20)
+            self.assertGreaterEqual(len_b, 20)
+
+    def test_wf_universe_generated_dates_stock_missing_candidate_date_fails_closed(self):
+        """Test Fail-Closed: If auto-generated candidate date is missing from a universe stock, fails closed with ValueError."""
+        # Stock A starts 2025-01-01
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts later at 2025-02-01
+        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-02-01", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+
+        # Auto-generate dates from Stock A starting in Jan 2025 -> candidate date in Jan fails in Stock B
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                universe_stock_map=univ_map,
+                min_history=20,
+                step=10,
+            )
+        self.assertIn("STOCK_B", str(cm.exception))
+        self.assertIn("failed point-in-time validation", str(cm.exception))
+
+    def test_wf_min_history_future_mutation_cannot_satisfy_min_history(self):
+        """Test PR #87 Fix Test D: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
+        # Date at index 3 has 4 sessions <= T
+        early_date = self.df_stock["date"].iloc[3]
+
+        # Duplicate/append future rows strictly AFTER early_date
+        df_future_mut = pd.concat([self.df_stock, self.df_stock.iloc[10:]], ignore_index=True)
+
+        # Evaluating at early_date still only sees 4 sessions <= T and MUST fail min_history=5
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[early_date],
+                df_stock=df_future_mut,
+                symbol="TCB",
+                min_history=5,
+            )
+        self.assertIn("insufficient history", str(cm.exception))
+
+        # 2. Duplicate evaluation dates
+        dates_dup = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[50]]
+        with self.assertRaises(ValueError):
+            run_walk_forward_backtest(
+                evaluation_dates=dates_dup,
+                df_stock=self.df_stock,
+                symbol="TCB",
+            )
+
+        # 3. Invalid evaluation date format
+        with self.assertRaises(ValueError):
+            run_walk_forward_backtest(
+                evaluation_dates=["invalid-date-format"],
+                df_stock=self.df_stock,
+                symbol="TCB",
+            )
+
+        # 4. Evaluation date not in dataset
+        with self.assertRaises(ValueError):
+            run_walk_forward_backtest(
+                evaluation_dates=["2010-01-01"],
+                df_stock=self.df_stock,
+                symbol="TCB",
+            )
 
 
 if __name__ == "__main__":
