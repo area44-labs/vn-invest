@@ -543,21 +543,25 @@ def evaluate_execution_eligibility(
     ):
         reasons.append(REASON_ZERO_OR_NEGATIVE_LIQUIDITY)
 
-    if config.min_avg_traded_value_bn is not None:
-        if avg_traded_value_bn is None or avg_traded_value_bn < config.min_avg_traded_value_bn:
-            reasons.append(REASON_BELOW_MIN_TRADED_VALUE)
+    if config.min_avg_traded_value_bn is not None and (
+        avg_traded_value_bn is None or avg_traded_value_bn < config.min_avg_traded_value_bn
+    ):
+        reasons.append(REASON_BELOW_MIN_TRADED_VALUE)
 
-    if config.min_avg_volume is not None:
-        if avg_volume is None or avg_volume < config.min_avg_volume:
-            reasons.append(REASON_BELOW_MIN_VOLUME)
+    if config.min_avg_volume is not None and (
+        avg_volume is None or avg_volume < config.min_avg_volume
+    ):
+        reasons.append(REASON_BELOW_MIN_VOLUME)
 
-    if config.min_price is not None:
-        if close_price is None or close_price < config.min_price:
-            reasons.append(REASON_BELOW_MIN_PRICE)
+    if config.min_price is not None and (close_price is None or close_price < config.min_price):
+        reasons.append(REASON_BELOW_MIN_PRICE)
 
-    if config.max_participation_rate is not None and estimated_participation_rate is not None:
-        if estimated_participation_rate > config.max_participation_rate:
-            reasons.append(REASON_EXCEEDS_MAX_PARTICIPATION)
+    if (
+        config.max_participation_rate is not None
+        and estimated_participation_rate is not None
+        and estimated_participation_rate > config.max_participation_rate
+    ):
+        reasons.append(REASON_EXCEEDS_MAX_PARTICIPATION)
 
     metrics = {
         "close_price": close_price,
