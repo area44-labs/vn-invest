@@ -93,6 +93,42 @@ REASON_INVALID_OHLCV_DATA = "invalid_ohlcv_data"
 REASON_ZERO_OR_NEGATIVE_LIQUIDITY = "zero_or_negative_liquidity"
 
 
+def _validate_config_number(
+    val: Any,
+    field_name: str,
+    min_val: float = 0.0,
+    max_val: float | None = None,
+    allow_zero: bool = True,
+    strict_int: bool = False,
+) -> None:
+    """Validate numeric configuration parameters deterministically, raising ValueError on failure."""
+    if val is None:
+        return
+
+    if isinstance(val, bool):
+        raise ValueError(f"{field_name} cannot be a boolean, got {val}")
+
+    if not isinstance(val, (int, float)):
+        raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")
+
+    if strict_int and not isinstance(val, int):
+        raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")
+
+    f = float(val)
+    if math.isnan(f) or math.isinf(f):
+        raise ValueError(f"{field_name} cannot be NaN or Inf, got {val}")
+
+    if allow_zero:
+        if f < min_val:
+            raise ValueError(f"{field_name} must be >= {min_val}, got {val}")
+    else:
+        if f <= min_val:
+            raise ValueError(f"{field_name} must be > {min_val}, got {val}")
+
+    if max_val is not None and f > max_val:
+        raise ValueError(f"{field_name} must be <= {max_val}, got {val}")
+
+
 @dataclass
 class ExecutionConfig:
     """Execution and liquidity assumption parameters for backtest signal evaluation layer.
@@ -122,40 +158,50 @@ class ExecutionConfig:
     lookback_window: int = 20
 
     def __post_init__(self) -> None:
-        if (
-            not isinstance(self.lookback_window, int)
-            or isinstance(self.lookback_window, bool)
-            or self.lookback_window <= 0
-        ):
-            raise ValueError(f"lookback_window must be an integer > 0, got {self.lookback_window}")
-
-        if self.min_avg_traded_value_bn is not None and self.min_avg_traded_value_bn < 0:
-            raise ValueError(
-                f"min_avg_traded_value_bn must be None or >= 0, got {self.min_avg_traded_value_bn}"
-            )
-
-        if self.min_avg_volume is not None and self.min_avg_volume < 0:
-            raise ValueError(f"min_avg_volume must be None or >= 0, got {self.min_avg_volume}")
-
-        if self.min_price is not None and self.min_price < 0:
-            raise ValueError(f"min_price must be None or >= 0, got {self.min_price}")
-
-        if self.max_participation_rate is not None and (
-            self.max_participation_rate <= 0 or self.max_participation_rate > 1.0
-        ):
-            raise ValueError(
-                f"max_participation_rate must be None or in (0, 1], got {self.max_participation_rate}"
-            )
-
-        if self.estimated_order_size_shares is not None and self.estimated_order_size_shares < 0:
-            raise ValueError(
-                f"estimated_order_size_shares must be None or >= 0, got {self.estimated_order_size_shares}"
-            )
-
-        if self.estimated_order_value_vnd is not None and self.estimated_order_value_vnd < 0:
-            raise ValueError(
-                f"estimated_order_value_vnd must be None or >= 0, got {self.estimated_order_value_vnd}"
-            )
+        _validate_config_number(
+            self.lookback_window,
+            "lookback_window",
+            min_val=1,
+            allow_zero=True,
+            strict_int=True,
+        )
+        _validate_config_number(
+            self.min_avg_traded_value_bn,
+            "min_avg_traded_value_bn",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.min_avg_volume,
+            "min_avg_volume",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.min_price,
+            "min_price",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.max_participation_rate,
+            "max_participation_rate",
+            min_val=0.0,
+            max_val=1.0,
+            allow_zero=False,
+        )
+        _validate_config_number(
+            self.estimated_order_size_shares,
+            "estimated_order_size_shares",
+            min_val=0.0,
+            allow_zero=True,
+        )
+        _validate_config_number(
+            self.estimated_order_value_vnd,
+            "estimated_order_value_vnd",
+            min_val=0.0,
+            allow_zero=True,
+        )
 
         if (
             self.estimated_order_size_shares is not None
@@ -1102,10 +1148,12 @@ def aggregate_backtest_results(
             }
 
     # Aggregate execution summary if execution eligibility is populated across signals
-    has_execution_data = any(res.signal.execution_eligibility is not None for res in results)
+    execution_evaluated_points = sum(
+        1 for res in results if res.signal.execution_eligibility is not None
+    )
     execution_summary: dict[str, Any] | None = None
 
-    if has_execution_data:
+    if execution_evaluated_points > 0:
         total_eval_points = len(results)
         exec_count = sum(
             1
@@ -1131,7 +1179,11 @@ def aggregate_backtest_results(
             and res.signal.execution_eligibility.status == STATUS_INVALID_MARKET_DATA
         )
 
-        exec_ratio = round(exec_count / total_eval_points, 4) if total_eval_points > 0 else None
+        exec_ratio = (
+            round(exec_count / execution_evaluated_points, 4)
+            if execution_evaluated_points > 0
+            else None
+        )
 
         traded_value_bn_list = [
             _safe_float(res.signal.execution_eligibility.metrics.get("avg_traded_value_bn"))
@@ -1151,6 +1203,7 @@ def aggregate_backtest_results(
 
         execution_summary = {
             "total_evaluation_points": total_eval_points,
+            "execution_evaluated_points": execution_evaluated_points,
             "executable_count": exec_count,
             "non_executable_count": non_exec_count,
             "insufficient_history_count": insufficient_hist_count,

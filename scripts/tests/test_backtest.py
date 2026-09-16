@@ -1305,6 +1305,38 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         with self.assertRaises(ValueError):
             ExecutionConfig(lookback_window=20.5)
 
+    def test_exec_config_validation_nan_and_inf(self):
+        """Test ExecutionConfig raises ValueError for NaN or Inf thresholds or order sizes."""
+        for bad_val in [float("nan"), float("inf"), float("-inf")]:
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_traded_value_bn=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_volume=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_price=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(max_participation_rate=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_size_shares=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_value_vnd=bad_val)
+
+    def test_exec_config_validation_bool_and_str(self):
+        """Test ExecutionConfig raises ValueError for boolean or string numeric configuration fields."""
+        for bad_val in [True, False, "1.0", "invalid"]:
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_traded_value_bn=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_avg_volume=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(min_price=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(max_participation_rate=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_size_shares=bad_val)
+            with self.assertRaises(ValueError):
+                ExecutionConfig(estimated_order_value_vnd=bad_val)
+
     def test_exec_config_validation_negative_thresholds(self):
         """Test ExecutionConfig raises ValueError for negative liquidity thresholds."""
         with self.assertRaises(ValueError):
@@ -1547,6 +1579,42 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         exec_sum = wf_res.aggregate.get("execution_summary")
         self.assertIsNotNone(exec_sum)
         self.assertEqual(exec_sum["total_evaluation_points"], 2)
+        self.assertEqual(exec_sum["execution_evaluated_points"], 2)
+        self.assertEqual(exec_sum["executable_count"], 2)
+        self.assertEqual(exec_sum["executable_ratio"], 1.0)
+
+    def test_exec_mixed_inputs_aggregation(self):
+        """Test aggregate_backtest_results() correctly handles mixed results (some with execution eligibility, some without)."""
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=50_000.0,
+            min_price=10_000.0,
+            lookback_window=20,
+        )
+
+        # 2 results WITH execution eligibility (both executable)
+        res_exec1 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[50]], execution_config=exec_cfg
+        )[0]
+        res_exec2 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[60]], execution_config=exec_cfg
+        )[0]
+
+        # 2 results WITHOUT execution eligibility (execution_config=None)
+        res_no_exec1 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[70]], execution_config=None
+        )[0]
+        res_no_exec2 = run_backtest_for_symbol(
+            "TCB", self.df_stock, [self.df_stock["date"].iloc[80]], execution_config=None
+        )[0]
+
+        mixed_results = [res_exec1, res_exec2, res_no_exec1, res_no_exec2]
+        summary = aggregate_backtest_results(mixed_results, horizons=[5, 10, 20])
+
+        exec_sum = summary.get("execution_summary")
+        self.assertIsNotNone(exec_sum)
+        self.assertEqual(exec_sum["total_evaluation_points"], 4)
+        self.assertEqual(exec_sum["execution_evaluated_points"], 2)
         self.assertEqual(exec_sum["executable_count"], 2)
         self.assertEqual(exec_sum["executable_ratio"], 1.0)
 
