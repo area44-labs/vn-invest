@@ -112,7 +112,7 @@ def _validate_config_number(
         raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")  # noqa: TRY004
 
     if strict_int and not isinstance(val, int):
-        raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")  # noqa: TRY004
+        raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")
 
     f = float(val)
     if math.isnan(f) or math.isinf(f):
