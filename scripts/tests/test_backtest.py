@@ -791,7 +791,7 @@ class TestBacktestFramework(unittest.TestCase):
             )
 
     def test_wf_min_history_explicit_evaluation_date_too_early(self):
-        """Test PR #87 Fix 1: Explicit evaluation date with insufficient history <= T raises ValueError."""
+        """Test PR #87 Fix Test A1: Single stock explicit evaluation date with insufficient history <= T raises ValueError."""
         # Date at index 3 has only 4 historical sessions <= T
         early_date = self.df_stock["date"].iloc[3]
 
@@ -804,9 +804,10 @@ class TestBacktestFramework(unittest.TestCase):
             )
         self.assertIn("insufficient history", str(cm.exception))
         self.assertIn(early_date, str(cm.exception))
+        self.assertIn("TCB", str(cm.exception))
 
     def test_wf_min_history_explicit_evaluation_date_exact_minimum(self):
-        """Test PR #87 Fix 2: Explicit evaluation date with exact min_history sessions succeeds."""
+        """Test PR #87 Fix Test A2: Single stock explicit evaluation date with exact min_history sessions succeeds."""
         # Date at index 4 has exactly 5 historical sessions <= T (indices 0, 1, 2, 3, 4)
         exact_date = self.df_stock["date"].iloc[4]
 
@@ -819,8 +820,53 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(wf_res.evaluation_dates, [exact_date])
         self.assertEqual(len(wf_res.results), 1)
 
+    def test_wf_universe_explicit_dates_per_stock_min_history(self):
+        """Test PR #87 Fix Test B: Universe explicit evaluation date fails closed if ANY stock lacks min_history."""
+        # Stock A starts at index 0 (2025-01-01) -> 50 sessions at index 49
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts later at 2025-02-15 -> on 2025-02-20, Stock B only has 4 sessions
+        df_stock_b = generate_synthetic_ohlcv(50, start_date="2025-02-15", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+        eval_d = df_stock_b["date"].iloc[
+            3
+        ]  # 4 sessions for STOCK_B <= eval_d, but >50 sessions for STOCK_A
+
+        with self.assertRaises(ValueError) as cm:
+            run_walk_forward_backtest(
+                evaluation_dates=[eval_d],
+                universe_stock_map=univ_map,
+                min_history=10,
+            )
+        self.assertIn("STOCK_B", str(cm.exception))
+        self.assertIn("insufficient history", str(cm.exception))
+        self.assertIn(eval_d, str(cm.exception))
+
+    def test_wf_universe_generated_dates_strict_contract(self):
+        """Test PR #87 Fix Test C: Generated universe dates strictly require ALL stocks to satisfy min_history."""
+        # Stock A starts 2025-01-01 (100 sessions)
+        df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
+        # Stock B starts 2025-02-01 (70 sessions)
+        df_stock_b = generate_synthetic_ohlcv(70, start_date="2025-02-01", base_price=30.0)
+
+        univ_map = {"STOCK_A": df_stock_a, "STOCK_B": df_stock_b}
+
+        # Auto-generate dates with min_history=20, step=10
+        wf_res = run_walk_forward_backtest(
+            universe_stock_map=univ_map,
+            min_history=20,
+            step=10,
+        )
+
+        # Confirm every generated date satisfies min_history=20 for BOTH Stock A and Stock B
+        for gen_d in wf_res.evaluation_dates:
+            len_a = len(get_as_of_dataset(df_stock_a, gen_d))
+            len_b = len(get_as_of_dataset(df_stock_b, gen_d))
+            self.assertGreaterEqual(len_a, 20)
+            self.assertGreaterEqual(len_b, 20)
+
     def test_wf_min_history_future_mutation_cannot_satisfy_min_history(self):
-        """Test PR #87 Fix 4: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
+        """Test PR #87 Fix Test D: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
         # Date at index 3 has 4 sessions <= T
         early_date = self.df_stock["date"].iloc[3]
 

@@ -864,14 +864,17 @@ def run_walk_forward_backtest(
     API Behavior:
     - Evaluation dates may be explicitly provided (`evaluation_dates`) or deterministically generated
       from dataset history via `generate_walk_forward_dates()`.
+    - `start_date` and `end_date` filter auto-generated evaluation dates. Explicit `evaluation_dates` are a caller-specified
+      list and are not filtered by `start_date`/`end_date`.
     - Supports single-stock evaluation (`df_stock` and `symbol`) or universe-wide evaluation (`universe_stock_map`).
-    - Explicit evaluation_dates must be chronologically ordered, unique, and valid dates existing in the dataset.
-    - `min_history` is strictly enforced for both generated evaluation dates and explicitly provided evaluation dates.
-      Each evaluation date T must have at least `min_history` valid historical sessions <= T.
+    - Explicit `evaluation_dates` must be chronologically ordered, unique, and valid dates existing in the dataset.
+    - `min_history` is strictly enforced per stock participating in the evaluation for both generated evaluation dates
+      and explicitly provided evaluation dates. Each evaluation date T must have at least `min_history` valid historical
+      sessions <= T for every stock in the universe.
 
     Fail-Closed Validation:
     - Unsorted, duplicate, or invalid evaluation dates raise explicit ValueError exceptions.
-    - Evaluation dates with fewer than `min_history` historical sessions <= T raise explicit ValueError exceptions.
+    - Evaluation dates with fewer than `min_history` historical sessions <= T for any stock in the evaluation raise explicit ValueError.
     - Fails closed if required datasets are missing or invalid.
     """
     if horizons is None:
@@ -880,26 +883,64 @@ def run_walk_forward_backtest(
     if min_history < 1:
         raise ValueError(f"min_history must be a positive integer >= 1, got {min_history}")
 
-    # Determine reference dataset for date generation or validation
-    ref_df = df_stock
-    if (ref_df is None or ref_df.empty) and universe_stock_map:
-        valid_entries = [v for v in universe_stock_map.values() if v is not None and not v.empty]
-        if valid_entries:
-            ref_df = valid_entries[0]
+    # Determine reference dataset and stock entries to validate
+    stocks_to_validate: list[tuple[str, pd.DataFrame]] = []
+
+    if universe_stock_map is not None:
+        if not universe_stock_map:
+            raise ValueError(
+                "Cannot run universe walk-forward evaluation: universe_stock_map is empty."
+            )
+        valid_entries = [
+            (sym, df_s)
+            for sym, df_s in universe_stock_map.items()
+            if df_s is not None and not df_s.empty
+        ]
+        if not valid_entries:
+            raise ValueError(
+                "Cannot run universe walk-forward evaluation: universe_stock_map contains no non-empty DataFrames."
+            )
+        stocks_to_validate = valid_entries
+        ref_df = valid_entries[0][1]
+    elif df_stock is not None and not df_stock.empty and symbol:
+        stocks_to_validate = [(symbol, df_stock)]
+        ref_df = df_stock
+    else:
+        raise ValueError(
+            "Must provide either 'universe_stock_map' or both 'symbol' and 'df_stock' for walk-forward evaluation."
+        )
 
     # Generate or validate evaluation_dates
     if evaluation_dates is None:
-        if ref_df is None or ref_df.empty:
-            raise ValueError(
-                "Cannot run walk-forward evaluation: neither evaluation_dates nor a valid stock dataset was provided."
-            )
-        eval_dates = generate_walk_forward_dates(
+        candidate_dates = generate_walk_forward_dates(
             df=ref_df,
             min_history=min_history,
             step=step,
             start_date=start_date,
             end_date=end_date,
         )
+
+        # Enforce strict universe contract for generated evaluation_dates:
+        # Keep candidate date T only if EVERY stock in universe has valid historical sessions >= min_history <= T
+        eval_dates = []
+        for cand_d in candidate_dates:
+            valid_for_all = True
+            for sym, df_s in stocks_to_validate:
+                try:
+                    df_pit = get_as_of_dataset(df_s, cand_d)
+                    if len(df_pit) < min_history:
+                        valid_for_all = False
+                        break
+                except ValueError:
+                    valid_for_all = False
+                    break
+            if valid_for_all:
+                eval_dates.append(cand_d)
+
+        if not eval_dates:
+            raise ValueError(
+                "No eligible walk-forward evaluation dates matched strict universe min_history criteria."
+            )
     else:
         if not evaluation_dates:
             raise ValueError("evaluation_dates list cannot be empty.")
@@ -921,15 +962,21 @@ def run_walk_forward_backtest(
         if sorted(eval_dates) != eval_dates:
             raise ValueError("Provided evaluation_dates list is not sorted in chronological order.")
 
-        # Enforce min_history for explicit evaluation_dates using point-in-time validation <= T
-        if ref_df is not None and not ref_df.empty:
-            for target_d in eval_dates:
-                df_pit = get_as_of_dataset(ref_df, target_d)
+        # Enforce min_history for explicit evaluation_dates per stock using PIT validation <= T
+        for target_d in eval_dates:
+            for sym, df_s in stocks_to_validate:
+                try:
+                    df_pit = get_as_of_dataset(df_s, target_d)
+                except ValueError as err:
+                    raise ValueError(
+                        f"Stock '{sym}' on evaluation date '{target_d}' failed point-in-time validation: {err}"
+                    ) from err
+
                 avail_sessions = len(df_pit)
                 if avail_sessions < min_history:
                     raise ValueError(
-                        f"Evaluation date '{target_d}' has insufficient history ({avail_sessions} sessions) "
-                        f"for min_history requirement ({min_history})."
+                        f"Stock '{sym}' on evaluation date '{target_d}' has insufficient history "
+                        f"({avail_sessions} sessions) for min_history requirement ({min_history})."
                     )
 
     # Execute backtest across dates
