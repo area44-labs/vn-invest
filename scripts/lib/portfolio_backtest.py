@@ -93,10 +93,10 @@ def _validate_numeric_param(
         return
 
     if isinstance(val, bool):
-        raise ValueError(f"{field_name} cannot be a boolean, got {val}")
+        raise ValueError(f"{field_name} cannot be a boolean, got {val}")  # noqa: TRY004
 
     if not isinstance(val, (int, float)):
-        raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")
+        raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")  # noqa: TRY004
 
     if strict_int and not isinstance(val, int):
         raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")
@@ -171,10 +171,10 @@ class PortfolioConfig:
         if not isinstance(self.require_executable, bool):
             raise ValueError(
                 f"require_executable must be a boolean, got {type(self.require_executable).__name__}"
-            )
+            )  # noqa: TRY004
 
         if not isinstance(self.allowed_actions, (list, tuple)):
-            raise ValueError("allowed_actions must be a list or tuple of action strings.")
+            raise ValueError("allowed_actions must be a list or tuple of action strings.")  # noqa: TRY004
 
         if not self.allowed_actions:
             raise ValueError("allowed_actions cannot be empty.")
@@ -193,7 +193,7 @@ def validate_portfolio_weights(weights: list[float]) -> None:
     - Never silently normalize or adjust invalid weights.
     """
     if not isinstance(weights, list):
-        raise ValueError(f"Weights must be a list, got {type(weights).__name__}")
+        raise ValueError(f"Weights must be a list, got {type(weights).__name__}")  # noqa: TRY004
 
     total_w = 0.0
     for idx, w in enumerate(weights):
@@ -403,10 +403,11 @@ def evaluate_portfolio_at_date(
             continue
 
         # Check min signal score threshold
-        if config.min_signal_score is not None:
-            if sig_score is None or sig_score < config.min_signal_score:
-                excluded_filtered.append(sym)
-                continue
+        if config.min_signal_score is not None and (
+            sig_score is None or sig_score < config.min_signal_score
+        ):
+            excluded_filtered.append(sym)
+            continue
 
         # Check min confidence threshold
         if config.min_confidence is not None and conf < config.min_confidence:
@@ -414,10 +415,9 @@ def evaluate_portfolio_at_date(
             continue
 
         # Check execution eligibility if require_executable is True
-        if config.require_executable:
-            if exec_elig is None or not exec_elig.is_executable:
-                excluded_non_executable.append(sym)
-                continue
+        if config.require_executable and (exec_elig is None or not exec_elig.is_executable):
+            excluded_non_executable.append(sym)
+            continue
 
         is_exec = exec_elig.is_executable if exec_elig is not None else None
 
