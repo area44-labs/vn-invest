@@ -13,6 +13,12 @@ import logging
 
 import pandas as pd
 
+from scripts.lib.backtest import (
+    RegimeEvaluationResult,
+    RegimeObservation,
+    evaluate_market_regimes,
+)
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -146,10 +152,3 @@ def detect_market_regime(
             "volume_20d_ratio": round(vol_ratio, 2),
         },
     }
-
-
-from scripts.lib.backtest import (  # noqa: E402
-    RegimeEvaluationResult,
-    RegimeObservation,
-    evaluate_market_regimes,
-)
