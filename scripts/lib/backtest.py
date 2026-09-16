@@ -69,7 +69,6 @@ import numpy as np
 import pandas as pd
 
 from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 DEFAULT_HORIZONS = [5, 10, 20]
@@ -948,6 +947,8 @@ def run_backtest_for_symbol(
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
 
         # 3. Market regime evaluation at T using production regime engine
+        from scripts.lib.regime import detect_market_regime
+
         market_regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,
@@ -1709,6 +1710,8 @@ def evaluate_market_regimes(
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_d)
 
         # 4. Production regime detection at T
+        from scripts.lib.regime import detect_market_regime
+
         regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,

@@ -16,10 +16,10 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "RegimeEvaluationResult",
+    "RegimeObservation",
     "detect_market_regime",
     "evaluate_market_regimes",
-    "RegimeObservation",
-    "RegimeEvaluationResult",
 ]
 
 

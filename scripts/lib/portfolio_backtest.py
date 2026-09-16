@@ -63,7 +63,6 @@ from scripts.lib.backtest import (
     get_as_of_dataset,
 )
 from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data
 
 
@@ -448,6 +447,8 @@ def evaluate_portfolio_at_date(
             df_vn30_clean_as_of = None
 
     breadth_ratio = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
+
+    from scripts.lib.regime import detect_market_regime
 
     market_regime_info = detect_market_regime(
         df_vnindex=df_vnindex_clean_as_of,
