@@ -48,11 +48,16 @@ Key Architectural Principles:
    5. Portfolio Backtesting (PR #91): Simulation of portfolio-level capital allocation, position sizing,
       slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
       (OUT OF SCOPE for this framework).
+   6. Historical Confidence Evaluation & Calibration: Point-in-time observational measurement of production
+      recommendation confidence values against observed forward outcomes (e.g., positive forward return rate,
+      calibration gap) strictly without formula recomputation, probability assumptions, or model modification.
 
    Important Disclaimers for Historical Evaluation & Market-Regime Validation:
    - Observational evaluation layer: market regime / return association is purely descriptive and observational.
    - Does NOT demonstrate causal relationships.
    - Does NOT prove statistical significance (no p-values, hypothesis tests, or multiple-testing corrections).
+   - Historical confidence calibration evaluates empirical alignment between heuristic confidence and observed forward outcomes;
+     it does NOT convert confidence into a probability or establish causality or profitability.
    - Does NOT represent portfolio performance or real-world trade execution or profitability.
    - Does NOT perform parameter, model, or regime threshold optimization (no threshold tuning from historical results).
    - Does NOT automatically prove economic value of any regime or component.
@@ -79,6 +84,18 @@ DEFAULT_SIGNAL_COMPONENTS = [
     "volume",
     "relative_strength",
     "divergence",
+]
+DEFAULT_CONFIDENCE_BUCKETS = [
+    "[0.0, 0.1)",
+    "[0.1, 0.2)",
+    "[0.2, 0.3)",
+    "[0.3, 0.4)",
+    "[0.4, 0.5)",
+    "[0.5, 0.6)",
+    "[0.6, 0.7)",
+    "[0.7, 0.8)",
+    "[0.8, 0.9)",
+    "[0.9, 1.0]",
 ]
 
 # Execution Eligibility Status Constants
@@ -1788,6 +1805,390 @@ def evaluate_market_regimes(
     )
 
     return RegimeEvaluationResult(
+        observations=observations,
+        aggregate=agg_summary,
+    )
+
+
+@dataclass
+class ConfidenceObservation:
+    """Individual production recommendation confidence observation at evaluation date T.
+
+    Represents the point-in-time recommendation output (action, confidence, signal_score, market_regime)
+    at evaluation date T paired with forward returns across evaluation horizons (> T).
+
+    Disclaimers:
+    - Confidence is documented as a deterministic heuristic model-confidence score, NOT a calibrated probability.
+    - A confidence value of 0.80 must NOT automatically be interpreted as an 80% probability of positive return.
+    - Historical calibration measures empirical alignment between confidence and observed forward outcomes.
+    - Does NOT establish causality or profitability.
+    """
+
+    evaluation_date: str
+    symbol: str
+    action: str
+    confidence: float
+    signal_score: float | None
+    market_regime: str | None
+    confidence_bucket: str = ""
+    forward_returns: dict[int, float | None] = field(default_factory=dict)
+    availability: dict[int, bool] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        expected_bucket = classify_confidence_bucket(self.confidence)
+        if self.confidence_bucket and self.confidence_bucket != expected_bucket:
+            raise ValueError(
+                f"Mismatched confidence_bucket '{self.confidence_bucket}' for confidence {self.confidence}. Expected '{expected_bucket}'."
+            )
+        self.confidence_bucket = expected_bucket
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "evaluation_date": self.evaluation_date,
+            "symbol": self.symbol,
+            "action": self.action,
+            "confidence": self.confidence,
+            "signal_score": self.signal_score,
+            "market_regime": self.market_regime,
+            "confidence_bucket": self.confidence_bucket,
+            "forward_returns": self.forward_returns,
+            "availability": self.availability,
+        }
+
+
+@dataclass
+class ConfidenceCalibrationResult:
+    """Container for historical confidence calibration evaluation results.
+
+    Contains raw granular observations mapping each recommendation to future forward returns,
+    plus descriptive aggregate metrics grouped by confidence bucket, horizon, and action.
+    """
+
+    observations: list[ConfidenceObservation]
+    aggregate: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observations": [o.to_dict() for o in self.observations],
+            "aggregate": self.aggregate,
+        }
+
+
+def classify_confidence_bucket(confidence: Any) -> str:
+    """Classify a production confidence value (0.0 to 1.0) into a canonical confidence bucket.
+
+    Canonical Buckets:
+    - '[0.0, 0.1)'
+    - '[0.1, 0.2)'
+    - '[0.2, 0.3)'
+    - '[0.3, 0.4)'
+    - '[0.4, 0.5)'
+    - '[0.5, 0.6)'
+    - '[0.6, 0.7)'
+    - '[0.7, 0.8)'
+    - '[0.8, 0.9)'
+    - '[0.9, 1.0]'
+
+    Fail-Closed Validation:
+    - Rejects None, booleans, non-numeric types, NaN, Inf, and values strictly outside [0.0, 1.0].
+    - Raises ValueError on invalid inputs.
+    """
+    if confidence is None or isinstance(confidence, bool):
+        raise ValueError(f"Invalid confidence value: {confidence}")
+
+    if not isinstance(confidence, (int, float)):
+        raise TypeError(
+            f"Confidence must be numeric, got {type(confidence).__name__}: {confidence}"
+        )
+
+    conf = float(confidence)
+    if math.isnan(conf) or math.isinf(conf):
+        raise ValueError(f"Confidence value cannot be NaN or Inf, got {confidence}")
+
+    if conf < 0.0 or conf > 1.0:
+        raise ValueError(f"Confidence value must be within [0.0, 1.0], got {confidence}")
+
+    if conf < 0.1:
+        return "[0.0, 0.1)"
+    if conf < 0.2:
+        return "[0.1, 0.2)"
+    if conf < 0.3:
+        return "[0.2, 0.3)"
+    if conf < 0.4:
+        return "[0.3, 0.4)"
+    if conf < 0.5:
+        return "[0.4, 0.5)"
+    if conf < 0.6:
+        return "[0.5, 0.6)"
+    if conf < 0.7:
+        return "[0.6, 0.7)"
+    if conf < 0.8:
+        return "[0.7, 0.8)"
+    if conf < 0.9:
+        return "[0.8, 0.9)"
+    return "[0.9, 1.0]"
+
+
+def aggregate_confidence_calibration_results(
+    observations: list[ConfidenceObservation],
+    horizons: list[int] | None = None,
+) -> dict[str, Any]:
+    """Aggregate confidence calibration observations into descriptive metrics.
+
+    Metrics calculated per confidence bucket and horizon:
+    - observation_count: total observations in this confidence bucket.
+    - available_outcome_count: count of observations with available forward return for horizon.
+    - unavailable_outcome_count: count of observations with missing/unavailable forward return.
+    - mean_forward_return: arithmetic mean forward return among available outcomes (or None).
+    - median_forward_return: median forward return among available outcomes (or None).
+    - positive_return_rate: proportion of available outcomes with forward return > 0 (or None).
+    - mean_confidence: mean predicted confidence for available outcomes (or None).
+    - calibration_gap: positive_return_rate - mean_confidence (or None).
+
+    Disclaimers & Notes:
+    - Binary success definition is strictly: forward_return > 0.
+    - Missing/unavailable outcomes are NOT filled with zero or treated as negative outcomes.
+    - Provides descriptive action-level breakdown as a separate grouping without altering primary success definition.
+    - Confidence is a heuristic model-confidence score, NOT a calibrated probability.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    total_obs_count = len(observations)
+
+    # Bucket metrics
+    by_bucket: dict[str, dict[int, dict[str, Any]]] = {}
+
+    for b_name in DEFAULT_CONFIDENCE_BUCKETS:
+        by_bucket[b_name] = {}
+        b_obs = [o for o in observations if o.confidence_bucket == b_name]
+        b_total_count = len(b_obs)
+
+        for h in horizons:
+            avail_obs = [
+                o
+                for o in b_obs
+                if o.availability.get(h, False) and o.forward_returns.get(h) is not None
+            ]
+            avail_count = len(avail_obs)
+            unavail_count = b_total_count - avail_count
+
+            if avail_count > 0:
+                rets = [o.forward_returns[h] for o in avail_obs if o.forward_returns[h] is not None]
+                confs = [o.confidence for o in avail_obs]
+
+                mean_ret = round(float(np.mean(rets)), 6)
+                med_ret = round(float(np.median(rets)), 6)
+
+                pos_hits = sum(1 for r in rets if r > 0)
+                pos_rate = round(pos_hits / avail_count, 4)
+
+                mean_conf = round(float(np.mean(confs)), 6)
+                calib_gap = round(pos_rate - mean_conf, 6)
+            else:
+                mean_ret = None
+                med_ret = None
+                pos_rate = None
+                mean_conf = None
+                calib_gap = None
+
+            by_bucket[b_name][h] = {
+                "observation_count": b_total_count,
+                "available_outcome_count": avail_count,
+                "unavailable_outcome_count": unavail_count,
+                "mean_forward_return": mean_ret,
+                "median_forward_return": med_ret,
+                "positive_return_rate": pos_rate,
+                "mean_confidence": mean_conf,
+                "calibration_gap": calib_gap,
+            }
+
+    # Action breakdown
+    actions = sorted({o.action for o in observations}) if observations else []
+    by_action: dict[str, dict[str, dict[int, dict[str, Any]]]] = {}
+
+    for act in actions:
+        by_action[act] = {}
+        act_obs = [o for o in observations if o.action == act]
+
+        for b_name in DEFAULT_CONFIDENCE_BUCKETS:
+            by_action[act][b_name] = {}
+            act_b_obs = [o for o in act_obs if o.confidence_bucket == b_name]
+            act_b_total = len(act_b_obs)
+
+            for h in horizons:
+                avail_obs = [
+                    o
+                    for o in act_b_obs
+                    if o.availability.get(h, False) and o.forward_returns.get(h) is not None
+                ]
+                avail_count = len(avail_obs)
+                unavail_count = act_b_total - avail_count
+
+                if avail_count > 0:
+                    rets = [
+                        o.forward_returns[h] for o in avail_obs if o.forward_returns[h] is not None
+                    ]
+                    confs = [o.confidence for o in avail_obs]
+
+                    mean_ret = round(float(np.mean(rets)), 6)
+                    med_ret = round(float(np.median(rets)), 6)
+
+                    pos_hits = sum(1 for r in rets if r > 0)
+                    pos_rate = round(pos_hits / avail_count, 4)
+
+                    mean_conf = round(float(np.mean(confs)), 6)
+                    calib_gap = round(pos_rate - mean_conf, 6)
+                else:
+                    mean_ret = None
+                    med_ret = None
+                    pos_rate = None
+                    mean_conf = None
+                    calib_gap = None
+
+                by_action[act][b_name][h] = {
+                    "observation_count": act_b_total,
+                    "available_outcome_count": avail_count,
+                    "unavailable_outcome_count": unavail_count,
+                    "mean_forward_return": mean_ret,
+                    "median_forward_return": med_ret,
+                    "positive_return_rate": pos_rate,
+                    "mean_confidence": mean_conf,
+                    "calibration_gap": calib_gap,
+                }
+
+    # Overall summary metrics across all buckets
+    overall: dict[int, dict[str, Any]] = {}
+    for h in horizons:
+        avail_obs = [
+            o
+            for o in observations
+            if o.availability.get(h, False) and o.forward_returns.get(h) is not None
+        ]
+        avail_count = len(avail_obs)
+        unavail_count = total_obs_count - avail_count
+
+        if avail_count > 0:
+            rets = [o.forward_returns[h] for o in avail_obs if o.forward_returns[h] is not None]
+            confs = [o.confidence for o in avail_obs]
+
+            mean_ret = round(float(np.mean(rets)), 6)
+            med_ret = round(float(np.median(rets)), 6)
+
+            pos_hits = sum(1 for r in rets if r > 0)
+            pos_rate = round(pos_hits / avail_count, 4)
+
+            mean_conf = round(float(np.mean(confs)), 6)
+            calib_gap = round(pos_rate - mean_conf, 6)
+        else:
+            mean_ret = None
+            med_ret = None
+            pos_rate = None
+            mean_conf = None
+            calib_gap = None
+
+        overall[h] = {
+            "observation_count": total_obs_count,
+            "available_outcome_count": avail_count,
+            "unavailable_outcome_count": unavail_count,
+            "mean_forward_return": mean_ret,
+            "median_forward_return": med_ret,
+            "positive_return_rate": pos_rate,
+            "mean_confidence": mean_conf,
+            "calibration_gap": calib_gap,
+        }
+
+    return {
+        "by_bucket": by_bucket,
+        "by_action": by_action,
+        "overall": overall,
+        "total_observations": total_obs_count,
+    }
+
+
+def evaluate_confidence_calibration(
+    evaluation_dates: list[str] | None = None,
+    df_stock: pd.DataFrame | None = None,
+    symbol: str = "",
+    universe_stock_map: dict[str, pd.DataFrame] | None = None,
+    candidate_metadata: list[dict] | None = None,
+    df_vnindex: pd.DataFrame | None = None,
+    df_vn30: pd.DataFrame | None = None,
+    company_name: str = "",
+    sector: str = "",
+    exchange: str = "HOSE",
+    horizons: list[int] | None = None,
+    min_history: int = 50,
+    step: int = 10,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    execution_config: ExecutionConfig | None = None,
+) -> ConfidenceCalibrationResult:
+    """Evaluate historical calibration between production recommendation confidence and observed forward outcomes.
+
+    Framework & Scope:
+    - Reads existing production recommendation confidence output directly without formula approximation or recomputation.
+    - Evaluates empirical alignment between confidence values and observed forward returns across chronological dates.
+    - Uses explicit deterministic success definition: success = forward_return > 0.
+    - Bounded strictly by point-in-time dataset slicing (<= T) and forward outcome evaluation (> T).
+    - Preserves all fail-closed temporal validation guarantees.
+
+    Disclaimers:
+    - Confidence is documented as a deterministic heuristic model-confidence score, NOT a calibrated probability.
+    - A confidence value of 0.80 must NOT automatically be interpreted as an 80% probability of positive return.
+    - Measures empirical calibration only; does NOT establish causality, profitability, or statistical significance.
+    - Does NOT alter production signal formulas, confidence weights, thresholds, or trade plans.
+
+    Returns:
+    `ConfidenceCalibrationResult` containing granular observations and descriptive aggregate metrics.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    wf_res = run_walk_forward_backtest(
+        evaluation_dates=evaluation_dates,
+        df_stock=df_stock,
+        symbol=symbol,
+        universe_stock_map=universe_stock_map,
+        candidate_metadata=candidate_metadata,
+        df_vnindex=df_vnindex,
+        df_vn30=df_vn30,
+        company_name=company_name,
+        sector=sector,
+        exchange=exchange,
+        horizons=horizons,
+        min_history=min_history,
+        step=step,
+        start_date=start_date,
+        end_date=end_date,
+        execution_config=execution_config,
+    )
+
+    observations: list[ConfidenceObservation] = []
+
+    for res in wf_res.results:
+        conf = res.signal.confidence
+        bucket = classify_confidence_bucket(conf)
+
+        obs = ConfidenceObservation(
+            evaluation_date=res.signal.evaluation_date,
+            symbol=res.signal.symbol,
+            action=res.signal.action,
+            confidence=conf,
+            signal_score=res.signal.signal_score,
+            market_regime=res.signal.market_regime,
+            confidence_bucket=bucket,
+            forward_returns=res.outcome.returns,
+            availability=res.outcome.availability,
+        )
+        observations.append(obs)
+
+    agg_summary = aggregate_confidence_calibration_results(
+        observations=observations,
+        horizons=horizons,
+    )
+
+    return ConfidenceCalibrationResult(
         observations=observations,
         aggregate=agg_summary,
     )

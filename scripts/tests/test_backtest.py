@@ -17,14 +17,19 @@ from scripts.lib.backtest import (
     BacktestResult,
     BacktestSignal,
     ComponentEvaluationResult,
+    ConfidenceCalibrationResult,
+    ConfidenceObservation,
     ExecutionConfig,
     ForwardOutcome,
     RegimeEvaluationResult,
     RegimeObservation,
     WalkForwardResult,
     aggregate_backtest_results,
+    aggregate_confidence_calibration_results,
     aggregate_regime_evaluation_results,
     calculate_as_of_market_breadth,
+    classify_confidence_bucket,
+    evaluate_confidence_calibration,
     evaluate_execution_eligibility,
     evaluate_forward_outcomes,
     evaluate_market_regimes,
@@ -2033,6 +2038,295 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
         # 8. Invalid date string -> rejected
         with self.assertRaises(ValueError):
             _parse_canonical_date("not-a-valid-date")
+
+
+class TestConfidenceCalibration(unittest.TestCase):
+    """Test suite verifying historical recommendation confidence calibration layer."""
+
+    def setUp(self):
+        self.df_stock = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=50.0, daily_trend=0.002
+        )
+        self.df_vnindex = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=1200.0, daily_trend=0.001
+        )
+        self.df_vn30 = generate_synthetic_ohlcv(
+            num_days=100, start_date="2025-01-01", base_price=1250.0, daily_trend=0.001
+        )
+
+    def test_classify_confidence_bucket_boundaries_and_invalid(self):
+        """Test boundary classification and fail-closed validation for confidence values."""
+        # Boundaries
+        self.assertEqual(classify_confidence_bucket(0.0), "[0.0, 0.1)")
+        self.assertEqual(classify_confidence_bucket(0.0999), "[0.0, 0.1)")
+        self.assertEqual(classify_confidence_bucket(0.1), "[0.1, 0.2)")
+        self.assertEqual(classify_confidence_bucket(0.1001), "[0.1, 0.2)")
+        self.assertEqual(classify_confidence_bucket(0.2), "[0.2, 0.3)")
+        self.assertEqual(classify_confidence_bucket(0.3), "[0.3, 0.4)")
+        self.assertEqual(classify_confidence_bucket(0.4), "[0.4, 0.5)")
+        self.assertEqual(classify_confidence_bucket(0.5), "[0.5, 0.6)")
+        self.assertEqual(classify_confidence_bucket(0.6), "[0.6, 0.7)")
+        self.assertEqual(classify_confidence_bucket(0.7), "[0.7, 0.8)")
+        self.assertEqual(classify_confidence_bucket(0.8), "[0.8, 0.9)")
+        self.assertEqual(classify_confidence_bucket(0.8999), "[0.8, 0.9)")
+        self.assertEqual(classify_confidence_bucket(0.9), "[0.9, 1.0]")
+        self.assertEqual(classify_confidence_bucket(0.95), "[0.9, 1.0]")
+        self.assertEqual(classify_confidence_bucket(1.0), "[0.9, 1.0]")
+
+        # Invalid confidence inputs fail closed
+        invalid_inputs = [
+            float("nan"),
+            float("inf"),
+            float("-inf"),
+            -0.01,
+            1.01,
+            None,
+            True,
+            False,
+            "0.5",
+            [0.5],
+        ]
+        for inv in invalid_inputs:
+            with self.assertRaises((ValueError, TypeError)):
+                classify_confidence_bucket(inv)
+
+    def test_confidence_observation_invariant_and_mismatch_validation(self):
+        """Test that ConfidenceObservation enforces the confidence/confidence_bucket invariant fail-closed."""
+        # 1. Matching or omitted confidence_bucket auto-populates canonically
+        obs = ConfidenceObservation(
+            evaluation_date="2025-01-10",
+            symbol="AAA",
+            action="BUY",
+            confidence=0.85,
+            signal_score=80.0,
+            market_regime="BULL",
+        )
+        self.assertEqual(obs.confidence_bucket, "[0.8, 0.9)")
+
+        # 2. Mismatched confidence_bucket raises ValueError fail-closed
+        with self.assertRaises(ValueError):
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=0.85,
+                signal_score=80.0,
+                market_regime="BULL",
+                confidence_bucket="[0.1, 0.2)",
+            )
+
+        # 3. Invalid confidence value in ConfidenceObservation fails closed
+        with self.assertRaises((ValueError, TypeError)):
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=1.5,
+                signal_score=80.0,
+                market_regime="BULL",
+            )
+
+    def test_calibration_gap_exact_calculation(self):
+        """Test exact calculation of mean confidence, positive return rate, and calibration gap."""
+        # 4 observations with confidence = 0.80 ([0.8, 0.9) bucket)
+        # Outcomes: 3 positive returns (> 0), 1 negative return (< 0)
+        # Positive return rate = 3/4 = 0.75
+        # Mean confidence = 0.80
+        # Calibration gap = 0.75 - 0.80 = -0.05
+        obs_list = [
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=0.80,
+                signal_score=75.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: 0.05},
+                availability={5: True},
+            ),
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="BBB",
+                action="BUY",
+                confidence=0.80,
+                signal_score=75.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: 0.03},
+                availability={5: True},
+            ),
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="CCC",
+                action="BUY",
+                confidence=0.80,
+                signal_score=75.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: 0.01},
+                availability={5: True},
+            ),
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="DDD",
+                action="BUY",
+                confidence=0.80,
+                signal_score=75.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: -0.02},
+                availability={5: True},
+            ),
+        ]
+
+        agg = aggregate_confidence_calibration_results(obs_list, horizons=[5])
+        bucket_stats = agg["by_bucket"]["[0.8, 0.9)"][5]
+
+        self.assertEqual(bucket_stats["observation_count"], 4)
+        self.assertEqual(bucket_stats["available_outcome_count"], 4)
+        self.assertEqual(bucket_stats["unavailable_outcome_count"], 0)
+        self.assertEqual(bucket_stats["positive_return_rate"], 0.75)
+        self.assertEqual(bucket_stats["mean_confidence"], 0.80)
+        self.assertAlmostEqual(bucket_stats["calibration_gap"], -0.05, places=5)
+        self.assertNotIn("brier_score", bucket_stats)
+        self.assertNotIn("observed_outcome_rate", bucket_stats)
+
+    def test_missing_outcomes_handling(self):
+        """Verify unavailable forward outcomes are omitted from return stats and not filled with zero or negative."""
+        obs_list = [
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=0.85,
+                signal_score=80.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: 0.10, 10: None},
+                availability={5: True, 10: False},
+            ),
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="BBB",
+                action="BUY",
+                confidence=0.85,
+                signal_score=80.0,
+                market_regime="BULL",
+                confidence_bucket="[0.8, 0.9)",
+                forward_returns={5: None, 10: None},
+                availability={5: False, 10: False},
+            ),
+        ]
+
+        agg = aggregate_confidence_calibration_results(obs_list, horizons=[5, 10])
+
+        # Horizon 5
+        h5_stats = agg["by_bucket"]["[0.8, 0.9)"][5]
+        self.assertEqual(h5_stats["observation_count"], 2)
+        self.assertEqual(h5_stats["available_outcome_count"], 1)
+        self.assertEqual(h5_stats["unavailable_outcome_count"], 1)
+        self.assertEqual(h5_stats["mean_forward_return"], 0.10)
+        self.assertEqual(h5_stats["positive_return_rate"], 1.0)
+        self.assertNotIn("brier_score", h5_stats)
+        self.assertNotIn("observed_outcome_rate", h5_stats)
+
+        # Horizon 10 (all unavailable)
+        h10_stats = agg["by_bucket"]["[0.8, 0.9)"][10]
+        self.assertEqual(h10_stats["observation_count"], 2)
+        self.assertEqual(h10_stats["available_outcome_count"], 0)
+        self.assertEqual(h10_stats["unavailable_outcome_count"], 2)
+        self.assertIsNone(h10_stats["mean_forward_return"])
+        self.assertIsNone(h10_stats["positive_return_rate"])
+        self.assertIsNone(h10_stats["calibration_gap"])
+        self.assertNotIn("brier_score", h10_stats)
+        self.assertNotIn("observed_outcome_rate", h10_stats)
+
+    def test_evaluate_confidence_calibration_end_to_end_and_determinism(self):
+        """Verify evaluate_confidence_calibration runs end-to-end, produces deterministic output, and serializes cleanly."""
+        dates = self.df_stock["date"].iloc[50:53].tolist()
+
+        res1 = evaluate_confidence_calibration(
+            evaluation_dates=dates,
+            df_stock=self.df_stock,
+            symbol="AAA",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+            min_history=50,
+        )
+
+        res2 = evaluate_confidence_calibration(
+            evaluation_dates=dates,
+            df_stock=self.df_stock,
+            symbol="AAA",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+            min_history=50,
+        )
+
+        # Determinism check
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+        self.assertIsInstance(res1, ConfidenceCalibrationResult)
+        self.assertEqual(len(res1.observations), 3)
+
+        dict_out = res1.to_dict()
+        self.assertIn("observations", dict_out)
+        self.assertIn("aggregate", dict_out)
+        self.assertIn("by_bucket", dict_out["aggregate"])
+        self.assertIn("by_action", dict_out["aggregate"])
+        self.assertIn("overall", dict_out["aggregate"])
+
+    def test_no_lookahead_and_temporal_validation(self):
+        """Verify temporal ordering and fail-closed validation for physically misordered future data."""
+        # Unsorted / misplaced future row prior to T must fail closed
+        df_corrupted = self.df_stock.copy()
+        # Swap rows to put future date earlier
+        row_0 = df_corrupted.iloc[0].copy()
+        df_corrupted.iloc[0] = df_corrupted.iloc[80]
+        df_corrupted.iloc[80] = row_0
+
+        dates = [self.df_stock["date"].iloc[50]]
+        with self.assertRaises(ValueError):
+            evaluate_confidence_calibration(
+                evaluation_dates=dates,
+                df_stock=df_corrupted,
+                symbol="AAA",
+            )
+
+    def test_production_confidence_preservation(self):
+        """Verify that calibration layer reads production confidence output directly without altering or recomputing it."""
+        dates = [self.df_stock["date"].iloc[50]]
+        res = evaluate_confidence_calibration(
+            evaluation_dates=dates,
+            df_stock=self.df_stock,
+            symbol="AAA",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        obs = res.observations[0]
+        # Directly call production generate_recommendation at T
+        df_as_of = get_as_of_dataset(self.df_stock, dates[0])
+        df_vn_as_of = get_as_of_dataset(self.df_vnindex, dates[0])
+        df_30_as_of = get_as_of_dataset(self.df_vn30, dates[0])
+
+        rec = generate_recommendation(
+            symbol="AAA",
+            company_name="",
+            sector="",
+            exchange="HOSE",
+            df_stock=df_as_of,
+            market_regime_info=detect_market_regime(df_vnindex=df_vn_as_of, df_vn30=df_30_as_of),
+            df_vnindex=df_vn_as_of,
+            data_as_of=dates[0],
+        )
+
+        # Confirm confidence in observation matches production recommendation engine exactly
+        self.assertEqual(obs.confidence, rec["confidence"])
+        self.assertEqual(obs.action, rec["action"])
+        self.assertEqual(obs.signal_score, rec["signal_score"])
 
 
 if __name__ == "__main__":
