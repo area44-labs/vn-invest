@@ -336,7 +336,30 @@ def _extract_market_metrics(
         m_metrics = {}
 
     vnindex_change_pct = m_metrics.get("vnindex_change_pct")
+    if vnindex_change_pct is not None:
+        if isinstance(vnindex_change_pct, bool) or not isinstance(vnindex_change_pct, (int, float)):
+            raise TypeError(
+                f"vnindex_change_pct must be numeric, got {type(vnindex_change_pct).__name__}"
+            )
+        f_vn = float(vnindex_change_pct)
+        if math.isnan(f_vn) or math.isinf(f_vn):
+            raise ValueError(f"vnindex_change_pct must be finite, got {f_vn}")
+        vnindex_change_pct = f_vn
+
     market_breadth_ratio = m_metrics.get("market_breadth_ratio")
+    if market_breadth_ratio is not None:
+        if isinstance(market_breadth_ratio, bool) or not isinstance(
+            market_breadth_ratio, (int, float)
+        ):
+            raise TypeError(
+                f"market_breadth_ratio must be numeric, got {type(market_breadth_ratio).__name__}"
+            )
+        f_b = float(market_breadth_ratio)
+        if math.isnan(f_b) or math.isinf(f_b):
+            raise ValueError(f"market_breadth_ratio must be finite, got {f_b}")
+        if not (0.0 <= f_b <= 1.0):
+            raise ValueError(f"market_breadth_ratio out of bounds [0.0, 1.0]: {f_b}")
+        market_breadth_ratio = f_b
 
     return regime, vnindex_change_pct, market_breadth_ratio
 
@@ -360,10 +383,16 @@ def extract_recommendation_metrics(
         raise TypeError(f"Recommendations must be a list, got {type(recs).__name__}")
 
     # 1. Validate each recommendation item
+    valid_actions = {"BUY", "WATCH", "HOLD", "SELL", "AVOID"}
     for idx, r in enumerate(recs):
         if not isinstance(r, dict):
             raise TypeError(
                 f"Recommendation item at index {idx} must be a dict, got {type(r).__name__}"
+            )
+        act = r.get("action")
+        if not isinstance(act, str) or isinstance(act, bool) or act not in valid_actions:
+            raise ValueError(
+                f"Recommendation item at index {idx} has missing or invalid action: {act}"
             )
 
     summary = payload.get("summary")
@@ -375,6 +404,11 @@ def extract_recommendation_metrics(
     if isinstance(total_scanned, bool) or not isinstance(total_scanned, int) or total_scanned < 0:
         raise ValueError(
             f"Invalid summary total_scanned: {total_scanned}. Must be non-boolean non-negative integer"
+        )
+
+    if total_scanned != len(recs):
+        raise ValueError(
+            f"Summary total_scanned ({total_scanned}) does not match recommendations list count ({len(recs)})"
         )
 
     action_counts = {}
@@ -393,10 +427,21 @@ def extract_recommendation_metrics(
         action_counts[act_key] = cnt
 
     sum_action_counts = sum(action_counts.values())
-    if sum_action_counts > total_scanned:
+    if sum_action_counts != total_scanned:
         raise ValueError(
-            f"Summary action counts sum ({sum_action_counts}) exceeds total_scanned ({total_scanned})"
+            f"Summary action counts sum ({sum_action_counts}) does not equal total_scanned ({total_scanned})"
         )
+
+    actual_action_counts = {act: 0 for act in valid_actions}
+    for r in recs:
+        actual_action_counts[r["action"]] += 1
+
+    for act, expected_cnt in action_counts.items():
+        actual_cnt = actual_action_counts[act]
+        if actual_cnt != expected_cnt:
+            raise ValueError(
+                f"Summary action count mismatch for {act}: summary={expected_cnt} vs actual={actual_cnt}"
+            )
 
     if total_scanned > 0:
         action_proportions = {
@@ -520,7 +565,7 @@ def evaluate_data_and_model_drift(
     """
     g_dir = generated_dir or DEFAULT_GENERATED_DIR
 
-    # 0. Validate baseline configuration parameters fail closed with exceptions
+    # 0. Validate baseline configuration parameters and thresholds fail closed with exceptions
     if isinstance(lookback_reports, bool) or not isinstance(lookback_reports, int):
         raise TypeError(
             f"lookback_reports must be an integer, got {type(lookback_reports).__name__}"
@@ -539,6 +584,74 @@ def evaluate_data_and_model_drift(
         raise ValueError(
             f"min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})"
         )
+
+    # Validate drift threshold configurations dynamically from module globals
+    thresh_configs = [
+        (
+            "DRIFT_THRESHOLD_PROCESSED_RATIO",
+            globals().get("DRIFT_THRESHOLD_PROCESSED_RATIO", DRIFT_THRESHOLD_PROCESSED_RATIO),
+        ),
+        (
+            "DRIFT_THRESHOLD_BREADTH_RATIO",
+            globals().get("DRIFT_THRESHOLD_BREADTH_RATIO", DRIFT_THRESHOLD_BREADTH_RATIO),
+        ),
+        (
+            "DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT",
+            globals().get("DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT", DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT),
+        ),
+        (
+            "DRIFT_THRESHOLD_ACTION_DISTRIBUTION",
+            globals().get(
+                "DRIFT_THRESHOLD_ACTION_DISTRIBUTION", DRIFT_THRESHOLD_ACTION_DISTRIBUTION
+            ),
+        ),
+        (
+            "DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION",
+            globals().get(
+                "DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION", DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION
+            ),
+        ),
+        (
+            "DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN",
+            globals().get("DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN", DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN),
+        ),
+        (
+            "DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN",
+            globals().get(
+                "DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN", DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
+            ),
+        ),
+        (
+            "DRIFT_THRESHOLD_CONFIDENCE_MEAN",
+            globals().get("DRIFT_THRESHOLD_CONFIDENCE_MEAN", DRIFT_THRESHOLD_CONFIDENCE_MEAN),
+        ),
+    ]
+    for thresh_name, thresh_tuple in thresh_configs:
+        if not isinstance(thresh_tuple, (tuple, list)) or len(thresh_tuple) != 2:
+            raise TypeError(
+                f"Threshold configuration {thresh_name} must be a tuple or list of length 2"
+            )
+        warn, fail = thresh_tuple
+        if (
+            isinstance(warn, bool)
+            or not isinstance(warn, (int, float))
+            or math.isnan(warn)
+            or math.isinf(warn)
+            or warn < 0
+        ):
+            raise ValueError(
+                f"Threshold configuration {thresh_name} warning value is invalid: {warn}"
+            )
+        if (
+            isinstance(fail, bool)
+            or not isinstance(fail, (int, float))
+            or math.isnan(fail)
+            or math.isinf(fail)
+            or fail < warn
+        ):
+            raise ValueError(
+                f"Threshold configuration {thresh_name} fail value ({fail}) must be >= warning value ({warn})"
+            )
 
     # Load current payload if not provided
     if current_payload is None:
@@ -1238,7 +1351,7 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
 
-            b_date = b_payload.get("data_as_of") or b_payload.get("source_date")
+            b_date = b_payload.get("data_as_of")
             if not is_canonical_yyyy_mm_dd(b_date):
                 obs = DriftObservation(
                     check_name="drift_history_artifact_format",
@@ -1487,9 +1600,11 @@ def evaluate_data_and_model_drift(
     drift_checks: list[DriftCheckResult] = []
 
     # 1. Processed ratio drift
+    proc_warn, proc_fail = globals().get(
+        "DRIFT_THRESHOLD_PROCESSED_RATIO", DRIFT_THRESHOLD_PROCESSED_RATIO
+    )
     curr_proc = current_metrics["processed_ratio"]
     proc_diff = round(abs(curr_proc - baseline_processed_ratio), 6)
-    proc_warn, proc_fail = DRIFT_THRESHOLD_PROCESSED_RATIO
     if proc_diff > proc_fail:
         proc_status = "FAIL"
     elif proc_diff > proc_warn:
@@ -1515,10 +1630,10 @@ def evaluate_data_and_model_drift(
     )
 
     # 2. Market breadth drift
+    b_warn, b_fail = globals().get("DRIFT_THRESHOLD_BREADTH_RATIO", DRIFT_THRESHOLD_BREADTH_RATIO)
     curr_breadth = current_metrics["market_breadth_ratio"]
     if curr_breadth is not None and baseline_breadth_ratio is not None:
         breadth_diff = round(abs(curr_breadth - baseline_breadth_ratio), 6)
-        b_warn, b_fail = DRIFT_THRESHOLD_BREADTH_RATIO
         if breadth_diff > b_fail:
             b_status = "FAIL"
         elif breadth_diff > b_warn:
@@ -1529,7 +1644,6 @@ def evaluate_data_and_model_drift(
         b_msg = f"Market breadth ratio diff is {breadth_diff:.4f} (current={curr_breadth:.4f}, baseline={baseline_breadth_ratio:.4f})"
     else:
         breadth_diff = None
-        b_warn, b_fail = DRIFT_THRESHOLD_BREADTH_RATIO
         b_status = "WARNING"
         b_msg = "Market breadth ratio is missing in current payload or baseline"
 
@@ -1549,10 +1663,12 @@ def evaluate_data_and_model_drift(
     )
 
     # 3. VNINDEX change pct drift
+    v_warn, v_fail = globals().get(
+        "DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT", DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
+    )
     curr_vn = current_metrics["vnindex_change_pct"]
     if curr_vn is not None and baseline_vnindex_change_pct is not None:
         vn_diff = round(abs(curr_vn - baseline_vnindex_change_pct), 4)
-        v_warn, v_fail = DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
         if vn_diff > v_fail:
             v_status = "FAIL"
         elif vn_diff > v_warn:
@@ -1563,7 +1679,6 @@ def evaluate_data_and_model_drift(
         v_msg = f"VNINDEX change pct diff is {vn_diff:.4f}% (current={curr_vn:.4f}%, baseline={baseline_vnindex_change_pct:.4f}%)"
     else:
         vn_diff = None
-        v_warn, v_fail = DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
         v_status = "WARNING"
         v_msg = "VNINDEX change pct is missing in current payload or baseline"
 
@@ -1583,13 +1698,15 @@ def evaluate_data_and_model_drift(
     )
 
     # 4. Action distribution drift
+    a_warn, a_fail = globals().get(
+        "DRIFT_THRESHOLD_ACTION_DISTRIBUTION", DRIFT_THRESHOLD_ACTION_DISTRIBUTION
+    )
     curr_action_props = current_metrics["action_proportions"]
     action_diffs = {
         act: round(abs(curr_action_props[act] - baseline_action_props[act]), 6)
         for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
     }
     max_action_diff = max(action_diffs.values())
-    a_warn, a_fail = DRIFT_THRESHOLD_ACTION_DISTRIBUTION
     if max_action_diff > a_fail:
         a_status = "FAIL"
     elif max_action_diff > a_warn:
@@ -1616,13 +1733,15 @@ def evaluate_data_and_model_drift(
     )
 
     # 5. Confidence bucket distribution drift
+    c_warn, c_fail = globals().get(
+        "DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION", DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION
+    )
     curr_conf_bucket_props = current_metrics["confidence_bucket_proportions"]
     conf_bucket_diffs = {
         b: round(abs(curr_conf_bucket_props[b] - baseline_conf_bucket_props[b]), 6)
         for b in CANONICAL_CONFIDENCE_BUCKETS
     }
     max_conf_bucket_diff = max(conf_bucket_diffs.values())
-    c_warn, c_fail = DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION
     if max_conf_bucket_diff > c_fail:
         c_status = "FAIL"
     elif max_conf_bucket_diff > c_warn:
@@ -1651,10 +1770,12 @@ def evaluate_data_and_model_drift(
     )
 
     # 6. Signal score mean drift
+    s_warn, s_fail = globals().get(
+        "DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN", DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
+    )
     curr_sig_mean = current_metrics["signal_score_mean"]
     if curr_sig_mean is not None and baseline_signal_score_mean is not None:
         sig_diff = round(abs(curr_sig_mean - baseline_signal_score_mean), 4)
-        s_warn, s_fail = DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
         if sig_diff > s_fail:
             s_status = "FAIL"
         elif sig_diff > s_warn:
@@ -1665,7 +1786,6 @@ def evaluate_data_and_model_drift(
         s_msg = f"Signal score mean diff is {sig_diff:.4f} (current={curr_sig_mean:.4f}, baseline={baseline_signal_score_mean:.4f})"
     else:
         sig_diff = None
-        s_warn, s_fail = DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
         s_status = "WARNING"
         s_msg = "Signal score mean is missing in current payload or baseline"
 
@@ -1685,10 +1805,12 @@ def evaluate_data_and_model_drift(
     )
 
     # 7. Risk-adjusted score mean drift
+    r_warn, r_fail = globals().get(
+        "DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN", DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
+    )
     curr_risk_mean = current_metrics["risk_adjusted_score_mean"]
     if curr_risk_mean is not None and baseline_risk_score_mean is not None:
         risk_diff = round(abs(curr_risk_mean - baseline_risk_score_mean), 4)
-        r_warn, r_fail = DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
         if risk_diff > r_fail:
             r_status = "FAIL"
         elif risk_diff > r_warn:
@@ -1699,7 +1821,6 @@ def evaluate_data_and_model_drift(
         r_msg = f"Risk-adjusted score mean diff is {risk_diff:.4f} (current={curr_risk_mean:.4f}, baseline={baseline_risk_score_mean:.4f})"
     else:
         risk_diff = None
-        r_warn, r_fail = DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
         r_status = "WARNING"
         r_msg = "Risk-adjusted score mean is missing in current payload or baseline"
 
@@ -1719,10 +1840,12 @@ def evaluate_data_and_model_drift(
     )
 
     # 8. Confidence mean drift
+    cm_warn, cm_fail = globals().get(
+        "DRIFT_THRESHOLD_CONFIDENCE_MEAN", DRIFT_THRESHOLD_CONFIDENCE_MEAN
+    )
     curr_conf_mean = current_metrics["confidence_mean"]
     if curr_conf_mean is not None and baseline_confidence_mean is not None:
         conf_mean_diff = round(abs(curr_conf_mean - baseline_confidence_mean), 4)
-        cm_warn, cm_fail = DRIFT_THRESHOLD_CONFIDENCE_MEAN
         if conf_mean_diff > cm_fail:
             cm_status = "FAIL"
         elif conf_mean_diff > cm_warn:
@@ -1733,7 +1856,6 @@ def evaluate_data_and_model_drift(
         cm_msg = f"Confidence mean diff is {conf_mean_diff:.4f} (current={curr_conf_mean:.4f}, baseline={baseline_confidence_mean:.4f})"
     else:
         conf_mean_diff = None
-        cm_warn, cm_fail = DRIFT_THRESHOLD_CONFIDENCE_MEAN
         cm_status = "WARNING"
         cm_msg = "Confidence mean is missing in current payload or baseline"
 

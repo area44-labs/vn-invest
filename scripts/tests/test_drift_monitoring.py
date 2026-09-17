@@ -585,12 +585,13 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
 
     def test_summary_inconsistencies_fail_closed(self):
-        """Verify malformed or inconsistent payload summary fails closed."""
+        """Verify malformed or inconsistent payload summary fails closed with FAIL status."""
         # Case 1: Negative total_scanned
         curr1 = make_mock_payload(data_as_of="2026-09-17")
         curr1["summary"]["total_scanned"] = -10
         res1 = evaluate_data_and_model_drift(current_payload=curr1)
         self.assertEqual(res1.overall_status, "FAIL")
+        self.assertEqual(res1.drift_checks[0].check_name, "drift_current_payload_malformed")
 
         # Case 2: Negative action count
         curr2 = make_mock_payload(data_as_of="2026-09-17")
@@ -606,17 +607,117 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         res3 = evaluate_data_and_model_drift(current_payload=curr3)
         self.assertEqual(res3.overall_status, "FAIL")
 
-        # Case 4: Non-integer action count
+        # Case 4: total_scanned != len(recommendations)
         curr4 = make_mock_payload(data_as_of="2026-09-17")
-        curr4["summary"]["buy_count"] = 5.5  # type: ignore[typeddict-item]
+        curr4["summary"]["total_scanned"] = 30  # len(recs) is 20
         res4 = evaluate_data_and_model_drift(current_payload=curr4)
         self.assertEqual(res4.overall_status, "FAIL")
 
-        # Case 5: Bool count
+        # Case 5: Summary action count does not match actual recommendation actions
         curr5 = make_mock_payload(data_as_of="2026-09-17")
-        curr5["summary"]["buy_count"] = True  # type: ignore[typeddict-item]
+        curr5["summary"]["buy_count"] = 10  # Actual BUY is 5
+        curr5["summary"]["watch_count"] = 0
         res5 = evaluate_data_and_model_drift(current_payload=curr5)
         self.assertEqual(res5.overall_status, "FAIL")
+
+        # Case 6: Sum of action counts < total_scanned
+        curr6 = make_mock_payload(data_as_of="2026-09-17")
+        curr6["summary"]["total_scanned"] = 20
+        curr6["summary"]["buy_count"] = 0  # Sum = 15 < 20
+        res6 = evaluate_data_and_model_drift(current_payload=curr6)
+        self.assertEqual(res6.overall_status, "FAIL")
+
+        # Case 7: Non-integer action count
+        curr7 = make_mock_payload(data_as_of="2026-09-17")
+        curr7["summary"]["buy_count"] = 5.5  # type: ignore[typeddict-item]
+        res7 = evaluate_data_and_model_drift(current_payload=curr7)
+        self.assertEqual(res7.overall_status, "FAIL")
+
+        # Case 8: Bool count
+        curr8 = make_mock_payload(data_as_of="2026-09-17")
+        curr8["summary"]["buy_count"] = True  # type: ignore[typeddict-item]
+        res8 = evaluate_data_and_model_drift(current_payload=curr8)
+        self.assertEqual(res8.overall_status, "FAIL")
+
+    def test_invalid_recommendation_action_value_fails_closed(self):
+        """Verify missing, invalid, or non-canonical action values fail closed."""
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+        for bad_action in [None, "BUY_NOW", 123, True, "buy", "WATCHING"]:
+            curr = make_mock_payload(data_as_of="2026-09-17")
+            curr["recommendations"][0]["action"] = bad_action
+
+            res = evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
+            self.assertEqual(
+                res.overall_status,
+                "FAIL",
+                f"Failed to fail-closed on action={bad_action}",
+            )
+            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+
+    def test_invalid_market_metrics_fail_closed(self):
+        """Verify string, bool, NaN, Inf, or out-of-range market metrics fail closed."""
+        # 1. Invalid market_breadth_ratio
+        for bad_breadth in ["0.6", True, float("nan"), float("inf"), -0.1, 1.5]:
+            curr = make_mock_payload(data_as_of="2026-09-17")
+            curr["market"]["metrics"]["market_breadth_ratio"] = bad_breadth
+
+            res = evaluate_data_and_model_drift(current_payload=curr)
+            self.assertEqual(
+                res.overall_status,
+                "FAIL",
+                f"Failed to fail-closed on market_breadth_ratio={bad_breadth}",
+            )
+
+        # 2. Invalid vnindex_change_pct
+        for bad_pct in ["0.5%", True, float("nan"), float("inf")]:
+            curr = make_mock_payload(data_as_of="2026-09-17")
+            curr["market"]["metrics"]["vnindex_change_pct"] = bad_pct
+
+            res = evaluate_data_and_model_drift(current_payload=curr)
+            self.assertEqual(
+                res.overall_status,
+                "FAIL",
+                f"Failed to fail-closed on vnindex_change_pct={bad_pct}",
+            )
+
+    def test_invalid_threshold_configuration_fails_closed(self):
+        """Verify invalid threshold configuration tuples raise ValueError."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+
+        import scripts.lib.monitoring as mon
+
+        # Test warn < 0
+        orig_thresh = mon.DRIFT_THRESHOLD_PROCESSED_RATIO
+        try:
+            mon.DRIFT_THRESHOLD_PROCESSED_RATIO = (-0.1, 0.2)  # type: ignore[assignment]
+            with self.assertRaises(ValueError):
+                evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
+        finally:
+            mon.DRIFT_THRESHOLD_PROCESSED_RATIO = orig_thresh
+
+        # Test fail < warn
+        try:
+            mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = (20.0, 10.0)  # type: ignore[assignment]
+            with self.assertRaises(ValueError):
+                evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
+        finally:
+            mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = orig_thresh
+
+    def test_baseline_artifact_missing_data_as_of_with_source_date_fails_closed(self):
+        """Verify baseline report having source_date but missing data_as_of fails closed with FAIL status."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        b_bad = make_mock_payload(data_as_of="2026-09-16")
+        del b_bad["data_as_of"]  # Has source_date="2026-09-16" but missing data_as_of!
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=[b_bad],
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_reports_injected")
 
     def test_market_payload_temporal_consistency(self):
         """Verify strict temporal consistency check for explicit market_payload."""
@@ -726,7 +827,7 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
             reference_date="2026-09-17",
         )
 
-        self.assertIn(res.overall_status, ("WARNING", "FAIL"))
+        self.assertEqual(res.overall_status, "FAIL")
 
 
 if __name__ == "__main__":
