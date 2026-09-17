@@ -158,6 +158,51 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(res.data_as_of, "2026-09-17")
         self.assertTrue(validate_monitoring_payload(res.to_dict()))
 
+    def test_data_freshness_exact_boundaries(self):
+        """Verify exact freshness contract for PASS, WARNING, and FAIL thresholds."""
+        # 1. Same date: data_as_of == reference_date -> PASS (0 days old)
+        chk_pass = check_data_freshness("2026-09-17", reference_date="2026-09-17")
+        self.assertEqual(chk_pass.status, "PASS")
+        self.assertEqual(chk_pass.measured_value["staleness_days"], 0)
+
+        # 2. 5 days stale: data_as_of="2026-09-12", reference_date="2026-09-17" -> WARNING
+        chk_warn = check_data_freshness("2026-09-12", reference_date="2026-09-17")
+        self.assertEqual(chk_warn.status, "WARNING")
+        self.assertEqual(chk_warn.measured_value["staleness_days"], 5)
+
+        # 3. 16 days stale: data_as_of="2026-09-01", reference_date="2026-09-17" -> FAIL (> 14 days)
+        chk_fail = check_data_freshness("2026-09-01", reference_date="2026-09-17")
+        self.assertEqual(chk_fail.status, "FAIL")
+        self.assertEqual(chk_fail.measured_value["staleness_days"], 16)
+
+    def test_production_script_does_not_pass_data_as_of_as_reference_date(self):
+        """Verify scripts/generate_report.py does NOT pass reference_date=data_as_of."""
+        report_script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "scripts",
+            "generate_report.py",
+        )
+        with open(report_script_path, "r", encoding="utf-8") as f:
+            code_text = f.read()
+
+        self.assertNotIn(
+            "reference_date=data_as_of",
+            code_text,
+            "scripts/generate_report.py must NOT pass reference_date=data_as_of to monitoring",
+        )
+
+    def test_explicit_reference_date_is_deterministic(self):
+        """Verify explicit reference_date yields deterministic monitoring results regardless of system time."""
+        res_1 = evaluate_production_monitoring(
+            recommendations_payload=self.healthy_payload,
+            reference_date="2026-09-17",
+        )
+        res_2 = evaluate_production_monitoring(
+            recommendations_payload=self.healthy_payload,
+            reference_date="2026-09-17",
+        )
+        self.assertEqual(res_1.to_dict(), res_2.to_dict())
+
     def test_missing_required_artifact_fails(self):
         """Verify missing required JSON artifact causes check failure ('FAIL')."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -438,12 +483,6 @@ class TestProductionMonitoring(unittest.TestCase):
 
         vn_chk = next(c for c in res.checks if c.check_name == "ohlcv_quality_vnindex")
         self.assertEqual(vn_chk.status, "PASS")
-
-    def test_warning_condition(self):
-        """Verify warning condition for slightly stale data produces status 'WARNING'."""
-        chk = check_data_freshness("2026-09-12", reference_date="2026-09-17")  # 5 days stale
-        self.assertEqual(chk.status, "WARNING")
-        self.assertIn("slightly stale", chk.message)
 
     def test_future_data_freshness_fails(self):
         """Verify future data_as_of relative to reference_date causes check failure ('FAIL')."""

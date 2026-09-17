@@ -340,7 +340,6 @@ def main():
         generated_dir=GENERATED_DIR,
         recommendations_payload=recs_data,
         market_payload=market_data,
-        reference_date=data_as_of,
         df_vnindex=df_vnindex_clean,
         df_vn30=df_vn30_clean,
     )
