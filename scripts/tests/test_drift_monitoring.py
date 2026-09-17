@@ -688,21 +688,22 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         import scripts.lib.monitoring as mon
 
         # Test warn < 0
-        orig_thresh = mon.DRIFT_THRESHOLD_PROCESSED_RATIO
+        orig_proc_thresh = mon.DRIFT_THRESHOLD_PROCESSED_RATIO
         try:
             mon.DRIFT_THRESHOLD_PROCESSED_RATIO = (-0.1, 0.2)  # type: ignore[assignment]
             with self.assertRaises(ValueError):
                 evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
         finally:
-            mon.DRIFT_THRESHOLD_PROCESSED_RATIO = orig_thresh
+            mon.DRIFT_THRESHOLD_PROCESSED_RATIO = orig_proc_thresh
 
         # Test fail < warn
+        orig_signal_thresh = mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
         try:
             mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = (20.0, 10.0)  # type: ignore[assignment]
             with self.assertRaises(ValueError):
                 evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
         finally:
-            mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = orig_thresh
+            mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = orig_signal_thresh
 
     def test_baseline_artifact_missing_data_as_of_with_source_date_fails_closed(self):
         """Verify baseline report having source_date but missing data_as_of fails closed with FAIL status."""
@@ -812,7 +813,14 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
         self.assertIn("drift_signal_score", check_names)
 
     def test_drift_fail_causes_overall_monitoring_fail(self):
-        """Verify drift FAIL result forces evaluate_production_monitoring overall_status to FAIL."""
+        """Verify drift FAIL result forces evaluate_production_monitoring overall_status to FAIL.
+
+        Demonstrates exact chain: action distribution drift -> drift check FAIL -> drift_monitoring FAIL -> production monitoring FAIL.
+        """
+        import json
+        import os
+        import tempfile
+
         curr_action_drift = make_mock_payload(
             data_as_of="2026-09-17",
             buy_count=18,
@@ -822,12 +830,54 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
             avoid_count=0,
         )
 
-        res = evaluate_production_monitoring(
-            recommendations_payload=curr_action_drift,
-            reference_date="2026-09-17",
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
 
-        self.assertEqual(res.overall_status, "FAIL")
+            index_dates = [
+                "2026-09-17",
+                "2026-09-16",
+                "2026-09-15",
+                "2026-09-14",
+                "2026-09-13",
+                "2026-09-12",
+            ]
+            with open(os.path.join(tmpdir, "recommendations.json"), "w", encoding="utf-8") as f:
+                json.dump(curr_action_drift, f)
+
+            with open(os.path.join(tmpdir, "market.json"), "w", encoding="utf-8") as f:
+                json.dump(curr_action_drift["market"], f)
+
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": index_dates}, f)
+
+            with open(os.path.join(history_dir, "2026-09-17.json"), "w", encoding="utf-8") as f:
+                json.dump(curr_action_drift, f)
+
+            for d in index_dates[1:]:
+                baseline_p = make_mock_payload(
+                    data_as_of=d,
+                    buy_count=5,
+                    watch_count=5,
+                    hold_count=5,
+                    sell_count=5,
+                    avoid_count=0,
+                )
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(baseline_p, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=curr_action_drift,
+                reference_date="2026-09-17",
+            )
+
+            self.assertEqual(res.metrics["drift_monitoring"]["overall_status"], "FAIL")
+            drift_action_chk = next(
+                c for c in res.checks if c.check_name == "drift_action_distribution"
+            )
+            self.assertEqual(drift_action_chk.status, "FAIL")
+            self.assertEqual(res.overall_status, "FAIL")
 
 
 if __name__ == "__main__":
