@@ -417,30 +417,30 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         self.assertEqual(breadth_chk.observation.current_value, 0.60)
 
     def test_invalid_baseline_config_parameters_fail_closed(self):
-        """Verify invalid lookback_reports or min_baseline_reports fail closed."""
+        """Verify invalid lookback_reports or min_baseline_reports raise TypeError or ValueError."""
         curr = make_mock_payload(data_as_of="2026-09-17")
         baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
 
         # Boolean lookback
-        res = evaluate_data_and_model_drift(
-            current_payload=curr, baseline_reports=baselines, lookback_reports=True
-        )
-        self.assertEqual(res.overall_status, "FAIL")
+        with self.assertRaises(TypeError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, lookback_reports=True
+            )
 
         # Negative lookback
-        res = evaluate_data_and_model_drift(
-            current_payload=curr, baseline_reports=baselines, lookback_reports=-5
-        )
-        self.assertEqual(res.overall_status, "FAIL")
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, lookback_reports=-5
+            )
 
         # min_baseline_reports > lookback_reports
-        res = evaluate_data_and_model_drift(
-            current_payload=curr,
-            baseline_reports=baselines,
-            lookback_reports=5,
-            min_baseline_reports=10,
-        )
-        self.assertEqual(res.overall_status, "FAIL")
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr,
+                baseline_reports=baselines,
+                lookback_reports=5,
+                min_baseline_reports=10,
+            )
 
     def test_invalid_injected_baseline_reports_fail_closed(self):
         """Verify malformed data_as_of or non-dict items in baseline_reports fail closed."""

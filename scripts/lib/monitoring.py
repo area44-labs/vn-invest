@@ -383,12 +383,17 @@ def extract_recommendation_metrics(
     conf_counts = {b: 0 for b in CANONICAL_CONFIDENCE_BUCKETS}
     valid_conf_vals = []
     for r in recs:
+        if not isinstance(r, dict):
+            continue
         conf = r.get("confidence")
         if conf is not None:
-            bucket = classify_confidence_bucket(conf)
-            if bucket in conf_counts:
-                conf_counts[bucket] += 1
-                valid_conf_vals.append(float(conf))
+            try:
+                bucket = classify_confidence_bucket(conf)
+                if bucket in conf_counts:
+                    conf_counts[bucket] += 1
+                    valid_conf_vals.append(float(conf))
+            except (TypeError, ValueError):
+                pass
 
     total_valid_conf = len(valid_conf_vals)
     if total_valid_conf > 0:
@@ -398,21 +403,28 @@ def extract_recommendation_metrics(
     else:
         conf_bucket_proportions = {b: 0.0 for b in CANONICAL_CONFIDENCE_BUCKETS}
 
-    sig_scores = [
-        float(r["signal_score"])
-        for r in recs
-        if r.get("signal_score") is not None
-        and not (isinstance(r["signal_score"], float) and math.isnan(r["signal_score"]))
-    ]
+    sig_scores = []
+    risk_scores = []
+    for r in recs:
+        if not isinstance(r, dict):
+            continue
+        ss = r.get("signal_score")
+        if ss is not None:
+            try:
+                v = float(ss)
+                if not math.isnan(v) and not math.isinf(v):
+                    sig_scores.append(v)
+            except (TypeError, ValueError):
+                pass
 
-    risk_scores = [
-        float(r["risk_adjusted_score"])
-        for r in recs
-        if r.get("risk_adjusted_score") is not None
-        and not (
-            isinstance(r["risk_adjusted_score"], float) and math.isnan(r["risk_adjusted_score"])
-        )
-    ]
+        rs = r.get("risk_adjusted_score")
+        if rs is not None:
+            try:
+                v = float(rs)
+                if not math.isnan(v) and not math.isinf(v):
+                    risk_scores.append(v)
+            except (TypeError, ValueError):
+                pass
 
     sig_mean = round(sum(sig_scores) / len(sig_scores), 4) if sig_scores else None
     sig_median = round(sorted(sig_scores)[len(sig_scores) // 2], 4) if sig_scores else None
@@ -465,79 +477,24 @@ def evaluate_data_and_model_drift(
     """
     g_dir = generated_dir or DEFAULT_GENERATED_DIR
 
-    # 0. Validate baseline configuration parameters fail closed
-    if (
-        isinstance(lookback_reports, bool)
-        or not isinstance(lookback_reports, int)
-        or lookback_reports <= 0
-    ):
-        obs = DriftObservation(
-            check_name="drift_baseline_config",
-            baseline_period={"lookback_reports": lookback_reports},
-            current_period=data_as_of or "UNKNOWN",
-            baseline_value=None,
-            current_value=lookback_reports,
-            absolute_difference=None,
-            threshold=0,
-            status="FAIL",
-            message=f"Invalid lookback_reports configuration parameter: {lookback_reports}. Must be positive integer",
+    # 0. Validate baseline configuration parameters fail closed with exceptions
+    if isinstance(lookback_reports, bool) or not isinstance(lookback_reports, int):
+        raise TypeError(
+            f"lookback_reports must be an integer, got {type(lookback_reports).__name__}"
         )
-        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
-        return DriftMonitoringResult(
-            overall_status="FAIL",
-            data_as_of=data_as_of,
-            baseline_summary={"status": "FAIL", "reason": "Invalid lookback_reports parameter"},
-            drift_checks=[chk],
-        )
+    if lookback_reports <= 0:
+        raise ValueError(f"lookback_reports must be positive, got {lookback_reports}")
 
-    if (
-        isinstance(min_baseline_reports, bool)
-        or not isinstance(min_baseline_reports, int)
-        or min_baseline_reports <= 0
-    ):
-        obs = DriftObservation(
-            check_name="drift_baseline_config",
-            baseline_period={"min_baseline_reports": min_baseline_reports},
-            current_period=data_as_of or "UNKNOWN",
-            baseline_value=None,
-            current_value=min_baseline_reports,
-            absolute_difference=None,
-            threshold=0,
-            status="FAIL",
-            message=f"Invalid min_baseline_reports configuration parameter: {min_baseline_reports}. Must be positive integer",
+    if isinstance(min_baseline_reports, bool) or not isinstance(min_baseline_reports, int):
+        raise TypeError(
+            f"min_baseline_reports must be an integer, got {type(min_baseline_reports).__name__}"
         )
-        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
-        return DriftMonitoringResult(
-            overall_status="FAIL",
-            data_as_of=data_as_of,
-            baseline_summary={"status": "FAIL", "reason": "Invalid min_baseline_reports parameter"},
-            drift_checks=[chk],
-        )
+    if min_baseline_reports <= 0:
+        raise ValueError(f"min_baseline_reports must be positive, got {min_baseline_reports}")
 
     if min_baseline_reports > lookback_reports:
-        obs = DriftObservation(
-            check_name="drift_baseline_config",
-            baseline_period={
-                "lookback_reports": lookback_reports,
-                "min_baseline_reports": min_baseline_reports,
-            },
-            current_period=data_as_of or "UNKNOWN",
-            baseline_value=lookback_reports,
-            current_value=min_baseline_reports,
-            absolute_difference=min_baseline_reports - lookback_reports,
-            threshold=0,
-            status="FAIL",
-            message=f"Invalid baseline configuration: min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})",
-        )
-        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
-        return DriftMonitoringResult(
-            overall_status="FAIL",
-            data_as_of=data_as_of,
-            baseline_summary={
-                "status": "FAIL",
-                "reason": "min_baseline_reports exceeds lookback_reports",
-            },
-            drift_checks=[chk],
+        raise ValueError(
+            f"min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})"
         )
 
     # Load current payload if not provided
@@ -726,9 +683,7 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
 
-            try:
-                datetime.strptime(r_date, "%Y-%m-%d").replace(tzinfo=UTC)
-            except ValueError:
+            if not is_canonical_yyyy_mm_dd(r_date):
                 obs = DriftObservation(
                     check_name="drift_baseline_reports_injected",
                     baseline_period={"index": idx, "injected_date": r_date},
@@ -913,15 +868,7 @@ def evaluate_data_and_model_drift(
             )
 
         # Validate date strings and canonical YYYY-MM-DD
-        invalid_dates = []
-        for d in dates:
-            if not isinstance(d, str):
-                invalid_dates.append(str(d))
-            else:
-                try:
-                    datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC)
-                except ValueError:
-                    invalid_dates.append(d)
+        invalid_dates = [str(d) for d in dates if not is_canonical_yyyy_mm_dd(d)]
 
         if invalid_dates:
             obs = DriftObservation(
