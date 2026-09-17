@@ -642,7 +642,7 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             invalid_date_items.append(str(d))
         else:
             try:
-                datetime.strptime(d, "%Y-%m-%d")
+                datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC)
             except ValueError:
                 invalid_date_items.append(d)
 
