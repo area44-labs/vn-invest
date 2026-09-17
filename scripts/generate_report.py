@@ -26,6 +26,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
@@ -41,6 +42,20 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
 GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
+
+
+def canonicalize_report_for_reproducibility(report_payload: dict) -> dict:
+    """Canonicalize a report payload for deterministic comparison by normalizing runtime metadata.
+
+    Replaces runtime-dependent metadata (such as 'generated_at') with a fixed placeholder
+    while leaving all quantitative fields (signals, market regime, confidence, trade plans, etc.) unchanged.
+    """
+    if not isinstance(report_payload, dict):
+        raise TypeError(f"report_payload must be a dict, got {type(report_payload).__name__}")
+
+    cloned = json.loads(json.dumps(report_payload))
+    cloned["generated_at"] = "2000-01-01T00:00:00+00:00"
+    return cloned
 
 
 def save_json_files(relative_path: str, data: dict):
@@ -214,6 +229,182 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     )
 
 
+def generate_historical_report(
+    data_as_of: str,
+    universe_stock_map: dict[str, Any],
+    df_vnindex: Any,
+    df_vn30: Any | None = None,
+    candidate_metadata: list[dict] | None = None,
+    generated_at: str | None = None,
+    data_source: str | None = "historical_reproduction",
+) -> PipelineResult:
+    """Generate a historical quantitative report timestamped strictly as of evaluation date T.
+
+    Point-In-Time & Anti-Lookahead Guarantees:
+    - Explicit canonical YYYY-MM-DD date required.
+    - All quantitative inputs (VNINDEX, VN30, stock history, breadth) are sliced <= data_as_of
+      using get_as_of_dataset(), failing closed if data_as_of is missing, or if dates are duplicate,
+      unsorted, or physically contain future observations prior to T.
+    - Reuses production market regime detection, recommendation engine, and universe liquidity normalization.
+    """
+    target_date_str = _parse_canonical_date(data_as_of)
+
+    if generated_at is None:
+        generated_at = datetime.now(UTC).isoformat()
+
+    if not universe_stock_map or not isinstance(universe_stock_map, dict):
+        raise ValueError("universe_stock_map cannot be empty or None")
+
+    if df_vnindex is None or df_vnindex.empty:
+        raise ValueError("df_vnindex cannot be empty or None")
+
+    # 1. Slice VNINDEX benchmark data <= target_date_str
+    df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
+    df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
+    if df_vnindex_clean.empty or vnindex_val["status"] == "INSUFFICIENT":
+        raise ValueError(
+            f"Insufficient or invalid benchmark clean OHLCV data for VNINDEX at '{target_date_str}'"
+        )
+
+    # 2. Slice VN30 benchmark data <= target_date_str (if provided)
+    df_vn30_clean = None
+    if df_vn30 is not None:
+        if df_vn30.empty:
+            raise ValueError("Supplied df_vn30 DataFrame is empty")
+        df_vn30_as_of = get_as_of_dataset(df_vn30, target_date_str)
+        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+        if vn30_val["status"] == "INSUFFICIENT":
+            df_vn30_clean = None
+
+    # 3. Resolve candidate stock metadata
+    meta_map = {}
+    if candidate_metadata:
+        for item in candidate_metadata:
+            meta_map[item["symbol"]] = item
+
+    provider = UniverseProvider()
+    provider_candidates = {item["symbol"]: item for item in provider.candidates}
+    universe_info = provider.get_info()
+
+    candidates = []
+    for sym in universe_stock_map:
+        if sym in meta_map:
+            candidates.append(meta_map[sym])
+        elif sym in provider_candidates:
+            candidates.append(provider_candidates[sym])
+        else:
+            candidates.append(
+                {"symbol": sym, "companyName": sym, "sector": "Unknown", "exchange": "HOSE"}
+            )
+
+    # 4. Slice stock data and calculate point-in-time Market Breadth
+    stock_as_of_map = {}
+    bullish_count = 0
+
+    for item in candidates:
+        sym = item["symbol"]
+        df_stock = universe_stock_map.get(sym)
+        if df_stock is None or df_stock.empty:
+            raise ValueError(
+                f"Historical OHLCV data for symbol '{sym}' is missing from universe_stock_map"
+            )
+
+        df_stock_as_of = get_as_of_dataset(df_stock, target_date_str)
+        df_clean_stock, _ = get_clean_ohlcv_data(df_stock_as_of, sym)
+        stock_as_of_map[sym] = df_stock_as_of
+
+        if not df_clean_stock.empty and len(df_clean_stock) >= 20:
+            c = df_clean_stock["close"].iloc[-1]
+            ma20 = df_clean_stock["close"].tail(20).mean()
+            if c > ma20:
+                bullish_count += 1
+
+    breadth_ratio = round(bullish_count / len(candidates), 2) if candidates else 0.50
+
+    # 5. Calculate Final Market Regime
+    final_market_regime = detect_market_regime(
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean,
+        breadth_ratio=breadth_ratio,
+    )
+
+    # 6. Generate Stock Recommendations using Final Market Regime
+    scanned_recs = []
+    for item in candidates:
+        sym = item["symbol"]
+        comp = item["companyName"]
+        sec = item["sector"]
+        ex = item.get("exchange", "HOSE")
+
+        df_stock_as_of = stock_as_of_map[sym]
+
+        rec = generate_recommendation(
+            symbol=sym,
+            company_name=comp,
+            sector=sec,
+            exchange=ex,
+            df_stock=df_stock_as_of,
+            market_regime_info=final_market_regime,
+            df_vnindex=df_vnindex_clean,
+            data_as_of=target_date_str,
+            data_source=data_source,
+        )
+        scanned_recs.append(rec)
+
+    # 7. Compute Universe Percentile Liquidity Scores
+    scanned_recs = normalize_universe_liquidity_scores(
+        scanned_recs, market_regime=final_market_regime
+    )
+
+    buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
+    watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
+    hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
+    sell_cnt = sum(1 for r in scanned_recs if r["action"] == "SELL")
+    avoid_cnt = sum(1 for r in scanned_recs if r["action"] == "AVOID")
+
+    summary = {
+        "total_scanned": len(scanned_recs),
+        "buy_count": buy_cnt,
+        "watch_count": watch_cnt,
+        "hold_count": hold_cnt,
+        "sell_count": sell_cnt,
+        "avoid_count": avoid_cnt,
+    }
+
+    recommendations_payload = {
+        "schema_version": "2.0",
+        "signal_model_version": SIGNAL_MODEL_VERSION,
+        "generated_at": generated_at,
+        "data_as_of": target_date_str,
+        "source_date": target_date_str,
+        "data_source": data_source,
+        "universe_info": universe_info,
+        "market": final_market_regime,
+        "summary": summary,
+        "recommendations": scanned_recs,
+    }
+
+    market_payload = {
+        "data_as_of": target_date_str,
+        "source_date": target_date_str,
+        "generated_at": generated_at,
+        "data_source": data_source,
+        "universe_info": universe_info,
+        "market": final_market_regime,
+        "summary": summary,
+    }
+
+    history_payload = recommendations_payload
+
+    return PipelineResult(
+        recommendations_payload,
+        market_payload,
+        history_payload,
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean,
+    )
+
+
 def load_history_index(index_path: str | None = None) -> dict:
     """Load and validate history index file (history/index.json).
 
@@ -297,11 +488,47 @@ def main():
         action="store_true",
         help="Run data fetch pipeline before report generation",
     )
+    parser.add_argument(
+        "--as-of",
+        type=str,
+        default=None,
+        help="Explicit historical evaluation date (YYYY-MM-DD) for reproducible report generation",
+    )
     args = parser.parse_args()
 
-    logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
+    if args.as_of:
+        target_date = _parse_canonical_date(args.as_of)
+        logger.info("Starting historical report generation for as-of date: %s...", target_date)
 
-    pipeline_res = run_pipeline(update_data=args.update)
+        use_cache = not args.update
+        provider = UniverseProvider()
+        candidate_stocks = provider.candidates
+
+        df_vnindex_raw, vn_source, _ = get_historical_data(
+            "VNINDEX", max_retries=2 if args.update else 1, use_cache_only=use_cache
+        )
+        df_vn30_raw, _, _ = get_historical_data(
+            "VN30", max_retries=2 if args.update else 1, use_cache_only=use_cache
+        )
+
+        stock_data_map = {}
+        for item in candidate_stocks:
+            sym = item["symbol"]
+            df_stock, tag, _ = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
+            stock_data_map[sym] = df_stock
+
+        pipeline_res = generate_historical_report(
+            data_as_of=target_date,
+            universe_stock_map=stock_data_map,
+            df_vnindex=df_vnindex_raw,
+            df_vn30=df_vn30_raw,
+            candidate_metadata=candidate_stocks,
+            data_source=vn_source if not df_vnindex_raw.empty else None,
+        )
+    else:
+        logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
+        pipeline_res = run_pipeline(update_data=args.update)
+
     recs_data, market_data, history_data = pipeline_res
     df_vnindex_clean = pipeline_res.df_vnindex
     df_vn30_clean = pipeline_res.df_vn30
