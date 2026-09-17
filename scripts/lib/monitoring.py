@@ -233,6 +233,28 @@ class PipelineMonitoringResult:
         }
 
 
+def is_canonical_yyyy_mm_dd(val: Any) -> bool:
+    """Validate if a value is strictly a canonical YYYY-MM-DD calendar date string.
+
+    Rejects booleans, non-strings, single-digit months/days, time components,
+    timezone offsets/suffixes, and invalid calendar dates.
+    """
+    if not isinstance(val, str) or isinstance(val, bool):
+        return False
+    if len(val) != 10:
+        return False
+    parts = val.split("-")
+    if len(parts) != 3 or len(parts[0]) != 4 or len(parts[1]) != 2 or len(parts[2]) != 2:
+        return False
+    if not (parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit()):
+        return False
+    try:
+        dt = datetime.strptime(val, "%Y-%m-%d").replace(tzinfo=UTC)
+        return dt.strftime("%Y-%m-%d") == val
+    except ValueError:
+        return False
+
+
 def validate_monitoring_payload(payload: dict) -> bool:
     """Validate structure and invariants of a monitoring output dictionary.
 
@@ -567,28 +589,81 @@ def evaluate_data_and_model_drift(
             drift_checks=[chk],
         )
 
-    if not data_as_of:
-        data_as_of = current_payload.get("data_as_of")
+    curr_payload_date = current_payload.get("data_as_of")
 
-    if not data_as_of:
-        obs = DriftObservation(
-            check_name="drift_data_as_of",
-            baseline_period={"status": "MISSING_DATA_AS_OF"},
-            current_period="NONE",
-            baseline_value=None,
-            current_value=None,
-            absolute_difference=None,
-            threshold=None,
-            status="FAIL",
-            message="data_as_of is missing from current payload; cannot establish temporal baseline boundary",
-        )
-        chk = DriftCheckResult(check_name="drift_data_as_of", status="FAIL", observation=obs)
-        return DriftMonitoringResult(
-            overall_status="FAIL",
-            data_as_of=None,
-            baseline_summary={"status": "FAIL", "reason": "Missing data_as_of"},
-            drift_checks=[chk],
-        )
+    if data_as_of is not None:
+        if not is_canonical_yyyy_mm_dd(data_as_of):
+            obs = DriftObservation(
+                check_name="drift_data_as_of_format",
+                baseline_period={"status": "INVALID_DATA_AS_OF"},
+                current_period=str(data_as_of),
+                baseline_value=None,
+                current_value=data_as_of,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Provided data_as_of '{data_as_of}' is not a valid canonical YYYY-MM-DD date string",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_data_as_of_format", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=None,
+                baseline_summary={"status": "FAIL", "reason": "Invalid data_as_of format"},
+                drift_checks=[chk],
+            )
+
+        if curr_payload_date != data_as_of:
+            obs = DriftObservation(
+                check_name="drift_data_as_of_mismatch",
+                baseline_period={"expected_data_as_of": data_as_of},
+                current_period=str(curr_payload_date),
+                baseline_value=data_as_of,
+                current_value=curr_payload_date,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Current recommendations payload data_as_of '{curr_payload_date}' does not match evaluation data_as_of '{data_as_of}'",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_data_as_of_mismatch", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "data_as_of mismatch between payload and evaluation date",
+                },
+                drift_checks=[chk],
+            )
+    else:
+        if not is_canonical_yyyy_mm_dd(curr_payload_date):
+            obs = DriftObservation(
+                check_name="drift_data_as_of_format",
+                baseline_period={"status": "MISSING_OR_INVALID_DATA_AS_OF"},
+                current_period=str(curr_payload_date),
+                baseline_value=None,
+                current_value=curr_payload_date,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Current recommendations payload data_as_of '{curr_payload_date}' is missing or not a canonical YYYY-MM-DD date string",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_data_as_of_format", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=None,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "Missing or invalid data_as_of in payload",
+                },
+                drift_checks=[chk],
+            )
+        data_as_of = curr_payload_date
 
     current_metrics = extract_recommendation_metrics(current_payload, market_payload=market_payload)
 
@@ -959,153 +1034,200 @@ def evaluate_data_and_model_drift(
 
         for d in selected_dates:
             fpath = os.path.join(g_dir, "history", f"{d}.json")
-            if os.path.exists(fpath):
-                try:
-                    with open(fpath, "r", encoding="utf-8") as f:
-                        b_payload = json.load(f)
-                    if not isinstance(b_payload, dict):
-                        obs = DriftObservation(
-                            check_name="drift_history_artifact_corrupted",
-                            baseline_period={"history_date": d, "file_path": fpath},
-                            current_period=data_as_of,
-                            baseline_value=d,
-                            current_value=None,
-                            absolute_difference=None,
-                            threshold=None,
-                            status="FAIL",
-                            message=f"History artifact history/{d}.json is not a valid JSON object",
-                        )
-                        chk = DriftCheckResult(
-                            check_name="drift_history_artifact_corrupted",
-                            status="FAIL",
-                            observation=obs,
-                        )
-                        return DriftMonitoringResult(
-                            overall_status="FAIL",
-                            data_as_of=data_as_of,
-                            baseline_summary={
-                                "status": "FAIL",
-                                "reason": f"Corrupted artifact history/{d}.json",
-                            },
-                            drift_checks=[chk],
-                        )
+            if not os.path.exists(fpath):
+                obs = DriftObservation(
+                    check_name="drift_history_artifact_missing",
+                    baseline_period={"history_date": d, "file_path": fpath},
+                    current_period=data_as_of,
+                    baseline_value=d,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline historical artifact file history/{d}.json is missing from disk; fail closed",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_artifact_missing", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Missing baseline artifact history/{d}.json",
+                    },
+                    drift_checks=[chk],
+                )
 
-                    b_date = b_payload.get("data_as_of") or b_payload.get("source_date")
-                    if b_date != d or not isinstance(b_date, str) or isinstance(b_date, bool):
-                        obs = DriftObservation(
-                            check_name="drift_history_artifact_mismatch",
-                            baseline_period={"history_date": d, "payload_date": b_date},
-                            current_period=data_as_of,
-                            baseline_value=d,
-                            current_value=b_date,
-                            absolute_difference=None,
-                            threshold=None,
-                            status="FAIL",
-                            message=f"History artifact history/{d}.json payload data_as_of '{b_date}' does not match index date '{d}'",
-                        )
-                        chk = DriftCheckResult(
-                            check_name="drift_history_artifact_mismatch",
-                            status="FAIL",
-                            observation=obs,
-                        )
-                        return DriftMonitoringResult(
-                            overall_status="FAIL",
-                            data_as_of=data_as_of,
-                            baseline_summary={
-                                "status": "FAIL",
-                                "reason": f"Artifact date mismatch in history/{d}.json",
-                            },
-                            drift_checks=[chk],
-                        )
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    b_payload = json.load(f)
+            except Exception as err:  # noqa: BLE001
+                obs = DriftObservation(
+                    check_name="drift_history_artifact_corrupted",
+                    baseline_period={"history_date": d, "file_path": fpath},
+                    current_period=data_as_of,
+                    baseline_value=d,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Failed to read or decode baseline history artifact history/{d}.json: {err}",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_artifact_corrupted",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Corrupted baseline artifact history/{d}.json",
+                    },
+                    drift_checks=[chk],
+                )
 
-                    try:
-                        datetime.strptime(b_date, "%Y-%m-%d").replace(tzinfo=UTC)
-                    except ValueError:
-                        obs = DriftObservation(
-                            check_name="drift_history_artifact_format",
-                            baseline_period={"history_date": d, "payload_date": b_date},
-                            current_period=data_as_of,
-                            baseline_value=d,
-                            current_value=b_date,
-                            absolute_difference=None,
-                            threshold=None,
-                            status="FAIL",
-                            message=f"History artifact history/{d}.json payload data_as_of '{b_date}' is not a valid canonical YYYY-MM-DD date",
-                        )
-                        chk = DriftCheckResult(
-                            check_name="drift_history_artifact_format",
-                            status="FAIL",
-                            observation=obs,
-                        )
-                        return DriftMonitoringResult(
-                            overall_status="FAIL",
-                            data_as_of=data_as_of,
-                            baseline_summary={
-                                "status": "FAIL",
-                                "reason": f"Invalid date format in history/{d}.json",
-                            },
-                            drift_checks=[chk],
-                        )
+            if not isinstance(b_payload, dict):
+                obs = DriftObservation(
+                    check_name="drift_history_artifact_corrupted",
+                    baseline_period={"history_date": d, "file_path": fpath},
+                    current_period=data_as_of,
+                    baseline_value=d,
+                    current_value=type(b_payload).__name__,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline history artifact history/{d}.json root is not a dict",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_artifact_corrupted",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Non-dict root in history/{d}.json",
+                    },
+                    drift_checks=[chk],
+                )
 
-                    if b_date >= data_as_of:
-                        obs = DriftObservation(
-                            check_name="drift_temporal_safety",
-                            baseline_period={"history_date": d, "payload_date": b_date},
-                            current_period=data_as_of,
-                            baseline_value=b_date,
-                            current_value=data_as_of,
-                            absolute_difference=None,
-                            threshold=None,
-                            status="FAIL",
-                            message=f"Temporal safety violation: history artifact date '{b_date}' is not strictly less than current evaluation date '{data_as_of}'",
-                        )
-                        chk = DriftCheckResult(
-                            check_name="drift_temporal_safety", status="FAIL", observation=obs
-                        )
-                        return DriftMonitoringResult(
-                            overall_status="FAIL",
-                            data_as_of=data_as_of,
-                            baseline_summary={
-                                "status": "FAIL",
-                                "reason": "Temporal safety violation in history artifact",
-                            },
-                            drift_checks=[chk],
-                        )
+            b_date = b_payload.get("data_as_of")
+            if not is_canonical_yyyy_mm_dd(b_date):
+                obs = DriftObservation(
+                    check_name="drift_history_artifact_format",
+                    baseline_period={"history_date": d, "payload_date": b_date},
+                    current_period=data_as_of,
+                    baseline_value=d,
+                    current_value=b_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline history artifact history/{d}.json payload data_as_of '{b_date}' is missing or not a canonical YYYY-MM-DD date string",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_artifact_format",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Missing or non-canonical date in history/{d}.json",
+                    },
+                    drift_checks=[chk],
+                )
 
-                    loaded_baseline_reports.append(b_payload)
-                    baseline_dates_used.append(d)
-                except json.JSONDecodeError as err:
-                    obs = DriftObservation(
-                        check_name="drift_history_artifact_corrupted",
-                        baseline_period={"history_date": d, "file_path": fpath},
-                        current_period=data_as_of,
-                        baseline_value=d,
-                        current_value=None,
-                        absolute_difference=None,
-                        threshold=None,
-                        status="FAIL",
-                        message=f"Failed to decode history artifact history/{d}.json: {err}",
-                    )
-                    chk = DriftCheckResult(
-                        check_name="drift_history_artifact_corrupted",
-                        status="FAIL",
-                        observation=obs,
-                    )
-                    return DriftMonitoringResult(
-                        overall_status="FAIL",
-                        data_as_of=data_as_of,
-                        baseline_summary={
-                            "status": "FAIL",
-                            "reason": f"JSON decode error in history/{d}.json",
-                        },
-                        drift_checks=[chk],
-                    )
-                except Exception as err:  # noqa: BLE001
-                    logger.warning(
-                        "Failed to load historical baseline report history/%s.json: %s", d, err
-                    )
+            if b_date != d:
+                obs = DriftObservation(
+                    check_name="drift_history_artifact_mismatch",
+                    baseline_period={"history_date": d, "payload_date": b_date},
+                    current_period=data_as_of,
+                    baseline_value=d,
+                    current_value=b_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline history artifact history/{d}.json payload data_as_of '{b_date}' does not match index date '{d}'",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_artifact_mismatch",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Artifact date mismatch in history/{d}.json",
+                    },
+                    drift_checks=[chk],
+                )
+
+            if b_date >= data_as_of:
+                obs = DriftObservation(
+                    check_name="drift_temporal_safety",
+                    baseline_period={"history_date": d, "payload_date": b_date},
+                    current_period=data_as_of,
+                    baseline_value=b_date,
+                    current_value=data_as_of,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Temporal safety violation: baseline history artifact date '{b_date}' is not strictly less than current evaluation date '{data_as_of}'",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_temporal_safety", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": "Temporal safety violation in history artifact",
+                    },
+                    drift_checks=[chk],
+                )
+
+            loaded_baseline_reports.append(b_payload)
+            baseline_dates_used.append(d)
 
     num_baseline_reports = len(loaded_baseline_reports)
+
+    # Validate baseline report contents before calculating aggregates
+    for idx, b_p in enumerate(loaded_baseline_reports):
+        b_issues = find_nan_or_inf(b_p, path=f"baseline_report[{idx}]")
+        if b_issues:
+            obs = DriftObservation(
+                check_name="drift_baseline_numeric_sanity",
+                baseline_period={"index": idx, "report_date": baseline_dates_used[idx]},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=b_issues[:5],
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Baseline historical report '{baseline_dates_used[idx]}' contains non-finite NaN/Inf values: {'; '.join(b_issues[:3])}",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_baseline_numeric_sanity", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": f"Non-finite values in baseline report {baseline_dates_used[idx]}",
+                },
+                drift_checks=[chk],
+            )
 
     # Check minimum baseline sufficiency
     if num_baseline_reports < min_baseline_reports:

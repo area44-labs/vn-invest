@@ -468,6 +468,74 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         )
         self.assertEqual(res.overall_status, "FAIL")
 
+    def test_canonical_date_validation_cases(self):
+        """Verify strict canonical YYYY-MM-DD calendar date validation rules."""
+        from scripts.lib.monitoring import is_canonical_yyyy_mm_dd
+
+        self.assertTrue(is_canonical_yyyy_mm_dd("2026-09-17"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-9-17"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-09-17T00:00:00"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-09-17Z"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-02-30"))
+        self.assertFalse(is_canonical_yyyy_mm_dd(True))
+        self.assertFalse(is_canonical_yyyy_mm_dd(12345))
+        self.assertFalse(is_canonical_yyyy_mm_dd(None))
+
+    def test_mismatched_data_as_of_between_payload_and_evaluation_date_fails(self):
+        """Verify evaluation fails closed when data_as_of parameter mismatches current_payload date."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-16",  # Mismatches current_payload "2026-09-17"
+            current_payload=curr,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        self.assertEqual(res.drift_checks[0].check_name, "drift_data_as_of_mismatch")
+
+    def test_non_canonical_data_as_of_fails(self):
+        """Verify non-canonical data_as_of strings fail closed."""
+        for bad_date in ["2026-9-17", "2026-09-17T00:00:00", "2026-09-17Z", "2026-02-30"]:
+            curr_bad = make_mock_payload(data_as_of="2026-09-17")
+            curr_bad["data_as_of"] = bad_date
+            res = evaluate_data_and_model_drift(
+                data_as_of=bad_date,
+                current_payload=curr_bad,
+            )
+            self.assertEqual(res.overall_status, "FAIL")
+
+    def test_baseline_report_containing_nan_fails_closed(self):
+        """Verify baseline report containing non-finite NaN value fails closed."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+        # Inject NaN into a baseline report
+        baselines[0]["market"]["metrics"]["vnindex_value"] = float("nan")
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_numeric_sanity")
+
+    def test_missing_selected_disk_baseline_artifact_fails_closed(self):
+        """Verify selecting a baseline date whose artifact is missing on disk fails closed."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        # History index lists '2026-09-16' but no file exists on disk
+        index_data = {"dates": ["2026-09-16"]}
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            history_index_data=index_data,
+            generated_dir="/non/existent/dir",
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_missing")
+
 
 class TestProductionMonitoringIntegration(unittest.TestCase):
     """Test suite verifying integration of drift detection into evaluate_production_monitoring()."""
