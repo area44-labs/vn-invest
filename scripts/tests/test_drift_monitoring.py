@@ -383,6 +383,92 @@ class TestTemporalSafetyRegression(unittest.TestCase):
         )
 
 
+class TestFeedbackRegressionCases(unittest.TestCase):
+    """Regression test suite covering user feedback review items for PR #95."""
+
+    def test_market_metrics_prioritize_market_payload(self):
+        """Verify vnindex_change_pct and market_breadth_ratio are prioritized from market_payload."""
+        curr_rec = make_mock_payload(data_as_of="2026-09-17")
+        # Remove metrics from recommendation payload's inner market dict
+        curr_rec["market"]["metrics"] = {}
+
+        explicit_market = {
+            "regime": "BULL",
+            "confidence": 0.90,
+            "metrics": {
+                "vnindex_value": 1250.0,
+                "vnindex_change_pct": 0.5,
+                "market_breadth_ratio": 0.60,
+            },
+        }
+
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_rec,
+            market_payload=explicit_market,
+            baseline_reports=baselines,
+        )
+
+        self.assertEqual(res.overall_status, "PASS")
+        breadth_chk = next(c for c in res.drift_checks if c.check_name == "drift_market_breadth")
+        self.assertEqual(breadth_chk.status, "PASS")
+        self.assertEqual(breadth_chk.observation.current_value, 0.60)
+
+    def test_invalid_baseline_config_parameters_fail_closed(self):
+        """Verify invalid lookback_reports or min_baseline_reports fail closed."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+
+        # Boolean lookback
+        res = evaluate_data_and_model_drift(
+            current_payload=curr, baseline_reports=baselines, lookback_reports=True
+        )
+        self.assertEqual(res.overall_status, "FAIL")
+
+        # Negative lookback
+        res = evaluate_data_and_model_drift(
+            current_payload=curr, baseline_reports=baselines, lookback_reports=-5
+        )
+        self.assertEqual(res.overall_status, "FAIL")
+
+        # min_baseline_reports > lookback_reports
+        res = evaluate_data_and_model_drift(
+            current_payload=curr,
+            baseline_reports=baselines,
+            lookback_reports=5,
+            min_baseline_reports=10,
+        )
+        self.assertEqual(res.overall_status, "FAIL")
+
+    def test_invalid_injected_baseline_reports_fail_closed(self):
+        """Verify malformed data_as_of or non-dict items in baseline_reports fail closed."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+
+        # Non-dict item
+        res = evaluate_data_and_model_drift(
+            current_payload=curr,
+            baseline_reports=["not_a_dict"],  # type: ignore[list-item]
+        )
+        self.assertEqual(res.overall_status, "FAIL")
+
+        # Malformed YYYY-MM-DD date string
+        bad_date = make_mock_payload(data_as_of="invalid-date")
+        res = evaluate_data_and_model_drift(current_payload=curr, baseline_reports=[bad_date])
+        self.assertEqual(res.overall_status, "FAIL")
+
+        # Unsorted dates in baseline_reports
+        unsorted_baselines = [
+            make_mock_payload(data_as_of="2026-09-14"),
+            make_mock_payload(data_as_of="2026-09-16"),
+        ]
+        res = evaluate_data_and_model_drift(
+            current_payload=curr, baseline_reports=unsorted_baselines
+        )
+        self.assertEqual(res.overall_status, "FAIL")
+
+
 class TestProductionMonitoringIntegration(unittest.TestCase):
     """Test suite verifying integration of drift detection into evaluate_production_monitoring()."""
 

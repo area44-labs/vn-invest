@@ -292,8 +292,41 @@ def classify_confidence_bucket(conf: float | None) -> str | None:
     return f"{lower:.1f}-{upper:.1f}"
 
 
-def extract_recommendation_metrics(payload: dict) -> dict[str, Any]:
-    """Extract operational distribution and numeric metrics from a recommendation report payload."""
+def _extract_market_metrics(
+    market_payload: dict | None, fallback_payload: dict | None
+) -> tuple[str | None, float | None, float | None]:
+    """Extract (regime, vnindex_change_pct, market_breadth_ratio) prioritizing market_payload."""
+    m_source = (
+        market_payload
+        if market_payload is not None
+        else (fallback_payload.get("market", {}) if isinstance(fallback_payload, dict) else {})
+    )
+
+    if not isinstance(m_source, dict):
+        return None, None, None
+
+    if "market" in m_source and isinstance(m_source["market"], dict):
+        m_source = m_source["market"]
+
+    regime = m_source.get("regime")
+    m_metrics = m_source.get("metrics", {})
+    if not isinstance(m_metrics, dict):
+        m_metrics = {}
+
+    vnindex_change_pct = m_metrics.get("vnindex_change_pct")
+    market_breadth_ratio = m_metrics.get("market_breadth_ratio")
+
+    return regime, vnindex_change_pct, market_breadth_ratio
+
+
+def extract_recommendation_metrics(
+    payload: dict, market_payload: dict | None = None
+) -> dict[str, Any]:
+    """Extract operational distribution and numeric metrics from a recommendation report payload.
+
+    Market metrics (vnindex_change_pct, market_breadth_ratio) strictly prioritize market_payload
+    when provided, falling back to payload.get("market") only when market_payload is None.
+    """
     if not isinstance(payload, dict):
         raise TypeError(f"Payload must be a dict, got {type(payload).__name__}")
 
@@ -367,18 +400,9 @@ def extract_recommendation_metrics(payload: dict) -> dict[str, Any]:
 
     conf_mean = round(sum(valid_conf_vals) / len(valid_conf_vals), 4) if valid_conf_vals else None
 
-    market_obj = payload.get("market", {})
-    if isinstance(market_obj, dict):
-        regime = market_obj.get("regime")
-        m_metrics = market_obj.get("metrics", {})
-        if not isinstance(m_metrics, dict):
-            m_metrics = {}
-        vnindex_change_pct = m_metrics.get("vnindex_change_pct")
-        market_breadth_ratio = m_metrics.get("market_breadth_ratio")
-    else:
-        regime = None
-        vnindex_change_pct = None
-        market_breadth_ratio = None
+    regime, vnindex_change_pct, market_breadth_ratio = _extract_market_metrics(
+        market_payload, payload
+    )
 
     return {
         "total_scanned": total_scanned,
@@ -418,6 +442,81 @@ def evaluate_data_and_model_drift(
     - Operational monitoring layer ONLY: does NOT evaluate model error, predictive validity, or profitability.
     """
     g_dir = generated_dir or DEFAULT_GENERATED_DIR
+
+    # 0. Validate baseline configuration parameters fail closed
+    if (
+        isinstance(lookback_reports, bool)
+        or not isinstance(lookback_reports, int)
+        or lookback_reports <= 0
+    ):
+        obs = DriftObservation(
+            check_name="drift_baseline_config",
+            baseline_period={"lookback_reports": lookback_reports},
+            current_period=data_as_of or "UNKNOWN",
+            baseline_value=None,
+            current_value=lookback_reports,
+            absolute_difference=None,
+            threshold=0,
+            status="FAIL",
+            message=f"Invalid lookback_reports configuration parameter: {lookback_reports}. Must be positive integer",
+        )
+        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=data_as_of,
+            baseline_summary={"status": "FAIL", "reason": "Invalid lookback_reports parameter"},
+            drift_checks=[chk],
+        )
+
+    if (
+        isinstance(min_baseline_reports, bool)
+        or not isinstance(min_baseline_reports, int)
+        or min_baseline_reports <= 0
+    ):
+        obs = DriftObservation(
+            check_name="drift_baseline_config",
+            baseline_period={"min_baseline_reports": min_baseline_reports},
+            current_period=data_as_of or "UNKNOWN",
+            baseline_value=None,
+            current_value=min_baseline_reports,
+            absolute_difference=None,
+            threshold=0,
+            status="FAIL",
+            message=f"Invalid min_baseline_reports configuration parameter: {min_baseline_reports}. Must be positive integer",
+        )
+        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=data_as_of,
+            baseline_summary={"status": "FAIL", "reason": "Invalid min_baseline_reports parameter"},
+            drift_checks=[chk],
+        )
+
+    if min_baseline_reports > lookback_reports:
+        obs = DriftObservation(
+            check_name="drift_baseline_config",
+            baseline_period={
+                "lookback_reports": lookback_reports,
+                "min_baseline_reports": min_baseline_reports,
+            },
+            current_period=data_as_of or "UNKNOWN",
+            baseline_value=lookback_reports,
+            current_value=min_baseline_reports,
+            absolute_difference=min_baseline_reports - lookback_reports,
+            threshold=0,
+            status="FAIL",
+            message=f"Invalid baseline configuration: min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})",
+        )
+        chk = DriftCheckResult(check_name="drift_baseline_config", status="FAIL", observation=obs)
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=data_as_of,
+            baseline_summary={
+                "status": "FAIL",
+                "reason": "min_baseline_reports exceeds lookback_reports",
+            },
+            drift_checks=[chk],
+        )
 
     # Load current payload if not provided
     if current_payload is None:
@@ -491,7 +590,7 @@ def evaluate_data_and_model_drift(
             drift_checks=[chk],
         )
 
-    current_metrics = extract_recommendation_metrics(current_payload)
+    current_metrics = extract_recommendation_metrics(current_payload, market_payload=market_payload)
 
     # Resolve baseline historical reports with strict temporal safety
     loaded_baseline_reports: list[dict] = []
@@ -525,31 +624,146 @@ def evaluate_data_and_model_drift(
                 )
 
             r_date = r.get("data_as_of")
-            if r_date:
-                # Temporal safety check: baseline report date must be strictly < data_as_of
-                if r_date >= data_as_of:
-                    obs = DriftObservation(
-                        check_name="drift_temporal_safety",
-                        baseline_period={"injected_date": r_date},
-                        current_period=data_as_of,
-                        baseline_value=r_date,
-                        current_value=data_as_of,
-                        absolute_difference=None,
-                        threshold=None,
-                        status="FAIL",
-                        message=f"Temporal safety violation: baseline report date '{r_date}' is not strictly less than current evaluation date '{data_as_of}'",
-                    )
-                    chk = DriftCheckResult(
-                        check_name="drift_temporal_safety", status="FAIL", observation=obs
-                    )
-                    return DriftMonitoringResult(
-                        overall_status="FAIL",
-                        data_as_of=data_as_of,
-                        baseline_summary={"status": "FAIL", "reason": "Temporal safety violation"},
-                        drift_checks=[chk],
-                    )
-                baseline_dates_used.append(r_date)
+            if not r_date or not isinstance(r_date, str) or isinstance(r_date, bool):
+                obs = DriftObservation(
+                    check_name="drift_baseline_reports_injected",
+                    baseline_period={"index": idx},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=r_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Injected baseline report at index {idx} missing valid YYYY-MM-DD string data_as_of",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_baseline_reports_injected",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": "Missing or invalid data_as_of string in injected report",
+                    },
+                    drift_checks=[chk],
+                )
+
+            try:
+                datetime.strptime(r_date, "%Y-%m-%d").replace(tzinfo=UTC)
+            except ValueError:
+                obs = DriftObservation(
+                    check_name="drift_baseline_reports_injected",
+                    baseline_period={"index": idx, "injected_date": r_date},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=r_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Injected baseline report at index {idx} has invalid canonical YYYY-MM-DD format: '{r_date}'",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_baseline_reports_injected",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Invalid date format '{r_date}' in injected report",
+                    },
+                    drift_checks=[chk],
+                )
+
+            # Temporal safety check: baseline report date must be strictly < data_as_of
+            if r_date >= data_as_of:
+                obs = DriftObservation(
+                    check_name="drift_temporal_safety",
+                    baseline_period={"injected_date": r_date},
+                    current_period=data_as_of,
+                    baseline_value=r_date,
+                    current_value=data_as_of,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Temporal safety violation: baseline report date '{r_date}' is not strictly less than current evaluation date '{data_as_of}'",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_temporal_safety", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": "Temporal safety violation"},
+                    drift_checks=[chk],
+                )
+
+            baseline_dates_used.append(r_date)
             loaded_baseline_reports.append(r)
+
+        # Check for duplicate dates in injected baseline reports
+        if len(baseline_dates_used) != len(set(baseline_dates_used)):
+            obs = DriftObservation(
+                check_name="drift_baseline_reports_duplicates",
+                baseline_period={
+                    "total_reports": len(baseline_dates_used),
+                    "unique_dates": len(set(baseline_dates_used)),
+                },
+                current_period=data_as_of,
+                baseline_value=len(baseline_dates_used),
+                current_value=len(set(baseline_dates_used)),
+                absolute_difference=len(baseline_dates_used) - len(set(baseline_dates_used)),
+                threshold=0,
+                status="FAIL",
+                message="Injected baseline reports contain duplicate data_as_of dates",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_baseline_reports_duplicates",
+                status="FAIL",
+                observation=obs,
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "Duplicate dates in injected baseline reports",
+                },
+                drift_checks=[chk],
+            )
+
+        # Check descending order in injected baseline reports
+        if baseline_dates_used != sorted(baseline_dates_used, reverse=True):
+            obs = DriftObservation(
+                check_name="drift_baseline_reports_order",
+                baseline_period={"dates_sample": baseline_dates_used[:5]},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message="Injected baseline reports dates are not in descending chronological order",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_baseline_reports_order",
+                status="FAIL",
+                observation=obs,
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "Unsorted dates in injected baseline reports",
+                },
+                drift_checks=[chk],
+            )
     else:
         # Load history index
         if history_index_data is None:
@@ -749,9 +963,143 @@ def evaluate_data_and_model_drift(
                 try:
                     with open(fpath, "r", encoding="utf-8") as f:
                         b_payload = json.load(f)
-                    if isinstance(b_payload, dict):
-                        loaded_baseline_reports.append(b_payload)
-                        baseline_dates_used.append(d)
+                    if not isinstance(b_payload, dict):
+                        obs = DriftObservation(
+                            check_name="drift_history_artifact_corrupted",
+                            baseline_period={"history_date": d, "file_path": fpath},
+                            current_period=data_as_of,
+                            baseline_value=d,
+                            current_value=None,
+                            absolute_difference=None,
+                            threshold=None,
+                            status="FAIL",
+                            message=f"History artifact history/{d}.json is not a valid JSON object",
+                        )
+                        chk = DriftCheckResult(
+                            check_name="drift_history_artifact_corrupted",
+                            status="FAIL",
+                            observation=obs,
+                        )
+                        return DriftMonitoringResult(
+                            overall_status="FAIL",
+                            data_as_of=data_as_of,
+                            baseline_summary={
+                                "status": "FAIL",
+                                "reason": f"Corrupted artifact history/{d}.json",
+                            },
+                            drift_checks=[chk],
+                        )
+
+                    b_date = b_payload.get("data_as_of") or b_payload.get("source_date")
+                    if b_date != d or not isinstance(b_date, str) or isinstance(b_date, bool):
+                        obs = DriftObservation(
+                            check_name="drift_history_artifact_mismatch",
+                            baseline_period={"history_date": d, "payload_date": b_date},
+                            current_period=data_as_of,
+                            baseline_value=d,
+                            current_value=b_date,
+                            absolute_difference=None,
+                            threshold=None,
+                            status="FAIL",
+                            message=f"History artifact history/{d}.json payload data_as_of '{b_date}' does not match index date '{d}'",
+                        )
+                        chk = DriftCheckResult(
+                            check_name="drift_history_artifact_mismatch",
+                            status="FAIL",
+                            observation=obs,
+                        )
+                        return DriftMonitoringResult(
+                            overall_status="FAIL",
+                            data_as_of=data_as_of,
+                            baseline_summary={
+                                "status": "FAIL",
+                                "reason": f"Artifact date mismatch in history/{d}.json",
+                            },
+                            drift_checks=[chk],
+                        )
+
+                    try:
+                        datetime.strptime(b_date, "%Y-%m-%d").replace(tzinfo=UTC)
+                    except ValueError:
+                        obs = DriftObservation(
+                            check_name="drift_history_artifact_format",
+                            baseline_period={"history_date": d, "payload_date": b_date},
+                            current_period=data_as_of,
+                            baseline_value=d,
+                            current_value=b_date,
+                            absolute_difference=None,
+                            threshold=None,
+                            status="FAIL",
+                            message=f"History artifact history/{d}.json payload data_as_of '{b_date}' is not a valid canonical YYYY-MM-DD date",
+                        )
+                        chk = DriftCheckResult(
+                            check_name="drift_history_artifact_format",
+                            status="FAIL",
+                            observation=obs,
+                        )
+                        return DriftMonitoringResult(
+                            overall_status="FAIL",
+                            data_as_of=data_as_of,
+                            baseline_summary={
+                                "status": "FAIL",
+                                "reason": f"Invalid date format in history/{d}.json",
+                            },
+                            drift_checks=[chk],
+                        )
+
+                    if b_date >= data_as_of:
+                        obs = DriftObservation(
+                            check_name="drift_temporal_safety",
+                            baseline_period={"history_date": d, "payload_date": b_date},
+                            current_period=data_as_of,
+                            baseline_value=b_date,
+                            current_value=data_as_of,
+                            absolute_difference=None,
+                            threshold=None,
+                            status="FAIL",
+                            message=f"Temporal safety violation: history artifact date '{b_date}' is not strictly less than current evaluation date '{data_as_of}'",
+                        )
+                        chk = DriftCheckResult(
+                            check_name="drift_temporal_safety", status="FAIL", observation=obs
+                        )
+                        return DriftMonitoringResult(
+                            overall_status="FAIL",
+                            data_as_of=data_as_of,
+                            baseline_summary={
+                                "status": "FAIL",
+                                "reason": "Temporal safety violation in history artifact",
+                            },
+                            drift_checks=[chk],
+                        )
+
+                    loaded_baseline_reports.append(b_payload)
+                    baseline_dates_used.append(d)
+                except json.JSONDecodeError as err:
+                    obs = DriftObservation(
+                        check_name="drift_history_artifact_corrupted",
+                        baseline_period={"history_date": d, "file_path": fpath},
+                        current_period=data_as_of,
+                        baseline_value=d,
+                        current_value=None,
+                        absolute_difference=None,
+                        threshold=None,
+                        status="FAIL",
+                        message=f"Failed to decode history artifact history/{d}.json: {err}",
+                    )
+                    chk = DriftCheckResult(
+                        check_name="drift_history_artifact_corrupted",
+                        status="FAIL",
+                        observation=obs,
+                    )
+                    return DriftMonitoringResult(
+                        overall_status="FAIL",
+                        data_as_of=data_as_of,
+                        baseline_summary={
+                            "status": "FAIL",
+                            "reason": f"JSON decode error in history/{d}.json",
+                        },
+                        drift_checks=[chk],
+                    )
                 except Exception as err:  # noqa: BLE001
                     logger.warning(
                         "Failed to load historical baseline report history/%s.json: %s", d, err
@@ -792,7 +1140,12 @@ def evaluate_data_and_model_drift(
         )
 
     # Extract baseline metrics for all loaded baseline reports
-    all_baseline_metrics = [extract_recommendation_metrics(b_p) for b_p in loaded_baseline_reports]
+    all_baseline_metrics = [
+        extract_recommendation_metrics(
+            b_p, market_payload=b_p.get("market") if isinstance(b_p, dict) else None
+        )
+        for b_p in loaded_baseline_reports
+    ]
 
     # Compute baseline aggregated metric values
     baseline_processed_ratio = round(
