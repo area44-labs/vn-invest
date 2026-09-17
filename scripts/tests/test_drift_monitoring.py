@@ -179,6 +179,128 @@ class TestDriftBaselineValidation(unittest.TestCase):
             "INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message
         )
 
+    def test_missing_history_index_file_fails_closed(self):
+        """Verify missing history/index.json fails closed with FAIL status."""
+        import tempfile
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        with tempfile.TemporaryDirectory() as empty_dir:
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+                generated_dir=empty_dir,
+                history_index_data=None,
+            )
+
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertEqual(res.baseline_summary["status"], "FAIL")
+            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+
+    def test_malformed_history_index_file_fails_closed(self):
+        """Verify malformed JSON history/index.json fails closed with FAIL status."""
+        import os
+        import tempfile
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                f.write("{invalid json content")
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+                generated_dir=tmpdir,
+            )
+
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertEqual(res.baseline_summary["status"], "FAIL")
+            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+
+    def test_injected_history_index_data_none_with_missing_disk_index_fails_closed(self):
+        """Verify explicit history_index_data=None when no disk index exists fails closed with FAIL status."""
+        import tempfile
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        with tempfile.TemporaryDirectory() as empty_dir:
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+                generated_dir=empty_dir,
+                history_index_data=None,
+            )
+
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertEqual(res.baseline_summary["status"], "FAIL")
+            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+
+    def test_valid_history_index_with_fewer_than_min_baseline_reports_yields_warning(self):
+        """Verify valid history index with 1 to 4 baseline reports yields WARNING status and INSUFFICIENT baseline."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            dates = ["2026-09-17", "2026-09-16", "2026-09-15", "2026-09-14"]
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": dates}, f)
+
+            for d in dates:
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(make_mock_payload(data_as_of=d), f)
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+                generated_dir=tmpdir,
+            )
+
+            self.assertEqual(res.overall_status, "WARNING")
+            self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
+            self.assertEqual(res.baseline_summary["available_reports"], 3)
+            self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
+
+    def test_valid_history_index_with_min_baseline_reports_runs_drift_calculation(self):
+        """Verify valid history index with >= min_baseline_reports executes normal drift calculation."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            dates = [
+                "2026-09-17",
+                "2026-09-16",
+                "2026-09-15",
+                "2026-09-14",
+                "2026-09-13",
+                "2026-09-12",
+            ]
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": dates}, f)
+
+            for d in dates:
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(make_mock_payload(data_as_of=d), f)
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+                generated_dir=tmpdir,
+            )
+
+            self.assertEqual(res.overall_status, "PASS")
+            self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
+            self.assertEqual(res.baseline_summary["report_count"], 5)
+
     def test_history_index_duplicate_dates_fail_closed(self):
         """Verify duplicate dates in history index fail closed (FAIL status)."""
         curr = make_mock_payload(data_as_of="2026-09-17")
@@ -377,10 +499,7 @@ class TestTemporalSafetyRegression(unittest.TestCase):
         )
 
         self.assertEqual(res.overall_status, "FAIL")
-        self.assertIn(
-            res.drift_checks[0].check_name,
-            ("drift_history_index_order", "drift_temporal_safety"),
-        )
+        self.assertEqual(res.drift_checks[0].check_name, "drift_history_index_order")
 
 
 class TestFeedbackRegressionCases(unittest.TestCase):

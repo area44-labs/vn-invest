@@ -1086,51 +1086,73 @@ def evaluate_data_and_model_drift(
         # Load history index
         if history_index_data is None:
             index_path = os.path.join(g_dir, "history", "index.json")
-            if os.path.exists(index_path):
-                try:
-                    with open(index_path, "r", encoding="utf-8") as f:
-                        history_index_data = json.load(f)
-                except Exception as err:  # noqa: BLE001
-                    obs = DriftObservation(
-                        check_name="drift_history_index",
-                        baseline_period={"path": index_path},
-                        current_period=data_as_of,
-                        baseline_value=None,
-                        current_value=None,
-                        absolute_difference=None,
-                        threshold=None,
-                        status="FAIL",
-                        message=f"Failed to read history index: {err}",
-                    )
-                    chk = DriftCheckResult(
-                        check_name="drift_history_index", status="FAIL", observation=obs
-                    )
-                    return DriftMonitoringResult(
-                        overall_status="FAIL",
-                        data_as_of=data_as_of,
-                        baseline_summary={"status": "FAIL", "reason": str(err)},
-                        drift_checks=[chk],
-                    )
+            if not os.path.exists(index_path):
+                obs = DriftObservation(
+                    check_name="drift_history_index",
+                    baseline_period={"status": "MISSING_INDEX", "path": index_path},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"History index file missing at {index_path}; fail closed",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_index", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": "Missing history index file"},
+                    drift_checks=[chk],
+                )
+
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    history_index_data = json.load(f)
+            except Exception as err:  # noqa: BLE001
+                obs = DriftObservation(
+                    check_name="drift_history_index",
+                    baseline_period={"path": index_path},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Failed to read or decode history index JSON: {err}",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_history_index", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Malformed history index JSON: {err}",
+                    },
+                    drift_checks=[chk],
+                )
 
         if not history_index_data or not isinstance(history_index_data, dict):
             obs = DriftObservation(
                 check_name="drift_history_index",
-                baseline_period={"status": "MISSING_INDEX"},
+                baseline_period={"status": "INVALID_INDEX_TYPE"},
                 current_period=data_as_of,
                 baseline_value=None,
-                current_value=None,
+                current_value=type(history_index_data).__name__,
                 absolute_difference=None,
                 threshold=None,
-                status="WARNING",
-                message="History index (history/index.json) is missing or invalid; baseline unavailable",
+                status="FAIL",
+                message="History index data is missing or not a dict; fail closed",
             )
-            chk = DriftCheckResult(
-                check_name="drift_history_index", status="WARNING", observation=obs
-            )
+            chk = DriftCheckResult(check_name="drift_history_index", status="FAIL", observation=obs)
             return DriftMonitoringResult(
-                overall_status="WARNING",
+                overall_status="FAIL",
                 data_as_of=data_as_of,
-                baseline_summary={"status": "INSUFFICIENT", "reason": "Missing history index"},
+                baseline_summary={"status": "FAIL", "reason": "Invalid history index type"},
                 drift_checks=[chk],
             )
 
