@@ -999,5 +999,94 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
             self.assertEqual(res.overall_status, "FAIL")
 
 
+class TestBaselineAggregationSemantics(unittest.TestCase):
+    """Test suite verifying pooled recommendation observation aggregation vs report-level market metrics aggregation."""
+
+    def test_pooled_baseline_aggregation_with_unequal_recommendation_counts(self):
+        """Verify recommendation metrics use pooled observation totals while market metrics use daily/report-level mean."""
+        # Baseline A: 10 recommendations (5 BUY, 5 WATCH), total_scanned=10
+        base_a = make_mock_payload(
+            data_as_of="2026-09-16",
+            total_scanned=10,
+            buy_count=5,
+            watch_count=5,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=0,
+            signal_score=80.0,
+            risk_adjusted_score=75.0,
+            confidence=0.85,
+            market_breadth_ratio=0.40,
+            vnindex_change_pct=1.0,
+        )
+
+        # Baseline B: 100 recommendations (10 BUY, 90 WATCH), total_scanned=100
+        base_b = make_mock_payload(
+            data_as_of="2026-09-15",
+            total_scanned=100,
+            buy_count=10,
+            watch_count=90,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=0,
+            signal_score=50.0,
+            risk_adjusted_score=45.0,
+            confidence=0.55,
+            market_breadth_ratio=0.80,
+            vnindex_change_pct=3.0,
+        )
+
+        # Extra 3 baselines: each has 10 recs (2 BUY, 2 WATCH, 2 HOLD, 2 SELL, 2 AVOID)
+        extra_baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{14 - i:02d}",
+                total_scanned=10,
+                buy_count=2,
+                watch_count=2,
+                hold_count=2,
+                sell_count=2,
+                avoid_count=2,
+                signal_score=60.0,
+                risk_adjusted_score=55.0,
+                confidence=0.65,
+                market_breadth_ratio=0.60,
+                vnindex_change_pct=2.0,
+            )
+            for i in range(3)
+        ]
+
+        baselines = [base_a, base_b] + extra_baselines
+
+        curr = make_mock_payload(data_as_of="2026-09-17")
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        b_metrics = res.baseline_summary["baseline_metrics"]
+
+        # Action distribution from pooled counts: 21 BUY / 140 pooled scanned = 0.15
+        self.assertEqual(b_metrics["action_proportions"]["BUY"], round(21 / 140, 6))
+
+        # Processed ratio: 134 processed / 140 scanned
+        self.assertEqual(b_metrics["processed_ratio"], round(134 / 140, 6))
+
+        # Confidence bucket distribution
+        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.8-0.9"], round(10 / 134, 6))
+        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.5-0.6"], round(100 / 134, 6))
+        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.6-0.7"], round(24 / 134, 6))
+
+        # Pooled numeric means across 134 valid observations
+        self.assertEqual(b_metrics["signal_score_mean"], round(7240.0 / 134, 4))
+        self.assertEqual(b_metrics["risk_adjusted_score_mean"], round(6570.0 / 134, 4))
+        self.assertEqual(b_metrics["confidence_mean"], round(79.1 / 134, 4))
+
+        # Market metrics remain daily/report-level mean across 5 reports
+        self.assertEqual(b_metrics["market_breadth_ratio"], 0.600000)
+        self.assertEqual(b_metrics["vnindex_change_pct"], 2.0000)
+
+
 if __name__ == "__main__":
     unittest.main()

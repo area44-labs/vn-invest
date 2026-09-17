@@ -1554,11 +1554,16 @@ def evaluate_data_and_model_drift(
                 drift_checks=[chk],
             )
 
-    # Compute baseline aggregated metric values
-    baseline_processed_ratio = round(
-        sum(m["processed_ratio"] for m in all_baseline_metrics) / num_baseline_reports, 6
+    # Compute baseline aggregated metric values using pooled recommendation observations
+    # for recommendation metrics, and report/day-level mean for market metrics.
+    pooled_total_scanned = sum(m["total_scanned"] for m in all_baseline_metrics)
+    pooled_processed_count = sum(m["processed_count"] for m in all_baseline_metrics)
+
+    baseline_processed_ratio = (
+        round(pooled_processed_count / pooled_total_scanned, 6) if pooled_total_scanned > 0 else 0.0
     )
 
+    # Market metrics remain report/day-level mean aggregation
     breadth_vals = [
         m["market_breadth_ratio"]
         for m in all_baseline_metrics
@@ -1573,43 +1578,70 @@ def evaluate_data_and_model_drift(
     ]
     baseline_vnindex_change_pct = round(sum(vn_vals) / len(vn_vals), 4) if vn_vals else None
 
-    # Aggregated action proportions
-    baseline_action_props = {}
-    for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]:
-        baseline_action_props[act] = round(
-            sum(m["action_proportions"][act] for m in all_baseline_metrics) / num_baseline_reports,
-            6,
-        )
+    # Aggregated action proportions from pooled counts
+    pooled_action_counts = {
+        act: sum(m["action_counts"][act] for m in all_baseline_metrics)
+        for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
+    }
+    if pooled_total_scanned > 0:
+        baseline_action_props = {
+            act: round(cnt / pooled_total_scanned, 6) for act, cnt in pooled_action_counts.items()
+        }
+    else:
+        baseline_action_props = {act: 0.0 for act in pooled_action_counts}
 
-    # Aggregated confidence bucket proportions
-    baseline_conf_bucket_props = {}
-    for b in CANONICAL_CONFIDENCE_BUCKETS:
-        baseline_conf_bucket_props[b] = round(
-            sum(m["confidence_bucket_proportions"][b] for m in all_baseline_metrics)
-            / num_baseline_reports,
-            6,
-        )
+    # Aggregated confidence bucket proportions from pooled counts
+    pooled_bucket_counts = {
+        b: sum(m["confidence_bucket_counts"][b] for m in all_baseline_metrics)
+        for b in CANONICAL_CONFIDENCE_BUCKETS
+    }
+    pooled_valid_conf_count = sum(pooled_bucket_counts.values())
+    if pooled_valid_conf_count > 0:
+        baseline_conf_bucket_props = {
+            b: round(cnt / pooled_valid_conf_count, 6) for b, cnt in pooled_bucket_counts.items()
+        }
+    else:
+        baseline_conf_bucket_props = {b: 0.0 for b in CANONICAL_CONFIDENCE_BUCKETS}
 
-    sig_score_means = [
-        m["signal_score_mean"] for m in all_baseline_metrics if m["signal_score_mean"] is not None
-    ]
+    # Pooled numeric means across all individual recommendations in baseline reports
+    all_sig_scores = []
+    all_risk_scores = []
+    all_conf_vals = []
+
+    for b_p in loaded_baseline_reports:
+        for r in b_p.get("recommendations", []):
+            if isinstance(r, dict):
+                ss = r.get("signal_score")
+                if ss is not None and not isinstance(ss, bool) and isinstance(ss, (int, float)):
+                    f_ss = float(ss)
+                    if not (math.isnan(f_ss) or math.isinf(f_ss)):
+                        all_sig_scores.append(f_ss)
+
+                rs = r.get("risk_adjusted_score")
+                if rs is not None and not isinstance(rs, bool) and isinstance(rs, (int, float)):
+                    f_rs = float(rs)
+                    if not (math.isnan(f_rs) or math.isinf(f_rs)):
+                        all_risk_scores.append(f_rs)
+
+                conf = r.get("confidence")
+                if (
+                    conf is not None
+                    and not isinstance(conf, bool)
+                    and isinstance(conf, (int, float))
+                ):
+                    f_conf = float(conf)
+                    if not (math.isnan(f_conf) or math.isinf(f_conf)) and 0.0 <= f_conf <= 1.0:
+                        all_conf_vals.append(f_conf)
+
     baseline_signal_score_mean = (
-        round(sum(sig_score_means) / len(sig_score_means), 4) if sig_score_means else None
+        round(sum(all_sig_scores) / len(all_sig_scores), 4) if all_sig_scores else None
     )
-
-    risk_score_means = [
-        m["risk_adjusted_score_mean"]
-        for m in all_baseline_metrics
-        if m["risk_adjusted_score_mean"] is not None
-    ]
     baseline_risk_score_mean = (
-        round(sum(risk_score_means) / len(risk_score_means), 4) if risk_score_means else None
+        round(sum(all_risk_scores) / len(all_risk_scores), 4) if all_risk_scores else None
     )
-
-    conf_means = [
-        m["confidence_mean"] for m in all_baseline_metrics if m["confidence_mean"] is not None
-    ]
-    baseline_confidence_mean = round(sum(conf_means) / len(conf_means), 4) if conf_means else None
+    baseline_confidence_mean = (
+        round(sum(all_conf_vals) / len(all_conf_vals), 4) if all_conf_vals else None
+    )
 
     baseline_period_info = {
         "status": "SUFFICIENT",
