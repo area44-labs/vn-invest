@@ -158,6 +158,72 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(res.data_as_of, "2026-09-17")
         self.assertTrue(validate_monitoring_payload(res.to_dict()))
 
+    def test_payload_supplied_in_memory_with_missing_artifacts_on_disk_fails(self):
+        """Test A: In-memory payload supplied but generated_dir on disk is empty -> FAIL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=self.healthy_market,
+                reference_date="2026-09-17",
+            )
+            check_names = [c.check_name for c in res.checks]
+            self.assertIn("artifact_existence", check_names)
+            art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
+            self.assertEqual(art_chk.status, "FAIL")
+            self.assertEqual(res.overall_status, "FAIL")
+
+    def test_payload_supplied_in_memory_but_history_index_missing_on_disk_fails(self):
+        """Test B: In-memory payload supplied, recommendations.json and market.json exist, but history/index.json is missing -> FAIL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(self.healthy_market, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=self.healthy_market,
+                reference_date="2026-09-17",
+            )
+            check_names = [c.check_name for c in res.checks]
+            self.assertIn("history_index_status", check_names)
+            hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")
+            self.assertEqual(hist_chk.status, "FAIL")
+            self.assertEqual(res.overall_status, "FAIL")
+
+    def test_healthy_artifacts_on_disk_and_payload_in_memory_passes(self):
+        """Test C: Healthy artifacts exist on disk AND payload supplied in memory -> PASS."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(self.healthy_market, f)
+            with open(os.path.join(hist_dir, "index.json"), "w") as f:
+                json.dump({"dates": ["2026-09-17"]}, f)
+            with open(os.path.join(hist_dir, "2026-09-17.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=self.healthy_market,
+                reference_date="2026-09-17",
+            )
+            art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
+            hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")
+
+            self.assertEqual(art_chk.status, "PASS")
+            self.assertEqual(hist_chk.status, "PASS")
+            self.assertEqual(res.overall_status, "PASS")
+            # Ensure no duplicated check names
+            check_names = [c.check_name for c in res.checks]
+            self.assertEqual(len(check_names), len(set(check_names)))
+
     def test_data_freshness_exact_boundaries(self):
         """Verify exact freshness contract for PASS, WARNING, and FAIL thresholds."""
         # 1. Same date: data_as_of == reference_date -> PASS (0 days old)

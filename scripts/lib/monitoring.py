@@ -768,10 +768,12 @@ def evaluate_production_monitoring(
 
     checks: list[CheckResult] = []
 
-    # 1. Artifact existence check
-    if recommendations_payload is None:
+    # Determine data_as_of peek for artifact existence check
+    data_as_of_peek = None
+    if recommendations_payload is not None:
+        data_as_of_peek = recommendations_payload.get("data_as_of")
+    else:
         rec_file = os.path.join(g_dir, "recommendations.json")
-        data_as_of_peek = None
         if os.path.exists(rec_file):
             try:
                 with open(rec_file, "r", encoding="utf-8") as f:
@@ -780,14 +782,27 @@ def evaluate_production_monitoring(
             except Exception:  # noqa: BLE001
                 data_as_of_peek = None
 
-        artifact_chk = check_required_artifacts(g_dir, data_as_of=data_as_of_peek)
-        checks.append(artifact_chk)
+    # 1. Artifact existence check (ALWAYS executed on disk)
+    artifact_chk = check_required_artifacts(g_dir, data_as_of=data_as_of_peek)
+    checks.append(artifact_chk)
 
-        if artifact_chk.status == "PASS":
-            with open(os.path.join(g_dir, "recommendations.json"), "r", encoding="utf-8") as f:
-                recommendations_payload = json.load(f)
-            with open(os.path.join(g_dir, "market.json"), "r", encoding="utf-8") as f:
-                market_payload = json.load(f)
+    # Load payloads if not provided in memory
+    if recommendations_payload is None:
+        rec_file = os.path.join(g_dir, "recommendations.json")
+        if os.path.exists(rec_file):
+            try:
+                with open(rec_file, "r", encoding="utf-8") as f:
+                    recommendations_payload = json.load(f)
+            except Exception:  # noqa: BLE001
+                recommendations_payload = None
+
+        mkt_file = os.path.join(g_dir, "market.json")
+        if os.path.exists(mkt_file):
+            try:
+                with open(mkt_file, "r", encoding="utf-8") as f:
+                    market_payload = json.load(f)
+            except Exception:  # noqa: BLE001
+                market_payload = None
 
     if recommendations_payload is None:
         # Cannot proceed with deep payload checks
@@ -825,9 +840,8 @@ def evaluate_production_monitoring(
     # 6. Market regime status check
     checks.append(check_market_regime_status(market_payload))
 
-    # 7. History index integrity check
-    if os.path.exists(os.path.join(g_dir, "history", "index.json")):
-        checks.append(check_history_index_status(g_dir, data_as_of=data_as_of))
+    # 7. History index integrity check (ALWAYS executed, fails closed if history/index.json is missing)
+    checks.append(check_history_index_status(g_dir, data_as_of=data_as_of))
 
     # 8. Benchmark OHLCV checks (if provided)
     if df_vnindex is not None:
