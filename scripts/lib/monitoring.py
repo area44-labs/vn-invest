@@ -348,27 +348,55 @@ def extract_recommendation_metrics(
 
     Market metrics (vnindex_change_pct, market_breadth_ratio) strictly prioritize market_payload
     when provided, falling back to payload.get("market") only when market_payload is None.
+
+    Fails closed by raising ValueError or TypeError if payload, summary, recommendations items,
+    or model metrics are malformed or non-finite.
     """
     if not isinstance(payload, dict):
         raise TypeError(f"Payload must be a dict, got {type(payload).__name__}")
 
-    recs = payload.get("recommendations", [])
+    recs = payload.get("recommendations")
     if not isinstance(recs, list):
-        recs = []
+        raise TypeError(f"Recommendations must be a list, got {type(recs).__name__}")
 
-    summary = payload.get("summary", {})
+    # 1. Validate each recommendation item
+    for idx, r in enumerate(recs):
+        if not isinstance(r, dict):
+            raise TypeError(
+                f"Recommendation item at index {idx} must be a dict, got {type(r).__name__}"
+            )
+
+    summary = payload.get("summary")
     if not isinstance(summary, dict):
-        summary = {}
+        raise TypeError(f"Summary must be a dict, got {type(summary).__name__}")
 
-    total_scanned = summary.get("total_scanned", len(recs))
+    # 2. Validate summary consistency
+    total_scanned = summary.get("total_scanned")
+    if isinstance(total_scanned, bool) or not isinstance(total_scanned, int) or total_scanned < 0:
+        raise ValueError(
+            f"Invalid summary total_scanned: {total_scanned}. Must be non-boolean non-negative integer"
+        )
 
-    action_counts = {
-        "BUY": summary.get("buy_count", sum(1 for r in recs if r.get("action") == "BUY")),
-        "WATCH": summary.get("watch_count", sum(1 for r in recs if r.get("action") == "WATCH")),
-        "HOLD": summary.get("hold_count", sum(1 for r in recs if r.get("action") == "HOLD")),
-        "SELL": summary.get("sell_count", sum(1 for r in recs if r.get("action") == "SELL")),
-        "AVOID": summary.get("avoid_count", sum(1 for r in recs if r.get("action") == "AVOID")),
-    }
+    action_counts = {}
+    for act_key, count_field in [
+        ("BUY", "buy_count"),
+        ("WATCH", "watch_count"),
+        ("HOLD", "hold_count"),
+        ("SELL", "sell_count"),
+        ("AVOID", "avoid_count"),
+    ]:
+        cnt = summary.get(count_field)
+        if isinstance(cnt, bool) or not isinstance(cnt, int) or cnt < 0:
+            raise ValueError(
+                f"Invalid summary {count_field}: {cnt}. Must be non-boolean non-negative integer"
+            )
+        action_counts[act_key] = cnt
+
+    sum_action_counts = sum(action_counts.values())
+    if sum_action_counts > total_scanned:
+        raise ValueError(
+            f"Summary action counts sum ({sum_action_counts}) exceeds total_scanned ({total_scanned})"
+        )
 
     if total_scanned > 0:
         action_proportions = {
@@ -377,23 +405,61 @@ def extract_recommendation_metrics(
     else:
         action_proportions = {act: 0.0 for act in action_counts}
 
+    for act, prop in action_proportions.items():
+        if not (0.0 <= prop <= 1.0):
+            raise ValueError(
+                f"Action proportion for {act} ({prop}) is outside allowed bounds [0.0, 1.0]"
+            )
+
     processed_count = sum(1 for r in recs if r.get("data_quality") in ("SUFFICIENT", "PARTIAL"))
     processed_ratio = round(processed_count / total_scanned, 6) if total_scanned > 0 else 0.0
 
+    # 3. Validate confidence, signal_score, and risk_adjusted_score on each recommendation item
     conf_counts = {b: 0 for b in CANONICAL_CONFIDENCE_BUCKETS}
     valid_conf_vals = []
-    for r in recs:
-        if not isinstance(r, dict):
-            continue
+    sig_scores = []
+    risk_scores = []
+
+    for idx, r in enumerate(recs):
+        sym = r.get("symbol", f"item_{idx}")
+
         conf = r.get("confidence")
         if conf is not None:
-            try:
-                bucket = classify_confidence_bucket(conf)
-                if bucket in conf_counts:
-                    conf_counts[bucket] += 1
-                    valid_conf_vals.append(float(conf))
-            except (TypeError, ValueError):
-                pass
+            if isinstance(conf, bool) or not isinstance(conf, (int, float)):
+                raise TypeError(
+                    f"Confidence score for '{sym}' must be numeric, got {type(conf).__name__}"
+                )
+            f_conf = float(conf)
+            if math.isnan(f_conf) or math.isinf(f_conf):
+                raise ValueError(f"Confidence score for '{sym}' must be finite, got {f_conf}")
+            if not (0.0 <= f_conf <= 1.0):
+                raise ValueError(f"Confidence score for '{sym}' out of bounds [0.0, 1.0]: {f_conf}")
+            bucket = classify_confidence_bucket(f_conf)
+            if bucket in conf_counts:
+                conf_counts[bucket] += 1
+                valid_conf_vals.append(f_conf)
+
+        ss = r.get("signal_score")
+        if ss is not None:
+            if isinstance(ss, bool) or not isinstance(ss, (int, float)):
+                raise TypeError(
+                    f"Signal score for '{sym}' must be numeric, got {type(ss).__name__}"
+                )
+            f_ss = float(ss)
+            if math.isnan(f_ss) or math.isinf(f_ss):
+                raise ValueError(f"Signal score for '{sym}' must be finite, got {f_ss}")
+            sig_scores.append(f_ss)
+
+        rs = r.get("risk_adjusted_score")
+        if rs is not None:
+            if isinstance(rs, bool) or not isinstance(rs, (int, float)):
+                raise TypeError(
+                    f"Risk-adjusted score for '{sym}' must be numeric, got {type(rs).__name__}"
+                )
+            f_rs = float(rs)
+            if math.isnan(f_rs) or math.isinf(f_rs):
+                raise ValueError(f"Risk-adjusted score for '{sym}' must be finite, got {f_rs}")
+            risk_scores.append(f_rs)
 
     total_valid_conf = len(valid_conf_vals)
     if total_valid_conf > 0:
@@ -402,29 +468,6 @@ def extract_recommendation_metrics(
         }
     else:
         conf_bucket_proportions = {b: 0.0 for b in CANONICAL_CONFIDENCE_BUCKETS}
-
-    sig_scores = []
-    risk_scores = []
-    for r in recs:
-        if not isinstance(r, dict):
-            continue
-        ss = r.get("signal_score")
-        if ss is not None:
-            try:
-                v = float(ss)
-                if not math.isnan(v) and not math.isinf(v):
-                    sig_scores.append(v)
-            except (TypeError, ValueError):
-                pass
-
-        rs = r.get("risk_adjusted_score")
-        if rs is not None:
-            try:
-                v = float(rs)
-                if not math.isnan(v) and not math.isinf(v):
-                    risk_scores.append(v)
-            except (TypeError, ValueError):
-                pass
 
     sig_mean = round(sum(sig_scores) / len(sig_scores), 4) if sig_scores else None
     sig_median = round(sorted(sig_scores)[len(sig_scores) // 2], 4) if sig_scores else None
@@ -622,7 +665,139 @@ def evaluate_data_and_model_drift(
             )
         data_as_of = curr_payload_date
 
-    current_metrics = extract_recommendation_metrics(current_payload, market_payload=market_payload)
+    # Validate market_payload temporal consistency if provided
+    if market_payload is not None:
+        if not isinstance(market_payload, dict):
+            obs = DriftObservation(
+                check_name="drift_market_payload_temporal_safety",
+                baseline_period={"status": "INVALID_MARKET_PAYLOAD"},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=type(market_payload).__name__,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message="Explicit market_payload provided is not a dict",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_market_payload_temporal_safety", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={"status": "FAIL", "reason": "Invalid market_payload type"},
+                drift_checks=[chk],
+            )
+
+        m_date = market_payload.get("data_as_of")
+        if not m_date and "market" in market_payload and isinstance(market_payload["market"], dict):
+            m_date = market_payload["market"].get("data_as_of")
+
+        if m_date is not None:
+            if not is_canonical_yyyy_mm_dd(m_date):
+                obs = DriftObservation(
+                    check_name="drift_market_payload_temporal_safety",
+                    baseline_period={"status": "INVALID_MARKET_DATE"},
+                    current_period=data_as_of,
+                    baseline_value=data_as_of,
+                    current_value=m_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Explicit market_payload data_as_of '{m_date}' is not a canonical YYYY-MM-DD date string",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_market_payload_temporal_safety",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": "Invalid market_payload date format",
+                    },
+                    drift_checks=[chk],
+                )
+
+            if m_date != data_as_of:
+                obs = DriftObservation(
+                    check_name="drift_market_payload_temporal_safety",
+                    baseline_period={"expected_data_as_of": data_as_of},
+                    current_period=str(m_date),
+                    baseline_value=data_as_of,
+                    current_value=m_date,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Temporal safety violation: explicit market_payload date '{m_date}' does not match evaluation date '{data_as_of}'",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_market_payload_temporal_safety",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": "Market payload date mismatch"},
+                    drift_checks=[chk],
+                )
+        else:
+            is_inner_market = isinstance(current_payload, dict) and (
+                market_payload is current_payload.get("market")
+                or market_payload == current_payload.get("market")
+            )
+            if not is_inner_market:
+                obs = DriftObservation(
+                    check_name="drift_market_payload_temporal_safety",
+                    baseline_period={"status": "MISSING_MARKET_DATE"},
+                    current_period=data_as_of,
+                    baseline_value=data_as_of,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message="Explicit standalone market_payload missing required data_as_of date field",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_market_payload_temporal_safety",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": "Missing market_payload date"},
+                    drift_checks=[chk],
+                )
+
+    try:
+        current_metrics = extract_recommendation_metrics(
+            current_payload, market_payload=market_payload
+        )
+    except (ValueError, TypeError) as err:
+        obs = DriftObservation(
+            check_name="drift_current_payload_malformed",
+            baseline_period={"status": "MALFORMED_CURRENT_PAYLOAD"},
+            current_period=data_as_of,
+            baseline_value=None,
+            current_value=None,
+            absolute_difference=None,
+            threshold=None,
+            status="FAIL",
+            message=f"Current recommendation payload metrics extraction failed: {err}",
+        )
+        chk = DriftCheckResult(
+            check_name="drift_current_payload_malformed", status="FAIL", observation=obs
+        )
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=data_as_of,
+            baseline_summary={"status": "FAIL", "reason": f"Malformed current payload: {err}"},
+            drift_checks=[chk],
+        )
 
     # Resolve baseline historical reports with strict temporal safety
     loaded_baseline_reports: list[dict] = []
@@ -1063,7 +1238,7 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
 
-            b_date = b_payload.get("data_as_of")
+            b_date = b_payload.get("data_as_of") or b_payload.get("source_date")
             if not is_canonical_yyyy_mm_dd(b_date):
                 obs = DriftObservation(
                     check_name="drift_history_artifact_format",
@@ -1208,13 +1383,41 @@ def evaluate_data_and_model_drift(
             drift_checks=[chk],
         )
 
-    # Extract baseline metrics for all loaded baseline reports
-    all_baseline_metrics = [
-        extract_recommendation_metrics(
-            b_p, market_payload=b_p.get("market") if isinstance(b_p, dict) else None
-        )
-        for b_p in loaded_baseline_reports
-    ]
+    # Extract baseline metrics for all loaded baseline reports fail-closed
+    all_baseline_metrics = []
+    for idx, b_p in enumerate(loaded_baseline_reports):
+        try:
+            m = extract_recommendation_metrics(
+                b_p, market_payload=b_p.get("market") if isinstance(b_p, dict) else None
+            )
+            all_baseline_metrics.append(m)
+        except (ValueError, TypeError) as err:
+            b_date_lbl = (
+                baseline_dates_used[idx] if idx < len(baseline_dates_used) else f"index_{idx}"
+            )
+            obs = DriftObservation(
+                check_name="drift_baseline_report_malformed",
+                baseline_period={"index": idx, "report_date": b_date_lbl},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Baseline historical report '{b_date_lbl}' metrics extraction failed: {err}",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_baseline_report_malformed", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": f"Malformed baseline report {b_date_lbl}: {err}",
+                },
+                drift_checks=[chk],
+            )
 
     # Compute baseline aggregated metric values
     baseline_processed_ratio = round(

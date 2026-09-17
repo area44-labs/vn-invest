@@ -30,9 +30,9 @@
   "recommendations": [
     {
       "symbol": "ACB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP \u00c1 Ch\u00e2u",
+      "company_name": "Ngân hàng TMCP Á Châu",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "WATCH",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -71,17 +71,17 @@
         "position_percent": 10.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (22.400 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (22.288 VN\u0110).",
-        "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
-        "Ch\u1ec9 b\u00e1o RSI (63.2) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa (22.400 VNĐ) nằm trên đường xu hướng MA20 (22.288 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Chỉ báo RSI (63.2) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 22.150 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (22.480) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 22.150 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (22.480) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -92,9 +92,9 @@
     },
     {
       "symbol": "BCM",
-      "company_name": "T\u1ed5ng C\u00f4ng ty \u0110\u1ea7u t\u01b0 v\u00e0 Ph\u00e1t tri\u1ec3n C\u00f4ng nghi\u1ec7p",
+      "company_name": "Tổng Công ty Đầu tư và Phát triển Công nghiệp",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n KCN",
+      "sector": "Bất động sản KCN",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -134,13 +134,13 @@
       },
       "reasons": [],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (38.850 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (42.350 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-11.8%)."
+        "Giá đóng cửa (38.850 VNĐ) nằm dưới đường xu hướng MA20 (42.350 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-11.8%)."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -151,9 +151,9 @@
     },
     {
       "symbol": "BID",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP \u0110\u1ea7u t\u01b0 v\u00e0 Ph\u00e1t tri\u1ec3n Vi\u1ec7t Nam",
+      "company_name": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -192,17 +192,17 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.5x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Ch\u1ec9 b\u00e1o RSI (48.7) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Khối lượng bùng nổ 1.5x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (48.7) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (35.600 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (36.353 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
+        "Giá đóng cửa (35.600 VNĐ) nằm dưới đường xu hướng MA20 (36.353 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -213,9 +213,9 @@
     },
     {
       "symbol": "BVH",
-      "company_name": "T\u1eadp \u0111o\u00e0n B\u1ea3o Vi\u1ec7t",
+      "company_name": "Tập đoàn Bảo Việt",
       "exchange": "HOSE",
-      "sector": "B\u1ea3o hi\u1ec3m",
+      "sector": "Bảo hiểm",
       "action": "HOLD",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -254,16 +254,16 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (62.384 VN\u0110).",
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.7x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (62.384 VNĐ).",
+        "Khối lượng bùng nổ 1.7x so với bình quân 20 phiên."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (64.000 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (64.930 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
+        "Giá đóng cửa (64.000 VNĐ) nằm dưới đường xu hướng MA20 (64.930 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -274,9 +274,9 @@
     },
     {
       "symbol": "CTG",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP C\u00f4ng Th\u01b0\u01a1ng Vi\u1ec7t Nam",
+      "company_name": "Ngân hàng TMCP Công Thương Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -315,18 +315,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.6x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Khối lượng bùng nổ 1.6x so với bình quân 20 phiên.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (29.950 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (31.402 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-7.1%).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (29.950 VNĐ) nằm dưới đường xu hướng MA20 (31.402 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.1%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -337,9 +337,9 @@
     },
     {
       "symbol": "FPT",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n FPT",
+      "company_name": "Công ty Cổ phần FPT",
       "exchange": "HOSE",
-      "sector": "C\u00f4ng ngh\u1ec7",
+      "sector": "Công nghệ",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -378,21 +378,21 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (74.500 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (71.230 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (69.828 VN\u0110).",
-        "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 2.1x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Giá đóng cửa (74.500 VNĐ) nằm trên đường xu hướng MA20 (71.230 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (69.828 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "RSI (72.4) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
+        "RSI (72.4) thuộc vùng quá mua (> 70).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 72.000 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (69.828) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 72.000 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (69.828) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -403,9 +403,9 @@
     },
     {
       "symbol": "GAS",
-      "company_name": "T\u1ed5ng C\u00f4ng ty Kh\u00ed Vi\u1ec7t Nam - CTCP",
+      "company_name": "Tổng Công ty Khí Việt Nam - CTCP",
       "exchange": "HOSE",
-      "sector": "D\u1ea7u kh\u00ed",
+      "sector": "Dầu khí",
       "action": "WATCH",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -444,19 +444,19 @@
         "position_percent": 10.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (82.900 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (82.835 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (76.782 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (46.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa (82.900 VNĐ) nằm trên đường xu hướng MA20 (82.835 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (76.782 VNĐ).",
+        "Chỉ báo RSI (46.4) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 82.100 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (76.782) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 82.100 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (76.782) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -467,9 +467,9 @@
     },
     {
       "symbol": "GVR",
-      "company_name": "T\u1eadp \u0111o\u00e0n C\u00f4ng nghi\u1ec7p Cao su Vi\u1ec7t Nam - CTCP",
+      "company_name": "Tập đoàn Công nghiệp Cao su Việt Nam - CTCP",
       "exchange": "HOSE",
-      "sector": "Cao su & B\u0110S KCN",
+      "sector": "Cao su & BĐS KCN",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -508,17 +508,17 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (30.428 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (46.9) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (30.428 VNĐ).",
+        "Chỉ báo RSI (46.9) nằm trong vùng an toàn (45 - 65)."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (31.700 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (31.988 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (31.700 VNĐ) nằm dưới đường xu hướng MA20 (31.988 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -529,9 +529,9 @@
     },
     {
       "symbol": "HDB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Ph\u00e1t tri\u1ec3n TP. H\u1ed3 Ch\u00ed Minh",
+      "company_name": "Ngân hàng TMCP Phát triển TP. Hồ Chí Minh",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -570,18 +570,16 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (27.450 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (27.185 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.764 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (58.1) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa (27.450 VNĐ) nằm trên đường xu hướng MA20 (27.185 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (26.764 VNĐ).",
+        "Chỉ báo RSI (58.1) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
-      "warnings": [
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
-      ],
+      "warnings": ["MACD Histogram âm, báo hiệu áp lực điều chỉnh."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 26.950 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.764) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 26.950 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (26.764) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -592,9 +590,9 @@
     },
     {
       "symbol": "HPG",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n T\u1eadp \u0111o\u00e0n H\u00f2a Ph\u00e1t",
+      "company_name": "Công ty Cổ phần Tập đoàn Hòa Phát",
       "exchange": "HOSE",
-      "sector": "Th\u00e9p",
+      "sector": "Thép",
       "action": "WATCH",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -633,15 +631,15 @@
         "position_percent": 10.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (21.850 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (21.717 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (61.3) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Giá đóng cửa (21.850 VNĐ) nằm trên đường xu hướng MA20 (21.717 VNĐ).",
+        "Chỉ báo RSI (61.3) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 21.550 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (21.950) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 21.550 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (21.950) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -652,9 +650,9 @@
     },
     {
       "symbol": "MBB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Qu\u00e2n \u0110\u1ed9i",
+      "company_name": "Ngân hàng TMCP Quân Đội",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -693,17 +691,17 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.7x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Ch\u1ec9 b\u00e1o RSI (46.6) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
+        "Khối lượng bùng nổ 1.7x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (46.6) nằm trong vùng an toàn (45 - 65)."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (19.750 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (20.382 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (19.750 VNĐ) nằm dưới đường xu hướng MA20 (20.382 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -714,9 +712,9 @@
     },
     {
       "symbol": "MSN",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n T\u1eadp \u0111o\u00e0n Masan",
+      "company_name": "Công ty Cổ phần Tập đoàn Masan",
       "exchange": "HOSE",
-      "sector": "Ti\u00eau d\u00f9ng",
+      "sector": "Tiêu dùng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -754,14 +752,14 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": ["Ch\u1ec9 b\u00e1o RSI (50.5) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
+      "reasons": ["Chỉ báo RSI (50.5) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (66.500 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (68.385 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
+        "Giá đóng cửa (66.500 VNĐ) nằm dưới đường xu hướng MA20 (68.385 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -772,9 +770,9 @@
     },
     {
       "symbol": "MWG",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n \u0110\u1ea7u t\u01b0 Th\u1ebf gi\u1edbi Di \u0110\u1ed9ng",
+      "company_name": "Công ty Cổ phần Đầu tư Thế giới Di Động",
       "exchange": "HOSE",
-      "sector": "B\u00e1n l\u1ebb",
+      "sector": "Bán lẻ",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -812,14 +810,14 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": ["Ch\u1ec9 b\u00e1o RSI (46.8) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
+      "reasons": ["Chỉ báo RSI (46.8) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (71.300 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (73.400 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
+        "Giá đóng cửa (71.300 VNĐ) nằm dưới đường xu hướng MA20 (73.400 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -830,9 +828,9 @@
     },
     {
       "symbol": "PLX",
-      "company_name": "T\u1eadp \u0111o\u00e0n X\u0103ng d\u1ea7u Vi\u1ec7t Nam",
+      "company_name": "Tập đoàn Xăng dầu Việt Nam",
       "exchange": "HOSE",
-      "sector": "N\u0103ng l\u01b0\u1ee3ng",
+      "sector": "Năng lượng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -871,18 +869,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (34.968 VN\u0110).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (34.968 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (35.500 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (36.580 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "RSI (22.5) qu\u00e1 b\u00e1n n\u1eb7ng (< 35).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (35.500 VNĐ) nằm dưới đường xu hướng MA20 (36.580 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (22.5) quá bán nặng (< 35).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -893,9 +891,9 @@
     },
     {
       "symbol": "POW",
-      "company_name": "T\u1ed5ng C\u00f4ng ty \u0110i\u1ec7n l\u1ef1c D\u1ea7u kh\u00ed Vi\u1ec7t Nam - CTCP",
+      "company_name": "Tổng Công ty Điện lực Dầu khí Việt Nam - CTCP",
       "exchange": "HOSE",
-      "sector": "\u0110i\u1ec7n l\u1ef1c",
+      "sector": "Điện lực",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -934,19 +932,19 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (12.850 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (13.243 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "RSI (30.8) qu\u00e1 b\u00e1n n\u1eb7ng (< 35).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-6.7%).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (12.850 VNĐ) nằm dưới đường xu hướng MA20 (13.243 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (30.8) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.7%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -957,9 +955,9 @@
     },
     {
       "symbol": "SAB",
-      "company_name": "T\u1ed5ng C\u00f4ng ty C\u1ed5 ph\u1ea7n Bia - R\u01b0\u1ee3u - N\u01b0\u1edbc gi\u1ea3i kh\u00e1t S\u00e0i G\u00f2n",
+      "company_name": "Tổng Công ty Cổ phần Bia - Rượu - Nước giải khát Sài Gòn",
       "exchange": "HOSE",
-      "sector": "\u0110\u1ed3 u\u1ed1ng",
+      "sector": "Đồ uống",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -997,18 +995,16 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (44.771 VN\u0110)."
-      ],
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (44.771 VNĐ)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (44.850 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (45.700 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "RSI (34.4) qu\u00e1 b\u00e1n n\u1eb7ng (< 35).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
+        "Giá đóng cửa (44.850 VNĐ) nằm dưới đường xu hướng MA20 (45.700 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (34.4) quá bán nặng (< 35).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1019,9 +1015,9 @@
     },
     {
       "symbol": "SSB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP \u0110\u00f4ng Nam \u00c1",
+      "company_name": "Ngân hàng TMCP Đông Nam Á",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1060,17 +1056,15 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (18.000 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (16.225 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (15.969 VN\u0110).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+16.8%)."
+        "Giá đóng cửa (18.000 VNĐ) nằm trên đường xu hướng MA20 (16.225 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (15.969 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+16.8%)."
       ],
-      "warnings": [
-        "RSI (78.6) r\u01a1i v\u00e0o v\u00f9ng qu\u00e1 mua n\u1eb7ng (> 78), r\u1ee7i ro \u0111\u1ea3o chi\u1ec1u cao."
-      ],
+      "warnings": ["RSI (78.6) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 17.100 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (15.969) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 17.100 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (15.969) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1081,9 +1075,9 @@
     },
     {
       "symbol": "SSI",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n Ch\u1ee9ng kho\u00e1n SSI",
+      "company_name": "Công ty Cổ phần Chứng khoán SSI",
       "exchange": "HOSE",
-      "sector": "Ch\u1ee9ng kho\u00e1n",
+      "sector": "Chứng khoán",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1122,15 +1116,15 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (21.000 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (20.570 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (20.167 VN\u0110).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa (21.000 VNĐ) nằm trên đường xu hướng MA20 (20.570 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (20.167 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 20.700 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (20.167) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 20.700 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (20.167) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1141,9 +1135,9 @@
     },
     {
       "symbol": "STB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP S\u00e0i G\u00f2n Th\u01b0\u01a1ng T\u00edn",
+      "company_name": "Ngân hàng TMCP Sài Gòn Thương Tín",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1182,20 +1176,17 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (76.600 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (74.485 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (73.002 VN\u0110).",
-        "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
-        "Ch\u1ec9 b\u00e1o RSI (63.0) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+6.0%)."
+        "Giá đóng cửa (76.600 VNĐ) nằm trên đường xu hướng MA20 (74.485 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (73.002 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Chỉ báo RSI (63.0) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.0%)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 73.500 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (73.002) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 73.500 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (73.002) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1206,9 +1197,9 @@
     },
     {
       "symbol": "TCB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP K\u1ef9 th\u01b0\u01a1ng Vi\u1ec7t Nam",
+      "company_name": "Ngân hàng TMCP Kỹ thương Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1247,19 +1238,16 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (31.900 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (31.652 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (31.489 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (51.2) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+9.1%)."
+        "Giá đóng cửa (31.900 VNĐ) nằm trên đường xu hướng MA20 (31.652 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.489 VNĐ).",
+        "Chỉ báo RSI (51.2) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+9.1%)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 31.600 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (31.489) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 31.600 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (31.489) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1270,9 +1258,9 @@
     },
     {
       "symbol": "TPB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Ti\u00ean Phong",
+      "company_name": "Ngân hàng TMCP Tiên Phong",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1311,15 +1299,13 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (52.9) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Chỉ báo RSI (52.9) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (14.450 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (14.545 VN\u0110)."
-      ],
+      "warnings": ["Giá đóng cửa (14.450 VNĐ) nằm dưới đường xu hướng MA20 (14.545 VNĐ)."],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1330,9 +1316,9 @@
     },
     {
       "symbol": "VCB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Ngo\u1ea1i Th\u01b0\u01a1ng Vi\u1ec7t Nam",
+      "company_name": "Ngân hàng TMCP Ngoại Thương Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1370,15 +1356,15 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": ["Ch\u1ec9 b\u00e1o RSI (55.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
+      "reasons": ["Chỉ báo RSI (55.4) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (58.200 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (58.845 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
+        "Giá đóng cửa (58.200 VNĐ) nằm dưới đường xu hướng MA20 (58.845 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1389,9 +1375,9 @@
     },
     {
       "symbol": "VHM",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n Vinhomes",
+      "company_name": "Công ty Cổ phần Vinhomes",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1430,16 +1416,16 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (73.100 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (72.145 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (71.997 VN\u0110).",
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 2.1x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Giá đóng cửa (73.100 VNĐ) nằm trên đường xu hướng MA20 (72.145 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (71.997 VNĐ).",
+        "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 70.700 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (71.997) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 70.700 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (71.997) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1450,9 +1436,9 @@
     },
     {
       "symbol": "VIB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Qu\u1ed1c t\u1ebf Vi\u1ec7t Nam",
+      "company_name": "Ngân hàng TMCP Quốc tế Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "HOLD",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1490,13 +1476,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (13.700 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (13.442 VN\u0110)."
-      ],
+      "reasons": ["Giá đóng cửa (13.700 VNĐ) nằm trên đường xu hướng MA20 (13.442 VNĐ)."],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1507,9 +1491,9 @@
     },
     {
       "symbol": "VIC",
-      "company_name": "T\u1eadp \u0111o\u00e0n Vingroup - CTCP",
+      "company_name": "Tập đoàn Vingroup - CTCP",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1548,18 +1532,15 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (243.300 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (224.985 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (220.246 VN\u0110).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+12.8%)."
+        "Giá đóng cửa (243.300 VNĐ) nằm trên đường xu hướng MA20 (224.985 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (220.246 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.8%)."
       ],
-      "warnings": [
-        "RSI (77.7) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["RSI (77.7) thuộc vùng quá mua (> 70).", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 240.800 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (220.246) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 240.800 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (220.246) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1570,9 +1551,9 @@
     },
     {
       "symbol": "VJC",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n H\u00e0ng kh\u00f4ng Vietjet",
+      "company_name": "Công ty Cổ phần Hàng không Vietjet",
       "exchange": "HOSE",
-      "sector": "H\u00e0ng kh\u00f4ng",
+      "sector": "Hàng không",
       "action": "WATCH",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1611,14 +1592,14 @@
         "position_percent": 10.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (125.200 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (125.000 VN\u0110).",
-        "Ch\u1ec9 b\u00e1o RSI (57.9) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
+        "Giá đóng cửa (125.200 VNĐ) nằm trên đường xu hướng MA20 (125.000 VNĐ).",
+        "Chỉ báo RSI (57.9) nằm trong vùng an toàn (45 - 65)."
       ],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 123.800 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (128.822) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 123.800 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (128.822) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1629,9 +1610,9 @@
     },
     {
       "symbol": "VNM",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n S\u1eefa Vi\u1ec7t Nam",
+      "company_name": "Công ty Cổ phần Sữa Việt Nam",
       "exchange": "HOSE",
-      "sector": "Th\u1ef1c ph\u1ea9m",
+      "sector": "Thực phẩm",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1670,18 +1651,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (59.676 VN\u0110).",
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.3x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (59.676 VNĐ).",
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (59.900 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (62.060 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "RSI (31.4) qu\u00e1 b\u00e1n n\u1eb7ng (< 35).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (59.900 VNĐ) nằm dưới đường xu hướng MA20 (62.060 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (31.4) quá bán nặng (< 35).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1692,9 +1673,9 @@
     },
     {
       "symbol": "VPB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP Vi\u1ec7t Nam Th\u1ecbnh V\u01b0\u1ee3ng",
+      "company_name": "Ngân hàng TMCP Việt Nam Thịnh Vượng",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1733,15 +1714,15 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (26.950 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (26.362 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.090 VN\u0110).",
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.3x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
+        "Giá đóng cửa (26.950 VNĐ) nằm trên đường xu hướng MA20 (26.362 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (26.090 VNĐ).",
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
       ],
-      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 26.700 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.090) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 26.700 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (26.090) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1752,9 +1733,9 @@
     },
     {
       "symbol": "VRE",
-      "company_name": "C\u00f4ng ty C\u1ed5 ph\u1ea7n Vincom Retail",
+      "company_name": "Công ty Cổ phần Vincom Retail",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "WATCH",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1793,14 +1774,14 @@
         "position_percent": 10.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (26.450 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (25.438 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.268 VN\u0110)."
+        "Giá đóng cửa (26.450 VNĐ) nằm trên đường xu hướng MA20 (25.438 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (25.268 VNĐ)."
       ],
-      "warnings": ["RSI (73.0) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."],
+      "warnings": ["RSI (73.0) thuộc vùng quá mua (> 70)."],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 25.650 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.268) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 25.650 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (25.268) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1811,9 +1792,9 @@
     },
     {
       "symbol": "SHB",
-      "company_name": "Ng\u00e2n h\u00e0ng TMCP S\u00e0i G\u00f2n - H\u00e0 N\u1ed9i",
+      "company_name": "Ngân hàng TMCP Sài Gòn - Hà Nội",
       "exchange": "HOSE",
-      "sector": "Ng\u00e2n h\u00e0ng",
+      "sector": "Ngân hàng",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1851,14 +1832,14 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": ["Ch\u1ec9 b\u00e1o RSI (54.1) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
+      "reasons": ["Chỉ báo RSI (54.1) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (11.750 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (11.855 VN\u0110).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (11.750 VNĐ) nằm dưới đường xu hướng MA20 (11.855 VNĐ).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1869,9 +1850,9 @@
     },
     {
       "symbol": "DGC",
-      "company_name": "CTCP T\u1eadp \u0111o\u00e0n H\u00f3a ch\u1ea5t \u0110\u1ee9c Giang",
+      "company_name": "CTCP Tập đoàn Hóa chất Đức Giang",
       "exchange": "HOSE",
-      "sector": "H\u00f3a ch\u1ea5t",
+      "sector": "Hóa chất",
       "action": "BUY",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1910,16 +1891,16 @@
         "position_percent": 20.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (47.000 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (44.070 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (43.411 VN\u0110).",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+6.5%).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa (47.000 VNĐ) nằm trên đường xu hướng MA20 (44.070 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (43.411 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.5%).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [],
       "invalidation": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 45.600 VN\u0110.",
-        "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (43.411) VN\u0110.",
-        "Tr\u1ea1ng th\u00e1i th\u1ecb tr\u01b0\u1eddng chung suy gi\u1ea3m sang PANIC."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 45.600 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (43.411) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1930,9 +1911,9 @@
     },
     {
       "symbol": "FRT",
-      "company_name": "CTCP B\u00e1n l\u1ebb K\u1ef9 thu\u1eadt s\u1ed1 FPT",
+      "company_name": "CTCP Bán lẻ Kỹ thuật số FPT",
       "exchange": "HOSE",
-      "sector": "B\u00e1n l\u1ebb",
+      "sector": "Bán lẻ",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -1971,18 +1952,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (128.610 VN\u0110).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (128.610 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (137.000 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (143.380 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-7.5%)."
+        "Giá đóng cửa (137.000 VNĐ) nằm dưới đường xu hướng MA20 (143.380 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.5%)."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1993,9 +1974,9 @@
     },
     {
       "symbol": "PVD",
-      "company_name": "T\u1ed5ng CTCP Khoan v\u00e0 D\u1ecbch v\u1ee5 Khoan D\u1ea7u kh\u00ed",
+      "company_name": "Tổng CTCP Khoan và Dịch vụ Khoan Dầu khí",
       "exchange": "HOSE",
-      "sector": "D\u1ea7u kh\u00ed",
+      "sector": "Dầu khí",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2034,18 +2015,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 2.5x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Ch\u1ec9 b\u00e1o RSI (52.2) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
+        "Khối lượng bùng nổ 2.5x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (52.2) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (18.550 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (18.742 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (18.550 VNĐ) nằm dưới đường xu hướng MA20 (18.742 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2056,9 +2037,9 @@
     },
     {
       "symbol": "VCI",
-      "company_name": "CTCP Ch\u1ee9ng kho\u00e1n Vietcap",
+      "company_name": "CTCP Chứng khoán Vietcap",
       "exchange": "HOSE",
-      "sector": "Ch\u1ee9ng kho\u00e1n",
+      "sector": "Chứng khoán",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2096,18 +2077,16 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 2.0x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
-      ],
+      "reasons": ["Khối lượng bùng nổ 2.0x so với bình quân 20 phiên."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (20.050 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (21.740 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-9.2%).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (20.050 VNĐ) nằm dưới đường xu hướng MA20 (21.740 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.2%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2118,9 +2097,9 @@
     },
     {
       "symbol": "HCM",
-      "company_name": "CTCP Ch\u1ee9ng kho\u00e1n TP.H\u1ed3 Ch\u00ed Minh",
+      "company_name": "CTCP Chứng khoán TP.Hồ Chí Minh",
       "exchange": "HOSE",
-      "sector": "Ch\u1ee9ng kho\u00e1n",
+      "sector": "Chứng khoán",
       "action": "HOLD",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2159,17 +2138,17 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (26.300 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (25.988 VN\u0110).",
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.327 VN\u0110)."
+        "Giá đóng cửa (26.300 VNĐ) nằm trên đường xu hướng MA20 (25.988 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (25.327 VNĐ)."
       ],
       "warnings": [
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2180,9 +2159,9 @@
     },
     {
       "symbol": "VND",
-      "company_name": "CTCP Ch\u1ee9ng kho\u00e1n VNDIRECT",
+      "company_name": "CTCP Chứng khoán VNDIRECT",
       "exchange": "HOSE",
-      "sector": "Ch\u1ee9ng kho\u00e1n",
+      "sector": "Chứng khoán",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2220,15 +2199,15 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": ["Ch\u1ec9 b\u00e1o RSI (47.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
+      "reasons": ["Chỉ báo RSI (47.4) nằm trong vùng an toàn (45 - 65)."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (15.850 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (16.373 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-6.3%)."
+        "Giá đóng cửa (15.850 VNĐ) nằm dưới đường xu hướng MA20 (16.373 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.3%)."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2239,9 +2218,9 @@
     },
     {
       "symbol": "HSG",
-      "company_name": "CTCP T\u1eadp \u0111o\u00e0n Hoa Sen",
+      "company_name": "CTCP Tập đoàn Hoa Sen",
       "exchange": "HOSE",
-      "sector": "Th\u00e9p",
+      "sector": "Thép",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2279,17 +2258,15 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.2x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
-      ],
+      "reasons": ["Khối lượng bùng nổ 1.2x so với bình quân 20 phiên."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (10.200 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (10.685 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-6.5%)."
+        "Giá đóng cửa (10.200 VNĐ) nằm dưới đường xu hướng MA20 (10.685 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.5%)."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2300,9 +2277,9 @@
     },
     {
       "symbol": "NKG",
-      "company_name": "CTCP Th\u00e9p Nam Kim",
+      "company_name": "CTCP Thép Nam Kim",
       "exchange": "HOSE",
-      "sector": "Th\u00e9p",
+      "sector": "Thép",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2340,17 +2317,15 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.8x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
-      ],
+      "reasons": ["Khối lượng bùng nổ 1.8x so với bình quân 20 phiên."],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (10.200 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (10.815 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) y\u1ebfu h\u01a1n VN-Index (-9.0%)."
+        "Giá đóng cửa (10.200 VNĐ) nằm dưới đường xu hướng MA20 (10.815 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.0%)."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2361,9 +2336,9 @@
     },
     {
       "symbol": "DXG",
-      "company_name": "CTCP T\u1eadp \u0111o\u00e0n \u0110\u1ea5t Xanh",
+      "company_name": "CTCP Tập đoàn Đất Xanh",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2402,17 +2377,17 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.3x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Ch\u1ec9 b\u00e1o RSI (46.3) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (46.3) nằm trong vùng an toàn (45 - 65)."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (10.750 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (11.458 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
+        "Giá đóng cửa (10.750 VNĐ) nằm dưới đường xu hướng MA20 (11.458 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2423,9 +2398,9 @@
     },
     {
       "symbol": "DIG",
-      "company_name": "T\u1ed5ng CTCP \u0110\u1ea7u t\u01b0 Ph\u00e1t tri\u1ec3n X\u00e2y d\u1ef1ng",
+      "company_name": "Tổng CTCP Đầu tư Phát triển Xây dựng",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "AVOID",
       "model_version": "2.0",
       "data_quality": "INSUFFICIENT",
@@ -2462,15 +2437,9 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "D\u1eef li\u1ec7u l\u1ecbch s\u1eed kh\u00f4ng \u0111\u1ee7 20 phi\u00ean giao d\u1ecbch."
-      ],
-      "warnings": [
-        "Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u giao d\u1ecbch \u0111\u1ec3 ph\u00e2n t\u00edch."
-      ],
-      "invalidation": [
-        "C\u1ea7n b\u1ed5 sung th\u00eam d\u1eef li\u1ec7u giao d\u1ecbch tr\u01b0\u1edbc khi ph\u00e2n t\u00edch."
-      ],
+      "reasons": ["Dữ liệu lịch sử không đủ 20 phiên giao dịch."],
+      "warnings": ["Không có dữ liệu giao dịch để phân tích."],
+      "invalidation": ["Cần bổ sung thêm dữ liệu giao dịch trước khi phân tích."],
       "divergence": {
         "1H": "NONE",
         "1D": "NONE",
@@ -2480,9 +2449,9 @@
     },
     {
       "symbol": "PDR",
-      "company_name": "CTCP Ph\u00e1t tri\u1ec3n B\u1ea5t \u0111\u1ed9ng s\u1ea3n Ph\u00e1t \u0110\u1ea1t",
+      "company_name": "CTCP Phát triển Bất động sản Phát Đạt",
       "exchange": "HOSE",
-      "sector": "B\u1ea5t \u0111\u1ed9ng s\u1ea3n",
+      "sector": "Bất động sản",
       "action": "SELL",
       "model_version": "2.0",
       "data_quality": "SUFFICIENT",
@@ -2521,18 +2490,18 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.2x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "Ch\u1ec9 b\u00e1o RSI (46.7) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65).",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D.",
-        "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1W."
+        "Khối lượng bùng nổ 1.2x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (46.7) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (11.750 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (12.182 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
+        "Giá đóng cửa (11.750 VNĐ) nằm dưới đường xu hướng MA20 (12.182 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2585,15 +2554,15 @@
       },
       "reasons": [],
       "warnings": [
-        "Gi\u00e1 \u0111\u00f3ng c\u1eeda (74.600 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (77.635 VN\u0110).",
-        "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
-        "RSI (31.5) qu\u00e1 b\u00e1n n\u1eb7ng (< 35).",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D.",
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
+        "Giá đóng cửa (74.600 VNĐ) nằm dưới đường xu hướng MA20 (77.635 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (31.5) quá bán nặng (< 35).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Gi\u00e1 v\u01b0\u1ee3t l\u00ean tr\u00ean MA20 k\u00e8m thanh kho\u1ea3n b\u00f9ng n\u1ed5 v\u01b0\u1ee3t 1.5x b\u00ecnh qu\u00e2n 20 phi\u00ean.",
-        "T\u00edn hi\u1ec7u ph\u00e2n k\u1ef3 d\u01b0\u01a1ng h\u00ecnh th\u00e0nh tr\u00ean khung 1D."
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
       ],
       "divergence": {
         "1H": "NONE",
@@ -2602,6 +2571,5 @@
         "1M": "NONE"
       }
     }
-  ],
-  "data_as_of": "2026-09-13"
+  ]
 }

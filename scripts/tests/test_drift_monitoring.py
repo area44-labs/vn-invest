@@ -393,6 +393,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         curr_rec["market"]["metrics"] = {}
 
         explicit_market = {
+            "data_as_of": "2026-09-17",
             "regime": "BULL",
             "confidence": 0.90,
             "metrics": {
@@ -535,6 +536,156 @@ class TestFeedbackRegressionCases(unittest.TestCase):
 
         self.assertEqual(res.overall_status, "FAIL")
         self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_missing")
+
+    def test_malformed_recommendation_item_fails_closed(self):
+        """Verify recommendation items that are non-dict (string, None, list) fail closed."""
+        for bad_item in ["string_item", None, ["list_item"]]:
+            curr = make_mock_payload(data_as_of="2026-09-17")
+            curr["recommendations"].append(bad_item)  # type: ignore[arg-type]
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+            )
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+
+    def test_invalid_or_non_finite_model_metrics_fail_closed(self):
+        """Verify NaN, Inf, out-of-bounds, or string metrics fail closed (FAIL status)."""
+        bad_metric_cases = [
+            ("confidence", float("nan")),
+            ("confidence", float("inf")),
+            ("confidence", -0.1),
+            ("confidence", 1.5),
+            ("confidence", "0.8"),
+            ("confidence", True),
+            ("signal_score", float("nan")),
+            ("signal_score", float("inf")),
+            ("signal_score", "high"),
+            ("signal_score", True),
+            ("risk_adjusted_score", float("nan")),
+            ("risk_adjusted_score", float("inf")),
+            ("risk_adjusted_score", "medium"),
+            ("risk_adjusted_score", True),
+        ]
+
+        for field, bad_val in bad_metric_cases:
+            curr = make_mock_payload(data_as_of="2026-09-17")
+            curr["recommendations"][0][field] = bad_val
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-17",
+                current_payload=curr,
+            )
+            self.assertEqual(
+                res.overall_status,
+                "FAIL",
+                f"Failed to fail-closed on {field}={bad_val} (got {res.overall_status})",
+            )
+            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+
+    def test_summary_inconsistencies_fail_closed(self):
+        """Verify malformed or inconsistent payload summary fails closed."""
+        # Case 1: Negative total_scanned
+        curr1 = make_mock_payload(data_as_of="2026-09-17")
+        curr1["summary"]["total_scanned"] = -10
+        res1 = evaluate_data_and_model_drift(current_payload=curr1)
+        self.assertEqual(res1.overall_status, "FAIL")
+
+        # Case 2: Negative action count
+        curr2 = make_mock_payload(data_as_of="2026-09-17")
+        curr2["summary"]["buy_count"] = -1
+        res2 = evaluate_data_and_model_drift(current_payload=curr2)
+        self.assertEqual(res2.overall_status, "FAIL")
+
+        # Case 3: Action count sum > total_scanned
+        curr3 = make_mock_payload(data_as_of="2026-09-17")
+        curr3["summary"]["total_scanned"] = 10
+        curr3["summary"]["buy_count"] = 10
+        curr3["summary"]["watch_count"] = 5  # sum = 15 > total_scanned 10
+        res3 = evaluate_data_and_model_drift(current_payload=curr3)
+        self.assertEqual(res3.overall_status, "FAIL")
+
+        # Case 4: Non-integer action count
+        curr4 = make_mock_payload(data_as_of="2026-09-17")
+        curr4["summary"]["buy_count"] = 5.5  # type: ignore[typeddict-item]
+        res4 = evaluate_data_and_model_drift(current_payload=curr4)
+        self.assertEqual(res4.overall_status, "FAIL")
+
+        # Case 5: Bool count
+        curr5 = make_mock_payload(data_as_of="2026-09-17")
+        curr5["summary"]["buy_count"] = True  # type: ignore[typeddict-item]
+        res5 = evaluate_data_and_model_drift(current_payload=curr5)
+        self.assertEqual(res5.overall_status, "FAIL")
+
+    def test_market_payload_temporal_consistency(self):
+        """Verify strict temporal consistency check for explicit market_payload."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+
+        # 1. Market payload same date T -> PASS (with valid baselines)
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+        m_valid = {
+            "data_as_of": "2026-09-17",
+            "regime": "BULL",
+            "confidence": 0.85,
+            "metrics": {
+                "vnindex_value": 1250.0,
+                "vnindex_change_pct": 0.5,
+                "market_breadth_ratio": 0.60,
+            },
+        }
+        res1 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            market_payload=m_valid,
+            baseline_reports=baselines,
+        )
+        self.assertEqual(res1.overall_status, "PASS")
+
+        # 2. Market payload with date < T -> FAIL
+        m_past = dict(m_valid, data_as_of="2026-09-16")
+        res2 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            market_payload=m_past,
+        )
+        self.assertEqual(res2.overall_status, "FAIL")
+        self.assertEqual(res2.drift_checks[0].check_name, "drift_market_payload_temporal_safety")
+
+        # 3. Market payload with date > T -> FAIL
+        m_future = dict(m_valid, data_as_of="2026-09-18")
+        res3 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            market_payload=m_future,
+        )
+        self.assertEqual(res3.overall_status, "FAIL")
+
+        # 4. Malformed/non-canonical date -> FAIL
+        m_bad_date = dict(m_valid, data_as_of="2026-9-17")
+        res4 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            market_payload=m_bad_date,
+        )
+        self.assertEqual(res4.overall_status, "FAIL")
+
+        # 5. Market payload missing data_as_of -> FAIL
+        m_no_date = {
+            "regime": "BULL",
+            "confidence": 0.85,
+            "metrics": {
+                "vnindex_value": 1250.0,
+                "vnindex_change_pct": 0.5,
+                "market_breadth_ratio": 0.60,
+            },
+        }
+        res5 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            market_payload=m_no_date,
+        )
+        self.assertEqual(res5.overall_status, "FAIL")
 
 
 class TestProductionMonitoringIntegration(unittest.TestCase):
