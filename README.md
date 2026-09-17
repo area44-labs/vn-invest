@@ -18,6 +18,16 @@ React / TanStack Router (src/)
 SSG / GitHub Pages Deployment
 ```
 
+### Quantitative System Layers
+
+Backend quantitative system được phân định rõ ràng thành 4 tầng chức năng:
+
+1. **Production Generation** (`scripts/generate_report.py`, `scripts/lib/recommendation.py`, `scripts/lib/regime.py`, `scripts/lib/risk.py`): Ingestion dữ liệu thị trường EOD thực tế, tính toán chỉ báo kỹ thuật, nhận diện Market Regime, chấm điểm Signal Score, mô hình rủi ro T+2.5, lập kế hoạch giao dịch và xuất JSON artifacts tĩnh (`generated/*.json`).
+2. **Production Monitoring** (`scripts/lib/monitoring.py`): Giám sát vận hành pipeline và dữ liệu sản xuất (kiểm tra availability, freshness `data_as_of`, số lượng mã xử lý/bỏ qua, kiểm tra JSON schema, kiểm tra tính toàn vẹn artifact và kiểm tra an toàn số học `NaN`/`Inf`) mà không làm thay đổi kết quả signal hay đánh giá lịch sử.
+   _Lưu ý: Tầng này chỉ cung cấp giám sát vận hành/pipeline dữ liệu; không xác lập hiệu lực dự báo, khả năng sinh lời, hiệu chuẩn hay ý nghĩa thống kê của mô hình._
+3. **Historical Validation** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Kiểm thử lịch sử walk-forward, đánh giá từng thành phần tín hiệu, đánh giá trạng thái thị trường lịch sử và hiệu chuẩn độ tin cậy dựa trên dữ liệu point-in-time timestamped `<= T` không nhìn trước tương lai (no-lookahead).
+4. **Data/Model Drift Detection (Future PR #95)**: Theo dõi phân phối thống kê và phát hiện độ lệch dữ liệu/mô hình theo chuỗi thời gian.
+
 ## Tính Năng Nổi Bật
 
 - **Python Quantitative Engine**: Tính toán chỉ báo kỹ thuật (MA, RSI, MACD, ATR), nhận diện phân kỳ đa khung thời gian, phân tích trạng thái thị trường (Market Regime), chấm điểm Signal Score (VN Invest Signal Engine), tính rủi ro T+2.5 (Historical VaR 95%, Expected Shortfall, Max Drawdown) và lập kế hoạch giao dịch (Trade Plan).

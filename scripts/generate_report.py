@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 import jsonschema
 
@@ -25,6 +26,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
@@ -56,6 +58,23 @@ def load_schema():
     """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+class PipelineResult(tuple):
+    """Pipeline result tuple preserving 3-element unpacking backward compatibility."""
+
+    def __new__(
+        cls,
+        recs_data: dict,
+        market_data: dict,
+        history_data: dict,
+        df_vnindex: Any = None,
+        df_vn30: Any = None,
+    ):
+        obj = super().__new__(cls, (recs_data, market_data, history_data))
+        obj.df_vnindex = df_vnindex
+        obj.df_vn30 = df_vn30
+        return obj
 
 
 def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
@@ -186,7 +205,13 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     history_payload = recommendations_payload
 
-    return recommendations_payload, market_payload, history_payload
+    return PipelineResult(
+        recommendations_payload,
+        market_payload,
+        history_payload,
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
+    )
 
 
 def load_history_index(index_path: str | None = None) -> dict:
@@ -276,7 +301,10 @@ def main():
 
     logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
 
-    recs_data, market_data, history_data = run_pipeline(update_data=args.update)
+    pipeline_res = run_pipeline(update_data=args.update)
+    recs_data, market_data, history_data = pipeline_res
+    df_vnindex_clean = pipeline_res.df_vnindex
+    df_vn30_clean = pipeline_res.df_vn30
 
     # Validate against Schema
     schema = load_schema()
@@ -305,6 +333,21 @@ def main():
     if data_as_of:
         logger.info("  - history/%s.json", data_as_of)
         logger.info("  - history/index.json")
+
+    # Run production monitoring and save monitoring.json artifact
+    logger.info("Executing production pipeline monitoring...")
+    monitoring_result = evaluate_production_monitoring(
+        generated_dir=GENERATED_DIR,
+        recommendations_payload=recs_data,
+        market_payload=market_data,
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean,
+    )
+    save_json_files("monitoring.json", monitoring_result.to_dict())
+    logger.info(
+        "Production monitoring complete! Overall status: %s", monitoring_result.overall_status
+    )
+    logger.info("  - monitoring.json")
 
 
 if __name__ == "__main__":
