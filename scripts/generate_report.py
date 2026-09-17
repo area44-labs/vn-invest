@@ -514,7 +514,7 @@ def main():
         stock_data_map = {}
         for item in candidate_stocks:
             sym = item["symbol"]
-            df_stock, tag, _ = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
+            df_stock, _, _ = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
             stock_data_map[sym] = df_stock
 
         pipeline_res = generate_historical_report(
