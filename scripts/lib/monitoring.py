@@ -2,10 +2,12 @@
 
 Provides deterministic, fail-closed operational monitoring for the production data-generation
 and signal pipeline. Monitors data availability, freshness, processing counts, artifact integrity,
-schema validation, numeric sanity (NaN/Inf safety), market regime status, and history index integrity.
+schema validation, numeric sanity (NaN/Inf safety), market regime status, history index integrity,
+and operational data/model drift detection against historical baseline.
 
 This module provides operational and data-pipeline monitoring ONLY.
-It does NOT establish model predictive validity, profitability, calibration, or statistical significance.
+It does NOT establish model predictive validity, profitability, calibration, statistical significance,
+or model error. Confidence scores are deterministic model-confidence heuristics, not probabilities.
 """
 
 import json
@@ -18,7 +20,20 @@ from typing import Any
 
 import jsonschema
 
-from scripts.lib.config import SIGNAL_MODEL_VERSION, VALID_MARKET_REGIMES
+from scripts.lib.config import (
+    DRIFT_LOOKBACK_REPORTS,
+    DRIFT_MIN_BASELINE_REPORTS,
+    DRIFT_THRESHOLD_ACTION_DISTRIBUTION,
+    DRIFT_THRESHOLD_BREADTH_RATIO,
+    DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION,
+    DRIFT_THRESHOLD_CONFIDENCE_MEAN,
+    DRIFT_THRESHOLD_PROCESSED_RATIO,
+    DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN,
+    DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN,
+    DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT,
+    SIGNAL_MODEL_VERSION,
+    VALID_MARKET_REGIMES,
+)
 from scripts.lib.vietnam_market import validate_ohlcv_data
 
 logger = logging.getLogger(__name__)
@@ -28,6 +43,140 @@ DEFAULT_GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
+
+CANONICAL_CONFIDENCE_BUCKETS = [
+    "0.0-0.1",
+    "0.1-0.2",
+    "0.2-0.3",
+    "0.3-0.4",
+    "0.4-0.5",
+    "0.5-0.6",
+    "0.6-0.7",
+    "0.7-0.8",
+    "0.8-0.9",
+    "0.9-1.0",
+]
+
+
+def _sanitize_value_for_json(val: Any) -> Any:
+    """Recursively sanitize Python objects for deterministic JSON serialization.
+
+    Replaces float('nan') and float('inf') with string representations 'NaN' / 'Inf'
+    so serialization does not break or produce invalid JSON.
+    """
+    if isinstance(val, float):
+        if math.isnan(val):
+            return "NaN"
+        if math.isinf(val):
+            return "Inf" if val > 0 else "-Inf"
+        return val
+    if isinstance(val, dict):
+        return {k: _sanitize_value_for_json(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_sanitize_value_for_json(item) for item in val]
+    if isinstance(val, tuple):
+        return [_sanitize_value_for_json(item) for item in val]
+    return val
+
+
+def find_nan_or_inf(obj: Any, path: str = "") -> list[str]:
+    """Recursively locate any NaN or Inf floating point values in nested data."""
+    issues = []
+    if isinstance(obj, float):
+        if math.isnan(obj):
+            issues.append(f"NaN at {path or 'root'}")
+        elif math.isinf(obj):
+            issues.append(f"Inf at {path or 'root'}")
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            issues.extend(find_nan_or_inf(v, f"{path}.{k}" if path else str(k)))
+    elif isinstance(obj, list):
+        for idx, item in enumerate(obj):
+            issues.extend(find_nan_or_inf(item, f"{path}[{idx}]"))
+    return issues
+
+
+@dataclass(frozen=True)
+class DriftObservation:
+    """Individual data or model-output drift observation metric."""
+
+    check_name: str
+    baseline_period: dict[str, Any]
+    current_period: str
+    baseline_value: Any
+    current_value: Any
+    absolute_difference: Any
+    threshold: Any
+    status: str  # "PASS", "WARNING", "FAIL"
+    message: str
+
+    def __post_init__(self):
+        if self.status not in VALID_CHECK_STATUSES:
+            raise ValueError(
+                f"Invalid check status '{self.status}'. Must be one of {sorted(VALID_CHECK_STATUSES)}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic JSON-serializable dictionary representation."""
+        return {
+            "check_name": self.check_name,
+            "baseline_period": _sanitize_value_for_json(self.baseline_period),
+            "current_period": self.current_period,
+            "baseline_value": _sanitize_value_for_json(self.baseline_value),
+            "current_value": _sanitize_value_for_json(self.current_value),
+            "absolute_difference": _sanitize_value_for_json(self.absolute_difference),
+            "threshold": _sanitize_value_for_json(self.threshold),
+            "status": self.status,
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
+class DriftCheckResult:
+    """Drift check result holding observation detail and status."""
+
+    check_name: str
+    status: str  # "PASS", "WARNING", "FAIL"
+    observation: DriftObservation
+
+    def __post_init__(self):
+        if self.status not in VALID_CHECK_STATUSES:
+            raise ValueError(
+                f"Invalid check status '{self.status}'. Must be one of {sorted(VALID_CHECK_STATUSES)}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic JSON-serializable dictionary representation."""
+        return {
+            "check_name": self.check_name,
+            "status": self.status,
+            "observation": self.observation.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class DriftMonitoringResult:
+    """Aggregated result of data and model-output drift monitoring."""
+
+    overall_status: str  # "PASS", "WARNING", "FAIL"
+    data_as_of: str | None
+    baseline_summary: dict[str, Any]
+    drift_checks: list[DriftCheckResult]
+
+    def __post_init__(self):
+        if self.overall_status not in VALID_CHECK_STATUSES:
+            raise ValueError(
+                f"Invalid overall_status '{self.overall_status}'. Must be one of {sorted(VALID_CHECK_STATUSES)}"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return deterministic JSON-serializable dictionary representation."""
+        return {
+            "overall_status": self.overall_status,
+            "data_as_of": self.data_as_of,
+            "baseline_summary": _sanitize_value_for_json(self.baseline_summary),
+            "drift_checks": [check.to_dict() for check in self.drift_checks],
+        }
 
 
 @dataclass(frozen=True)
@@ -84,44 +233,6 @@ class PipelineMonitoringResult:
         }
 
 
-def _sanitize_value_for_json(val: Any) -> Any:
-    """Recursively sanitize Python objects for deterministic JSON serialization.
-
-    Replaces float('nan') and float('inf') with string representations 'NaN' / 'Inf'
-    so serialization does not break or produce invalid JSON.
-    """
-    if isinstance(val, float):
-        if math.isnan(val):
-            return "NaN"
-        if math.isinf(val):
-            return "Inf" if val > 0 else "-Inf"
-        return val
-    if isinstance(val, dict):
-        return {k: _sanitize_value_for_json(v) for k, v in val.items()}
-    if isinstance(val, list):
-        return [_sanitize_value_for_json(item) for item in val]
-    if isinstance(val, tuple):
-        return [_sanitize_value_for_json(item) for item in val]
-    return val
-
-
-def find_nan_or_inf(obj: Any, path: str = "") -> list[str]:
-    """Recursively locate any NaN or Inf floating point values in nested data."""
-    issues = []
-    if isinstance(obj, float):
-        if math.isnan(obj):
-            issues.append(f"NaN at {path or 'root'}")
-        elif math.isinf(obj):
-            issues.append(f"Inf at {path or 'root'}")
-    elif isinstance(obj, dict):
-        for k, v in obj.items():
-            issues.extend(find_nan_or_inf(v, f"{path}.{k}" if path else str(k)))
-    elif isinstance(obj, list):
-        for idx, item in enumerate(obj):
-            issues.extend(find_nan_or_inf(item, f"{path}[{idx}]"))
-    return issues
-
-
 def validate_monitoring_payload(payload: dict) -> bool:
     """Validate structure and invariants of a monitoring output dictionary.
 
@@ -159,6 +270,894 @@ def validate_monitoring_payload(payload: dict) -> bool:
         raise TypeError("Monitoring 'metrics' must be a dict")
 
     return True
+
+
+def classify_confidence_bucket(conf: float | None) -> str | None:
+    """Classify numeric confidence score [0.0..1.0] into canonical bucket string."""
+    if conf is None:
+        return None
+    if isinstance(conf, bool) or not isinstance(conf, (int, float)):
+        raise TypeError(f"Confidence score must be numeric or None, got {type(conf).__name__}")
+    if math.isnan(conf) or math.isinf(conf):
+        raise ValueError(f"Invalid non-finite confidence score: {conf}")
+    if not (0.0 <= conf <= 1.0):
+        raise ValueError(f"Confidence score out of bounds [0.0..1.0]: {conf}")
+
+    if conf == 1.0:
+        return "0.9-1.0"
+
+    bucket_idx = min(int(conf * 10), 9)
+    lower = bucket_idx / 10.0
+    upper = (bucket_idx + 1) / 10.0
+    return f"{lower:.1f}-{upper:.1f}"
+
+
+def extract_recommendation_metrics(payload: dict) -> dict[str, Any]:
+    """Extract operational distribution and numeric metrics from a recommendation report payload."""
+    if not isinstance(payload, dict):
+        raise TypeError(f"Payload must be a dict, got {type(payload).__name__}")
+
+    recs = payload.get("recommendations", [])
+    if not isinstance(recs, list):
+        recs = []
+
+    summary = payload.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+
+    total_scanned = summary.get("total_scanned", len(recs))
+
+    action_counts = {
+        "BUY": summary.get("buy_count", sum(1 for r in recs if r.get("action") == "BUY")),
+        "WATCH": summary.get("watch_count", sum(1 for r in recs if r.get("action") == "WATCH")),
+        "HOLD": summary.get("hold_count", sum(1 for r in recs if r.get("action") == "HOLD")),
+        "SELL": summary.get("sell_count", sum(1 for r in recs if r.get("action") == "SELL")),
+        "AVOID": summary.get("avoid_count", sum(1 for r in recs if r.get("action") == "AVOID")),
+    }
+
+    if total_scanned > 0:
+        action_proportions = {
+            act: round(cnt / total_scanned, 6) for act, cnt in action_counts.items()
+        }
+    else:
+        action_proportions = {act: 0.0 for act in action_counts}
+
+    processed_count = sum(1 for r in recs if r.get("data_quality") in ("SUFFICIENT", "PARTIAL"))
+    processed_ratio = round(processed_count / total_scanned, 6) if total_scanned > 0 else 0.0
+
+    conf_counts = {b: 0 for b in CANONICAL_CONFIDENCE_BUCKETS}
+    valid_conf_vals = []
+    for r in recs:
+        conf = r.get("confidence")
+        if conf is not None:
+            bucket = classify_confidence_bucket(conf)
+            if bucket in conf_counts:
+                conf_counts[bucket] += 1
+                valid_conf_vals.append(float(conf))
+
+    total_valid_conf = len(valid_conf_vals)
+    if total_valid_conf > 0:
+        conf_bucket_proportions = {
+            b: round(conf_counts[b] / total_valid_conf, 6) for b in CANONICAL_CONFIDENCE_BUCKETS
+        }
+    else:
+        conf_bucket_proportions = {b: 0.0 for b in CANONICAL_CONFIDENCE_BUCKETS}
+
+    sig_scores = [
+        float(r["signal_score"])
+        for r in recs
+        if r.get("signal_score") is not None
+        and not (isinstance(r["signal_score"], float) and math.isnan(r["signal_score"]))
+    ]
+
+    risk_scores = [
+        float(r["risk_adjusted_score"])
+        for r in recs
+        if r.get("risk_adjusted_score") is not None
+        and not (
+            isinstance(r["risk_adjusted_score"], float) and math.isnan(r["risk_adjusted_score"])
+        )
+    ]
+
+    sig_mean = round(sum(sig_scores) / len(sig_scores), 4) if sig_scores else None
+    sig_median = round(sorted(sig_scores)[len(sig_scores) // 2], 4) if sig_scores else None
+
+    risk_mean = round(sum(risk_scores) / len(risk_scores), 4) if risk_scores else None
+    risk_median = round(sorted(risk_scores)[len(risk_scores) // 2], 4) if risk_scores else None
+
+    conf_mean = round(sum(valid_conf_vals) / len(valid_conf_vals), 4) if valid_conf_vals else None
+
+    market_obj = payload.get("market", {})
+    if isinstance(market_obj, dict):
+        regime = market_obj.get("regime")
+        m_metrics = market_obj.get("metrics", {})
+        if not isinstance(m_metrics, dict):
+            m_metrics = {}
+        vnindex_change_pct = m_metrics.get("vnindex_change_pct")
+        market_breadth_ratio = m_metrics.get("market_breadth_ratio")
+    else:
+        regime = None
+        vnindex_change_pct = None
+        market_breadth_ratio = None
+
+    return {
+        "total_scanned": total_scanned,
+        "processed_count": processed_count,
+        "processed_ratio": processed_ratio,
+        "action_counts": action_counts,
+        "action_proportions": action_proportions,
+        "confidence_bucket_counts": conf_counts,
+        "confidence_bucket_proportions": conf_bucket_proportions,
+        "signal_score_mean": sig_mean,
+        "signal_score_median": sig_median,
+        "risk_adjusted_score_mean": risk_mean,
+        "risk_adjusted_score_median": risk_median,
+        "confidence_mean": conf_mean,
+        "market_regime": regime,
+        "vnindex_change_pct": vnindex_change_pct,
+        "market_breadth_ratio": market_breadth_ratio,
+    }
+
+
+def evaluate_data_and_model_drift(
+    generated_dir: str | None = None,
+    data_as_of: str | None = None,
+    current_payload: dict | None = None,
+    market_payload: dict | None = None,
+    history_index_data: dict | None = None,
+    baseline_reports: list[dict] | None = None,
+    lookback_reports: int = DRIFT_LOOKBACK_REPORTS,
+    min_baseline_reports: int = DRIFT_MIN_BASELINE_REPORTS,
+) -> DriftMonitoringResult:
+    """Evaluate operational data drift and model-output drift against historical baseline.
+
+    Strict Temporal Safety:
+    - At evaluation date T, baseline reports MUST strictly have data_as_of < T.
+    - Future artifacts (> T) or chronologically invalid index ordering fail closed (FAIL status).
+    - If baseline reports count < min_baseline_reports, returns INSUFFICIENT baseline status (WARNING).
+    - Operational monitoring layer ONLY: does NOT evaluate model error, predictive validity, or profitability.
+    """
+    g_dir = generated_dir or DEFAULT_GENERATED_DIR
+
+    # Load current payload if not provided
+    if current_payload is None:
+        rec_file = os.path.join(g_dir, "recommendations.json")
+        if os.path.exists(rec_file):
+            try:
+                with open(rec_file, "r", encoding="utf-8") as f:
+                    current_payload = json.load(f)
+            except Exception as err:  # noqa: BLE001
+                obs = DriftObservation(
+                    check_name="drift_current_payload",
+                    baseline_period={"status": "NO_CURRENT_PAYLOAD"},
+                    current_period=data_as_of or "UNKNOWN",
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Failed to read current recommendations payload: {err}",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_current_payload", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": str(err)},
+                    drift_checks=[chk],
+                )
+
+    if not current_payload or not isinstance(current_payload, dict):
+        obs = DriftObservation(
+            check_name="drift_current_payload",
+            baseline_period={"status": "INVALID_CURRENT_PAYLOAD"},
+            current_period=data_as_of or "UNKNOWN",
+            baseline_value=None,
+            current_value=None,
+            absolute_difference=None,
+            threshold=None,
+            status="FAIL",
+            message="Current recommendations payload is missing or not a dict",
+        )
+        chk = DriftCheckResult(check_name="drift_current_payload", status="FAIL", observation=obs)
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=data_as_of,
+            baseline_summary={"status": "FAIL", "reason": "Invalid payload"},
+            drift_checks=[chk],
+        )
+
+    if not data_as_of:
+        data_as_of = current_payload.get("data_as_of")
+
+    if not data_as_of:
+        obs = DriftObservation(
+            check_name="drift_data_as_of",
+            baseline_period={"status": "MISSING_DATA_AS_OF"},
+            current_period="NONE",
+            baseline_value=None,
+            current_value=None,
+            absolute_difference=None,
+            threshold=None,
+            status="FAIL",
+            message="data_as_of is missing from current payload; cannot establish temporal baseline boundary",
+        )
+        chk = DriftCheckResult(check_name="drift_data_as_of", status="FAIL", observation=obs)
+        return DriftMonitoringResult(
+            overall_status="FAIL",
+            data_as_of=None,
+            baseline_summary={"status": "FAIL", "reason": "Missing data_as_of"},
+            drift_checks=[chk],
+        )
+
+    current_metrics = extract_recommendation_metrics(current_payload)
+
+    # Resolve baseline historical reports with strict temporal safety
+    loaded_baseline_reports: list[dict] = []
+    baseline_dates_used: list[str] = []
+
+    if baseline_reports is not None:
+        # Injected baseline reports (e.g., unit test fixtures)
+        for idx, r in enumerate(baseline_reports):
+            if not isinstance(r, dict):
+                obs = DriftObservation(
+                    check_name="drift_baseline_reports_injected",
+                    baseline_period={"index": idx},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Injected baseline report at index {idx} is not a dict",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_baseline_reports_injected",
+                    status="FAIL",
+                    observation=obs,
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={"status": "FAIL", "reason": "Invalid injected report"},
+                    drift_checks=[chk],
+                )
+
+            r_date = r.get("data_as_of")
+            if r_date:
+                # Temporal safety check: baseline report date must be strictly < data_as_of
+                if r_date >= data_as_of:
+                    obs = DriftObservation(
+                        check_name="drift_temporal_safety",
+                        baseline_period={"injected_date": r_date},
+                        current_period=data_as_of,
+                        baseline_value=r_date,
+                        current_value=data_as_of,
+                        absolute_difference=None,
+                        threshold=None,
+                        status="FAIL",
+                        message=f"Temporal safety violation: baseline report date '{r_date}' is not strictly less than current evaluation date '{data_as_of}'",
+                    )
+                    chk = DriftCheckResult(
+                        check_name="drift_temporal_safety", status="FAIL", observation=obs
+                    )
+                    return DriftMonitoringResult(
+                        overall_status="FAIL",
+                        data_as_of=data_as_of,
+                        baseline_summary={"status": "FAIL", "reason": "Temporal safety violation"},
+                        drift_checks=[chk],
+                    )
+                baseline_dates_used.append(r_date)
+            loaded_baseline_reports.append(r)
+    else:
+        # Load history index
+        if history_index_data is None:
+            index_path = os.path.join(g_dir, "history", "index.json")
+            if os.path.exists(index_path):
+                try:
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        history_index_data = json.load(f)
+                except Exception as err:  # noqa: BLE001
+                    obs = DriftObservation(
+                        check_name="drift_history_index",
+                        baseline_period={"path": index_path},
+                        current_period=data_as_of,
+                        baseline_value=None,
+                        current_value=None,
+                        absolute_difference=None,
+                        threshold=None,
+                        status="FAIL",
+                        message=f"Failed to read history index: {err}",
+                    )
+                    chk = DriftCheckResult(
+                        check_name="drift_history_index", status="FAIL", observation=obs
+                    )
+                    return DriftMonitoringResult(
+                        overall_status="FAIL",
+                        data_as_of=data_as_of,
+                        baseline_summary={"status": "FAIL", "reason": str(err)},
+                        drift_checks=[chk],
+                    )
+
+        if not history_index_data or not isinstance(history_index_data, dict):
+            obs = DriftObservation(
+                check_name="drift_history_index",
+                baseline_period={"status": "MISSING_INDEX"},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="WARNING",
+                message="History index (history/index.json) is missing or invalid; baseline unavailable",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_history_index", status="WARNING", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="WARNING",
+                data_as_of=data_as_of,
+                baseline_summary={"status": "INSUFFICIENT", "reason": "Missing history index"},
+                drift_checks=[chk],
+            )
+
+        dates = history_index_data.get("dates")
+        if not isinstance(dates, list):
+            obs = DriftObservation(
+                check_name="drift_history_index",
+                baseline_period={"dates_type": type(dates).__name__},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message="History index 'dates' field is not a list",
+            )
+            chk = DriftCheckResult(check_name="drift_history_index", status="FAIL", observation=obs)
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={"status": "FAIL", "reason": "Invalid dates field"},
+                drift_checks=[chk],
+            )
+
+        # Validate date strings and canonical YYYY-MM-DD
+        invalid_dates = []
+        for d in dates:
+            if not isinstance(d, str):
+                invalid_dates.append(str(d))
+            else:
+                try:
+                    datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC)
+                except ValueError:
+                    invalid_dates.append(d)
+
+        if invalid_dates:
+            obs = DriftObservation(
+                check_name="drift_history_index_format",
+                baseline_period={"invalid_dates": invalid_dates[:5]},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"History index contains invalid YYYY-MM-DD date entries: {', '.join(invalid_dates[:3])}",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_history_index_format", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={"status": "FAIL", "reason": "Invalid date strings in index"},
+                drift_checks=[chk],
+            )
+
+        # Check for duplicate dates
+        if len(dates) != len(set(dates)):
+            obs = DriftObservation(
+                check_name="drift_history_index_duplicates",
+                baseline_period={"total_dates": len(dates), "unique": len(set(dates))},
+                current_period=data_as_of,
+                baseline_value=len(dates),
+                current_value=len(set(dates)),
+                absolute_difference=len(dates) - len(set(dates)),
+                threshold=0,
+                status="FAIL",
+                message="History index contains duplicate date entries; fail closed on temporal corruption",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_history_index_duplicates", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={"status": "FAIL", "reason": "Duplicate dates in history index"},
+                drift_checks=[chk],
+            )
+
+        # Check strict reverse chronological order (descending)
+        if dates != sorted(dates, reverse=True):
+            obs = DriftObservation(
+                check_name="drift_history_index_order",
+                baseline_period={"dates_sample": dates[:5]},
+                current_period=data_as_of,
+                baseline_value=None,
+                current_value=None,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message="History index dates are not in descending chronological order; fail closed on temporal structure violation",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_history_index_order", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "Unsorted history index dates",
+                },
+                drift_checks=[chk],
+            )
+
+        # Check temporal safety: if dates in physical index dataset contain future dates >= data_as_of out of chronological order
+        # Specifically, check if any date >= data_as_of appears AFTER a baseline candidate date (< data_as_of)
+        first_future_idx = next((i for i, d in enumerate(dates) if d >= data_as_of), None)
+        first_past_idx = next((i for i, d in enumerate(dates) if d < data_as_of), None)
+        if (
+            first_future_idx is not None
+            and first_past_idx is not None
+            and first_future_idx > first_past_idx
+        ):
+            obs = DriftObservation(
+                check_name="drift_temporal_safety",
+                baseline_period={"future_idx": first_future_idx, "past_idx": first_past_idx},
+                current_period=data_as_of,
+                baseline_value=dates[first_future_idx],
+                current_value=data_as_of,
+                absolute_difference=None,
+                threshold=None,
+                status="FAIL",
+                message=f"Temporal safety violation: future observation '{dates[first_future_idx]}' appears after past date '{dates[first_past_idx]}' in history index dataset",
+            )
+            chk = DriftCheckResult(
+                check_name="drift_temporal_safety", status="FAIL", observation=obs
+            )
+            return DriftMonitoringResult(
+                overall_status="FAIL",
+                data_as_of=data_as_of,
+                baseline_summary={
+                    "status": "FAIL",
+                    "reason": "Future observation in physical dataset before T",
+                },
+                drift_checks=[chk],
+            )
+
+        # Filter baseline candidates strictly < data_as_of
+        baseline_candidate_dates = [d for d in dates if d < data_as_of]
+
+        selected_dates = baseline_candidate_dates[:lookback_reports]
+
+        for d in selected_dates:
+            fpath = os.path.join(g_dir, "history", f"{d}.json")
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        b_payload = json.load(f)
+                    if isinstance(b_payload, dict):
+                        loaded_baseline_reports.append(b_payload)
+                        baseline_dates_used.append(d)
+                except Exception as err:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to load historical baseline report history/%s.json: %s", d, err
+                    )
+
+    num_baseline_reports = len(loaded_baseline_reports)
+
+    # Check minimum baseline sufficiency
+    if num_baseline_reports < min_baseline_reports:
+        obs = DriftObservation(
+            check_name="drift_baseline_sufficiency",
+            baseline_period={
+                "available_reports": num_baseline_reports,
+                "required_reports": min_baseline_reports,
+                "baseline_dates": baseline_dates_used,
+            },
+            current_period=data_as_of,
+            baseline_value=num_baseline_reports,
+            current_value=min_baseline_reports,
+            absolute_difference=min_baseline_reports - num_baseline_reports,
+            threshold=min_baseline_reports,
+            status="WARNING",
+            message=f"INSUFFICIENT baseline historical data: found {num_baseline_reports} valid historical reports < {data_as_of}, minimum required is {min_baseline_reports}",
+        )
+        chk = DriftCheckResult(
+            check_name="drift_baseline_sufficiency", status="WARNING", observation=obs
+        )
+        return DriftMonitoringResult(
+            overall_status="WARNING",
+            data_as_of=data_as_of,
+            baseline_summary={
+                "status": "INSUFFICIENT",
+                "available_reports": num_baseline_reports,
+                "required_reports": min_baseline_reports,
+                "baseline_dates": baseline_dates_used,
+            },
+            drift_checks=[chk],
+        )
+
+    # Extract baseline metrics for all loaded baseline reports
+    all_baseline_metrics = [extract_recommendation_metrics(b_p) for b_p in loaded_baseline_reports]
+
+    # Compute baseline aggregated metric values
+    baseline_processed_ratio = round(
+        sum(m["processed_ratio"] for m in all_baseline_metrics) / num_baseline_reports, 6
+    )
+
+    breadth_vals = [
+        m["market_breadth_ratio"]
+        for m in all_baseline_metrics
+        if m["market_breadth_ratio"] is not None
+    ]
+    baseline_breadth_ratio = (
+        round(sum(breadth_vals) / len(breadth_vals), 6) if breadth_vals else None
+    )
+
+    vn_vals = [
+        m["vnindex_change_pct"] for m in all_baseline_metrics if m["vnindex_change_pct"] is not None
+    ]
+    baseline_vnindex_change_pct = round(sum(vn_vals) / len(vn_vals), 4) if vn_vals else None
+
+    # Aggregated action proportions
+    baseline_action_props = {}
+    for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]:
+        baseline_action_props[act] = round(
+            sum(m["action_proportions"][act] for m in all_baseline_metrics) / num_baseline_reports,
+            6,
+        )
+
+    # Aggregated confidence bucket proportions
+    baseline_conf_bucket_props = {}
+    for b in CANONICAL_CONFIDENCE_BUCKETS:
+        baseline_conf_bucket_props[b] = round(
+            sum(m["confidence_bucket_proportions"][b] for m in all_baseline_metrics)
+            / num_baseline_reports,
+            6,
+        )
+
+    sig_score_means = [
+        m["signal_score_mean"] for m in all_baseline_metrics if m["signal_score_mean"] is not None
+    ]
+    baseline_signal_score_mean = (
+        round(sum(sig_score_means) / len(sig_score_means), 4) if sig_score_means else None
+    )
+
+    risk_score_means = [
+        m["risk_adjusted_score_mean"]
+        for m in all_baseline_metrics
+        if m["risk_adjusted_score_mean"] is not None
+    ]
+    baseline_risk_score_mean = (
+        round(sum(risk_score_means) / len(risk_score_means), 4) if risk_score_means else None
+    )
+
+    conf_means = [
+        m["confidence_mean"] for m in all_baseline_metrics if m["confidence_mean"] is not None
+    ]
+    baseline_confidence_mean = round(sum(conf_means) / len(conf_means), 4) if conf_means else None
+
+    baseline_period_info = {
+        "status": "SUFFICIENT",
+        "report_count": num_baseline_reports,
+        "start_date": baseline_dates_used[-1] if baseline_dates_used else None,
+        "end_date": baseline_dates_used[0] if baseline_dates_used else None,
+        "baseline_dates": baseline_dates_used,
+    }
+
+    drift_checks: list[DriftCheckResult] = []
+
+    # 1. Processed ratio drift
+    curr_proc = current_metrics["processed_ratio"]
+    proc_diff = round(abs(curr_proc - baseline_processed_ratio), 6)
+    proc_warn, proc_fail = DRIFT_THRESHOLD_PROCESSED_RATIO
+    if proc_diff > proc_fail:
+        proc_status = "FAIL"
+    elif proc_diff > proc_warn:
+        proc_status = "WARNING"
+    else:
+        proc_status = "PASS"
+
+    proc_obs = DriftObservation(
+        check_name="drift_processed_ratio",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_processed_ratio,
+        current_value=curr_proc,
+        absolute_difference=proc_diff,
+        threshold={"warning": proc_warn, "fail": proc_fail},
+        status=proc_status,
+        message=f"Processed ratio diff is {proc_diff:.4f} (current={curr_proc:.4f}, baseline={baseline_processed_ratio:.4f})",
+    )
+    drift_checks.append(
+        DriftCheckResult(
+            check_name="drift_processed_ratio", status=proc_status, observation=proc_obs
+        )
+    )
+
+    # 2. Market breadth drift
+    curr_breadth = current_metrics["market_breadth_ratio"]
+    if curr_breadth is not None and baseline_breadth_ratio is not None:
+        breadth_diff = round(abs(curr_breadth - baseline_breadth_ratio), 6)
+        b_warn, b_fail = DRIFT_THRESHOLD_BREADTH_RATIO
+        if breadth_diff > b_fail:
+            b_status = "FAIL"
+        elif breadth_diff > b_warn:
+            b_status = "WARNING"
+        else:
+            b_status = "PASS"
+
+        b_msg = f"Market breadth ratio diff is {breadth_diff:.4f} (current={curr_breadth:.4f}, baseline={baseline_breadth_ratio:.4f})"
+    else:
+        breadth_diff = None
+        b_warn, b_fail = DRIFT_THRESHOLD_BREADTH_RATIO
+        b_status = "WARNING"
+        b_msg = "Market breadth ratio is missing in current payload or baseline"
+
+    b_obs = DriftObservation(
+        check_name="drift_market_breadth",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_breadth_ratio,
+        current_value=curr_breadth,
+        absolute_difference=breadth_diff,
+        threshold={"warning": b_warn, "fail": b_fail},
+        status=b_status,
+        message=b_msg,
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_market_breadth", status=b_status, observation=b_obs)
+    )
+
+    # 3. VNINDEX change pct drift
+    curr_vn = current_metrics["vnindex_change_pct"]
+    if curr_vn is not None and baseline_vnindex_change_pct is not None:
+        vn_diff = round(abs(curr_vn - baseline_vnindex_change_pct), 4)
+        v_warn, v_fail = DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
+        if vn_diff > v_fail:
+            v_status = "FAIL"
+        elif vn_diff > v_warn:
+            v_status = "WARNING"
+        else:
+            v_status = "PASS"
+
+        v_msg = f"VNINDEX change pct diff is {vn_diff:.4f}% (current={curr_vn:.4f}%, baseline={baseline_vnindex_change_pct:.4f}%)"
+    else:
+        vn_diff = None
+        v_warn, v_fail = DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
+        v_status = "WARNING"
+        v_msg = "VNINDEX change pct is missing in current payload or baseline"
+
+    v_obs = DriftObservation(
+        check_name="drift_vnindex_change_pct",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_vnindex_change_pct,
+        current_value=curr_vn,
+        absolute_difference=vn_diff,
+        threshold={"warning": v_warn, "fail": v_fail},
+        status=v_status,
+        message=v_msg,
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_vnindex_change_pct", status=v_status, observation=v_obs)
+    )
+
+    # 4. Action distribution drift
+    curr_action_props = current_metrics["action_proportions"]
+    action_diffs = {
+        act: round(abs(curr_action_props[act] - baseline_action_props[act]), 6)
+        for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
+    }
+    max_action_diff = max(action_diffs.values())
+    a_warn, a_fail = DRIFT_THRESHOLD_ACTION_DISTRIBUTION
+    if max_action_diff > a_fail:
+        a_status = "FAIL"
+    elif max_action_diff > a_warn:
+        a_status = "WARNING"
+    else:
+        a_status = "PASS"
+
+    a_obs = DriftObservation(
+        check_name="drift_action_distribution",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_action_props,
+        current_value=curr_action_props,
+        absolute_difference={
+            "max_difference": max_action_diff,
+            "per_action": action_diffs,
+        },
+        threshold={"warning": a_warn, "fail": a_fail},
+        status=a_status,
+        message=f"Action distribution max proportion shift is {max_action_diff:.4f} across actions",
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_action_distribution", status=a_status, observation=a_obs)
+    )
+
+    # 5. Confidence bucket distribution drift
+    curr_conf_bucket_props = current_metrics["confidence_bucket_proportions"]
+    conf_bucket_diffs = {
+        b: round(abs(curr_conf_bucket_props[b] - baseline_conf_bucket_props[b]), 6)
+        for b in CANONICAL_CONFIDENCE_BUCKETS
+    }
+    max_conf_bucket_diff = max(conf_bucket_diffs.values())
+    c_warn, c_fail = DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION
+    if max_conf_bucket_diff > c_fail:
+        c_status = "FAIL"
+    elif max_conf_bucket_diff > c_warn:
+        c_status = "WARNING"
+    else:
+        c_status = "PASS"
+
+    c_obs = DriftObservation(
+        check_name="drift_confidence_distribution",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_conf_bucket_props,
+        current_value=curr_conf_bucket_props,
+        absolute_difference={
+            "max_difference": max_conf_bucket_diff,
+            "per_bucket": conf_bucket_diffs,
+        },
+        threshold={"warning": c_warn, "fail": c_fail},
+        status=c_status,
+        message=f"Confidence bucket distribution max proportion shift is {max_conf_bucket_diff:.4f}",
+    )
+    drift_checks.append(
+        DriftCheckResult(
+            check_name="drift_confidence_distribution", status=c_status, observation=c_obs
+        )
+    )
+
+    # 6. Signal score mean drift
+    curr_sig_mean = current_metrics["signal_score_mean"]
+    if curr_sig_mean is not None and baseline_signal_score_mean is not None:
+        sig_diff = round(abs(curr_sig_mean - baseline_signal_score_mean), 4)
+        s_warn, s_fail = DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
+        if sig_diff > s_fail:
+            s_status = "FAIL"
+        elif sig_diff > s_warn:
+            s_status = "WARNING"
+        else:
+            s_status = "PASS"
+
+        s_msg = f"Signal score mean diff is {sig_diff:.4f} (current={curr_sig_mean:.4f}, baseline={baseline_signal_score_mean:.4f})"
+    else:
+        sig_diff = None
+        s_warn, s_fail = DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
+        s_status = "WARNING"
+        s_msg = "Signal score mean is missing in current payload or baseline"
+
+    s_obs = DriftObservation(
+        check_name="drift_signal_score",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_signal_score_mean,
+        current_value=curr_sig_mean,
+        absolute_difference=sig_diff,
+        threshold={"warning": s_warn, "fail": s_fail},
+        status=s_status,
+        message=s_msg,
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_signal_score", status=s_status, observation=s_obs)
+    )
+
+    # 7. Risk-adjusted score mean drift
+    curr_risk_mean = current_metrics["risk_adjusted_score_mean"]
+    if curr_risk_mean is not None and baseline_risk_score_mean is not None:
+        risk_diff = round(abs(curr_risk_mean - baseline_risk_score_mean), 4)
+        r_warn, r_fail = DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
+        if risk_diff > r_fail:
+            r_status = "FAIL"
+        elif risk_diff > r_warn:
+            r_status = "WARNING"
+        else:
+            r_status = "PASS"
+
+        r_msg = f"Risk-adjusted score mean diff is {risk_diff:.4f} (current={curr_risk_mean:.4f}, baseline={baseline_risk_score_mean:.4f})"
+    else:
+        risk_diff = None
+        r_warn, r_fail = DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
+        r_status = "WARNING"
+        r_msg = "Risk-adjusted score mean is missing in current payload or baseline"
+
+    r_obs = DriftObservation(
+        check_name="drift_risk_adjusted_score",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_risk_score_mean,
+        current_value=curr_risk_mean,
+        absolute_difference=risk_diff,
+        threshold={"warning": r_warn, "fail": r_fail},
+        status=r_status,
+        message=r_msg,
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_risk_adjusted_score", status=r_status, observation=r_obs)
+    )
+
+    # 8. Confidence mean drift
+    curr_conf_mean = current_metrics["confidence_mean"]
+    if curr_conf_mean is not None and baseline_confidence_mean is not None:
+        conf_mean_diff = round(abs(curr_conf_mean - baseline_confidence_mean), 4)
+        cm_warn, cm_fail = DRIFT_THRESHOLD_CONFIDENCE_MEAN
+        if conf_mean_diff > cm_fail:
+            cm_status = "FAIL"
+        elif conf_mean_diff > cm_warn:
+            cm_status = "WARNING"
+        else:
+            cm_status = "PASS"
+
+        cm_msg = f"Confidence mean diff is {conf_mean_diff:.4f} (current={curr_conf_mean:.4f}, baseline={baseline_confidence_mean:.4f})"
+    else:
+        conf_mean_diff = None
+        cm_warn, cm_fail = DRIFT_THRESHOLD_CONFIDENCE_MEAN
+        cm_status = "WARNING"
+        cm_msg = "Confidence mean is missing in current payload or baseline"
+
+    cm_obs = DriftObservation(
+        check_name="drift_confidence_mean",
+        baseline_period=baseline_period_info,
+        current_period=data_as_of,
+        baseline_value=baseline_confidence_mean,
+        current_value=curr_conf_mean,
+        absolute_difference=conf_mean_diff,
+        threshold={"warning": cm_warn, "fail": cm_fail},
+        status=cm_status,
+        message=cm_msg,
+    )
+    drift_checks.append(
+        DriftCheckResult(check_name="drift_confidence_mean", status=cm_status, observation=cm_obs)
+    )
+
+    # Determine overall drift status
+    check_statuses = [chk.status for chk in drift_checks]
+    if "FAIL" in check_statuses:
+        overall_status = "FAIL"
+    elif "WARNING" in check_statuses:
+        overall_status = "WARNING"
+    else:
+        overall_status = "PASS"
+
+    baseline_summary_dict = {
+        "status": "SUFFICIENT",
+        "report_count": num_baseline_reports,
+        "baseline_period": baseline_period_info,
+        "baseline_metrics": {
+            "processed_ratio": baseline_processed_ratio,
+            "market_breadth_ratio": baseline_breadth_ratio,
+            "vnindex_change_pct": baseline_vnindex_change_pct,
+            "signal_score_mean": baseline_signal_score_mean,
+            "risk_adjusted_score_mean": baseline_risk_score_mean,
+            "confidence_mean": baseline_confidence_mean,
+            "action_proportions": baseline_action_props,
+            "confidence_bucket_proportions": baseline_conf_bucket_props,
+        },
+    }
+
+    return DriftMonitoringResult(
+        overall_status=overall_status,
+        data_as_of=data_as_of,
+        baseline_summary=baseline_summary_dict,
+        drift_checks=drift_checks,
+    )
 
 
 def check_required_artifacts(generated_dir: str, data_as_of: str | None = None) -> CheckResult:
@@ -849,6 +1848,23 @@ def evaluate_production_monitoring(
     if df_vn30 is not None:
         checks.append(check_ohlcv_data_quality(df_vn30, "VN30"))
 
+    # 9. Operational Data and Model Drift Detection check
+    drift_res = evaluate_data_and_model_drift(
+        generated_dir=g_dir,
+        data_as_of=data_as_of,
+        current_payload=recommendations_payload,
+        market_payload=market_payload,
+    )
+    for d_chk in drift_res.drift_checks:
+        c_res = CheckResult(
+            check_name=d_chk.check_name,
+            status=d_chk.status,
+            measured_value=d_chk.observation.current_value,
+            expected_condition=f"Within threshold of baseline ({d_chk.observation.baseline_value})",
+            message=d_chk.observation.message,
+        )
+        checks.append(c_res)
+
     # Aggregate overall status
     statuses = [c.status for c in checks]
     if "FAIL" in statuses:
@@ -872,6 +1888,7 @@ def evaluate_production_monitoring(
         "sell_count": summary.get("sell_count", 0),
         "avoid_count": summary.get("avoid_count", 0),
         "market_regime": market_payload.get("regime"),
+        "drift_monitoring": drift_res.to_dict(),
         "check_counts": {
             "total_checks": len(checks),
             "pass_count": statuses.count("PASS"),

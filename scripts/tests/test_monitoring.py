@@ -149,14 +149,36 @@ class TestProductionMonitoring(unittest.TestCase):
         }
 
     def test_healthy_production_data_passes(self):
-        """Verify healthy production data produces overall status 'PASS'."""
-        res = evaluate_production_monitoring(
-            recommendations_payload=self.healthy_payload,
-            reference_date=self.reference_date,
-        )
-        self.assertEqual(res.overall_status, "PASS")
-        self.assertEqual(res.data_as_of, "2026-09-17")
-        self.assertTrue(validate_monitoring_payload(res.to_dict()))
+        """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(self.healthy_market, f)
+
+            baseline_dates = [f"2026-09-{16 - i:02d}" for i in range(5)]
+            index_dates = ["2026-09-17"] + baseline_dates
+            with open(os.path.join(hist_dir, "index.json"), "w") as f:
+                json.dump({"dates": index_dates}, f)
+
+            for d in index_dates:
+                b_payload = copy.deepcopy(self.healthy_payload)
+                b_payload["data_as_of"] = d
+                with open(os.path.join(hist_dir, f"{d}.json"), "w") as f:
+                    json.dump(b_payload, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=self.healthy_market,
+                reference_date=self.reference_date,
+            )
+            self.assertEqual(res.overall_status, "PASS")
+            self.assertEqual(res.data_as_of, "2026-09-17")
+            self.assertTrue(validate_monitoring_payload(res.to_dict()))
 
     def test_payload_supplied_in_memory_with_missing_artifacts_on_disk_fails(self):
         """Test A: In-memory payload supplied but generated_dir on disk is empty -> FAIL."""
@@ -203,10 +225,17 @@ class TestProductionMonitoring(unittest.TestCase):
                 json.dump(self.healthy_payload, f)
             with open(os.path.join(tmpdir, "market.json"), "w") as f:
                 json.dump(self.healthy_market, f)
+
+            baseline_dates = [f"2026-09-{16 - i:02d}" for i in range(5)]
+            index_dates = ["2026-09-17"] + baseline_dates
             with open(os.path.join(hist_dir, "index.json"), "w") as f:
-                json.dump({"dates": ["2026-09-17"]}, f)
-            with open(os.path.join(hist_dir, "2026-09-17.json"), "w") as f:
-                json.dump(self.healthy_payload, f)
+                json.dump({"dates": index_dates}, f)
+
+            for d in index_dates:
+                b_payload = copy.deepcopy(self.healthy_payload)
+                b_payload["data_as_of"] = d
+                with open(os.path.join(hist_dir, f"{d}.json"), "w") as f:
+                    json.dump(b_payload, f)
 
             res = evaluate_production_monitoring(
                 generated_dir=tmpdir,
