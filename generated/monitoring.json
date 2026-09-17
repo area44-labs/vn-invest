@@ -1,6 +1,6 @@
 {
   "overall_status": "PASS",
-  "generated_at": "2026-09-17T07:06:31.119058+00:00",
+  "generated_at": "2026-09-17T08:51:15.525542+00:00",
   "data_as_of": "2026-09-17",
   "checks": [
     {
@@ -40,10 +40,10 @@
         "insufficient_count": 2,
         "processed_ratio": 0.9524,
         "actions": {
-          "BUY": 15,
+          "BUY": 18,
           "WATCH": 3,
-          "HOLD": 1,
-          "SELL": 21,
+          "HOLD": 0,
+          "SELL": 19,
           "AVOID": 2
         }
       },
@@ -56,8 +56,8 @@
       "measured_value": {
         "regime": "STRONG_BULL",
         "confidence": 0.85,
-        "vnindex_value": 1819.95,
-        "market_breadth_ratio": 0.43
+        "vnindex_value": 1822.77,
+        "market_breadth_ratio": 0.5
       },
       "expected_condition": "Valid regime, bounded confidence, and valid metrics",
       "message": "Market regime 'STRONG_BULL' verified successfully"
@@ -71,20 +71,40 @@
       },
       "expected_condition": "Valid sorted dates list containing data_as_of",
       "message": "History index verified with 8 historical report entries"
+    },
+    {
+      "check_name": "ohlcv_quality_vnindex",
+      "status": "PASS",
+      "measured_value": {
+        "status": "SUFFICIENT",
+        "valid_row_count": 249
+      },
+      "expected_condition": "OHLCV data for VNINDEX is SUFFICIENT",
+      "message": "OHLCV data quality for 'VNINDEX' is SUFFICIENT (249 valid rows)"
+    },
+    {
+      "check_name": "ohlcv_quality_vn30",
+      "status": "PASS",
+      "measured_value": {
+        "status": "SUFFICIENT",
+        "valid_row_count": 249
+      },
+      "expected_condition": "OHLCV data for VN30 is SUFFICIENT",
+      "message": "OHLCV data quality for 'VN30' is SUFFICIENT (249 valid rows)"
     }
   ],
   "metrics": {
     "signal_model_version": "2.0",
     "total_scanned": 42,
-    "buy_count": 15,
+    "buy_count": 18,
     "watch_count": 3,
-    "hold_count": 1,
-    "sell_count": 21,
+    "hold_count": 0,
+    "sell_count": 19,
     "avoid_count": 2,
-    "market_regime": null,
+    "market_regime": "STRONG_BULL",
     "check_counts": {
-      "total_checks": 6,
-      "pass_count": 6,
+      "total_checks": 8,
+      "pass_count": 8,
       "warning_count": 0,
       "fail_count": 0
     }

@@ -185,8 +185,60 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(chk.status, "FAIL")
         self.assertIn("schema_version", chk.message)
 
+    def test_summary_action_count_mismatch_fails(self):
+        """Verify summary action count mismatch with actual recommendations produces status 'FAIL'."""
+        bad_payload = copy.deepcopy(self.healthy_payload)
+        # Summary claims 2 BUY, 0 WATCH, but recommendations has 1 BUY and 1 WATCH
+        bad_payload["summary"]["buy_count"] = 2
+        bad_payload["summary"]["watch_count"] = 0
+
+        chk = check_symbol_processing_counts(bad_payload)
+        self.assertEqual(chk.status, "FAIL")
+        self.assertIn("buy_count", chk.message)
+
+    def test_total_scanned_mismatch_fails(self):
+        """Verify total_scanned mismatch with recommendations length produces status 'FAIL'."""
+        bad_payload = copy.deepcopy(self.healthy_payload)
+        bad_payload["summary"]["total_scanned"] = 5
+
+        chk = check_symbol_processing_counts(bad_payload)
+        self.assertEqual(chk.status, "FAIL")
+        self.assertIn("Summary counts mismatch", chk.message)
+
+    def test_invalid_date_string_in_history_index_fails(self):
+        """Verify invalid date string in history index produces status 'FAIL'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+            index_path = os.path.join(hist_dir, "index.json")
+
+            with open(index_path, "w") as f:
+                json.dump({"dates": ["2026-02-30", "2026-09-16"]}, f)  # Invalid calendar date
+
+            chk = check_history_index_status(tmpdir)
+            self.assertEqual(chk.status, "FAIL")
+            self.assertIn("invalid date entries", chk.message.lower())
+
+    def test_missing_history_file_for_index_date_fails(self):
+        """Verify date in history index pointing to missing file produces status 'FAIL'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+            index_path = os.path.join(hist_dir, "index.json")
+
+            # Index lists 2026-09-17 and 2026-09-16, but 2026-09-16.json does not exist
+            with open(index_path, "w") as f:
+                json.dump({"dates": ["2026-09-17", "2026-09-16"]}, f)
+
+            with open(os.path.join(hist_dir, "2026-09-17.json"), "w") as f:
+                f.write("{}")
+
+            chk = check_history_index_status(tmpdir)
+            self.assertEqual(chk.status, "FAIL")
+            self.assertIn("missing report files", chk.message.lower())
+
     def test_invalid_unsorted_duplicate_data_fails(self):
-        """Verify duplicate or unsorted dates in history index or OHLCV data fails closed ('FAIL')."""
+        """Verify duplicate or unsorted dates in history index fail closed ('FAIL')."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
@@ -194,7 +246,10 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Duplicate date entries in index
             with open(index_path, "w") as f:
-                json.dump({"dates": ["2026-09-17", "2026-09-17", "2026-09-16"]}, f)
+                json.dump({"dates": ["2026-09-17", "2026-09-17"]}, f)
+
+            with open(os.path.join(hist_dir, "2026-09-17.json"), "w") as f:
+                f.write("{}")
 
             chk = check_history_index_status(tmpdir, data_as_of="2026-09-17")
             self.assertEqual(chk.status, "FAIL")
@@ -203,6 +258,9 @@ class TestProductionMonitoring(unittest.TestCase):
             # Unsorted date entries in index
             with open(index_path, "w") as f:
                 json.dump({"dates": ["2026-09-16", "2026-09-17"]}, f)
+
+            with open(os.path.join(hist_dir, "2026-09-16.json"), "w") as f:
+                f.write("{}")
 
             chk_unsorted = check_history_index_status(tmpdir, data_as_of="2026-09-17")
             self.assertEqual(chk_unsorted.status, "FAIL")
@@ -222,7 +280,6 @@ class TestProductionMonitoring(unittest.TestCase):
             }
         )
         chk = check_ohlcv_data_quality(df_unsorted, "TEST_SYM")
-        # Fewer than 20 rows marks status INSUFFICIENT
         self.assertEqual(chk.status, "FAIL")
 
     def test_expected_insufficient_data_condition(self):
@@ -286,20 +343,47 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(chk_large.status, "PASS")
         self.assertEqual(chk_large.measured_value["processed_ratio"], 0.90)
 
-    def test_warning_condition(self):
-        """Verify warning condition for slightly stale data produces status 'WARNING'."""
-        chk = check_data_freshness("2026-09-12", reference_date="2026-09-17")  # 5 days stale
-        self.assertEqual(chk.status, "WARNING")
-        self.assertIn("slightly stale", chk.message)
+    def test_avoid_with_sufficient_data_quality_not_counted_as_insufficient(self):
+        """Verify AVOID action with SUFFICIENT data_quality is NOT counted as insufficient data."""
+        avoid_sufficient_rec = copy.deepcopy(self.healthy_recommendations[0])
+        avoid_sufficient_rec["symbol"] = "XYZ"
+        avoid_sufficient_rec["action"] = "AVOID"
+        avoid_sufficient_rec["data_quality"] = "SUFFICIENT"
 
-    def test_future_data_freshness_fails(self):
-        """Verify future data_as_of relative to reference_date causes check failure ('FAIL')."""
-        chk = check_data_freshness("2026-09-20", reference_date="2026-09-17")
+        payload = copy.deepcopy(self.healthy_payload)
+        payload["recommendations"].append(avoid_sufficient_rec)
+        payload["summary"] = {
+            "total_scanned": 3,
+            "buy_count": 1,
+            "watch_count": 1,
+            "hold_count": 0,
+            "sell_count": 0,
+            "avoid_count": 1,
+        }
+
+        chk = check_symbol_processing_counts(payload)
+        self.assertEqual(chk.status, "PASS")
+        self.assertEqual(chk.measured_value["insufficient_count"], 0)
+        self.assertEqual(chk.measured_value["processed_count"], 3)
+
+    def test_nan_inf_in_market_payload_fails(self):
+        """Verify NaN or Inf in market payload causes numeric_sanity check failure ('FAIL')."""
+        bad_market = copy.deepcopy(self.healthy_market)
+        bad_market["metrics"]["vnindex_value"] = float("nan")
+
+        chk = check_numeric_sanity(self.healthy_payload, market_payload=bad_market)
         self.assertEqual(chk.status, "FAIL")
-        self.assertIn("future", chk.message.lower())
+        self.assertIn("NaN", chk.message)
+
+        bad_market_inf = copy.deepcopy(self.healthy_market)
+        bad_market_inf["metrics"]["volatility"] = float("inf")
+
+        chk_inf = check_numeric_sanity(self.healthy_payload, market_payload=bad_market_inf)
+        self.assertEqual(chk_inf.status, "FAIL")
+        self.assertIn("Inf", chk_inf.message)
 
     def test_nan_inf_detection(self):
-        """Verify NaN or Inf float values cause check_numeric_sanity failure ('FAIL')."""
+        """Verify NaN or Inf float values in recommendations payload cause numeric_sanity check failure ('FAIL')."""
         bad_payload = copy.deepcopy(self.healthy_payload)
         bad_payload["recommendations"][0]["signal_score"] = float("nan")
 
@@ -316,6 +400,56 @@ class TestProductionMonitoring(unittest.TestCase):
         chk_inf = check_numeric_sanity(bad_payload_inf)
         self.assertEqual(chk_inf.status, "FAIL")
         self.assertIn("Inf", chk_inf.message)
+
+    def test_benchmark_ohlcv_checks_executed(self):
+        """Verify production monitoring executes benchmark OHLCV checks when DataFrames are passed."""
+        dates = pd.date_range("2026-01-01", periods=50, freq="B").strftime("%Y-%m-%d").tolist()
+        df_vnindex = pd.DataFrame(
+            {
+                "time": dates,
+                "open": [1200.0] * 50,
+                "high": [1210.0] * 50,
+                "low": [1190.0] * 50,
+                "close": [1205.0] * 50,
+                "volume": [500000] * 50,
+            }
+        )
+        df_vn30 = pd.DataFrame(
+            {
+                "time": dates,
+                "open": [1300.0] * 50,
+                "high": [1310.0] * 50,
+                "low": [1290.0] * 50,
+                "close": [1305.0] * 50,
+                "volume": [300000] * 50,
+            }
+        )
+
+        res = evaluate_production_monitoring(
+            recommendations_payload=self.healthy_payload,
+            reference_date=self.reference_date,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+        )
+
+        check_names = [c.check_name for c in res.checks]
+        self.assertIn("ohlcv_quality_vnindex", check_names)
+        self.assertIn("ohlcv_quality_vn30", check_names)
+
+        vn_chk = next(c for c in res.checks if c.check_name == "ohlcv_quality_vnindex")
+        self.assertEqual(vn_chk.status, "PASS")
+
+    def test_warning_condition(self):
+        """Verify warning condition for slightly stale data produces status 'WARNING'."""
+        chk = check_data_freshness("2026-09-12", reference_date="2026-09-17")  # 5 days stale
+        self.assertEqual(chk.status, "WARNING")
+        self.assertIn("slightly stale", chk.message)
+
+    def test_future_data_freshness_fails(self):
+        """Verify future data_as_of relative to reference_date causes check failure ('FAIL')."""
+        chk = check_data_freshness("2026-09-20", reference_date="2026-09-17")
+        self.assertEqual(chk.status, "FAIL")
+        self.assertIn("future", chk.message.lower())
 
     def test_deterministic_serialization(self):
         """Verify CheckResult and PipelineMonitoringResult produce deterministic serializable dicts."""

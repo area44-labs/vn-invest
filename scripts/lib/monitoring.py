@@ -337,15 +337,18 @@ def check_data_freshness(data_as_of: str | None, reference_date: str | None = No
     )
 
 
-def check_numeric_sanity(payload: dict) -> CheckResult:
-    """Scan recommendations payload for NaN/Inf float values or out-of-bounds scores."""
-    nan_inf_issues = find_nan_or_inf(payload)
+def check_numeric_sanity(payload: dict, market_payload: dict | None = None) -> CheckResult:
+    """Scan recommendations payload and market payload for NaN/Inf float values or out-of-bounds scores."""
+    nan_inf_issues = find_nan_or_inf(payload, path="recommendations_payload")
+    if market_payload:
+        nan_inf_issues.extend(find_nan_or_inf(market_payload, path="market_payload"))
+
     if nan_inf_issues:
         return CheckResult(
             check_name="numeric_sanity",
             status="FAIL",
             measured_value={"nan_inf_issues": nan_inf_issues[:10]},
-            expected_condition="No NaN or Inf float values anywhere in payload",
+            expected_condition="No NaN or Inf float values anywhere in recommendations or market payload",
             message=f"Found {len(nan_inf_issues)} NaN/Inf values: {'; '.join(nan_inf_issues[:3])}",
         )
 
@@ -388,8 +391,8 @@ def check_symbol_processing_counts(payload: dict) -> CheckResult:
     """Verify symbol processing counts, summary invariants, and coverage ratios.
 
     Distinguishes:
-    - Genuine pipeline failure: sum mismatch, 0 total scanned, or < 50% processed ratio.
-    - Expected insufficient-data condition: individual stock with INSUFFICIENT data_quality / AVOID action, processed ratio >= 80%.
+    - Genuine pipeline failure: sum mismatch, total_scanned mismatch, action mismatch, 0 total scanned, or < 50% processed ratio.
+    - Expected insufficient-data condition: individual stock with INSUFFICIENT data_quality (decoupled from AVOID action), processed ratio >= 80%.
     - Warning condition: processed ratio between 50% and 80%.
     """
     recs = payload.get("recommendations", [])
@@ -426,10 +429,45 @@ def check_symbol_processing_counts(payload: dict) -> CheckResult:
             message=f"Summary counts mismatch: total_scanned={total_scanned}, len_recs={len(recs)}, sum_actions={sum_actions}",
         )
 
+    # Compute actual action counts directly from recommendation items
+    actual_buy = sum(1 for r in recs if r.get("action") == "BUY")
+    actual_watch = sum(1 for r in recs if r.get("action") == "WATCH")
+    actual_hold = sum(1 for r in recs if r.get("action") == "HOLD")
+    actual_sell = sum(1 for r in recs if r.get("action") == "SELL")
+    actual_avoid = sum(1 for r in recs if r.get("action") == "AVOID")
+
+    action_mismatches = []
+    if buy_cnt != actual_buy:
+        action_mismatches.append(f"buy_count: summary={buy_cnt} vs actual={actual_buy}")
+    if watch_cnt != actual_watch:
+        action_mismatches.append(f"watch_count: summary={watch_cnt} vs actual={actual_watch}")
+    if hold_cnt != actual_hold:
+        action_mismatches.append(f"hold_count: summary={hold_cnt} vs actual={actual_hold}")
+    if sell_cnt != actual_sell:
+        action_mismatches.append(f"sell_count: summary={sell_cnt} vs actual={actual_sell}")
+    if avoid_cnt != actual_avoid:
+        action_mismatches.append(f"avoid_count: summary={avoid_cnt} vs actual={actual_avoid}")
+
+    if action_mismatches:
+        return CheckResult(
+            check_name="symbol_processing_counts",
+            status="FAIL",
+            measured_value={
+                "summary": summary,
+                "actual_actions": {
+                    "BUY": actual_buy,
+                    "WATCH": actual_watch,
+                    "HOLD": actual_hold,
+                    "SELL": actual_sell,
+                    "AVOID": actual_avoid,
+                },
+            },
+            expected_condition="summary action counts strictly match actual recommendation actions",
+            message=f"Summary action count mismatch: {'; '.join(action_mismatches)}",
+        )
+
     processed_count = sum(1 for r in recs if r.get("data_quality") in ("SUFFICIENT", "PARTIAL"))
-    insufficient_count = sum(
-        1 for r in recs if r.get("data_quality") == "INSUFFICIENT" or r.get("action") == "AVOID"
-    )
+    insufficient_count = sum(1 for r in recs if r.get("data_quality") == "INSUFFICIENT")
 
     processed_ratio = processed_count / total_scanned if total_scanned > 0 else 0.0
 
@@ -598,14 +636,39 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             message="History index 'dates' field is not a list",
         )
 
-    invalid_date_items = [d for d in dates if not isinstance(d, str)]
+    invalid_date_items = []
+    for d in dates:
+        if not isinstance(d, str):
+            invalid_date_items.append(str(d))
+        else:
+            try:
+                datetime.strptime(d, "%Y-%m-%d")
+            except ValueError:
+                invalid_date_items.append(d)
+
     if invalid_date_items:
         return CheckResult(
             check_name="history_index_status",
             status="FAIL",
             measured_value={"invalid_items": invalid_date_items},
-            expected_condition="All items in dates list are YYYY-MM-DD strings",
-            message="History index contains non-string date entries",
+            expected_condition="All items in dates list are valid canonical YYYY-MM-DD calendar date strings",
+            message=f"History index contains invalid date entries: {', '.join(invalid_date_items[:5])}",
+        )
+
+    # Check that corresponding history date JSON files exist on disk
+    missing_history_files = []
+    for d in dates:
+        file_path = os.path.join(generated_dir, "history", f"{d}.json")
+        if not os.path.exists(file_path):
+            missing_history_files.append(f"history/{d}.json")
+
+    if missing_history_files:
+        return CheckResult(
+            check_name="history_index_status",
+            status="FAIL",
+            measured_value={"missing_files": missing_history_files[:10]},
+            expected_condition="Every date in history index has a corresponding history/YYYY-MM-DD.json artifact file",
+            message=f"History index references missing report files: {', '.join(missing_history_files[:3])}",
         )
 
     # Check duplicate dates
@@ -752,8 +815,8 @@ def evaluate_production_monitoring(
     # 3. Data freshness check
     checks.append(check_data_freshness(data_as_of, reference_date=reference_date))
 
-    # 4. Numeric sanity check (NaN/Inf safety)
-    checks.append(check_numeric_sanity(recommendations_payload))
+    # 4. Numeric sanity check (NaN/Inf safety) across recommendations and market payloads
+    checks.append(check_numeric_sanity(recommendations_payload, market_payload=market_payload))
 
     # 5. Symbol processing counts check
     counts_chk = check_symbol_processing_counts(recommendations_payload)
