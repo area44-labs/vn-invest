@@ -2087,7 +2087,7 @@ class TestConfidenceCalibration(unittest.TestCase):
             [0.5],
         ]
         for inv in invalid_inputs:
-            with self.assertRaises(ValueError):
+            with self.assertRaises((ValueError, TypeError)):
                 classify_confidence_bucket(inv)
 
     def test_calibration_gap_and_brier_score_exact_calculation(self):

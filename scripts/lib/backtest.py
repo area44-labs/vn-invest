@@ -1889,9 +1889,9 @@ def classify_confidence_bucket(confidence: Any) -> str:
         raise ValueError(f"Invalid confidence value: {confidence}")
 
     if not isinstance(confidence, (int, float)):
-        raise ValueError(
+        raise TypeError(
             f"Confidence must be numeric, got {type(confidence).__name__}: {confidence}"
-        )  # noqa: TRY004
+        )
 
     conf = float(confidence)
     if math.isnan(conf) or math.isinf(conf):
