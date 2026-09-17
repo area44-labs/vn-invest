@@ -754,9 +754,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (50.5) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
-      ],
+      "reasons": ["Ch\u1ec9 b\u00e1o RSI (50.5) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
       "warnings": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (66.500 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (68.385 VN\u0110).",
         "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
@@ -814,9 +812,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (46.8) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
-      ],
+      "reasons": ["Ch\u1ec9 b\u00e1o RSI (46.8) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
       "warnings": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (71.300 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (73.400 VN\u0110).",
         "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh."
@@ -1374,9 +1370,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (55.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
-      ],
+      "reasons": ["Ch\u1ec9 b\u00e1o RSI (55.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
       "warnings": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (58.200 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (58.845 VN\u0110).",
         "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",
@@ -1441,9 +1435,7 @@
         "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 2.1x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
         "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."],
       "invalidation": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 70.700 VN\u0110.",
         "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (71.997) VN\u0110.",
@@ -1745,9 +1737,7 @@
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.090 VN\u0110).",
         "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.3x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."],
       "invalidation": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 26.700 VN\u0110.",
         "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (26.090) VN\u0110.",
@@ -1806,9 +1796,7 @@
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (26.450 VN\u0110) n\u1eb1m tr\u00ean \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (25.438 VN\u0110).",
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.268 VN\u0110)."
       ],
-      "warnings": [
-        "RSI (73.0) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."
-      ],
+      "warnings": ["RSI (73.0) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."],
       "invalidation": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda vi ph\u1ea1m ng\u01b0\u1ee1ng c\u1eaft l\u1ed7 25.650 VN\u0110.",
         "Gi\u00e1 g\u00e3y h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.268) VN\u0110.",
@@ -1863,9 +1851,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (54.1) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
-      ],
+      "reasons": ["Ch\u1ec9 b\u00e1o RSI (54.1) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
       "warnings": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (11.750 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (11.855 VN\u0110).",
         "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
@@ -2234,9 +2220,7 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Ch\u1ec9 b\u00e1o RSI (47.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."
-      ],
+      "reasons": ["Ch\u1ec9 b\u00e1o RSI (47.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 65)."],
       "warnings": [
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda (15.850 VN\u0110) n\u1eb1m d\u01b0\u1edbi \u0111\u01b0\u1eddng xu h\u01b0\u1edbng MA20 (16.373 VN\u0110).",
         "MACD Histogram \u00e2m, b\u00e1o hi\u1ec7u \u00e1p l\u1ef1c \u0111i\u1ec1u ch\u1ec9nh.",

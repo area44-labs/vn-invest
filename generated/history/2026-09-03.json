@@ -208,9 +208,7 @@
         "Ch\u1ec9 b\u00e1o RSI (54.7) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 68).",
         "S\u1ee9c m\u1ea1nh t\u01b0\u01a1ng quan (RS) v\u01b0\u1ee3t tr\u1ed9i so v\u1edbi VN-Index (+5.2%)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."],
       "divergence": {
         "1D": "NONE",
         "1W": "BEARISH",
@@ -303,9 +301,7 @@
         "Ch\u1ec9 b\u00e1o RSI (53.4) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 68).",
         "Xu\u1ea5t hi\u1ec7n t\u00edn hi\u1ec7u Ph\u00e2n K\u1ef3 D\u01b0\u01a1ng tr\u00ean khung 1D."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."],
       "divergence": {
         "1D": "BULLISH",
         "1W": "NONE",
@@ -350,9 +346,7 @@
         "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
         "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.6x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
       ],
-      "warnings": [
-        "RSI (70.3) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."
-      ],
+      "warnings": ["RSI (70.3) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."],
       "divergence": {
         "1D": "NONE",
         "1W": "NONE",
@@ -488,9 +482,7 @@
         "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
         "Ch\u1ec9 b\u00e1o RSI (52.1) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 68)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."],
       "divergence": {
         "1D": "NONE",
         "1W": "BEARISH",
@@ -581,9 +573,7 @@
         "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng.",
         "Ch\u1ec9 b\u00e1o RSI (53.2) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 68)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1D."],
       "divergence": {
         "1D": "BEARISH",
         "1W": "NONE",
@@ -958,9 +948,7 @@
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (25.074 VN\u0110).",
         "MACD Histogram d\u01b0\u01a1ng v\u00e0 \u0111ang t\u0103ng tr\u01b0\u1edfng, c\u1ee7ng c\u1ed1 \u0111\u00e0 t\u0103ng."
       ],
-      "warnings": [
-        "RSI (75.7) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."
-      ],
+      "warnings": ["RSI (75.7) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."],
       "divergence": {
         "1D": "NONE",
         "1W": "NONE",
@@ -1195,9 +1183,7 @@
         "Gi\u00e1 \u0111\u00f3ng c\u1eeda n\u1eb1m tr\u00ean h\u1ed7 tr\u1ee3 trung h\u1ea1n MA50 (39.325 VN\u0110).",
         "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.7x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean."
       ],
-      "warnings": [
-        "RSI (76.9) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."
-      ],
+      "warnings": ["RSI (76.9) thu\u1ed9c v\u00f9ng qu\u00e1 mua (> 70)."],
       "divergence": {
         "1D": "NONE",
         "1W": "NONE",
@@ -1661,9 +1647,7 @@
         "Kh\u1ed1i l\u01b0\u1ee3ng b\u00f9ng n\u1ed5 1.5x so v\u1edbi b\u00ecnh qu\u00e2n 20 phi\u00ean.",
         "Ch\u1ec9 b\u00e1o RSI (68.0) n\u1eb1m trong v\u00f9ng an to\u00e0n (45 - 68)."
       ],
-      "warnings": [
-        "C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."
-      ],
+      "warnings": ["C\u1ea3nh b\u00e1o Ph\u00e2n K\u1ef3 \u00c2m tr\u00ean khung 1W."],
       "divergence": {
         "1D": "NONE",
         "1W": "BEARISH",
