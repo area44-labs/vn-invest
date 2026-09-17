@@ -2090,6 +2090,42 @@ class TestConfidenceCalibration(unittest.TestCase):
             with self.assertRaises((ValueError, TypeError)):
                 classify_confidence_bucket(inv)
 
+    def test_confidence_observation_invariant_and_mismatch_validation(self):
+        """Test that ConfidenceObservation enforces the confidence/confidence_bucket invariant fail-closed."""
+        # 1. Matching or omitted confidence_bucket auto-populates canonically
+        obs = ConfidenceObservation(
+            evaluation_date="2025-01-10",
+            symbol="AAA",
+            action="BUY",
+            confidence=0.85,
+            signal_score=80.0,
+            market_regime="BULL",
+        )
+        self.assertEqual(obs.confidence_bucket, "[0.8, 0.9)")
+
+        # 2. Mismatched confidence_bucket raises ValueError fail-closed
+        with self.assertRaises(ValueError):
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=0.85,
+                signal_score=80.0,
+                market_regime="BULL",
+                confidence_bucket="[0.1, 0.2)",
+            )
+
+        # 3. Invalid confidence value in ConfidenceObservation fails closed
+        with self.assertRaises((ValueError, TypeError)):
+            ConfidenceObservation(
+                evaluation_date="2025-01-10",
+                symbol="AAA",
+                action="BUY",
+                confidence=1.5,
+                signal_score=80.0,
+                market_regime="BULL",
+            )
+
     def test_calibration_gap_exact_calculation(self):
         """Test exact calculation of mean confidence, positive return rate, and calibration gap."""
         # 4 observations with confidence = 0.80 ([0.8, 0.9) bucket)

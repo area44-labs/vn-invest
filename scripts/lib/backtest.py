@@ -1830,9 +1830,17 @@ class ConfidenceObservation:
     confidence: float
     signal_score: float | None
     market_regime: str | None
-    confidence_bucket: str
+    confidence_bucket: str = ""
     forward_returns: dict[int, float | None] = field(default_factory=dict)
     availability: dict[int, bool] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        expected_bucket = classify_confidence_bucket(self.confidence)
+        if self.confidence_bucket and self.confidence_bucket != expected_bucket:
+            raise ValueError(
+                f"Mismatched confidence_bucket '{self.confidence_bucket}' for confidence {self.confidence}. Expected '{expected_bucket}'."
+            )
+        self.confidence_bucket = expected_bucket
 
     def to_dict(self) -> dict[str, Any]:
         return {
