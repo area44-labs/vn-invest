@@ -12,6 +12,16 @@ Dự án tuân theo mô hình phân tách hoàn toàn giữa tính toán định
 Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG / GitHub Pages
 ```
 
+### Quantitative Pipeline System Layers
+
+To maintain clear operational separation, the backend quantitative system is structured into four distinct functional layers:
+
+1. **Production Generation** (`scripts/generate_report.py`, `scripts/lib/recommendation.py`, `scripts/lib/regime.py`, `scripts/lib/risk.py`): Real-time EOD market data ingestion, indicator calculation, market regime detection, signal scoring (VN Invest Signal Engine), T+2.5 risk modeling, trade plan generation, and atomic static JSON output generation (`generated/*.json`).
+2. **Production Monitoring** (`scripts/lib/monitoring.py`): Operational and data-pipeline monitoring that verifies data availability, data freshness (`data_as_of`), symbol processing counts, schema compliance, artifact integrity, market regime sanity, and numeric safety (`NaN`/`Inf` checks) without altering signal engine outputs or historical evaluations.
+   _Note: This layer provides operational and data-pipeline monitoring ONLY. It does NOT establish model predictive validity, profitability, calibration, or statistical significance._
+3. **Historical Validation** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Walk-forward backtesting, signal component evaluation, market regime historical evaluation, and confidence calibration using strictly no-lookahead point-in-time data timestamped `<= T`.
+4. **Data/Model Drift Detection (Future PR #95)**: Statistical distribution tracking and feature/model drift detection over historical horizons.
+
 ```
 vn-invest/
 ├── .github/
@@ -21,10 +31,11 @@ vn-invest/
 ├── schemas/
 │   └── recommendations.schema.json  # Canonical JSON Schema Draft 2020-12 v2.0
 ├── scripts/                         # Backend Python - Pipeline định lượng & báo cáo
-│   ├── lib/                         # Core modules (features, regime, recommendation, risk, vietnam_market)
+│   ├── lib/                         # Core modules (monitoring, backtest, features, regime, recommendation, risk, vietnam_market)
 │   ├── tests/                       # Automated unit test suite
 │   │   ├── run_tests.py             # Test runner
 │   │   ├── test_dependencies.py     # Deterministic dependency version validation
+│   │   ├── test_monitoring.py       # Unit tests for production monitoring
 │   │   ├── test_recommendation.py   # Unit tests for recommendation & anti-lookahead
 │   │   ├── test_regime.py           # Unit tests for market regime
 │   │   ├── test_risk.py             # Unit tests for T+2.5 risk model
@@ -33,6 +44,7 @@ vn-invest/
 ├── generated/                       # Static canonical JSON artifacts
 │   ├── recommendations.json
 │   ├── market.json
+│   ├── monitoring.json
 │   └── history/
 │       ├── index.json
 │       └── YYYY-MM-DD.json

@@ -1,0 +1,92 @@
+{
+  "overall_status": "PASS",
+  "generated_at": "2026-09-17T07:06:31.119058+00:00",
+  "data_as_of": "2026-09-17",
+  "checks": [
+    {
+      "check_name": "schema_validation",
+      "status": "PASS",
+      "measured_value": {
+        "schema_version": "2.0"
+      },
+      "expected_condition": "Payload matches recommendations.schema.json",
+      "message": "Recommendations payload passed JSON schema validation"
+    },
+    {
+      "check_name": "data_freshness",
+      "status": "PASS",
+      "measured_value": {
+        "data_as_of": "2026-09-17",
+        "staleness_days": 0
+      },
+      "expected_condition": "staleness_days <= 3",
+      "message": "Data is fresh (0 days old as of 2026-09-17)"
+    },
+    {
+      "check_name": "numeric_sanity",
+      "status": "PASS",
+      "measured_value": {
+        "scanned_recommendations": 42
+      },
+      "expected_condition": "No NaN/Inf values and scores strictly within allowed numeric bounds",
+      "message": "All numeric values in recommendations payload are valid and within bounds"
+    },
+    {
+      "check_name": "symbol_processing_counts",
+      "status": "PASS",
+      "measured_value": {
+        "total_scanned": 42,
+        "processed_count": 40,
+        "insufficient_count": 2,
+        "processed_ratio": 0.9524,
+        "actions": {
+          "BUY": 15,
+          "WATCH": 3,
+          "HOLD": 1,
+          "SELL": 21,
+          "AVOID": 2
+        }
+      },
+      "expected_condition": "processed_ratio >= 0.80",
+      "message": "Successfully processed 40/42 (95.2%) candidate universe symbols"
+    },
+    {
+      "check_name": "market_regime_status",
+      "status": "PASS",
+      "measured_value": {
+        "regime": "STRONG_BULL",
+        "confidence": 0.85,
+        "vnindex_value": 1819.95,
+        "market_breadth_ratio": 0.43
+      },
+      "expected_condition": "Valid regime, bounded confidence, and valid metrics",
+      "message": "Market regime 'STRONG_BULL' verified successfully"
+    },
+    {
+      "check_name": "history_index_status",
+      "status": "PASS",
+      "measured_value": {
+        "total_reports": 8,
+        "latest_date": "2026-09-17"
+      },
+      "expected_condition": "Valid sorted dates list containing data_as_of",
+      "message": "History index verified with 8 historical report entries"
+    }
+  ],
+  "metrics": {
+    "signal_model_version": "2.0",
+    "total_scanned": 42,
+    "buy_count": 15,
+    "watch_count": 3,
+    "hold_count": 1,
+    "sell_count": 21,
+    "avoid_count": 2,
+    "market_regime": null,
+    "check_counts": {
+      "total_checks": 6,
+      "pass_count": 6,
+      "warning_count": 0,
+      "fail_count": 0
+    }
+  }
+}

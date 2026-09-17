@@ -25,6 +25,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
@@ -305,6 +306,20 @@ def main():
     if data_as_of:
         logger.info("  - history/%s.json", data_as_of)
         logger.info("  - history/index.json")
+
+    # Run production monitoring and save monitoring.json artifact
+    logger.info("Executing production pipeline monitoring...")
+    monitoring_result = evaluate_production_monitoring(
+        generated_dir=GENERATED_DIR,
+        recommendations_payload=recs_data,
+        market_payload=market_data,
+        reference_date=data_as_of,
+    )
+    save_json_files("monitoring.json", monitoring_result.to_dict())
+    logger.info(
+        "Production monitoring complete! Overall status: %s", monitoring_result.overall_status
+    )
+    logger.info("  - monitoring.json")
 
 
 if __name__ == "__main__":
