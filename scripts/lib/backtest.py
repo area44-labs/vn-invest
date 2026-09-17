@@ -33,31 +33,36 @@ Key Architectural Principles:
    - Unsorted dates, duplicate dates, or future observations physically placed prior to T raise explicit
      ValueError exceptions rather than being silently swallowed, sorted, or positionally misindexed.
 6. Framework Distinction & Disclaimers:
-   This module explicitly distinguishes four separate concepts:
-   - Production Signal Generation: Real-time, point-in-time calculation of complete signal
-     recommendations using production model weights, confidence rules, and trade plans.
-   - Historical Component Evaluation: Point-in-time measurement of individual signal component scores
-     (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
-     on identical evaluation dates and horizons without model or weight modification.
-   - Execution & Liquidity Eligibility Evaluation: Point-in-time evaluation of whether historical observable
-     market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
-     min price, max participation rate) without altering production signal scores or model weights.
-   - Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
-     slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
-     (OUT OF SCOPE for this framework).
+   This module explicitly distinguishes five separate concepts:
+   1. Production Market Regime & Signal Generation: Real-time, point-in-time calculation of complete market
+      regimes and stock signal recommendations using production model weights, confidence rules, and trade plans.
+   2. Historical Market-Regime Validation (PR #92): Point-in-time descriptive evaluation measuring how production
+      market regimes (STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC) assigned at date T map to forward market returns
+      (5D, 10D, 20D) strictly without lookahead bias, threshold tuning, or model modification.
+   3. Historical Component Evaluation (PR #88): Point-in-time measurement of individual signal component scores
+      (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
+      on identical evaluation dates and horizons without model or weight modification.
+   4. Execution & Liquidity Eligibility Evaluation (PR #90): Point-in-time evaluation of whether historical observable
+      market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
+      min price, max participation rate) without altering production signal scores or model weights.
+   5. Portfolio Backtesting (PR #91): Simulation of portfolio-level capital allocation, position sizing,
+      slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
+      (OUT OF SCOPE for this framework).
 
-   Important Disclaimers for Historical Component & Execution Evaluation:
+   Important Disclaimers for Historical Evaluation & Market-Regime Validation:
+   - Observational evaluation layer: market regime / return association is purely descriptive and observational.
    - Does NOT demonstrate causal relationships.
    - Does NOT prove statistical significance (no p-values, hypothesis tests, or multiple-testing corrections).
-   - Does NOT represent portfolio performance or real-world trade execution.
-   - Does NOT perform parameter or model optimization (no threshold tuning, weight optimization, or feature selection).
-   - Does NOT automatically prove economic value of any individual component or execution threshold.
+   - Does NOT represent portfolio performance or real-world trade execution or profitability.
+   - Does NOT perform parameter, model, or regime threshold optimization (no threshold tuning from historical results).
+   - Does NOT automatically prove economic value of any regime or component.
    - "Executable" in this framework strictly means that observable market liquidity timestamped <= T satisfies defined assumptions;
      "Executable" trong framework này chỉ có nghĩa là thỏa execution/liquidity assumptions đã định nghĩa; nó không chứng minh rằng một lệnh thực tế chắc chắn được khớp.
    - Daily EOD OHLCV data does NOT model bid/ask spread, market impact, order book queue, intraday liquidity, trading halts, or broker/exchange execution behavior.
 """
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,7 +70,6 @@ import numpy as np
 import pandas as pd
 
 from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 DEFAULT_HORIZONS = [5, 10, 20]
@@ -265,6 +269,55 @@ def _find_date_column(df: pd.DataFrame) -> str | None:
     return None
 
 
+def _parse_canonical_date(eval_date: Any) -> str:
+    """Parse and validate evaluation date into YYYY-MM-DD canonical format.
+
+    Fail-Closed Validation:
+    - Accepts canonical YYYY-MM-DD strings and calendar-date naive timestamps/datetimes.
+    - Rejects None, booleans, timezone-aware timestamps/datetimes/strings.
+    - Rejects date strings containing time components (e.g. 'YYYY-MM-DD HH:MM:SS') or timestamps with non-zero time components.
+    - Rejects invalid or unparseable date strings.
+    """
+    if eval_date is None or isinstance(eval_date, bool):
+        raise ValueError(f"Invalid evaluation date: {eval_date}")
+
+    if hasattr(eval_date, "tzinfo") and eval_date.tzinfo is not None:
+        raise ValueError(
+            f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
+        )
+
+    if isinstance(eval_date, str):
+        s = eval_date.strip()
+        if "+" in s or "Z" in s or "UTC" in s:
+            raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            raise ValueError(
+                f"Evaluation date string must be strictly canonical 'YYYY-MM-DD', got '{eval_date}'"
+            )
+        try:
+            ts = pd.to_datetime(s, format="%Y-%m-%d")
+            if pd.isna(ts):
+                raise ValueError(f"Invalid evaluation date: {eval_date}")
+            return ts.strftime("%Y-%m-%d")
+        except (ValueError, TypeError, OverflowError) as err:
+            raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
+
+    if hasattr(eval_date, "time") and callable(eval_date.time):
+        t = eval_date.time()
+        if t.hour != 0 or t.minute != 0 or t.second != 0 or t.microsecond != 0:
+            raise ValueError(
+                f"Evaluation date containing non-zero time component is rejected: {eval_date}"
+            )
+
+    try:
+        ts = pd.to_datetime(eval_date)
+        if pd.isna(ts) or ts.tz is not None:
+            raise ValueError(f"Invalid or timezone-aware evaluation date: {eval_date}")
+        return ts.strftime("%Y-%m-%d")
+    except (ValueError, TypeError, OverflowError) as err:
+        raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
+
+
 @dataclass
 class BacktestSignal:
     """Signal state at evaluation time T (no future information included)."""
@@ -345,6 +398,59 @@ class WalkForwardResult:
         return {
             "evaluation_dates": self.evaluation_dates,
             "results": [r.to_dict() for r in self.results],
+            "aggregate": self.aggregate,
+        }
+
+
+@dataclass
+class RegimeObservation:
+    """Individual market-regime validation observation at evaluation date T.
+
+    Represents point-in-time market regime assignment at evaluation date T
+    paired with future VNINDEX forward returns strictly after T.
+
+    Disclaimers:
+    - Observational/descriptive evaluation only.
+    - Does NOT prove causality, statistical significance, or profitability.
+    - Does NOT perform regime parameter or threshold tuning.
+    """
+
+    evaluation_date: str
+    regime: str
+    regime_score: float | None
+    confidence: float
+    horizon: int
+    forward_return: float | None
+    availability: bool
+    regime_metrics: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "evaluation_date": self.evaluation_date,
+            "regime": self.regime,
+            "regime_score": self.regime_score,
+            "confidence": self.confidence,
+            "horizon": self.horizon,
+            "forward_return": self.forward_return,
+            "availability": self.availability,
+            "regime_metrics": self.regime_metrics,
+        }
+
+
+@dataclass
+class RegimeEvaluationResult:
+    """Container for historical market-regime validation results across evaluation dates.
+
+    Contains granular observations mapping each point-in-time regime assignment and horizon
+    to future market return, plus descriptive aggregate statistics grouped by (regime, horizon).
+    """
+
+    observations: list[RegimeObservation]
+    aggregate: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observations": [o.to_dict() for o in self.observations],
             "aggregate": self.aggregate,
         }
 
@@ -891,6 +997,8 @@ def run_backtest_for_symbol(
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
 
         # 3. Market regime evaluation at T using production regime engine
+        from scripts.lib.regime import detect_market_regime
+
         market_regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,
@@ -1494,6 +1602,195 @@ def classify_component_score_bucket(score: float | None) -> str | None:
     if s <= 55.0:
         return "neutral"
     return "positive"
+
+
+def aggregate_regime_evaluation_results(
+    observations: list[RegimeObservation],
+    horizons: list[int] | None = None,
+) -> dict[str, Any]:
+    """Aggregate market-regime validation observations into descriptive metrics per (regime, horizon).
+
+    Notice & Disclaimers:
+    - Observational/descriptive evaluation layer only.
+    - Does NOT establish causality, statistical significance (no p-values/hypothesis tests),
+      model optimization, or portfolio returns.
+    - Aggregation denominators strictly distinguish total regime observations vs observations with available forward outcomes.
+    - Missing/unavailable forward returns remain None and are NOT filled or treated as zero.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    regimes = sorted({o.regime for o in observations}) if observations else []
+    by_regime: dict[str, dict[int, dict[str, Any]]] = {}
+
+    for reg in regimes:
+        by_regime[reg] = {}
+        for h in horizons:
+            reg_h_obs = [o for o in observations if o.regime == reg and o.horizon == h]
+            total_obs_count = len(reg_h_obs)
+
+            avail_obs = [o for o in reg_h_obs if o.availability and o.forward_return is not None]
+            avail_count = len(avail_obs)
+            unavail_count = total_obs_count - avail_count
+
+            valid_rets = [o.forward_return for o in avail_obs if o.forward_return is not None]
+            stats = calculate_return_stats(valid_rets)
+
+            positive_return_rate = None
+            if valid_rets:
+                pos_count = sum(1 for r in valid_rets if r > 0)
+                positive_return_rate = round(pos_count / len(valid_rets), 4)
+
+            std_dev = None
+            if len(valid_rets) > 1:
+                std_dev = round(float(np.std(valid_rets, ddof=1)), 6)
+            elif len(valid_rets) == 1:
+                std_dev = 0.0
+
+            by_regime[reg][h] = {
+                "observation_count": total_obs_count,
+                "available_forward_outcome_count": avail_count,
+                "unavailable_forward_outcome_count": unavail_count,
+                "mean": stats["mean"],
+                "median": stats["median"],
+                "std": std_dev,
+                "min": stats["min"],
+                "max": stats["max"],
+                "positive_return_rate": positive_return_rate,
+            }
+
+    return {
+        "by_regime": by_regime,
+        "total_observations": len(observations),
+    }
+
+
+def evaluate_market_regimes(
+    df_vnindex: pd.DataFrame,
+    evaluation_dates: list[str] | None = None,
+    df_vn30: pd.DataFrame | None = None,
+    universe_stock_map: dict[str, pd.DataFrame] | None = None,
+    breadth_ratio: float | None = None,
+    horizons: list[int] | None = None,
+    min_history: int = 20,
+    step: int = 10,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> RegimeEvaluationResult:
+    """Evaluate historical forward outcomes associated with production market regimes assigned at evaluation dates T.
+
+    Evaluation Framework & Point-In-Time Contract:
+    1. For every evaluation date T:
+       - Prepare VNINDEX data strictly <= T using `get_as_of_dataset()`.
+       - Prepare VN30 data strictly <= T using `get_as_of_dataset()` if df_vn30 provided.
+       - Calculate market breadth strictly as-of T using `calculate_as_of_market_breadth()` or explicit `breadth_ratio`.
+       - Call production `detect_market_regime()` using only point-in-time information available at T.
+       - Record observation: evaluation_date, regime, regime_score, confidence, metrics, horizon, forward_return, availability.
+       - Evaluate future VNINDEX forward outcomes strictly after T using `evaluate_forward_outcomes()`.
+    2. Aggregate descriptive statistics grouped by (regime, horizon).
+
+    Disclaimers:
+    - Purely descriptive historical validation layer.
+    - Does NOT establish causality, statistical significance, or profitability.
+    - Does NOT modify or tune production market regime formulas or thresholds.
+    - Future outcomes strictly after T never influence regime assignment at T.
+    """
+    if horizons is None:
+        horizons = DEFAULT_HORIZONS
+
+    if df_vnindex is None or df_vnindex.empty:
+        raise ValueError("Cannot evaluate market regimes: df_vnindex is empty or None.")
+
+    # Determine evaluation_dates
+    if evaluation_dates is None:
+        eval_dates = generate_walk_forward_dates(
+            df=df_vnindex,
+            min_history=min_history,
+            step=step,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    else:
+        if not evaluation_dates:
+            raise ValueError("evaluation_dates list cannot be empty.")
+
+        eval_dates = []
+        for d in evaluation_dates:
+            eval_dates.append(_parse_canonical_date(d))
+
+        if len(eval_dates) != len(set(eval_dates)):
+            raise ValueError("Provided evaluation_dates list contains duplicate entries.")
+
+        if sorted(eval_dates) != eval_dates:
+            raise ValueError("Provided evaluation_dates list is not sorted in chronological order.")
+
+    observations: list[RegimeObservation] = []
+
+    for target_d in eval_dates:
+        # 1. Point-in-time VNINDEX data slicing (<= T)
+        df_vn_as_of = get_as_of_dataset(df_vnindex, target_d)
+        df_vnindex_clean_as_of, val_vn = get_clean_ohlcv_data(df_vn_as_of, "VNINDEX")
+        if val_vn["status"] == "INSUFFICIENT":
+            df_vnindex_clean_as_of = None
+
+        # 2. Point-in-time VN30 data slicing (<= T)
+        df_vn30_clean_as_of = None
+        if df_vn30 is not None:
+            if df_vn30.empty:
+                raise ValueError("Supplied df_vn30 DataFrame is empty.")
+            df_vn30_as_of = get_as_of_dataset(df_vn30, target_d)
+            df_vn30_clean_as_of, val_30 = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+            if val_30["status"] == "INSUFFICIENT":
+                df_vn30_clean_as_of = None
+
+        # 3. Market breadth as-of T
+        effective_breadth = breadth_ratio
+        if effective_breadth is None and universe_stock_map:
+            effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_d)
+
+        # 4. Production regime detection at T
+        from scripts.lib.regime import detect_market_regime
+
+        regime_info = detect_market_regime(
+            df_vnindex=df_vnindex_clean_as_of,
+            df_vn30=df_vn30_clean_as_of,
+            breadth_ratio=effective_breadth,
+        )
+
+        # 5. Future VNINDEX outcomes (> T)
+        outcome = evaluate_forward_outcomes(
+            df_stock=df_vnindex,
+            evaluation_date=target_d,
+            horizons=horizons,
+            action="BUY",
+        )
+
+        # 6. Granular observations
+        for h in horizons:
+            fwd_ret = outcome.returns.get(h)
+            is_avail = outcome.availability.get(h, False)
+
+            obs = RegimeObservation(
+                evaluation_date=target_d,
+                regime=regime_info["regime"],
+                regime_score=regime_info["regime_score"],
+                confidence=regime_info["confidence"],
+                horizon=h,
+                forward_return=fwd_ret,
+                availability=is_avail,
+                regime_metrics=regime_info.get("metrics", {}),
+            )
+            observations.append(obs)
+
+    agg_summary = aggregate_regime_evaluation_results(
+        observations=observations,
+        horizons=horizons,
+    )
+
+    return RegimeEvaluationResult(
+        observations=observations,
+        aggregate=agg_summary,
+    )
 
 
 def aggregate_component_evaluation_results(

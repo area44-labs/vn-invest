@@ -57,13 +57,13 @@ import pandas as pd
 from scripts.lib.backtest import (
     DEFAULT_HORIZONS,
     ExecutionConfig,
+    _parse_canonical_date,
     calculate_as_of_market_breadth,
     evaluate_execution_eligibility,
     evaluate_forward_outcomes,
     get_as_of_dataset,
 )
 from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data
 
 
@@ -161,33 +161,6 @@ def _build_candidate_meta_map(
         meta_map[sym_clean] = item
 
     return meta_map
-
-
-def _parse_canonical_date(eval_date: Any) -> str:
-    """Parse and validate evaluation date into YYYY-MM-DD canonical format.
-
-    Fail-Closed Validation:
-    - Rejects None, booleans, and timezone-aware timestamps/datetimes.
-    - Rejects invalid or unparseable date strings.
-    """
-    if eval_date is None or isinstance(eval_date, bool):
-        raise ValueError(f"Invalid evaluation date: {eval_date}")
-
-    if hasattr(eval_date, "tzinfo") and eval_date.tzinfo is not None:
-        raise ValueError(
-            f"Timezone-aware evaluation date input is rejected to prevent timezone ambiguity: {eval_date}"
-        )
-
-    if isinstance(eval_date, str) and ("+" in eval_date or "Z" in eval_date or "UTC" in eval_date):
-        raise ValueError(f"Timezone-aware evaluation date string is rejected: {eval_date}")
-
-    try:
-        ts = pd.to_datetime(eval_date)
-        if pd.isna(ts) or ts.tz is not None:
-            raise ValueError(f"Invalid or timezone-aware evaluation date: {eval_date}")
-        return ts.strftime("%Y-%m-%d")
-    except (ValueError, TypeError, OverflowError) as err:
-        raise ValueError(f"Invalid evaluation date format '{eval_date}': {err}") from err
 
 
 @dataclass
@@ -448,6 +421,8 @@ def evaluate_portfolio_at_date(
             df_vn30_clean_as_of = None
 
     breadth_ratio = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
+
+    from scripts.lib.regime import detect_market_regime
 
     market_regime_info = detect_market_regime(
         df_vnindex=df_vnindex_clean_as_of,
