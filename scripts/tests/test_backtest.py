@@ -2090,14 +2090,13 @@ class TestConfidenceCalibration(unittest.TestCase):
             with self.assertRaises((ValueError, TypeError)):
                 classify_confidence_bucket(inv)
 
-    def test_calibration_gap_and_brier_score_exact_calculation(self):
-        """Test exact calculation of mean confidence, positive return rate, calibration gap, and Brier score."""
+    def test_calibration_gap_exact_calculation(self):
+        """Test exact calculation of mean confidence, positive return rate, and calibration gap."""
         # 4 observations with confidence = 0.80 ([0.8, 0.9) bucket)
         # Outcomes: 3 positive returns (> 0), 1 negative return (< 0)
         # Positive return rate = 3/4 = 0.75
         # Mean confidence = 0.80
         # Calibration gap = 0.75 - 0.80 = -0.05
-        # Brier score = ((0.8-1)^2 * 3 + (0.8-0)^2 * 1) / 4 = (0.12 + 0.64) / 4 = 0.19
         obs_list = [
             ConfidenceObservation(
                 evaluation_date="2025-01-10",
@@ -2152,10 +2151,10 @@ class TestConfidenceCalibration(unittest.TestCase):
         self.assertEqual(bucket_stats["available_outcome_count"], 4)
         self.assertEqual(bucket_stats["unavailable_outcome_count"], 0)
         self.assertEqual(bucket_stats["positive_return_rate"], 0.75)
-        self.assertEqual(bucket_stats["observed_outcome_rate"], 0.75)
         self.assertEqual(bucket_stats["mean_confidence"], 0.80)
         self.assertAlmostEqual(bucket_stats["calibration_gap"], -0.05, places=5)
-        self.assertAlmostEqual(bucket_stats["brier_score"], 0.19, places=5)
+        self.assertNotIn("brier_score", bucket_stats)
+        self.assertNotIn("observed_outcome_rate", bucket_stats)
 
     def test_missing_outcomes_handling(self):
         """Verify unavailable forward outcomes are omitted from return stats and not filled with zero or negative."""
@@ -2193,6 +2192,8 @@ class TestConfidenceCalibration(unittest.TestCase):
         self.assertEqual(h5_stats["unavailable_outcome_count"], 1)
         self.assertEqual(h5_stats["mean_forward_return"], 0.10)
         self.assertEqual(h5_stats["positive_return_rate"], 1.0)
+        self.assertNotIn("brier_score", h5_stats)
+        self.assertNotIn("observed_outcome_rate", h5_stats)
 
         # Horizon 10 (all unavailable)
         h10_stats = agg["by_bucket"]["[0.8, 0.9)"][10]
@@ -2202,7 +2203,8 @@ class TestConfidenceCalibration(unittest.TestCase):
         self.assertIsNone(h10_stats["mean_forward_return"])
         self.assertIsNone(h10_stats["positive_return_rate"])
         self.assertIsNone(h10_stats["calibration_gap"])
-        self.assertIsNone(h10_stats["brier_score"])
+        self.assertNotIn("brier_score", h10_stats)
+        self.assertNotIn("observed_outcome_rate", h10_stats)
 
     def test_evaluate_confidence_calibration_end_to_end_and_determinism(self):
         """Verify evaluate_confidence_calibration runs end-to-end, produces deterministic output, and serializes cleanly."""

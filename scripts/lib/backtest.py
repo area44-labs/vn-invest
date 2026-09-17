@@ -50,7 +50,7 @@ Key Architectural Principles:
       (OUT OF SCOPE for this framework).
    6. Historical Confidence Evaluation & Calibration: Point-in-time observational measurement of production
       recommendation confidence values against observed forward outcomes (e.g., positive forward return rate,
-      calibration gap, Brier score) strictly without formula recomputation, probability assumptions, or model modification.
+      calibration gap) strictly without formula recomputation, probability assumptions, or model modification.
 
    Important Disclaimers for Historical Evaluation & Market-Regime Validation:
    - Observational evaluation layer: market regime / return association is purely descriptive and observational.
@@ -1934,10 +1934,8 @@ def aggregate_confidence_calibration_results(
     - mean_forward_return: arithmetic mean forward return among available outcomes (or None).
     - median_forward_return: median forward return among available outcomes (or None).
     - positive_return_rate: proportion of available outcomes with forward return > 0 (or None).
-    - observed_outcome_rate: proportion of available outcomes with forward return > 0 (or None).
     - mean_confidence: mean predicted confidence for available outcomes (or None).
-    - calibration_gap: observed_outcome_rate - mean_confidence (or None).
-    - brier_score: mean((confidence - binary_success)**2) for available outcomes (or None).
+    - calibration_gap: positive_return_rate - mean_confidence (or None).
 
     Disclaimers & Notes:
     - Binary success definition is strictly: forward_return > 0.
@@ -1976,25 +1974,15 @@ def aggregate_confidence_calibration_results(
 
                 pos_hits = sum(1 for r in rets if r > 0)
                 pos_rate = round(pos_hits / avail_count, 4)
-                obs_rate = pos_rate
 
                 mean_conf = round(float(np.mean(confs)), 6)
                 calib_gap = round(pos_rate - mean_conf, 6)
-
-                brier = round(
-                    float(
-                        np.mean([(c - (1.0 if r > 0 else 0.0)) ** 2 for c, r in zip(confs, rets)])
-                    ),
-                    6,
-                )
             else:
                 mean_ret = None
                 med_ret = None
                 pos_rate = None
-                obs_rate = None
                 mean_conf = None
                 calib_gap = None
-                brier = None
 
             by_bucket[b_name][h] = {
                 "observation_count": b_total_count,
@@ -2003,10 +1991,8 @@ def aggregate_confidence_calibration_results(
                 "mean_forward_return": mean_ret,
                 "median_forward_return": med_ret,
                 "positive_return_rate": pos_rate,
-                "observed_outcome_rate": obs_rate,
                 "mean_confidence": mean_conf,
                 "calibration_gap": calib_gap,
-                "brier_score": brier,
             }
 
     # Action breakdown
@@ -2042,27 +2028,15 @@ def aggregate_confidence_calibration_results(
 
                     pos_hits = sum(1 for r in rets if r > 0)
                     pos_rate = round(pos_hits / avail_count, 4)
-                    obs_rate = pos_rate
 
                     mean_conf = round(float(np.mean(confs)), 6)
                     calib_gap = round(pos_rate - mean_conf, 6)
-
-                    brier = round(
-                        float(
-                            np.mean(
-                                [(c - (1.0 if r > 0 else 0.0)) ** 2 for c, r in zip(confs, rets)]
-                            )
-                        ),
-                        6,
-                    )
                 else:
                     mean_ret = None
                     med_ret = None
                     pos_rate = None
-                    obs_rate = None
                     mean_conf = None
                     calib_gap = None
-                    brier = None
 
                 by_action[act][b_name][h] = {
                     "observation_count": act_b_total,
@@ -2071,10 +2045,8 @@ def aggregate_confidence_calibration_results(
                     "mean_forward_return": mean_ret,
                     "median_forward_return": med_ret,
                     "positive_return_rate": pos_rate,
-                    "observed_outcome_rate": obs_rate,
                     "mean_confidence": mean_conf,
                     "calibration_gap": calib_gap,
-                    "brier_score": brier,
                 }
 
     # Overall summary metrics across all buckets
@@ -2097,23 +2069,15 @@ def aggregate_confidence_calibration_results(
 
             pos_hits = sum(1 for r in rets if r > 0)
             pos_rate = round(pos_hits / avail_count, 4)
-            obs_rate = pos_rate
 
             mean_conf = round(float(np.mean(confs)), 6)
             calib_gap = round(pos_rate - mean_conf, 6)
-
-            brier = round(
-                float(np.mean([(c - (1.0 if r > 0 else 0.0)) ** 2 for c, r in zip(confs, rets)])),
-                6,
-            )
         else:
             mean_ret = None
             med_ret = None
             pos_rate = None
-            obs_rate = None
             mean_conf = None
             calib_gap = None
-            brier = None
 
         overall[h] = {
             "observation_count": total_obs_count,
@@ -2122,10 +2086,8 @@ def aggregate_confidence_calibration_results(
             "mean_forward_return": mean_ret,
             "median_forward_return": med_ret,
             "positive_return_rate": pos_rate,
-            "observed_outcome_rate": obs_rate,
             "mean_confidence": mean_conf,
             "calibration_gap": calib_gap,
-            "brier_score": brier,
         }
 
     return {
