@@ -14,13 +14,17 @@ Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React 
 
 ### Quantitative Pipeline System Layers
 
-To maintain clear operational separation, the backend quantitative system is structured into four distinct functional layers:
+To maintain clear operational separation, the backend quantitative system is structured into distinct functional layers:
 
 1. **Production Generation** (`scripts/generate_report.py`, `scripts/lib/recommendation.py`, `scripts/lib/regime.py`, `scripts/lib/risk.py`): Real-time EOD market data ingestion, indicator calculation, market regime detection, signal scoring (VN Invest Signal Engine), T+2.5 risk modeling, trade plan generation, and atomic static JSON output generation (`generated/*.json`).
-2. **Production Monitoring** (`scripts/lib/monitoring.py`): Operational and data-pipeline monitoring that verifies data availability, data freshness (`data_as_of`), symbol processing counts, schema compliance, artifact integrity, market regime sanity, and numeric safety (`NaN`/`Inf` checks) without altering signal engine outputs or historical evaluations.
-   _Note: This layer provides operational and data-pipeline monitoring ONLY. It does NOT establish model predictive validity, profitability, calibration, or statistical significance._
-3. **Historical Validation** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Walk-forward backtesting, signal component evaluation, market regime historical evaluation, and confidence calibration using strictly no-lookahead point-in-time data timestamped `<= T`.
-4. **Data/Model Drift Detection (Future PR #95)**: Statistical distribution tracking and feature/model drift detection over historical horizons.
+2. **Production Monitoring** (`scripts/lib/monitoring.py`): Operational and data-pipeline monitoring that verifies data availability, data freshness (`data_as_of`), symbol processing counts, schema compliance, artifact integrity, market regime sanity, numeric safety (`NaN`/`Inf` checks), and integrated data/model drift detection without altering signal engine outputs or historical evaluations.
+   _Note: Operational monitoring layer ONLY. It does NOT establish model predictive validity, profitability, calibration, statistical significance, or model error. Confidence scores are deterministic heuristics, not probabilities._
+3. **Data Drift Detection** (`scripts/lib/monitoring.py`): Monitors shifts in operational input data features (VNINDEX return/change, market breadth ratio, processed/insufficient ratio) against a fixed historical baseline timestamped strictly `< T`.
+4. **Model-Output Drift Detection** (`scripts/lib/monitoring.py`): Monitors shifts in recommendation output distributions (action proportions, canonical confidence bucket distribution, mean signal score, mean risk-adjusted score) against a historical baseline timestamped strictly `< T`.
+   _Note: Model-output drift notes distribution changes vs baseline ONLY; it does NOT prove predictive degradation, model error, causality, profitability, or retraining necessity._
+5. **Historical Backtesting** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Non-lookahead walk-forward backtesting evaluating forward signal performance (5D, 10D, 20D) and equal-weighted portfolio allocations.
+6. **Confidence Calibration** (`scripts/lib/backtest.py`): Evaluates alignment between deterministic heuristic model-confidence scores and observed positive return rates across historical horizons.
+7. **Market-Regime Validation** (`scripts/lib/backtest.py`): Evaluates historical market regime assignments against subsequent benchmark returns without modifying production regime detection rules.
 
 ```
 vn-invest/
