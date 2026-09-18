@@ -476,13 +476,13 @@ def load_universe_snapshot(snapshot_path: str) -> list[dict]:
     if isinstance(data, dict):
         raw_list = data.get("candidates") or data.get("universe") or data.get("recommendations")
         if not isinstance(raw_list, list):
-            raise ValueError(
+            raise TypeError(
                 f"Historical universe snapshot object at '{snapshot_path}' missing required 'candidates', 'universe', or 'recommendations' array"
             )
     elif isinstance(data, list):
         raw_list = data
     else:
-        raise ValueError(
+        raise TypeError(
             f"Historical universe snapshot at '{snapshot_path}' must be a list or dict root"
         )
 
