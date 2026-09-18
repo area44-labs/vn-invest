@@ -554,7 +554,7 @@ def main():
         try:
             with open(hist_file, "r", encoding="utf-8") as f:
                 hist_payload = json.load(f)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             raise ValueError(
                 f"Failed to read historical universe snapshot '{hist_file}': {err}"
             ) from err
