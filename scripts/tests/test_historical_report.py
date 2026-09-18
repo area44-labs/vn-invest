@@ -1,7 +1,8 @@
 """Unit and integration tests for reproducible historical report generation in scripts/generate_report.py."""
 
+import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import jsonschema
 import numpy as np
@@ -11,6 +12,7 @@ from scripts.generate_report import (
     canonicalize_report_for_reproducibility,
     generate_historical_report,
     load_schema,
+    main,
     run_pipeline,
 )
 
@@ -65,8 +67,8 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
-            df_vn30=self.vn30_df,
             candidate_metadata=self.candidate_meta,
+            df_vn30=self.vn30_df,
             data_source="test_historical",
         )
 
@@ -84,16 +86,16 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
-            df_vn30=self.vn30_df,
             candidate_metadata=self.candidate_meta,
+            df_vn30=self.vn30_df,
         )
 
         res2 = generate_historical_report(
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
-            df_vn30=self.vn30_df,
             candidate_metadata=self.candidate_meta,
+            df_vn30=self.vn30_df,
         )
 
         canon1 = canonicalize_report_for_reproducibility(res1[0])
@@ -124,6 +126,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=self.target_date,
                 universe_stock_map={"FPT": corrupted_df},
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -135,6 +138,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=missing_date,
                 universe_stock_map=self.universe_map,
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -147,6 +151,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=self.target_date,
                 universe_stock_map={"FPT": unsorted_df},
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -157,6 +162,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=self.target_date,
                 universe_stock_map={"FPT": dup_df},
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -171,6 +177,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=self.target_date,
                 universe_stock_map={"FPT": bad_vol_df},
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -184,6 +191,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
                 data_as_of=self.target_date,
                 universe_stock_map={"FPT": bad_ohlc_df},
                 df_vnindex=self.vnindex_df,
+                candidate_metadata=self.candidate_meta,
                 df_vn30=self.vn30_df,
             )
 
@@ -207,12 +215,14 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=eval_date,
             universe_stock_map={"FPT": df_stock_a},
             df_vnindex=df_vnindex_a,
+            candidate_metadata=self.candidate_meta,
         )
 
         res_b = generate_historical_report(
             data_as_of=eval_date,
             universe_stock_map={"FPT": df_stock_b},
             df_vnindex=df_vnindex_b,
+            candidate_metadata=self.candidate_meta,
         )
 
         canon_a = canonicalize_report_for_reproducibility(res_a[0])
@@ -230,6 +240,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
+            candidate_metadata=self.candidate_meta,
             df_vn30=self.vn30_df,
             data_source="audit_reproduction",
         )
@@ -248,6 +259,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
+            candidate_metadata=self.candidate_meta,
             df_vn30=self.vn30_df,
             generated_at="2020-01-01T00:00:00+00:00",
         )
@@ -256,6 +268,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             data_as_of=self.target_date,
             universe_stock_map=self.universe_map,
             df_vnindex=self.vnindex_df,
+            candidate_metadata=self.candidate_meta,
             df_vn30=self.vn30_df,
             generated_at="2030-12-31T23:59:59+00:00",
         )
@@ -284,6 +297,159 @@ class TestHistoricalReportGeneration(unittest.TestCase):
 
         # Validate schema
         jsonschema.validate(instance=res[0], schema=self.schema)
+
+    @patch("scripts.generate_report.save_json_files")
+    @patch("scripts.generate_report.update_history_index")
+    @patch("scripts.generate_report.evaluate_production_monitoring")
+    @patch("scripts.generate_report.get_historical_data")
+    def test_11_as_of_cli_mode_does_not_overwrite_production_artifacts(
+        self, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
+    ):
+        """Regression Test — Historical '--as-of' CLI mode MUST NOT overwrite production recommendations, market, or monitoring artifacts."""
+        mock_get_hist.return_value = (self.stock_df, "OK", [])
+
+        test_args = ["scripts/generate_report.py", "--as-of", self.target_date]
+        with patch.object(sys, "argv", test_args):
+            main()
+
+        # Monitoring MUST NOT be called in --as-of historical mode
+        mock_eval_mon.assert_not_called()
+
+        saved_files = [call[0][0] for call in mock_save_json.call_args_list]
+
+        # MUST save history/YYYY-MM-DD.json
+        expected_history_file = f"history/{self.target_date}.json"
+        self.assertIn(expected_history_file, saved_files)
+
+        # MUST NOT save recommendations.json, market.json, or monitoring.json
+        self.assertNotIn("recommendations.json", saved_files)
+        self.assertNotIn("market.json", saved_files)
+        self.assertNotIn("monitoring.json", saved_files)
+
+    @patch("scripts.generate_report.save_json_files")
+    @patch("scripts.generate_report.update_history_index")
+    @patch("scripts.generate_report.evaluate_production_monitoring")
+    @patch("scripts.generate_report.get_historical_data")
+    def test_12_normal_production_cli_mode_saves_all_artifacts_and_runs_monitoring(
+        self, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
+    ):
+        """Regression Test — Normal production CLI mode continues to save recommendations, market, history, and monitoring artifacts."""
+        mock_get_hist.return_value = (self.stock_df, "OK", [])
+        mock_mon_result = MagicMock()
+        mock_mon_result.to_dict.return_value = {"overall_status": "PASS"}
+        mock_eval_mon.return_value = mock_mon_result
+
+        test_args = ["scripts/generate_report.py"]
+        with patch.object(sys, "argv", test_args):
+            main()
+
+        # Production monitoring MUST be called in normal production mode
+        mock_eval_mon.assert_called_once()
+
+        saved_files = [call[0][0] for call in mock_save_json.call_args_list]
+
+        # MUST save recommendations.json, market.json, monitoring.json
+        self.assertIn("recommendations.json", saved_files)
+        self.assertIn("market.json", saved_files)
+        self.assertIn("monitoring.json", saved_files)
+
+    def test_13_missing_candidate_metadata_raises_error(self):
+        """Regression Test — Missing or empty candidate_metadata fails closed without silent fallback."""
+        with self.assertRaises(ValueError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=None,
+            )
+
+        with self.assertRaises(ValueError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=[],
+            )
+
+    def test_14_malformed_and_duplicate_candidate_metadata_raises_error(self):
+        """Regression Test — Malformed items, duplicate symbols, or universe mismatches in candidate_metadata fail closed."""
+        # Non-dict item
+        with self.assertRaises(TypeError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=["not_a_dict"],
+            )
+
+        # Missing required keys
+        with self.assertRaises(ValueError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=[{"symbol": "FPT"}],
+            )
+
+        # Duplicate symbol
+        dup_meta = [
+            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology"},
+            {"symbol": "FPT", "companyName": "FPT Duplicate", "sector": "Technology"},
+        ]
+        with self.assertRaises(ValueError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=dup_meta,
+            )
+
+        # Mismatch with universe_stock_map
+        mismatch_meta = [{"symbol": "VCB", "companyName": "Vietcombank", "sector": "Banking"}]
+        with self.assertRaises(ValueError):
+            generate_historical_report(
+                data_as_of=self.target_date,
+                universe_stock_map=self.universe_map,
+                df_vnindex=self.vnindex_df,
+                candidate_metadata=mismatch_meta,
+            )
+
+    @patch("scripts.generate_report.UniverseProvider")
+    def test_15_changing_current_universe_provider_state_does_not_affect_historical_report(
+        self, mock_provider_cls
+    ):
+        """Regression Test — Historical report uses explicit candidate metadata only, completely ignoring UniverseProvider state changes."""
+        mock_provider_instance = MagicMock()
+        mock_provider_instance.candidates = [
+            {"symbol": "XYZ", "companyName": "XYZ Corp", "sector": "Other"}
+        ]
+        mock_provider_cls.return_value = mock_provider_instance
+
+        res = generate_historical_report(
+            data_as_of=self.target_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.vnindex_df,
+            candidate_metadata=self.candidate_meta,
+        )
+
+        rec = res[0]["recommendations"][0]
+        self.assertEqual(rec["symbol"], "FPT")
+        self.assertEqual(rec["company_name"], "FPT Corp")
+        self.assertEqual(rec["sector"], "Technology")
+        self.assertNotEqual(rec["company_name"], "XYZ Corp")
+
+    def test_16_no_unknown_metadata_fallback(self):
+        """Regression Test — Historical mode never silently defaults to 'Unknown' metadata."""
+        res = generate_historical_report(
+            data_as_of=self.target_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.vnindex_df,
+            candidate_metadata=self.candidate_meta,
+        )
+
+        rec = res[0]["recommendations"][0]
+        self.assertNotEqual(rec["company_name"], "Unknown")
+        self.assertNotEqual(rec["sector"], "Unknown")
 
 
 if __name__ == "__main__":
