@@ -94,7 +94,17 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
         self.eval_date = self.df_vni["date"].iloc[50]  # Date T
 
     def test_end_to_end_temporal_isolation_and_future_mutation(self) -> None:
-        """Verify signals/regimes/actions at T depend strictly on data <= T, and mutating data > T does not alter signal/regime/action at T."""
+        """Verify signals/regimes/actions at T depend strictly on data <= T.
+
+        Point-in-Time Invariant:
+        Mutating future data (> T) across universe stocks, VNINDEX, and VN30 MUST NOT alter
+        signal scores, market regime, confidence, or selected portfolio construction at T.
+
+        Future Outcome Behavior:
+        Mutating future prices (> T) MAY alter forward return outcomes or availability.
+        In this specific test fixture where future prices are scaled by 3.5x / 0.2x / 2.5x,
+        the forward returns (> T) update to reflect the mutated future price trajectory.
+        """
         cfg = PortfolioConfig(
             max_positions=3,
             min_signal_score=0.0,
@@ -117,7 +127,7 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
         # Record baseline state at T
         baseline_positions = {p.symbol: p for p in eval_baseline.positions}
 
-        # Mutate future data (> T) across all stocks and benchmark
+        # Mutate future data (> T) across all stocks, VNINDEX, and VN30
         universe_mutated = {}
         for sym, df in self.universe.items():
             df_mut = df.copy()
@@ -133,19 +143,23 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
         mask_vni = df_vni_mutated["date"] > self.eval_date
         df_vni_mutated.loc[mask_vni, "close"] *= 0.2
 
-        # Re-run evaluation at T with mutated future data
+        df_vn30_mutated = self.df_vn30.copy()
+        mask_vn30 = df_vn30_mutated["date"] > self.eval_date
+        df_vn30_mutated.loc[mask_vn30, "close"] *= 2.5
+
+        # Re-run evaluation at T with mutated future data across stocks, VNINDEX, and VN30
         eval_mutated = evaluate_portfolio_at_date(
             evaluation_date=self.eval_date,
             universe_stock_map=universe_mutated,
             config=cfg,
             df_vnindex=df_vni_mutated,
-            df_vn30=self.df_vn30,
+            df_vn30=df_vn30_mutated,
             horizons=[5, 10, 20],
         )
 
         mutated_positions = {p.symbol: p for p in eval_mutated.positions}
 
-        # 1. Constituent selection and symbols at T must be 100% identical
+        # 1. Constituent selection and symbols at T must be 100% identical (PIT Signal Invariant)
         self.assertEqual(
             sorted(baseline_positions.keys()),
             sorted(mutated_positions.keys()),
@@ -172,7 +186,7 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
             # Execution eligibility at T
             self.assertEqual(pos_base.is_executable, pos_mut.is_executable)
 
-            # 3. Forward outcomes (> T) MUST change due to mutated future prices
+            # 3. Fixture-specific expectation: forward outcomes (> T) update to reflect mutated future price data
             for h in [5, 10, 20]:
                 if pos_base.forward_availability[h]:
                     self.assertNotEqual(
@@ -180,7 +194,7 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
                         pos_mut.forward_returns[h],
                     )
 
-        # 4. Portfolio returns change ONLY because forward outcomes changed
+        # 4. Fixture-specific expectation: portfolio forward returns update as underlying position outcomes change
         for h in [5, 10, 20]:
             if eval_baseline.horizon_availability[h]:
                 self.assertNotEqual(
@@ -892,6 +906,42 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
                 universe_stock_map=universe_bad,
                 config=self.cfg,
             )
+
+    def test_malformed_row_date_in_dataset_raises_error(self) -> None:
+        """Verify an unparseable date in a dataset row raises ValueError fail-closed, proving malformed input != insufficient history."""
+        df_malformed = self.universe["SYM1"].copy()
+        df_malformed.loc[15, "date"] = "invalid-date-string"
+        universe_bad = {"SYM1": df_malformed, "SYM2": self.universe["SYM2"]}
+
+        with self.assertRaises(ValueError) as ctx:
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=universe_bad,
+                config=self.cfg,
+            )
+
+        # Exception must be propagated loudly without falling back to insufficient history or empty results
+        self.assertIn("invalid", str(ctx.exception).lower())
+
+    def test_unsorted_chronological_dataset_raises_error(self) -> None:
+        """Verify unsorted chronological dates (e.g., T-2, T, T-1) raise explicit ValueError fail-closed."""
+        df_unsorted = self.universe["SYM1"].copy()
+        # Swap rows 10 and 11 to break strict chronological ordering
+        row10 = df_unsorted.iloc[10].copy()
+        row11 = df_unsorted.iloc[11].copy()
+        df_unsorted.iloc[10] = row11
+        df_unsorted.iloc[11] = row10
+
+        universe_bad = {"SYM1": df_unsorted, "SYM2": self.universe["SYM2"]}
+
+        with self.assertRaises(ValueError) as ctx:
+            evaluate_portfolio_at_date(
+                evaluation_date=self.eval_date,
+                universe_stock_map=universe_bad,
+                config=self.cfg,
+            )
+
+        self.assertIn("unsorted", str(ctx.exception).lower())
 
     def test_invalid_or_timezone_aware_date_raises_error(self) -> None:
         """Timezone-aware dates or invalid date formats raise ValueError loudly."""
