@@ -603,8 +603,8 @@ class TestSellExitPriceReconstructionAndPortfolioCoverage(unittest.TestCase):
         )
 
         self.assertEqual(len(eval_res.positions), 2)
-        pos_buy = [p for p in eval_res.positions if p.symbol == "STK_BUY"][0]
-        pos_sell = [p for p in eval_res.positions if p.symbol == "STK_SELL"][0]
+        pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
+        pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
 
         # Verify net return of BUY position: 0.094511
         self.assertEqual(pos_buy.forward_returns[5], 0.094511)
