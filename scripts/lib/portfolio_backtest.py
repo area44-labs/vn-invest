@@ -59,6 +59,7 @@ from scripts.lib.backtest import (
     ExecutionConfig,
     _parse_canonical_date,
     calculate_as_of_market_breadth,
+    calculate_execution_return,
     evaluate_execution_eligibility,
     evaluate_forward_outcomes,
     get_as_of_dataset,
@@ -190,6 +191,8 @@ class PortfolioConfig:
     min_history: int = 50
     require_executable: bool = False
     execution_config: ExecutionConfig | None = None
+    transaction_cost_pct: float = 0.0
+    slippage_pct: float = 0.0
 
     def __post_init__(self) -> None:
         _validate_numeric_param(
@@ -226,6 +229,20 @@ class PortfolioConfig:
             min_val=0.0,
             max_val=1.0,
             allow_zero=False,
+        )
+        _validate_numeric_param(
+            self.transaction_cost_pct,
+            "transaction_cost_pct",
+            min_val=0.0,
+            max_val=1.0,
+            allow_zero=True,
+        )
+        _validate_numeric_param(
+            self.slippage_pct,
+            "slippage_pct",
+            min_val=0.0,
+            max_val=1.0,
+            allow_zero=True,
         )
 
         if not isinstance(self.require_executable, bool):
@@ -344,6 +361,8 @@ class PortfolioBacktestResult:
                 "max_weight_per_position": self.config.max_weight_per_position,
                 "min_history": self.config.min_history,
                 "require_executable": self.config.require_executable,
+                "transaction_cost_pct": self.config.transaction_cost_pct,
+                "slippage_pct": self.config.slippage_pct,
             },
             "aggregate": self.aggregate,
         }
@@ -571,6 +590,27 @@ def evaluate_portfolio_at_date(
             action=cand["action"],
         )
 
+        # Apply cost and slippage adjustments if configured
+        adjusted_returns: dict[int, float | None] = {}
+        if config.transaction_cost_pct > 0.0 or config.slippage_pct > 0.0:
+            p_entry = cand["entry_price"]
+            for h in horizons:
+                raw_ret = outcome.returns.get(h)
+                if raw_ret is not None and p_entry is not None and p_entry > 0:
+                    p_exit = p_entry * (1.0 + raw_ret)
+                    exec_res = calculate_execution_return(
+                        entry_price=p_entry,
+                        exit_price=p_exit,
+                        transaction_cost_pct=config.transaction_cost_pct,
+                        slippage_pct=config.slippage_pct,
+                        action=cand["action"],
+                    )
+                    adjusted_returns[h] = exec_res.net_return
+                else:
+                    adjusted_returns[h] = None
+        else:
+            adjusted_returns = outcome.returns
+
         pos = PortfolioPosition(
             symbol=sym,
             weight=w,
@@ -580,7 +620,7 @@ def evaluate_portfolio_at_date(
             confidence=cand["confidence"],
             entry_price=cand["entry_price"],
             is_executable=cand["is_executable"],
-            forward_returns=outcome.returns,
+            forward_returns=adjusted_returns,
             forward_availability=outcome.availability,
         )
         positions.append(pos)
