@@ -544,9 +544,51 @@ def main():
         target_date = _parse_canonical_date(args.as_of)
         logger.info("Starting historical report generation for as-of date: %s...", target_date)
 
+        hist_file = os.path.join(GENERATED_DIR, "history", f"{target_date}.json")
+        if not os.path.exists(hist_file):
+            raise ValueError(
+                f"No legitimate historical universe snapshot found for date '{target_date}' at '{hist_file}'. "
+                "Cannot generate historical report without an explicit historical candidate universe snapshot."
+            )
+
+        try:
+            with open(hist_file, "r", encoding="utf-8") as f:
+                hist_payload = json.load(f)
+        except Exception as err:  # noqa: BLE001
+            raise ValueError(
+                f"Failed to read historical universe snapshot '{hist_file}': {err}"
+            ) from err
+
+        hist_recs = hist_payload.get("recommendations")
+        if not isinstance(hist_recs, list) or not hist_recs:
+            raise ValueError(
+                f"Historical snapshot '{hist_file}' contains no valid recommendations list for universe metadata."
+            )
+
+        candidate_stocks = []
+        for idx, r in enumerate(hist_recs):
+            if not isinstance(r, dict):
+                raise TypeError(
+                    f"Historical recommendation item at index {idx} in '{hist_file}' must be a dict"
+                )
+            sym = r.get("symbol")
+            comp = r.get("company_name")
+            sec = r.get("sector")
+            ex = r.get("exchange", "HOSE")
+            if not sym or not comp or not sec:
+                raise ValueError(
+                    f"Historical recommendation item at index {idx} in '{hist_file}' missing required symbol, company_name, or sector"
+                )
+            candidate_stocks.append(
+                {
+                    "symbol": sym,
+                    "companyName": comp,
+                    "sector": sec,
+                    "exchange": ex,
+                }
+            )
+
         use_cache = not args.update
-        provider = UniverseProvider()
-        candidate_stocks = provider.candidates
 
         df_vnindex_raw, vn_source, _ = get_historical_data(
             "VNINDEX", max_retries=2 if args.update else 1, use_cache_only=use_cache

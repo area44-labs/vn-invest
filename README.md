@@ -31,8 +31,6 @@ Backend quantitative system được phân định rõ ràng thành các tầng 
 5. **Historical Backtesting** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Kiểm thử lịch sử walk-forward không nhìn trước tương lai (no-lookahead) đánh giá hiệu suất tín hiệu 5D, 10D, 20D và danh mục đầu tư.
 6. **Confidence Calibration** (`scripts/lib/backtest.py`): Đánh giá tương quan giữa điểm số tin cậy heuristic và tỷ lệ sinh lời dương thực tế qua các giai đoạn lịch sử walk-forward.
 7. **Market-Regime Validation** (`scripts/lib/backtest.py`): Đánh giá phân phối hiệu suất thị trường tương ứng với từng trạng thái thị trường (Market Regime) lịch sử.
-8. **Reproducible Historical Reports** (`scripts/generate_report.py`): Cơ chế tạo lại báo cáo định lượng lịch sử tại ngày đánh giá `data_as_of` xác định, bảo đảm tính tái lập (reproducible) và kiểm toán (auditable) tuyệt đối.
-   _Lưu ý: Báo cáo lịch sử là một cơ chế kiểm toán và tái lập kết quả (audit/reproducibility mechanism), KHÔNG phải là một phương pháp kiểm thử hay bằng chứng về hiệu suất dự báo (phân biệt rõ với Historical Backtesting, Walk-Forward Validation, Portfolio Backtesting và Production Monitoring). Toàn bộ dữ liệu định lượng đầu vào được cắt lớp điểm-tại-thời-điểm (point-in-time) timestamped `<= data_as_of`, loại bỏ hoàn toàn dữ liệu tương lai (no-lookahead). Các chỉ số định lượng trong báo cáo là hoàn toàn xác định, chỉ riêng thông số `generated_at` là metadata thuộc về thời điểm thực thi runtime._
 
 ## Tính Năng Nổi Bật
 
@@ -69,9 +67,6 @@ pip install -r requirements.txt
 
 # Chạy báo cáo định lượng & tạo file JSON tĩnh
 python scripts/generate_report.py
-
-# Tạo báo cáo định lượng lịch sử tại một ngày cụ thể (reproducible historical report)
-python scripts/generate_report.py --as-of 2025-06-30
 
 # Chạy toàn bộ Unit Tests Python
 python scripts/tests/run_tests.py
