@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pandas as pd
 
 from scripts.generate_report import generate_historical_report, run_pipeline
-from scripts.lib.vietnam_market import get_clean_ohlcv_data
 
 
 def create_synthetic_ohlcv(
@@ -81,42 +80,36 @@ class TestProductionHistoricalParity(unittest.TestCase):
         self.periods = 60
         self.start_date = "2025-01-01"
 
-        # Benchmarks
-        raw_vnindex = create_synthetic_ohlcv(
+        # Raw deterministic PIT benchmark inputs ending at date T
+        self.raw_vnindex = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=1200.0, trend="uptrend"
         )
-        raw_vn30 = create_synthetic_ohlcv(
+        self.raw_vn30 = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=1250.0, trend="uptrend"
         )
 
-        self.df_vnindex, _ = get_clean_ohlcv_data(raw_vnindex, "VNINDEX")
-        self.df_vn30, _ = get_clean_ohlcv_data(raw_vn30, "VN30")
-
         # Target date T is the latest date in benchmark
-        self.target_date = self.df_vnindex["time"].iloc[-1]
+        self.target_date = self.raw_vnindex["time"].iloc[-1]
 
-        # Multi-stock universe with diverse behaviors (BUY, WATCH, HOLD/SELL/AVOID)
-        raw_fpt = create_synthetic_ohlcv(
+        # Raw deterministic PIT stock universe inputs with diverse behaviors (BUY, WATCH, HOLD/SELL/AVOID)
+        self.raw_fpt = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=90000.0, trend="uptrend"
         )
-        raw_vnm = create_synthetic_ohlcv(
+        self.raw_vnm = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=70000.0, trend="sideways"
         )
-        raw_hpg = create_synthetic_ohlcv(
+        self.raw_hpg = create_synthetic_ohlcv(
             start_date=self.start_date,
             periods=self.periods,
             base_price=28000.0,
             trend="downtrend",
         )
 
-        self.df_fpt, _ = get_clean_ohlcv_data(raw_fpt, "FPT")
-        self.df_vnm, _ = get_clean_ohlcv_data(raw_vnm, "VNM")
-        self.df_hpg, _ = get_clean_ohlcv_data(raw_hpg, "HPG")
-
-        self.universe_map = {
-            "FPT": self.df_fpt,
-            "VNM": self.df_vnm,
-            "HPG": self.df_hpg,
+        # Shared single source of truth raw PIT input map supplied to both production mock and historical report
+        self.raw_universe_map = {
+            "FPT": self.raw_fpt,
+            "VNM": self.raw_vnm,
+            "HPG": self.raw_hpg,
         }
 
         self.candidate_metadata = [
@@ -143,15 +136,15 @@ class TestProductionHistoricalParity(unittest.TestCase):
     def _mock_get_historical_data(self, symbol, **kwargs):
         sym = symbol.upper()
         if sym == "VNINDEX":
-            return self.df_vnindex.copy(), "mock_source", []
+            return self.raw_vnindex.copy(), "mock_source", []
         if sym == "VN30":
-            return self.df_vn30.copy(), "mock_source", []
-        if sym in self.universe_map:
-            return self.universe_map[sym].copy(), "mock_source", []
+            return self.raw_vn30.copy(), "mock_source", []
+        if sym in self.raw_universe_map:
+            return self.raw_universe_map[sym].copy(), "mock_source", []
         return pd.DataFrame(), "mock_source", ["missing_symbol"]
 
     def _run_both_pipelines(self, reference_date: str = "2025-03-01T10:00:00Z"):
-        """Run production and historical report generation with identical PIT data."""
+        """Run production and historical report generation with identical raw PIT data."""
         with (
             patch(
                 "scripts.generate_report.get_historical_data",
@@ -170,9 +163,9 @@ class TestProductionHistoricalParity(unittest.TestCase):
 
         hist_res = generate_historical_report(
             data_as_of=self.target_date,
-            universe_stock_map=self.universe_map,
-            df_vnindex=self.df_vnindex,
-            df_vn30=self.df_vn30,
+            universe_stock_map=self.raw_universe_map,
+            df_vnindex=self.raw_vnindex,
+            df_vn30=self.raw_vn30,
             candidate_metadata=self.candidate_metadata,
             reference_date=reference_date,
         )
@@ -311,10 +304,10 @@ class TestProductionHistoricalParity(unittest.TestCase):
 
     def test_8_temporal_safety_future_data_invariance(self):
         """Test 8: Temporal safety - appending future data > T does not alter historical report at T or create parity divergence."""
-        # Baseline run at target date T
+        # Baseline run at target date T using raw PIT datasets
         prod_res_base, hist_res_base = self._run_both_pipelines()
 
-        # Create extended datasets with future observations > T (T+1, T+2 with sharp crash)
+        # Create extended raw datasets with future observations > T
         future_vnindex = pd.DataFrame(
             [
                 {
@@ -331,6 +324,26 @@ class TestProductionHistoricalParity(unittest.TestCase):
                     "high": 1000.0,
                     "low": 900.0,
                     "close": 900.0,
+                    "volume": 250000.0,
+                },
+            ]
+        )
+        future_vn30 = pd.DataFrame(
+            [
+                {
+                    "time": "2025-03-02",
+                    "open": 1150.0,
+                    "high": 1150.0,
+                    "low": 1050.0,
+                    "close": 1050.0,
+                    "volume": 200000.0,
+                },
+                {
+                    "time": "2025-03-03",
+                    "open": 1050.0,
+                    "high": 1050.0,
+                    "low": 950.0,
+                    "close": 950.0,
                     "volume": 250000.0,
                 },
             ]
@@ -356,32 +369,11 @@ class TestProductionHistoricalParity(unittest.TestCase):
             ]
         )
 
-        future_vn30 = pd.DataFrame(
-            [
-                {
-                    "time": "2025-03-02",
-                    "open": 1150.0,
-                    "high": 1150.0,
-                    "low": 1050.0,
-                    "close": 1050.0,
-                    "volume": 200000.0,
-                },
-                {
-                    "time": "2025-03-03",
-                    "open": 1050.0,
-                    "high": 1050.0,
-                    "low": 950.0,
-                    "close": 950.0,
-                    "volume": 250000.0,
-                },
-            ]
-        )
-
-        extended_vnindex = pd.concat([self.df_vnindex, future_vnindex], ignore_index=True)
-        extended_vn30 = pd.concat([self.df_vn30, future_vn30], ignore_index=True)
+        extended_vnindex = pd.concat([self.raw_vnindex, future_vnindex], ignore_index=True)
+        extended_vn30 = pd.concat([self.raw_vn30, future_vn30], ignore_index=True)
 
         extended_map = {}
-        for sym, df in self.universe_map.items():
+        for sym, df in self.raw_universe_map.items():
             extended_map[sym] = pd.concat([df, future_stock], ignore_index=True)
 
         # Generate historical report at T using extended datasets (containing future rows > T)
