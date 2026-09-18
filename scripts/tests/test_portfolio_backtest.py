@@ -7,7 +7,6 @@ import pandas as pd
 
 from scripts.lib.backtest import (
     ExecutionConfig,
-    calculate_execution_return,
     run_walk_forward_backtest,
 )
 from scripts.lib.portfolio_backtest import (
@@ -867,19 +866,62 @@ class TestZeroCostEquivalence(unittest.TestCase):
     """Test Suite verifying transaction_cost_pct=0 and slippage_pct=0 equivalence."""
 
     def setUp(self) -> None:
-        self.df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
-        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
-        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 150.0)
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+        # AAA: entry = 100.0, exit = 110.0 (+10.0%)
+        prices_aaa = [100.0] * 50 + [110.0] * 10
+        self.df_aaa = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_aaa,
+                "high": prices_aaa,
+                "low": prices_aaa,
+                "close": prices_aaa,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+        # BBB: entry = 100.0, exit = 120.0 (+20.0%)
+        prices_bbb = [100.0] * 50 + [120.0] * 10
+        self.df_bbb = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_bbb,
+                "high": prices_bbb,
+                "low": prices_bbb,
+                "close": prices_bbb,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
-        self.eval_date = self.df_aaa["date"].iloc[40]
+        self.eval_date = self.dates[49]
 
-    def test_zero_cost_and_slippage_field_level_equivalence(self) -> None:
-        """Verify position returns, portfolio return, weights, allocated and unallocated weight when cost/slippage are zero."""
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_zero_cost_and_slippage_field_level_equivalence(self, mock_gen_rec) -> None:
+        """Verify position returns, portfolio return, weights, allocated and unallocated weight when cost/slippage are zero against independent gross calculations."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "AAA":
+                return {
+                    "action": "BUY",
+                    "signal_score": 85.0,
+                    "risk_adjusted_score": 85.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "BUY",
+                "signal_score": 80.0,
+                "risk_adjusted_score": 80.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
         cfg = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
             transaction_cost_pct=0.0,
             slippage_pct=0.0,
         )
@@ -888,13 +930,17 @@ class TestZeroCostEquivalence(unittest.TestCase):
             evaluation_date=self.eval_date,
             universe_stock_map=self.universe,
             config=cfg,
-            df_vnindex=self.df_vni,
             horizons=[5],
         )
 
         self.assertEqual(len(eval_res.positions), 2)
-        pos_a = eval_res.positions[0]
-        pos_b = eval_res.positions[1]
+        pos_a = next(p for p in eval_res.positions if p.symbol == "AAA")
+        pos_b = next(p for p in eval_res.positions if p.symbol == "BBB")
+
+        # Independent gross calculation directly from known price inputs (100 -> 110 and 100 -> 120)
+        expected_gross_a = 0.10
+        expected_gross_b = 0.20
+        expected_portfolio_ret = round(0.5 * expected_gross_a + 0.5 * expected_gross_b, 6)  # 0.15
 
         # Weights check
         self.assertEqual(pos_a.weight, 0.5)
@@ -902,23 +948,11 @@ class TestZeroCostEquivalence(unittest.TestCase):
         self.assertEqual(eval_res.allocated_weight, 1.0)
         self.assertEqual(eval_res.unallocated_weight, 0.0)
 
-        # Expected gross return for AAA (BUY):
-        # Entry price at session 40, Exit price at session 45
-        p_entry_a = pos_a.entry_price
-        df_a_as_of = self.df_aaa[self.df_aaa["date"] >= self.eval_date]
-        p_exit_a = df_a_as_of["close"].iloc[5]
-        expected_ret_a = round((p_exit_a / p_entry_a) - 1.0, 6)
+        # Position return check
+        self.assertEqual(pos_a.forward_returns[5], expected_gross_a)
+        self.assertEqual(pos_b.forward_returns[5], expected_gross_b)
 
-        # Expected gross return for BBB
-        p_entry_b = pos_b.entry_price
-        df_b_as_of = self.df_bbb[self.df_bbb["date"] >= self.eval_date]
-        p_exit_b = df_b_as_of["close"].iloc[5]
-        expected_ret_b = round((p_exit_b / p_entry_b) - 1.0, 6)
-
-        self.assertEqual(pos_a.forward_returns[5], expected_ret_a)
-        self.assertEqual(pos_b.forward_returns[5], expected_ret_b)
-
-        expected_portfolio_ret = round(0.5 * expected_ret_a + 0.5 * expected_ret_b, 6)
+        # Portfolio return check
         self.assertEqual(eval_res.portfolio_forward_returns[5], expected_portfolio_ret)
 
 
@@ -937,18 +971,25 @@ class TestAllocationInvariants(unittest.TestCase):
         }
         self.eval_date = self.df_aaa["date"].iloc[40]
 
-    def test_allocation_invariant_single_position(self) -> None:
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_allocation_invariant_single_position(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
         cfg = PortfolioConfig(
             max_positions=1,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
         )
         eval_res = evaluate_portfolio_at_date(
             evaluation_date=self.eval_date,
             universe_stock_map=self.universe,
             config=cfg,
-            df_vnindex=self.df_vni,
         )
         self.assertEqual(len(eval_res.positions), 1)
         self.assertEqual(eval_res.positions[0].weight, 1.0)
@@ -960,37 +1001,51 @@ class TestAllocationInvariants(unittest.TestCase):
             places=6,
         )
 
-    def test_allocation_invariant_two_positions(self) -> None:
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_allocation_invariant_two_positions(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
         cfg = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
         )
         eval_res = evaluate_portfolio_at_date(
             evaluation_date=self.eval_date,
             universe_stock_map=self.universe,
             config=cfg,
-            df_vnindex=self.df_vni,
         )
         self.assertEqual(len(eval_res.positions), 2)
         total_w = sum(p.weight for p in eval_res.positions)
         self.assertEqual(eval_res.allocated_weight, round(total_w, 6))
         self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
 
-    def test_allocation_invariant_multiple_positions_with_cap(self) -> None:
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_allocation_invariant_multiple_positions_with_cap(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
         cfg = PortfolioConfig(
             max_positions=3,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
             max_weight_per_position=0.25,
         )
         eval_res = evaluate_portfolio_at_date(
             evaluation_date=self.eval_date,
             universe_stock_map=self.universe,
             config=cfg,
-            df_vnindex=self.df_vni,
         )
         self.assertEqual(len(eval_res.positions), 3)
         for pos in eval_res.positions:
@@ -1003,7 +1058,15 @@ class TestAllocationInvariants(unittest.TestCase):
             places=6,
         )
 
-    def test_allocation_invariant_non_executable_filtering(self) -> None:
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_allocation_invariant_non_executable_filtering(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
         # LOW_VOL is non-executable
         df_low_vol = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0, 1000.0)
         universe_exec = {
@@ -1016,7 +1079,7 @@ class TestAllocationInvariants(unittest.TestCase):
             max_positions=2,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
             require_executable=True,
             execution_config=exec_cfg,
         )
@@ -1024,14 +1087,21 @@ class TestAllocationInvariants(unittest.TestCase):
             evaluation_date=self.eval_date,
             universe_stock_map=universe_exec,
             config=cfg,
-            df_vnindex=self.df_vni,
         )
         self.assertEqual(len(eval_res.positions), 2)
         total_w = sum(p.weight for p in eval_res.positions)
         self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
         self.assertNotIn("LOW_VOL", [p.symbol for p in eval_res.positions])
 
-    def test_allocation_invariant_mixed_executable_require_false(self) -> None:
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_allocation_invariant_mixed_executable_require_false(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
         df_low_vol = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0, 1000.0)
         universe_exec = {
             "LOW_VOL": df_low_vol,
@@ -1042,7 +1112,7 @@ class TestAllocationInvariants(unittest.TestCase):
             max_positions=2,
             min_signal_score=0.0,
             min_history=30,
-            allowed_actions=("BUY", "HOLD", "WATCH"),
+            allowed_actions=("BUY",),
             require_executable=False,
             execution_config=exec_cfg,
         )
@@ -1050,7 +1120,6 @@ class TestAllocationInvariants(unittest.TestCase):
             evaluation_date=self.eval_date,
             universe_stock_map=universe_exec,
             config=cfg,
-            df_vnindex=self.df_vni,
         )
         self.assertEqual(len(eval_res.positions), 2)
         total_w = sum(p.weight for p in eval_res.positions)
@@ -1399,20 +1468,42 @@ class TestMultipleHorizonsIndependence(unittest.TestCase):
 class TestIndependentMathOracleCostSlippage(unittest.TestCase):
     """Test Suite validating portfolio net returns against an independent mathematical oracle."""
 
-    def test_independent_math_oracle_100pct_allocation(self) -> None:
-        """Verify 100% single position net return matches independent mathematical formula exactly."""
-        # BUY trade with entry=100, exit=120, cost=0.0030 (0.15% entry, 0.15% exit), slippage=0.0010 (0.10%)
-        # Independent formula:
-        # P_entry_exec = 100.0 * (1 + 0.0010) = 100.10
-        # P_exit_exec  = 120.0 * (1 - 0.0010) = 119.88
-        # net_return   = (1 - 0.0015) * (119.88 / 100.10) * (1 - 0.0015) - 1.0
-        #              = 0.9985 * 1.1976023976... * 0.9985 - 1.0 = 1.194011894... - 1.0 = 0.194011894...
-        # round(..., 6) = 0.194012
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+        prices_buy = [100.0] * 50 + [120.0] * 10
+        self.df_buy = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_buy,
+                "high": prices_buy,
+                "low": prices_buy,
+                "close": prices_buy,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+        self.universe = {"STK_BUY": self.df_buy}
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_independent_math_oracle_portfolio_integration(self, mock_gen_rec) -> None:
+        """Verify 100% single position portfolio evaluation net return matches independent mathematical formula exactly without using calculate_execution_return as oracle."""
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 85.0,
+            "risk_adjusted_score": 85.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
+
         p_entry = 100.0
         p_exit = 120.0
         tc = 0.0030
         slip = 0.0010
 
+        # Independent pure math calculation (WITHOUT calling calculate_execution_return):
+        # P_entry_exec = 100.0 * (1 + 0.0010) = 100.10
+        # P_exit_exec  = 120.0 * (1 - 0.0010) = 119.88
+        # net_return   = (1 - 0.0015) * (119.88 / 100.10) * (1 - 0.0015) - 1.0 = 0.194012
         p_entry_exec = round(p_entry * (1.0 + slip), 6)
         p_exit_exec = round(p_exit * (1.0 - slip), 6)
         c_entry = tc / 2.0
@@ -1421,55 +1512,114 @@ class TestIndependentMathOracleCostSlippage(unittest.TestCase):
 
         self.assertEqual(oracle_net, 0.194012)
 
-        # Run via calculate_execution_return
-        res = calculate_execution_return(
-            entry_price=p_entry,
-            exit_price=p_exit,
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
             transaction_cost_pct=tc,
             slippage_pct=slip,
-            action="BUY",
         )
-        self.assertEqual(res.net_return, oracle_net)
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        pos_net = eval_res.positions[0].forward_returns[5]
+        port_net = eval_res.portfolio_forward_returns[5]
+
+        # Verify position net return == oracle and portfolio return == oracle
+        self.assertEqual(pos_net, oracle_net)
+        self.assertEqual(port_net, oracle_net)
 
 
 class TestMissingOutcomeSemantics(unittest.TestCase):
     """Test Suite verifying strict missing forward outcome contracts."""
 
-    def test_all_outcomes_available(self) -> None:
-        p1 = PortfolioPosition(
-            symbol="AAA",
-            weight=0.5,
-            action="BUY",
-            signal_score=70.0,
-            risk_adjusted_score=65.0,
-            confidence=0.8,
-            entry_price=100.0,
-            is_executable=True,
-            forward_returns={5: 0.10},
-            forward_availability={5: True},
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+        # AAA: entry = 100.0, exit = 110.0 (+10.0%)
+        prices_aaa = [100.0] * 50 + [110.0] * 10
+        self.df_aaa = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_aaa,
+                "high": prices_aaa,
+                "low": prices_aaa,
+                "close": prices_aaa,
+                "volume": [1_000_000.0] * 60,
+            }
         )
-        p2 = PortfolioPosition(
-            symbol="BBB",
-            weight=0.5,
-            action="BUY",
-            signal_score=60.0,
-            risk_adjusted_score=55.0,
-            confidence=0.7,
-            entry_price=200.0,
-            is_executable=True,
-            forward_returns={5: 0.04},
-            forward_availability={5: True},
+        # BBB: entry = 100.0, exit = 120.0 (+20.0%)
+        prices_bbb = [100.0] * 50 + [120.0] * 10
+        self.df_bbb = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_bbb,
+                "high": prices_bbb,
+                "low": prices_bbb,
+                "close": prices_bbb,
+                "volume": [1_000_000.0] * 60,
+            }
         )
-        eval_res = PortfolioEvaluation(
-            evaluation_date="2024-03-01",
-            positions=[p1, p2],
-            allocated_weight=1.0,
-            unallocated_weight=0.0,
-            portfolio_forward_returns={5: 0.07},
-            horizon_availability={5: True},
+        self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_all_outcomes_available(self, mock_gen_rec) -> None:
+        """Verify evaluate_portfolio_at_date on real production evaluation path when all position outcomes are available."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "AAA":
+                return {
+                    "action": "BUY",
+                    "signal_score": 85.0,
+                    "risk_adjusted_score": 85.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "BUY",
+                "signal_score": 80.0,
+                "risk_adjusted_score": 80.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY",),
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
         )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        # Both positions have valid 5D outcome data
+        self.assertEqual(len(eval_res.positions), 2)
+        pos_aaa = next(p for p in eval_res.positions if p.symbol == "AAA")
+        pos_bbb = next(p for p in eval_res.positions if p.symbol == "BBB")
+
+        self.assertTrue(pos_aaa.forward_availability[5])
+        self.assertTrue(pos_bbb.forward_availability[5])
+        self.assertEqual(pos_aaa.forward_returns[5], 0.10)
+        self.assertEqual(pos_bbb.forward_returns[5], 0.20)
+
+        # Portfolio level horizon_availability MUST be True, portfolio_forward_returns MUST be 0.15
         self.assertTrue(eval_res.horizon_availability[5])
-        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.07)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.15)
 
     def test_some_outcomes_missing(self) -> None:
         """When 1 position lacks forward outcome, portfolio return MUST be None, not converted to 0."""
