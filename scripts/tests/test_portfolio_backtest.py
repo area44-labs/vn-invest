@@ -2317,5 +2317,408 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertIn("insufficient history", str(ctx6.exception))
 
 
+class TestPortfolioDeterminismAndStateIsolation(unittest.TestCase):
+    """Test Suite verifying framework determinism, state isolation, and input/config immutability."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
+        self.df_vn30 = create_synthetic_ohlcv("2024-01-01", 100, 1250.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 200000.0)
+        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0, 300000.0)
+        self.df_ccc = create_synthetic_ohlcv("2024-01-01", 100, 30000.0, 50.0, 150000.0)
+
+        self.universe = {
+            "AAA": self.df_aaa,
+            "BBB": self.df_bbb,
+            "CCC": self.df_ccc,
+        }
+        self.eval_dates = [self.df_aaa["date"].iloc[40], self.df_aaa["date"].iloc[50]]
+
+    def test_1_deterministic_repeated_execution(self) -> None:
+        """Requirement 1: Verify repeated backtest runs on identical inputs yield exact deterministic results."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            transaction_cost_pct=0.003,
+            slippage_pct=0.001,
+        )
+
+        res1 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+        )
+
+        res2 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+        )
+
+        res3 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+        )
+
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+        self.assertEqual(res2.to_dict(), res3.to_dict())
+
+        # Explicit granular check on quantitative and structural fields
+        for res_a, res_b in [(res1, res2), (res2, res3)]:
+            self.assertEqual(res_a.evaluation_dates, res_b.evaluation_dates)
+            self.assertEqual(len(res_a.evaluations), len(res_b.evaluations))
+            for eval_a, eval_b in zip(res_a.evaluations, res_b.evaluations, strict=True):
+                self.assertEqual(eval_a.evaluation_date, eval_b.evaluation_date)
+                self.assertEqual(eval_a.allocated_weight, eval_b.allocated_weight)
+                self.assertEqual(eval_a.unallocated_weight, eval_b.unallocated_weight)
+                self.assertEqual(eval_a.portfolio_forward_returns, eval_b.portfolio_forward_returns)
+                self.assertEqual(eval_a.horizon_availability, eval_b.horizon_availability)
+                self.assertEqual(eval_a.excluded_non_executable, eval_b.excluded_non_executable)
+                self.assertEqual(eval_a.excluded_filtered, eval_b.excluded_filtered)
+                self.assertEqual(eval_a.empty_reason, eval_b.empty_reason)
+
+                self.assertEqual(len(eval_a.positions), len(eval_b.positions))
+                for pos_a, pos_b in zip(eval_a.positions, eval_b.positions, strict=True):
+                    self.assertEqual(pos_a.symbol, pos_b.symbol)
+                    self.assertEqual(pos_a.weight, pos_b.weight)
+                    self.assertEqual(pos_a.action, pos_b.action)
+                    self.assertEqual(pos_a.signal_score, pos_b.signal_score)
+                    self.assertEqual(pos_a.risk_adjusted_score, pos_b.risk_adjusted_score)
+                    self.assertEqual(pos_a.confidence, pos_b.confidence)
+                    self.assertEqual(pos_a.entry_price, pos_b.entry_price)
+                    self.assertEqual(pos_a.is_executable, pos_b.is_executable)
+                    self.assertEqual(pos_a.forward_returns, pos_b.forward_returns)
+                    self.assertEqual(pos_a.forward_availability, pos_b.forward_availability)
+
+    def test_2_input_dataframe_immutability(self) -> None:
+        """Requirement 2: Prove that running backtest does not mutate input DataFrames."""
+        # Deep copy inputs before execution
+        vni_snapshot = self.df_vni.copy(deep=True)
+        vn30_snapshot = self.df_vn30.copy(deep=True)
+        stock_snapshots = {sym: df.copy(deep=True) for sym, df in self.universe.items()}
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+        )
+
+        # Assert VNINDEX unmutated
+        pd.testing.assert_frame_equal(self.df_vni, vni_snapshot, check_exact=True)
+        pd.testing.assert_frame_equal(self.df_vn30, vn30_snapshot, check_exact=True)
+
+        # Assert stock universe DataFrames unmutated
+        for sym, df_orig in self.universe.items():
+            pd.testing.assert_frame_equal(df_orig, stock_snapshots[sym], check_exact=True)
+
+    def test_3_configuration_immutability(self) -> None:
+        """Requirement 3: Verify PortfolioConfig is not mutated after running backtest, including nested execution_config."""
+        from copy import deepcopy
+
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=2.0,
+            min_avg_volume=60000.0,
+            min_price=10000.0,
+            max_participation_rate=0.05,
+            lookback_window=15,
+        )
+
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=45.0,
+            min_confidence=0.5,
+            allowed_actions=("BUY", "HOLD"),
+            max_weight_per_position=0.30,
+            min_history=40,
+            require_executable=False,
+            execution_config=exec_cfg,
+            transaction_cost_pct=0.002,
+            slippage_pct=0.001,
+        )
+
+        # Independent deep snapshot of entire configuration state
+        cfg_snapshot = deepcopy(cfg)
+
+        run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+        )
+
+        # Assert all fields remain unmutated compared to independent deep snapshot
+        self.assertEqual(cfg.max_positions, cfg_snapshot.max_positions)
+        self.assertEqual(cfg.min_signal_score, cfg_snapshot.min_signal_score)
+        self.assertEqual(cfg.min_confidence, cfg_snapshot.min_confidence)
+        self.assertEqual(cfg.allowed_actions, cfg_snapshot.allowed_actions)
+        self.assertEqual(cfg.max_weight_per_position, cfg_snapshot.max_weight_per_position)
+        self.assertEqual(cfg.min_history, cfg_snapshot.min_history)
+        self.assertEqual(cfg.require_executable, cfg_snapshot.require_executable)
+        self.assertEqual(cfg.transaction_cost_pct, cfg_snapshot.transaction_cost_pct)
+        self.assertEqual(cfg.slippage_pct, cfg_snapshot.slippage_pct)
+
+        # Assert nested execution_config fields are unmutated and match deep snapshot
+        self.assertIsNotNone(cfg.execution_config)
+        self.assertIsNotNone(cfg_snapshot.execution_config)
+        self.assertIsNot(
+            cfg.execution_config, cfg_snapshot.execution_config
+        )  # Ensure independent object
+        self.assertEqual(
+            cfg.execution_config.min_avg_traded_value_bn,
+            cfg_snapshot.execution_config.min_avg_traded_value_bn,
+        )
+        self.assertEqual(
+            cfg.execution_config.min_avg_volume,
+            cfg_snapshot.execution_config.min_avg_volume,
+        )
+        self.assertEqual(
+            cfg.execution_config.min_price,
+            cfg_snapshot.execution_config.min_price,
+        )
+        self.assertEqual(
+            cfg.execution_config.max_participation_rate,
+            cfg_snapshot.execution_config.max_participation_rate,
+        )
+        self.assertEqual(
+            cfg.execution_config.lookback_window,
+            cfg_snapshot.execution_config.lookback_window,
+        )
+
+    def test_4_universe_ordering_independence(self) -> None:
+        """Requirement 4: Verify dictionary insertion order of universe symbols does not alter quantitative results."""
+        universe1 = {
+            "AAA": self.df_aaa,
+            "BBB": self.df_bbb,
+            "CCC": self.df_ccc,
+        }
+        universe2 = {
+            "CCC": self.df_ccc,
+            "AAA": self.df_aaa,
+            "BBB": self.df_bbb,
+        }
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=universe1,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        res2 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=universe2,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+
+    def test_5_horizon_ordering_independence(self) -> None:
+        """Requirement 5: Verify horizon parameter ordering does not affect forward return results per horizon."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[1, 5, 10],
+        )
+
+        res2 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[10, 1, 5],
+        )
+
+        # Check per-horizon equivalence across all evaluations
+        for eval1, eval2 in zip(res1.evaluations, res2.evaluations, strict=True):
+            for h in [1, 5, 10]:
+                self.assertEqual(
+                    eval1.portfolio_forward_returns[h], eval2.portfolio_forward_returns[h]
+                )
+                self.assertEqual(eval1.horizon_availability[h], eval2.horizon_availability[h])
+
+                for pos1, pos2 in zip(eval1.positions, eval2.positions, strict=True):
+                    self.assertEqual(pos1.symbol, pos2.symbol)
+                    self.assertEqual(pos1.forward_returns[h], pos2.forward_returns[h])
+                    self.assertEqual(pos1.forward_availability[h], pos2.forward_availability[h])
+
+    def test_6_evaluation_date_ordering_contract(self) -> None:
+        """Requirement 6: Verify independent calls to evaluate_portfolio_at_date have no state leakage depending on call order."""
+        t1, t2 = self.eval_dates[0], self.eval_dates[1]
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        # Sequence 1: evaluate T1 then T2
+        eval_t1_seq1 = evaluate_portfolio_at_date(
+            evaluation_date=t1,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        eval_t2_seq1 = evaluate_portfolio_at_date(
+            evaluation_date=t2,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Sequence 2: evaluate T2 then T1
+        eval_t2_seq2 = evaluate_portfolio_at_date(
+            evaluation_date=t2,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        eval_t1_seq2 = evaluate_portfolio_at_date(
+            evaluation_date=t1,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(eval_t1_seq1.to_dict(), eval_t1_seq2.to_dict())
+        self.assertEqual(eval_t2_seq1.to_dict(), eval_t2_seq2.to_dict())
+
+    def test_7_fresh_state_sequence_repeatability(self) -> None:
+        """Requirement 7: Verify A -> B -> A evaluation sequence produces identical result for A without state leakage."""
+        t1, t2 = self.eval_dates[0], self.eval_dates[1]
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res_a1 = evaluate_portfolio_at_date(
+            evaluation_date=t1,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Intermediary evaluation B
+        evaluate_portfolio_at_date(
+            evaluation_date=t2,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        res_a2 = evaluate_portfolio_at_date(
+            evaluation_date=t1,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(res_a1.to_dict(), res_a2.to_dict())
+
+    def test_8_nested_structures_isolation(self) -> None:
+        """Requirement 8: Verify mutating result objects from one backtest run does not corrupt other result objects or input data."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        res2 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        snapshot_res2 = res2.to_dict()
+
+        # Mutate res1 nested structures thoroughly
+        res1.evaluations[0].positions[0].weight = 999.0
+        res1.evaluations[0].positions[0].forward_returns[5] = -99.0
+        res1.evaluations[0].portfolio_forward_returns[5] = 1234.56
+        res1.evaluations[0].excluded_filtered.append("MUTATED_SYMBOL")
+        res1.aggregate["total_evaluation_points"] = -1
+
+        # Verify res2 remains completely unmutated
+        self.assertEqual(res2.to_dict(), snapshot_res2)
+
+    def test_9_deterministic_independent_oracle(self) -> None:
+        """Requirement 9: Validate allocation invariants and position weights against independent oracle."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_dates[0],
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Independent Oracle Check 1: sum(weights) + unallocated_weight == 1.0 (within FP tolerance)
+        total_pos_weight = sum(p.weight for p in res.positions)
+        self.assertAlmostEqual(total_pos_weight + res.unallocated_weight, 1.0, places=6)
+        self.assertEqual(res.allocated_weight, round(total_pos_weight, 6))
+
+        # Independent Oracle Check 2: Position weight equality under equal-weight scheme
+        if res.positions:
+            expected_weight = round(1.0 / len(res.positions), 6)
+            for pos in res.positions:
+                self.assertEqual(pos.weight, expected_weight)
+
+
 if __name__ == "__main__":
     unittest.main()
