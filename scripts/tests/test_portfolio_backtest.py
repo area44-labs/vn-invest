@@ -2720,5 +2720,420 @@ class TestPortfolioDeterminismAndStateIsolation(unittest.TestCase):
                 self.assertEqual(pos.weight, expected_weight)
 
 
+class TestPortfolioSerializationAndResultContract(unittest.TestCase):
+    """Test Suite focusing on result contract, serialization integrity, and state preservation."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
+        self.df_vn30 = create_synthetic_ohlcv("2024-01-01", 100, 1250.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 200000.0)
+        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0, 300000.0)
+        self.df_ccc = create_synthetic_ohlcv("2024-01-01", 100, 30000.0, 50.0, 150000.0)
+
+        self.universe = {
+            "AAA": self.df_aaa,
+            "BBB": self.df_bbb,
+            "CCC": self.df_ccc,
+        }
+        self.eval_dates = [self.df_aaa["date"].iloc[40], self.df_aaa["date"].iloc[50]]
+
+    def test_1_to_dict_representation_completeness(self) -> None:
+        """Test 1: Verify to_dict() returns a complete dict matching the public result contract."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            transaction_cost_pct=0.003,
+            slippage_pct=0.001,
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+            horizons=[5, 10],
+        )
+
+        serialized = res.to_dict()
+        self.assertIsInstance(serialized, dict)
+
+        # Root level keys check
+        required_root_keys = {"evaluation_dates", "evaluations", "config", "aggregate"}
+        self.assertEqual(set(serialized.keys()), required_root_keys)
+
+        # Config keys check
+        required_config_keys = {
+            "max_positions",
+            "min_signal_score",
+            "min_confidence",
+            "allowed_actions",
+            "max_weight_per_position",
+            "min_history",
+            "require_executable",
+            "transaction_cost_pct",
+            "slippage_pct",
+        }
+        self.assertEqual(set(serialized["config"].keys()), required_config_keys)
+
+        # Aggregate keys check
+        required_aggregate_keys = {
+            "total_evaluation_points",
+            "non_empty_portfolios_count",
+            "empty_portfolios_count",
+            "empty_reasons_breakdown",
+            "horizon_metrics",
+        }
+        self.assertEqual(set(serialized["aggregate"].keys()), required_aggregate_keys)
+
+        # Evaluation level keys check
+        required_eval_keys = {
+            "evaluation_date",
+            "positions",
+            "allocated_weight",
+            "unallocated_weight",
+            "portfolio_forward_returns",
+            "horizon_availability",
+            "excluded_non_executable",
+            "excluded_filtered",
+            "empty_reason",
+        }
+        for eval_dict in serialized["evaluations"]:
+            self.assertEqual(set(eval_dict.keys()), required_eval_keys)
+
+            # Position level keys check
+            required_pos_keys = {
+                "symbol",
+                "weight",
+                "action",
+                "signal_score",
+                "risk_adjusted_score",
+                "confidence",
+                "entry_price",
+                "is_executable",
+                "forward_returns",
+                "forward_availability",
+            }
+            for pos_dict in eval_dict["positions"]:
+                self.assertEqual(set(pos_dict.keys()), required_pos_keys)
+
+    def test_2_nested_result_completeness(self) -> None:
+        """Test 2: Verify .to_dict() preserves all nested fields across all levels."""
+        exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=True,
+            execution_config=exec_cfg,
+            transaction_cost_pct=0.002,
+            slippage_pct=0.001,
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10],
+        )
+
+        serialized = res.to_dict()
+
+        # Check evaluations nested completeness
+        self.assertEqual(len(serialized["evaluations"]), len(res.evaluations))
+
+        for obj_eval, dict_eval in zip(res.evaluations, serialized["evaluations"], strict=True):
+            self.assertEqual(dict_eval["evaluation_date"], obj_eval.evaluation_date)
+            self.assertEqual(dict_eval["allocated_weight"], obj_eval.allocated_weight)
+            self.assertEqual(dict_eval["unallocated_weight"], obj_eval.unallocated_weight)
+            self.assertEqual(
+                dict_eval["portfolio_forward_returns"], obj_eval.portfolio_forward_returns
+            )
+            self.assertEqual(dict_eval["horizon_availability"], obj_eval.horizon_availability)
+            self.assertEqual(dict_eval["excluded_non_executable"], obj_eval.excluded_non_executable)
+            self.assertEqual(dict_eval["excluded_filtered"], obj_eval.excluded_filtered)
+            self.assertEqual(dict_eval["empty_reason"], obj_eval.empty_reason)
+
+            self.assertEqual(len(dict_eval["positions"]), len(obj_eval.positions))
+
+            for obj_pos, dict_pos in zip(obj_eval.positions, dict_eval["positions"], strict=True):
+                self.assertEqual(dict_pos["symbol"], obj_pos.symbol)
+                self.assertEqual(dict_pos["weight"], obj_pos.weight)
+                self.assertEqual(dict_pos["action"], obj_pos.action)
+                self.assertEqual(dict_pos["signal_score"], obj_pos.signal_score)
+                self.assertEqual(dict_pos["risk_adjusted_score"], obj_pos.risk_adjusted_score)
+                self.assertEqual(dict_pos["confidence"], obj_pos.confidence)
+                self.assertEqual(dict_pos["entry_price"], obj_pos.entry_price)
+                self.assertEqual(dict_pos["is_executable"], obj_pos.is_executable)
+                self.assertEqual(dict_pos["forward_returns"], obj_pos.forward_returns)
+                self.assertEqual(dict_pos["forward_availability"], obj_pos.forward_availability)
+
+    def test_3_none_unavailable_semantics(self) -> None:
+        """Test 3: Verify None values remain strictly None in memory and serialized output."""
+        # Date at end of dataset -> forward outcomes unavailable
+        last_date = self.df_aaa["date"].iloc[-1]
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=last_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10, 20],
+        )
+
+        serialized = eval_res.to_dict()
+
+        # Check in-memory and serialized None semantics for unavailable horizon outcomes
+        for h in [5, 10, 20]:
+            self.assertIsNone(eval_res.portfolio_forward_returns[h])
+            self.assertIsNone(serialized["portfolio_forward_returns"][h])
+
+            # Ensure None is strictly None and not converted to 0, 0.0, "", [], or False
+            val = serialized["portfolio_forward_returns"][h]
+            self.assertIs(val, None)
+            self.assertIsNot(val, 0)
+            self.assertIsNot(val, 0.0)
+            self.assertIsNot(val, "")
+            self.assertIsNot(val, [])
+            self.assertIsNot(val, False)
+
+        for pos_obj, pos_dict in zip(eval_res.positions, serialized["positions"], strict=True):
+            for h in [5, 10, 20]:
+                self.assertIsNone(pos_obj.forward_returns[h])
+                self.assertIsNone(pos_dict["forward_returns"][h])
+                val_pos = pos_dict["forward_returns"][h]
+                self.assertIs(val_pos, None)
+                self.assertIsNot(val_pos, 0)
+                self.assertIsNot(val_pos, 0.0)
+                self.assertIsNot(val_pos, "")
+                self.assertIsNot(val_pos, [])
+                self.assertIsNot(val_pos, False)
+
+    def test_4_empty_portfolio_result(self) -> None:
+        """Test 4: Verify empty portfolio result serializes safely without creating fake numerical values."""
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=99.9,  # All candidates filtered out
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10],
+        )
+
+        serialized = res.to_dict()
+
+        self.assertEqual(serialized["aggregate"]["total_evaluation_points"], 2)
+        self.assertEqual(serialized["aggregate"]["non_empty_portfolios_count"], 0)
+        self.assertEqual(serialized["aggregate"]["empty_portfolios_count"], 2)
+        self.assertEqual(
+            serialized["aggregate"]["empty_reasons_breakdown"],
+            {"no_eligible_candidates": 2},
+        )
+
+        # Verify aggregate metrics for empty evaluations maintain None semantics
+        for h in [5, 10]:
+            h_metrics = serialized["aggregate"]["horizon_metrics"][h]
+            self.assertEqual(h_metrics["valid_evaluation_points"], 0)
+            self.assertIsNone(h_metrics["mean"])
+            self.assertIsNone(h_metrics["median"])
+            self.assertIsNone(h_metrics["std"])
+            self.assertIsNone(h_metrics["min"])
+            self.assertIsNone(h_metrics["max"])
+            self.assertIsNone(h_metrics["hit_rate"])
+            self.assertIsNone(h_metrics["sequential_compounded_return"])
+
+            # Strict check that None is not turned into 0 or 0.0
+            self.assertIs(h_metrics["mean"], None)
+            self.assertIs(h_metrics["hit_rate"], None)
+
+        for eval_dict in serialized["evaluations"]:
+            self.assertEqual(eval_dict["positions"], [])
+            self.assertEqual(eval_dict["allocated_weight"], 0.0)
+            self.assertEqual(eval_dict["unallocated_weight"], 1.0)
+            self.assertEqual(eval_dict["empty_reason"], "no_eligible_candidates")
+            for h in [5, 10]:
+                self.assertIsNone(eval_dict["portfolio_forward_returns"][h])
+                self.assertFalse(eval_dict["horizon_availability"][h])
+
+    def test_5_numerical_serialization_integrity(self) -> None:
+        """Test 5: Verify numeric fields preserve values and float types without loss of precision or string conversion."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            transaction_cost_pct=0.0035,
+            slippage_pct=0.0015,
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+
+        serialized = res.to_dict()
+
+        # Config numeric fields check
+        self.assertIsInstance(serialized["config"]["transaction_cost_pct"], float)
+        self.assertEqual(serialized["config"]["transaction_cost_pct"], 0.0035)
+        self.assertIsInstance(serialized["config"]["slippage_pct"], float)
+        self.assertEqual(serialized["config"]["slippage_pct"], 0.0015)
+
+        for eval_obj, eval_dict in zip(res.evaluations, serialized["evaluations"], strict=True):
+            self.assertIsInstance(eval_dict["allocated_weight"], float)
+            self.assertEqual(eval_dict["allocated_weight"], eval_obj.allocated_weight)
+            self.assertIsInstance(eval_dict["unallocated_weight"], float)
+            self.assertEqual(eval_dict["unallocated_weight"], eval_obj.unallocated_weight)
+
+            ret_val = eval_dict["portfolio_forward_returns"][5]
+            if ret_val is not None:
+                self.assertIsInstance(ret_val, float)
+                self.assertEqual(ret_val, eval_obj.portfolio_forward_returns[5])
+
+            for pos_obj, pos_dict in zip(eval_obj.positions, eval_dict["positions"], strict=True):
+                self.assertIsInstance(pos_dict["weight"], float)
+                self.assertEqual(pos_dict["weight"], pos_obj.weight)
+
+                if pos_obj.signal_score is not None:
+                    self.assertIsInstance(pos_dict["signal_score"], float)
+                    self.assertEqual(pos_dict["signal_score"], pos_obj.signal_score)
+
+                if pos_obj.risk_adjusted_score is not None:
+                    self.assertIsInstance(pos_dict["risk_adjusted_score"], float)
+                    self.assertEqual(pos_dict["risk_adjusted_score"], pos_obj.risk_adjusted_score)
+
+                self.assertIsInstance(pos_dict["confidence"], float)
+                self.assertEqual(pos_dict["confidence"], pos_obj.confidence)
+
+                if pos_obj.entry_price is not None:
+                    self.assertIsInstance(pos_dict["entry_price"], float)
+                    self.assertEqual(pos_dict["entry_price"], pos_obj.entry_price)
+
+                pos_ret = pos_dict["forward_returns"][5]
+                if pos_ret is not None:
+                    self.assertIsInstance(pos_ret, float)
+                    self.assertEqual(pos_ret, pos_obj.forward_returns[5])
+
+    def test_6_deterministic_key_and_ordering_representation(self) -> None:
+        """Test 6: Verify same logical result produces deterministic key/value ordering across multiple calls and universe orderings."""
+        universe1 = {"AAA": self.df_aaa, "BBB": self.df_bbb, "CCC": self.df_ccc}
+        universe2 = {"CCC": self.df_ccc, "AAA": self.df_aaa, "BBB": self.df_bbb}
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=universe1,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        res2 = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=universe2,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Verify exact equality of serialized representations regardless of universe insertion order
+        self.assertEqual(res1.to_dict(), res2.to_dict())
+
+    def test_7_result_mutation_isolation_after_serialization(self) -> None:
+        """Test 7: Verify bi-directional mutation isolation between dataclass objects and serialized dictionary."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+
+        serialized = res.to_dict()
+
+        # 1. Mutate serialized dictionary
+        serialized["evaluation_dates"].append("2099-01-01")
+        serialized["evaluations"][0]["positions"][0]["weight"] = 999.0
+        serialized["evaluations"][0]["portfolio_forward_returns"][5] = -99.0
+        serialized["evaluations"][0]["excluded_filtered"].append("MUTATED")
+
+        # Verify in-memory result object remains completely unmutated
+        self.assertNotIn("2099-01-01", res.evaluation_dates)
+        self.assertNotEqual(res.evaluations[0].positions[0].weight, 999.0)
+        self.assertNotEqual(res.evaluations[0].portfolio_forward_returns[5], -99.0)
+        self.assertNotIn("MUTATED", res.evaluations[0].excluded_filtered)
+
+        # 2. Re-serialize res and verify second_serialized is completely independent
+        res_fresh = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+        dict_fresh = res_fresh.to_dict()
+
+        # Mutate res_fresh in memory
+        res_fresh.evaluations[0].positions[0].weight = 888.0
+        res_fresh.evaluations[0].positions[0].forward_returns[5] = 777.0
+
+        # dict_fresh generated prior to mutation must remain unmutated
+        self.assertNotEqual(dict_fresh["evaluations"][0]["positions"][0]["weight"], 888.0)
+        self.assertNotEqual(
+            dict_fresh["evaluations"][0]["positions"][0]["forward_returns"][5], 777.0
+        )
+
+    def test_8_repeated_serialization(self) -> None:
+        """Test 8: Verify calling .to_dict() multiple times is idempotent and does not mutate result."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=self.eval_dates,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10],
+        )
+
+        first = res.to_dict()
+        second = res.to_dict()
+        third = res.to_dict()
+
+        self.assertEqual(first, second)
+        self.assertEqual(second, third)
+
+
 if __name__ == "__main__":
     unittest.main()
