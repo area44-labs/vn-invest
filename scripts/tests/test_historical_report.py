@@ -1,17 +1,14 @@
 """Unit and integration tests for reproducible historical report generation in scripts/generate_report.py."""
 
-import json
-import os
 import sys
 import unittest
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import jsonschema
 import numpy as np
 import pandas as pd
 
 from scripts.generate_report import (
-    GENERATED_DIR,
     canonicalize_report_for_reproducibility,
     generate_historical_report,
     load_schema,
@@ -301,58 +298,24 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         # Validate schema
         jsonschema.validate(instance=res[0], schema=self.schema)
 
-    @patch("scripts.generate_report.save_json_files")
-    @patch("scripts.generate_report.update_history_index")
-    @patch("scripts.generate_report.evaluate_production_monitoring")
-    @patch("scripts.generate_report.get_historical_data")
-    def test_11_as_of_cli_mode_does_not_overwrite_production_artifacts(
-        self, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
+    @patch("scripts.generate_report.UniverseProvider")
+    @patch("scripts.generate_report.open")
+    def test_11_cli_as_of_mode_fails_closed_without_circular_dependency(
+        self, mock_open_fn, mock_provider_cls
     ):
-        """Regression Test — Historical '--as-of' CLI mode MUST NOT overwrite production recommendations, market, or monitoring artifacts."""
-        mock_get_hist.return_value = (self.stock_df, "OK", [])
-
-        synthetic_snapshot = {
-            "recommendations": [
-                {
-                    "symbol": "FPT",
-                    "company_name": "FPT Corp",
-                    "sector": "Technology",
-                    "exchange": "HOSE",
-                }
-            ]
-        }
-        hist_path = os.path.join(GENERATED_DIR, "history", f"{self.target_date}.json")
-
-        orig_exists = os.path.exists
-
-        def mock_exists(p):
-            if p == hist_path:
-                return True
-            return orig_exists(p)
-
-        mock_content = json.dumps(synthetic_snapshot)
-
+        """Regression Test — Historical '--as-of' CLI mode fails closed when no independent historical universe source exists, without reading history reports or calling UniverseProvider."""
         test_args = ["scripts/generate_report.py", "--as-of", self.target_date]
-        with (
-            patch("os.path.exists", side_effect=mock_exists),
-            patch("builtins.open", mock_open(read_data=mock_content)),
-            patch.object(sys, "argv", test_args),
-        ):
-            main()
+        with patch.object(sys, "argv", test_args):
+            with self.assertRaises(ValueError) as ctx:
+                main()
+            self.assertIn(
+                "contains no independent historical universe snapshot source", str(ctx.exception)
+            )
 
-        # Monitoring MUST NOT be called in --as-of historical mode
-        mock_eval_mon.assert_not_called()
-
-        saved_files = [call[0][0] for call in mock_save_json.call_args_list]
-
-        # MUST save history/YYYY-MM-DD.json
-        expected_history_file = f"history/{self.target_date}.json"
-        self.assertIn(expected_history_file, saved_files)
-
-        # MUST NOT save recommendations.json, market.json, or monitoring.json
-        self.assertNotIn("recommendations.json", saved_files)
-        self.assertNotIn("market.json", saved_files)
-        self.assertNotIn("monitoring.json", saved_files)
+        # Must NOT call current UniverseProvider
+        mock_provider_cls.assert_not_called()
+        # Must NOT attempt to open output history files as input
+        mock_open_fn.assert_not_called()
 
     @patch("scripts.generate_report.save_json_files")
     @patch("scripts.generate_report.update_history_index")
@@ -478,15 +441,6 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         rec = res[0]["recommendations"][0]
         self.assertNotEqual(rec["company_name"], "Unknown")
         self.assertNotEqual(rec["sector"], "Unknown")
-
-    def test_17_as_of_cli_mode_missing_snapshot_raises_error(self):
-        """Regression Test — Historical CLI --as-of fails closed if no legitimate historical snapshot exists."""
-        missing_date = "2010-01-01"
-        test_args = ["scripts/generate_report.py", "--as-of", missing_date]
-        with patch.object(sys, "argv", test_args):
-            with self.assertRaises(ValueError) as ctx:
-                main()
-            self.assertIn("No legitimate historical universe snapshot found", str(ctx.exception))
 
 
 if __name__ == "__main__":

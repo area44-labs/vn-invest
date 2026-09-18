@@ -538,140 +538,64 @@ def main():
     )
     args = parser.parse_args()
 
-    schema = load_schema()
-
     if args.as_of:
         target_date = _parse_canonical_date(args.as_of)
         logger.info("Starting historical report generation for as-of date: %s...", target_date)
-
-        hist_file = os.path.join(GENERATED_DIR, "history", f"{target_date}.json")
-        if not os.path.exists(hist_file):
-            raise ValueError(
-                f"No legitimate historical universe snapshot found for date '{target_date}' at '{hist_file}'. "
-                "Cannot generate historical report without an explicit historical candidate universe snapshot."
-            )
-
-        try:
-            with open(hist_file, "r", encoding="utf-8") as f:
-                hist_payload = json.load(f)
-        except Exception as err:
-            raise ValueError(
-                f"Failed to read historical universe snapshot '{hist_file}': {err}"
-            ) from err
-
-        hist_recs = hist_payload.get("recommendations")
-        if not isinstance(hist_recs, list) or not hist_recs:
-            raise ValueError(
-                f"Historical snapshot '{hist_file}' contains no valid recommendations list for universe metadata."
-            )
-
-        candidate_stocks = []
-        for idx, r in enumerate(hist_recs):
-            if not isinstance(r, dict):
-                raise TypeError(
-                    f"Historical recommendation item at index {idx} in '{hist_file}' must be a dict"
-                )
-            sym = r.get("symbol")
-            comp = r.get("company_name")
-            sec = r.get("sector")
-            ex = r.get("exchange", "HOSE")
-            if not sym or not comp or not sec:
-                raise ValueError(
-                    f"Historical recommendation item at index {idx} in '{hist_file}' missing required symbol, company_name, or sector"
-                )
-            candidate_stocks.append(
-                {
-                    "symbol": sym,
-                    "companyName": comp,
-                    "sector": sec,
-                    "exchange": ex,
-                }
-            )
-
-        use_cache = not args.update
-
-        df_vnindex_raw, vn_source, _ = get_historical_data(
-            "VNINDEX", max_retries=2 if args.update else 1, use_cache_only=use_cache
-        )
-        df_vn30_raw, _, _ = get_historical_data(
-            "VN30", max_retries=2 if args.update else 1, use_cache_only=use_cache
+        raise ValueError(
+            f"Cannot generate historical report for date '{target_date}': "
+            "The repository currently contains no independent historical universe snapshot source. "
+            "CLI historical reproduction requires an explicit independent historical universe snapshot source "
+            "and MUST NOT infer universe membership from output reports or current UniverseProvider state."
         )
 
-        stock_data_map = {}
-        for item in candidate_stocks:
-            sym = item["symbol"]
-            df_stock, _, _ = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
-            stock_data_map[sym] = df_stock
+    logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
+    pipeline_res = run_pipeline(update_data=args.update)
+    recs_data, market_data, history_data = pipeline_res
+    df_vnindex_clean = pipeline_res.df_vnindex
+    df_vn30_clean = pipeline_res.df_vn30
 
-        pipeline_res = generate_historical_report(
-            data_as_of=target_date,
-            universe_stock_map=stock_data_map,
-            df_vnindex=df_vnindex_raw,
-            df_vn30=df_vn30_raw,
-            candidate_metadata=candidate_stocks,
-            data_source=vn_source if not df_vnindex_raw.empty else None,
-        )
+    # Validate against Schema
+    schema = load_schema()
+    logger.info("Validating recommendations payload against JSON Schema Draft 2020-12...")
+    jsonschema.validate(instance=recs_data, schema=schema)
+    logger.info("JSON Schema validation passed successfully!")
 
-        recs_data, _, history_data = pipeline_res
+    data_as_of = recs_data.get("data_as_of")
 
-        logger.info("Validating historical recommendations payload against JSON Schema...")
-        jsonschema.validate(instance=recs_data, schema=schema)
-        logger.info("JSON Schema validation passed successfully!")
+    # Save outputs
+    save_json_files("recommendations.json", recs_data)
+    save_json_files("market.json", market_data)
 
-        save_json_files(os.path.join("history", f"{target_date}.json"), history_data)
-        update_history_index(target_date)
-
-        logger.info("Historical report generation complete!")
-        logger.info("Outputs written to generated/history:")
-        logger.info(
-            "  - history/%s.json (%d items)", target_date, len(recs_data["recommendations"])
-        )
-        logger.info("  - history/index.json")
+    if data_as_of:
+        save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
+        update_history_index(data_as_of)
     else:
-        logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
-        pipeline_res = run_pipeline(update_data=args.update)
-        recs_data, market_data, history_data = pipeline_res
-        df_vnindex_clean = pipeline_res.df_vnindex
-        df_vn30_clean = pipeline_res.df_vn30
-
-        logger.info("Validating recommendations payload against JSON Schema Draft 2020-12...")
-        jsonschema.validate(instance=recs_data, schema=schema)
-        logger.info("JSON Schema validation passed successfully!")
-
-        data_as_of = recs_data.get("data_as_of")
-
-        save_json_files("recommendations.json", recs_data)
-        save_json_files("market.json", market_data)
-
-        if data_as_of:
-            save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
-            update_history_index(data_as_of)
-        else:
-            logger.warning(
-                "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
-            )
-
-        logger.info("Report generation complete!")
-        logger.info("Outputs written to generated/:")
-        logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
-        logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
-        if data_as_of:
-            logger.info("  - history/%s.json", data_as_of)
-            logger.info("  - history/index.json")
-
-        logger.info("Executing production pipeline monitoring...")
-        monitoring_result = evaluate_production_monitoring(
-            generated_dir=GENERATED_DIR,
-            recommendations_payload=recs_data,
-            market_payload=market_data,
-            df_vnindex=df_vnindex_clean,
-            df_vn30=df_vn30_clean,
+        logger.warning(
+            "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
         )
-        save_json_files("monitoring.json", monitoring_result.to_dict())
-        logger.info(
-            "Production monitoring complete! Overall status: %s", monitoring_result.overall_status
-        )
-        logger.info("  - monitoring.json")
+
+    logger.info("Report generation complete!")
+    logger.info("Outputs written to generated/:")
+    logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
+    logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
+    if data_as_of:
+        logger.info("  - history/%s.json", data_as_of)
+        logger.info("  - history/index.json")
+
+    # Run production monitoring and save monitoring.json artifact
+    logger.info("Executing production pipeline monitoring...")
+    monitoring_result = evaluate_production_monitoring(
+        generated_dir=GENERATED_DIR,
+        recommendations_payload=recs_data,
+        market_payload=market_data,
+        df_vnindex=df_vnindex_clean,
+        df_vn30=df_vn30_clean,
+    )
+    save_json_files("monitoring.json", monitoring_result.to_dict())
+    logger.info(
+        "Production monitoring complete! Overall status: %s", monitoring_result.overall_status
+    )
+    logger.info("  - monitoring.json")
 
 
 if __name__ == "__main__":
