@@ -15,7 +15,7 @@ Static JSON Artifacts (generated/)
         ↓
 React / TanStack Router (src/)
         ↓
-SSG / GitHub Pages Deployment
+SSG
 ```
 
 ### Quantitative System Layers
@@ -36,7 +36,7 @@ Backend quantitative system được phân định rõ ràng thành các tầng 
 
 - **Python Quantitative Engine**: Tính toán chỉ báo kỹ thuật (MA, RSI, MACD, ATR), nhận diện phân kỳ đa khung thời gian, phân tích trạng thái thị trường (Market Regime), chấm điểm Signal Score (VN Invest Signal Engine), tính rủi ro T+2.5 (Historical VaR 95%, Expected Shortfall, Max Drawdown) và lập kế hoạch giao dịch (Trade Plan).
 - **Single Source of Truth**: Data contract được định nghĩa chuẩn xác bằng JSON Schema (`schemas/recommendations.schema.json`).
-- **TanStack Router & SSG**: Điều hướng SPA mượt mà với routing dựa trên TanStack Router (`/`, `/history`, `/stock/$symbol`) và prerender static HTML tương thích GitHub Pages.
+- **TanStack Router & SSG**: Điều hướng SPA mượt mà với routing dựa trên TanStack Router (`/`, `/history`, `/stock/$symbol`) và prerender static HTML.
 - **Bảo Đảm Kiểm Thử**: Bộ unit test Python kiểm tra toàn bộ logic tính toán chỉ báo, rủi ro, kế hoạch giao dịch và anti-lookahead bias.
 
 ## Hướng Dẫn Phát Triển
@@ -75,12 +75,6 @@ python scripts/tests/run_tests.py
 ruff check .
 ruff format --check .
 ```
-
-### 3. Quy Định & Chính Sách Phụ Thuộc (Dependency Policy)
-
-- **Các gói phụ thuộc được ghim cố định**: Các phụ thuộc của active quantitative pipeline được ghim phiên bản chính xác tại `requirements.txt`.
-- **Phiên bản `vnstock`**: Phiên bản hỗ trợ chính thức hiện tại là **4.0.7**.
-- **Quy trình nâng cấp dependency**: Muốn nâng cấp bất kỳ dependency nào, cần kiểm tra tính tương thích cấu trúc API/đơn vị tính (provider unit contract) và đảm bảo toàn bộ bộ kiểm thử trong `python scripts/tests/run_tests.py` vượt qua trước khi cập nhật phiên bản trong `requirements.txt`.
 
 ## License
 

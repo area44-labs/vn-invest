@@ -1,7 +1,7 @@
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
 import { Moon, Sun } from "lucide-react";
 
-import "@/index.css";
+import "@/styles/globals.css";
 import { useTheme } from "@/hooks/use-theme";
 
 export const Route = createRootRoute({

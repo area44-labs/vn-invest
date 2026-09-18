@@ -1,6 +1,6 @@
-# VN Invest - Guidelines for AI Agents
+# Guidelines for AI Agents
 
-Chào mừng bạn đến với repository **VN Invest** của **AREA44**. Hướng dẫn này mô tả cấu trúc dự án, data contract, quy trình linting/formatting và testing dành cho AI Agents.
+Hướng dẫn này mô tả cấu trúc dự án, data contract, quy trình linting/formatting và testing dành cho AI Agents.
 
 ---
 
@@ -9,7 +9,7 @@ Chào mừng bạn đến với repository **VN Invest** của **AREA44**. Hư�
 Dự án tuân theo mô hình phân tách hoàn toàn giữa tính toán định lượng và hiển thị:
 
 ```
-Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG / GitHub Pages
+Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG
 ```
 
 ### Quantitative Pipeline System Layers
@@ -59,10 +59,11 @@ vn-invest/
 │   ├── lib/                         # Formatting utilities (format.ts)
 │   ├── pages/                       # Page views (Dashboard.tsx, History.tsx, StockDetail.tsx)
 │   ├── routes/                      # TanStack Router file routes (__root.tsx, index.tsx, history.tsx, stock/$symbol.tsx)
+|   ├── styles/                      # Styles
 │   └── types/                       # TypeScript interfaces mirroring JSON schema (recommendation.ts)
 ├── pyproject.toml                   # Ruff configuration for Python
 ├── package.json                     # Frontend dependencies & pnpm scripts
-└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==2.2.3, etc.)
+└── requirements.txt                 # Python reproducible dependencies (vnstock, pandas, etc.)
 ```
 
 ---
@@ -90,12 +91,6 @@ ruff check .
 ruff format --check .
 python scripts/generate_report.py
 ```
-
-### C. Dependency & Version Policy
-
-- Tất cả các gói phụ thuộc Python chính cho active quant pipeline được ghim phiên bản chính xác tại `requirements.txt`.
-- Phiên bản `vnstock` hỗ trợ chính thức là **4.0.7**.
-- Nâng cấp phụ thuộc: Khi cần nâng cấp dependency, phải kiểm tra khả năng tương thích của API (đặc biệt là `vnstock` quote/history unit contract) và chạy toàn bộ unit test suite trước khi cập nhật phiên bản ghim trong `requirements.txt`.
 
 <!-- vnai-bootstrap | auto-generated -->
 
