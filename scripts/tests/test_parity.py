@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from scripts.generate_report import generate_historical_report, run_pipeline
+from scripts.lib.vietnam_market import get_clean_ohlcv_data
 
 
 def create_synthetic_ohlcv(
@@ -81,29 +82,36 @@ class TestProductionHistoricalParity(unittest.TestCase):
         self.start_date = "2025-01-01"
 
         # Benchmarks
-        self.df_vnindex = create_synthetic_ohlcv(
+        raw_vnindex = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=1200.0, trend="uptrend"
         )
-        self.df_vn30 = create_synthetic_ohlcv(
+        raw_vn30 = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=1250.0, trend="uptrend"
         )
+
+        self.df_vnindex, _ = get_clean_ohlcv_data(raw_vnindex, "VNINDEX")
+        self.df_vn30, _ = get_clean_ohlcv_data(raw_vn30, "VN30")
 
         # Target date T is the latest date in benchmark
         self.target_date = self.df_vnindex["time"].iloc[-1]
 
         # Multi-stock universe with diverse behaviors (BUY, WATCH, HOLD/SELL/AVOID)
-        self.df_fpt = create_synthetic_ohlcv(
+        raw_fpt = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=90000.0, trend="uptrend"
         )
-        self.df_vnm = create_synthetic_ohlcv(
+        raw_vnm = create_synthetic_ohlcv(
             start_date=self.start_date, periods=self.periods, base_price=70000.0, trend="sideways"
         )
-        self.df_hpg = create_synthetic_ohlcv(
+        raw_hpg = create_synthetic_ohlcv(
             start_date=self.start_date,
             periods=self.periods,
             base_price=28000.0,
             trend="downtrend",
         )
+
+        self.df_fpt, _ = get_clean_ohlcv_data(raw_fpt, "FPT")
+        self.df_vnm, _ = get_clean_ohlcv_data(raw_vnm, "VNM")
+        self.df_hpg, _ = get_clean_ohlcv_data(raw_hpg, "HPG")
 
         self.universe_map = {
             "FPT": self.df_fpt,
@@ -348,8 +356,29 @@ class TestProductionHistoricalParity(unittest.TestCase):
             ]
         )
 
+        future_vn30 = pd.DataFrame(
+            [
+                {
+                    "time": "2025-03-02",
+                    "open": 1150.0,
+                    "high": 1150.0,
+                    "low": 1050.0,
+                    "close": 1050.0,
+                    "volume": 200000.0,
+                },
+                {
+                    "time": "2025-03-03",
+                    "open": 1050.0,
+                    "high": 1050.0,
+                    "low": 950.0,
+                    "close": 950.0,
+                    "volume": 250000.0,
+                },
+            ]
+        )
+
         extended_vnindex = pd.concat([self.df_vnindex, future_vnindex], ignore_index=True)
-        extended_vn30 = pd.concat([self.df_vn30, future_vnindex], ignore_index=True)
+        extended_vn30 = pd.concat([self.df_vn30, future_vn30], ignore_index=True)
 
         extended_map = {}
         for sym, df in self.universe_map.items():
