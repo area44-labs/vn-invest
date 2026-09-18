@@ -657,5 +657,515 @@ class TestNoLookaheadAndEligibilityInteraction(unittest.TestCase):
         self.assertEqual(res.gross_return, 0.10)
 
 
+class TestCostAwarePortfolioConsistency(unittest.TestCase):
+    """Test suite validating layer for cost-aware portfolio backtest consistency."""
+
+    def setUp(self) -> None:
+        """Create synthetic data for multi-horizon and action testing."""
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+
+        # Stock BUY (entry 100 at session 49, exit 110 at session 54 (5D), exit 120 at session 59 (10D))
+        prices_buy = [100.0] * 50 + [110.0] * 5 + [120.0] * 5
+        self.df_buy = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_buy,
+                "high": prices_buy,
+                "low": prices_buy,
+                "close": prices_buy,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        # Stock SELL (entry 100 at session 49, exit 90 at session 54 (5D), exit 80 at session 59 (10D))
+        prices_sell = [100.0] * 50 + [90.0] * 5 + [80.0] * 5
+        self.df_sell = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_sell,
+                "high": prices_sell,
+                "low": prices_sell,
+                "close": prices_sell,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        # Stock WATCH (flat 100.0)
+        prices_watch = [100.0] * 60
+        self.df_watch = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_watch,
+                "high": prices_watch,
+                "low": prices_watch,
+                "close": prices_watch,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        self.universe = {
+            "STK_BUY": self.df_buy,
+            "STK_SELL": self.df_sell,
+            "STK_WATCH": self.df_watch,
+        }
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_case_a_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
+        """Case A — Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            if symbol == "STK_SELL":
+                return {
+                    "action": "SELL",
+                    "signal_score": 75.0,
+                    "risk_adjusted_score": 75.0,
+                    "confidence": 0.7,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "WATCH",
+                "signal_score": 60.0,
+                "risk_adjusted_score": 60.0,
+                "confidence": 0.6,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg_zero = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "SELL", "WATCH"),
+            min_history=30,
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg_zero,
+            horizons=[5, 10],
+        )
+
+        self.assertEqual(len(eval_res.positions), 3)
+
+        pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
+        pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
+        pos_watch = next(p for p in eval_res.positions if p.symbol == "STK_WATCH")
+
+        # Position gross strategy returns at 5D:
+        # BUY: (110/100) - 1 = +0.10
+        # SELL: 1 - (90/100) = +0.10
+        # WATCH: 0.0
+        self.assertEqual(pos_buy.forward_returns[5], 0.10)
+        self.assertEqual(pos_sell.forward_returns[5], 0.10)
+        self.assertEqual(pos_watch.forward_returns[5], 0.0)
+
+        # Weighted sum: (1/3)*0.10 + (1/3)*0.10 + (1/3)*0.0 = 0.0666666... -> round(..., 6) = 0.066667
+        expected_portfolio_5d = round((1.0 / 3.0) * 0.10 + (1.0 / 3.0) * 0.10, 6)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], expected_portfolio_5d)
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_case_b_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
+        self, mock_gen_rec
+    ) -> None:
+        """Case B & C — Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "SELL",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "SELL"),
+            min_history=30,
+            transaction_cost_pct=0.0030,  # 0.15% entry + 0.15% exit
+            slippage_pct=0.0010,  # 0.10% adverse slippage per leg
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={
+                "STK_BUY": self.df_buy,
+                "STK_SELL": self.df_sell,
+            },
+            config=cfg,
+            horizons=[5],
+        )
+
+        # Independent pure math hand calculations (WITHOUT calling calculate_execution_return):
+        # Weight = 0.50 each
+        #
+        # BUY (entry = 100, exit = 110):
+        # P_entry_exec = 100 * (1 + 0.001) = 100.1
+        # P_exit_exec = 110 * (1 - 0.001) = 109.89
+        # net_return_buy = (1 - 0.0015) * (109.89 / 100.1) * (1 - 0.0015) - 1
+        # = 0.9985 * 1.0978021978021978 * 0.9985 - 1 = 1.0945112137862137 - 1 = 0.094511213... -> 0.094511
+        BUY_HAND_CALCULATED_NET = 0.094511
+
+        # SELL (entry = 100, exit = 90):
+        # P_entry_exec = 100 * (1 - 0.001) = 99.9
+        # P_exit_exec = 90 * (1 + 0.001) = 90.09
+        # slip_ret = 1.0 - (90.09 / 99.9) = 1.0 - 0.9018018018018018 = 0.0981981981981982
+        # net_return_sell = (1 - 0.0015) * (1 + 0.0981981981981982) * (1 - 0.0015) - 1
+        # = 0.9985 * 1.0981981981981982 * 0.9985 - 1 = 1.0949060601... - 1 = 0.09490606... -> 0.094906
+        SELL_HAND_CALCULATED_NET = 0.094906
+
+        # Portfolio Net Return Oracle:
+        # = 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round(..., 6) = 0.094709
+        PORTFOLIO_HAND_CALCULATED_NET = 0.094709
+
+        pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
+        pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
+
+        self.assertEqual(pos_buy.weight, 0.50)
+        self.assertEqual(pos_sell.weight, 0.50)
+
+        self.assertEqual(pos_buy.forward_returns[5], BUY_HAND_CALCULATED_NET)
+        self.assertEqual(pos_sell.forward_returns[5], SELL_HAND_CALCULATED_NET)
+
+        # Verify portfolio net return equals weighted position net returns exactly
+        oracle_weighted_sum = round(
+            pos_buy.weight * BUY_HAND_CALCULATED_NET + pos_sell.weight * SELL_HAND_CALCULATED_NET,
+            6,
+        )
+        self.assertEqual(oracle_weighted_sum, PORTFOLIO_HAND_CALCULATED_NET)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], PORTFOLIO_HAND_CALCULATED_NET)
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_multi_horizon_consistency_and_missing_outcomes(self, mock_gen_rec) -> None:
+        """Validate multi-horizon consistency (5D, 10D) and ensure missing outcomes remain None."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "SELL",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        # Short dataset truncated at 54 sessions -> 5D horizon exists from session 49, but 10D horizon does NOT exist
+        df_buy_short = self.df_buy.iloc[:55].copy()
+        df_sell_short = self.df_sell.iloc[:55].copy()
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "SELL"),
+            min_history=30,
+            transaction_cost_pct=0.003,
+            slippage_pct=0.001,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={
+                "STK_BUY": df_buy_short,
+                "STK_SELL": df_sell_short,
+            },
+            config=cfg,
+            horizons=[5, 10],
+        )
+
+        # 5D outcome is available
+        self.assertTrue(eval_res.horizon_availability[5])
+        self.assertIsNotNone(eval_res.portfolio_forward_returns[5])
+
+        # 10D outcome is missing -> MUST remain None, NOT 0.0
+        self.assertFalse(eval_res.horizon_availability[10])
+        self.assertIsNone(eval_res.portfolio_forward_returns[10])
+
+    def test_cost_and_slippage_directional_monotonicity(self) -> None:
+        """Validate gross return >= slippage-adjusted return >= net return for profitable BUY and SELL trades."""
+        tc = 0.0030
+        slip = 0.0010
+
+        # Profitable BUY trade (100 -> 120): +20% gross
+        res_buy = calculate_execution_return(
+            entry_price=100.0,
+            exit_price=120.0,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+            action="BUY",
+        )
+        self.assertGreaterEqual(res_buy.gross_return, res_buy.slippage_adjusted_return)
+        self.assertGreaterEqual(res_buy.slippage_adjusted_return, res_buy.net_return)
+
+        # Profitable SELL trade (100 -> 80): +20% gross
+        res_sell = calculate_execution_return(
+            entry_price=100.0,
+            exit_price=80.0,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+            action="SELL",
+        )
+        self.assertGreaterEqual(res_sell.gross_return, res_sell.slippage_adjusted_return)
+        self.assertGreaterEqual(res_sell.slippage_adjusted_return, res_sell.net_return)
+
+    def test_cost_configuration_consistency_boundaries(self) -> None:
+        """Validate portfolio-level configuration boundary rejections for cost and slippage parameters."""
+        # Valid boundaries
+        PortfolioConfig(transaction_cost_pct=0.0, slippage_pct=0.0)
+        PortfolioConfig(transaction_cost_pct=0.003, slippage_pct=0.001)
+
+        # Reject negative transaction cost
+        with self.assertRaises(ValueError):
+            PortfolioConfig(transaction_cost_pct=-0.01)
+
+        # Reject transaction cost > 1.0
+        with self.assertRaises(ValueError):
+            PortfolioConfig(transaction_cost_pct=1.5)
+
+        # Reject NaN / Inf / Boolean transaction cost
+        with self.assertRaises(ValueError):
+            PortfolioConfig(transaction_cost_pct=float("nan"))
+        with self.assertRaises(ValueError):
+            PortfolioConfig(transaction_cost_pct=float("inf"))
+        with self.assertRaises(ValueError):
+            PortfolioConfig(transaction_cost_pct=True)  # type: ignore[arg-type]
+
+        # Reject negative slippage
+        with self.assertRaises(ValueError):
+            PortfolioConfig(slippage_pct=-0.001)
+
+        # Reject slippage > 1.0
+        with self.assertRaises(ValueError):
+            PortfolioConfig(slippage_pct=1.2)
+
+        # Reject NaN / Inf / Boolean slippage
+        with self.assertRaises(ValueError):
+            PortfolioConfig(slippage_pct=float("nan"))
+        with self.assertRaises(ValueError):
+            PortfolioConfig(slippage_pct=float("inf"))
+        with self.assertRaises(ValueError):
+            PortfolioConfig(slippage_pct=False)  # type: ignore[arg-type]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_no_double_application_of_costs_and_slippage(self, mock_gen_rec) -> None:
+        """Regression test proving costs and slippage are applied exactly once and not compounded at portfolio level."""
+
+        def side_effect(symbol, **kwargs):
+            return {
+                "action": "BUY",
+                "signal_score": 80.0,
+                "risk_adjusted_score": 80.0,
+                "confidence": 0.8,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        tc = 0.0030
+        slip = 0.0010
+
+        # Calculate single position expected return independently
+        # p_entry_exec = 100.1, p_exit_exec = 109.89
+        # net_ret = (1 - 0.0015) * (109.89 / 100.1) * (1 - 0.0015) - 1 = 0.094511
+        expected_position_net = 0.094511
+
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={"STK_BUY": self.df_buy},
+            config=cfg,
+            horizons=[5],
+        )
+
+        pos_net = eval_res.positions[0].forward_returns[5]
+        port_net = eval_res.portfolio_forward_returns[5]
+
+        # Position net return equals expected single-pass execution return
+        self.assertEqual(pos_net, expected_position_net)
+
+        # Portfolio net return equals position net return (100% allocation weight)
+        self.assertEqual(port_net, expected_position_net)
+
+        # If costs were applied twice, port_net would be roughly 0.089069.
+        # Verify it is strictly equal to single-application 0.094511.
+        self.assertNotEqual(port_net, 0.089069)
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_portfolio_weight_invariants_unaffected_by_costs(self, mock_gen_rec) -> None:
+        """Validate transaction costs/slippage do not change portfolio allocation weights."""
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "BUY",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg_zero = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
+        )
+
+        cfg_cost = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
+            transaction_cost_pct=0.005,
+            slippage_pct=0.002,
+        )
+
+        eval_zero = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={
+                "STK_BUY": self.df_buy,
+                "STK_SELL": self.df_sell,
+            },
+            config=cfg_zero,
+            horizons=[5],
+        )
+
+        eval_cost = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={
+                "STK_BUY": self.df_buy,
+                "STK_SELL": self.df_sell,
+            },
+            config=cfg_cost,
+            horizons=[5],
+        )
+
+        # Position weights are identical (0.50, 0.50) regardless of costs
+        weights_zero = [p.weight for p in eval_zero.positions]
+        weights_cost = [p.weight for p in eval_cost.positions]
+
+        self.assertEqual(weights_zero, [0.50, 0.50])
+        self.assertEqual(weights_cost, [0.50, 0.50])
+        self.assertEqual(eval_zero.allocated_weight, eval_cost.allocated_weight)
+        self.assertEqual(eval_zero.unallocated_weight, eval_cost.unallocated_weight)
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_temporal_no_lookahead_consistency(self, mock_gen_rec) -> None:
+        """Regression test: mutating future OHLCV data (> T) does not affect recommendation, entry price, or eligibility at T."""
+
+        def side_effect(symbol, **kwargs):
+            return {
+                "action": "BUY",
+                "signal_score": 80.0,
+                "risk_adjusted_score": 80.0,
+                "confidence": 0.8,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
+            transaction_cost_pct=0.003,
+            slippage_pct=0.001,
+        )
+
+        # Baseline evaluation at eval_date
+        eval1 = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={"STK_BUY": self.df_buy},
+            config=cfg,
+            horizons=[5],
+        )
+
+        # Mutate future data (> eval_date) by quadrupling prices
+        df_buy_mutated = self.df_buy.copy()
+        mask = df_buy_mutated["date"] > self.eval_date
+        df_buy_mutated.loc[mask, "close"] *= 4.0
+        df_buy_mutated.loc[mask, "open"] *= 4.0
+        df_buy_mutated.loc[mask, "high"] *= 4.0
+        df_buy_mutated.loc[mask, "low"] *= 4.0
+
+        eval2 = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map={"STK_BUY": df_buy_mutated},
+            config=cfg,
+            horizons=[5],
+        )
+
+        pos1 = eval1.positions[0]
+        pos2 = eval2.positions[0]
+
+        # Action at T is identical
+        self.assertEqual(pos1.action, pos2.action)
+
+        # Entry price at T is identical
+        self.assertEqual(pos1.entry_price, pos2.entry_price)
+
+        # Execution eligibility at T is identical
+        self.assertEqual(pos1.is_executable, pos2.is_executable)
+
+        # Portfolio allocation weight at T is identical
+        self.assertEqual(pos1.weight, pos2.weight)
+
+        # Only forward return outcome (> T) changes due to future mutation
+        self.assertNotEqual(pos1.forward_returns[5], pos2.forward_returns[5])
+
+
 if __name__ == "__main__":
     unittest.main()
