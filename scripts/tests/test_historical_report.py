@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 import pandas as pd
+
 from scripts.generate_report import (
     canonicalize_report_for_reproducibility,
     generate_historical_report,
