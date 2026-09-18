@@ -20,5 +20,6 @@ class TestDependencyVersions(unittest.TestCase):
             "vnstock version mismatch! Expected version 4.0.8 for provider compatibility.",
         )
 
+
 if __name__ == "__main__":
     unittest.main()
