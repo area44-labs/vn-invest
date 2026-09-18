@@ -289,15 +289,20 @@ def calculate_execution_return(
 
     Fail-Closed Validation:
     - Rejects non-positive prices, negative costs/slippage, NaN, Inf, non-numeric types, and booleans.
-    - Action must be one of ('BUY', 'SELL', 'HOLD', 'WATCH', 'AVOID').
+    - Action must be strictly one of ('BUY', 'SELL', 'HOLD', 'WATCH', 'AVOID').
+    - Requires explicit entry/exit costs (cost_entry_pct, cost_exit_pct) to be consistent with transaction_cost_pct:
+      if cost_entry_pct and cost_exit_pct are supplied alongside non-zero transaction_cost_pct,
+      abs(transaction_cost_pct - (cost_entry_pct + cost_exit_pct)) must be < 1e-9.
 
-    Slippage Semantics (Adverse Execution):
-    - BUY:  entry_exec = entry_price * (1 + slippage_pct), exit_exec = exit_price * (1 - slippage_pct)
-    - SELL: entry_exec = entry_price * (1 - slippage_pct), exit_exec = exit_price * (1 + slippage_pct)
+    Action Semantics:
+    - BUY / SELL: Directional executed trades. BUY applies entry markup and exit discount.
+      SELL applies entry discount and exit markup (short position strategy return matching evaluate_forward_outcomes).
+    - HOLD / WATCH / AVOID: Non-executed signals that take no market exposure. Execution prices equal reference prices,
+      and gross, slippage-adjusted, and net returns are strictly 0.0 without incurring transaction fees or slippage.
 
-    Transaction Cost Semantics:
-    - Default total transaction cost is split equally across entry and exit legs unless cost_entry_pct / cost_exit_pct are supplied.
-    - Net value return factor = (1 - cost_entry) * (exit_exec / entry_exec) * (1 - cost_exit) - 1.0 for BUY.
+    Transaction Cost Multiplicative Semantics:
+    - Default total transaction cost (transaction_cost_pct) is split 50/50 across entry and exit legs as an implementation convention.
+    - Net value return factor = (1 - cost_entry) * (exit_exec / entry_exec) * (1 - cost_exit) - 1.0 for BUY trades.
     - Zero cost and zero slippage preserves exact reference gross return.
     """
     _validate_config_number(entry_price, "entry_price", min_val=0.0, allow_zero=False)
@@ -321,8 +326,24 @@ def calculate_execution_return(
     tc = float(transaction_cost_pct)
     slip = float(slippage_pct)
 
-    c_entry = float(cost_entry_pct) if cost_entry_pct is not None else tc / 2.0
-    c_exit = float(cost_exit_pct) if cost_exit_pct is not None else tc / 2.0
+    # Validate or reconcile explicit entry/exit costs
+    if cost_entry_pct is not None and cost_exit_pct is not None:
+        c_entry = float(cost_entry_pct)
+        c_exit = float(cost_exit_pct)
+        if tc != 0.0 and abs(tc - (c_entry + c_exit)) > 1e-9:
+            raise ValueError(
+                f"Inconsistent cost configuration: transaction_cost_pct ({tc}) does not equal cost_entry_pct ({c_entry}) + cost_exit_pct ({c_exit})"
+            )
+        tc = c_entry + c_exit
+    elif cost_entry_pct is not None:
+        c_entry = float(cost_entry_pct)
+        c_exit = tc - c_entry if tc >= c_entry else 0.0
+    elif cost_exit_pct is not None:
+        c_exit = float(cost_exit_pct)
+        c_entry = tc - c_exit if tc >= c_exit else 0.0
+    else:
+        c_entry = tc / 2.0
+        c_exit = tc / 2.0
 
     if action == "BUY":
         entry_exec = round(p_entry * (1.0 + slip), 6)

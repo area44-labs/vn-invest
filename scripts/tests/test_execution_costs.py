@@ -93,6 +93,30 @@ class TestTransactionCostSemantics(unittest.TestCase):
         self.assertEqual(res_sell.gross_return, 0.10)
         self.assertEqual(res_sell.net_return, expected_sell_net)
 
+    def test_explicit_entry_exit_cost_consistency(self) -> None:
+        """Explicit entry/exit costs must match transaction_cost_pct when both are specified."""
+        # Consistent configuration succeeds and reconciles total cost
+        res = calculate_execution_return(
+            entry_price=10000.0,
+            exit_price=11000.0,
+            transaction_cost_pct=0.004,
+            cost_entry_pct=0.001,
+            cost_exit_pct=0.003,
+            action="BUY",
+        )
+        self.assertEqual(res.transaction_cost_pct, 0.004)
+
+        # Inconsistent configuration raises ValueError fail-closed
+        with self.assertRaises(ValueError):
+            calculate_execution_return(
+                entry_price=10000.0,
+                exit_price=11000.0,
+                transaction_cost_pct=0.003,
+                cost_entry_pct=0.001,
+                cost_exit_pct=0.005,  # 0.001 + 0.005 = 0.006 != 0.003
+                action="BUY",
+            )
+
     def test_case_d_invalid_transaction_cost(self) -> None:
         """Case D — Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
         # Negative cost
@@ -204,6 +228,31 @@ class TestSlippageSemantics(unittest.TestCase):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=True)  # type: ignore[arg-type]
 
 
+class TestActionSemantics(unittest.TestCase):
+    """Test suite validating action semantics in calculate_execution_return()."""
+
+    def test_non_executed_action_returns_zero(self) -> None:
+        """HOLD, WATCH, and AVOID actions yield strictly zero returns without execution costs."""
+        for non_exec_action in ("HOLD", "WATCH", "AVOID"):
+            res = calculate_execution_return(
+                entry_price=10_000.0,
+                exit_price=12_000.0,
+                transaction_cost_pct=0.003,
+                slippage_pct=0.001,
+                action=non_exec_action,
+            )
+            self.assertEqual(res.entry_exec_price, 10_000.0)
+            self.assertEqual(res.exit_exec_price, 12_000.0)
+            self.assertEqual(res.gross_return, 0.0)
+            self.assertEqual(res.slippage_adjusted_return, 0.0)
+            self.assertEqual(res.net_return, 0.0)
+
+    def test_unsupported_action_raises_value_error(self) -> None:
+        """Unsupported actions raise ValueError fail-closed."""
+        with self.assertRaises(ValueError):
+            calculate_execution_return(10000.0, 11000.0, action="INVALID_ACTION")
+
+
 class TestCostSlippageInteraction(unittest.TestCase):
     """Test suite validating interaction between transaction costs and slippage."""
 
@@ -301,6 +350,57 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
 
         self.universe = {"STKA": df_a, "STKB": df_b}
         self.eval_date = dates[49]  # 50th trading session
+
+    def test_independent_portfolio_oracle_validation(self) -> None:
+        """Independent oracle test comparing portfolio return against hand-calculated constants."""
+        # Setup: STKA has BUY action and 5D price ratio 1.02^5 = 1.1040808...
+        # STKB has BUY action (allowed_actions=("BUY",))
+        # Position weight for STKA = 0.50, Position weight for STKB = 0.50
+        # Execution parameters: slippage 0.0010 (0.1%), total transaction cost 0.0030 (0.3%, 0.15% per leg)
+
+        # Independent hand-calculation for STKA (5D price gain = 1.02^5 = 1.1040808...):
+        # Entry price P_0 = 10,000 * 1.02^49 = 26,915.88
+        # Exit price P_5 = 10,000 * 1.02^54 = 29,717.31
+        # Raw return R_raw = (P_5 / P_0) - 1.0 = 1.02^5 - 1.0 = 0.104081
+        # P_entry_exec = P_0 * 1.001
+        # P_exit_exec = P_5 * 0.999
+        # P_exit_exec / P_entry_exec = (P_5 / P_0) * (0.999 / 1.001) = 1.1040808... * 0.998001998... = 1.1018748...
+        # net_return_stka = (1 - 0.0015) * 1.1018748... * (1 - 0.0015) - 1.0 = 0.9985 * 1.1018748... * 0.9985 - 1.0 = 0.098572
+
+        # Independent hand-calculation for STKB (5D price gain = 1.01^5 = 1.051010...):
+        # Entry price P_0 = 20,000 * 1.01^49 = 32,693.30
+        # Exit price P_5 = 20,000 * 1.01^54 = 34,361.01
+        # Raw return R_raw = 1.01^5 - 1.0 = 0.051010
+        # P_exit_exec / P_entry_exec = 1.05101005... * (0.999 / 1.001) = 1.0489100...
+        # net_return_stkb = 0.9985 * 1.0489100... * 0.9985 - 1.0 = 0.045763
+
+        # Hand-calculated weighted portfolio return:
+        # STKA (BUY): weight 0.50, net return = 0.098572
+        # STKB (WATCH): weight 0.50, non-executed action WATCH -> net return = 0.0
+        # Weighted sum = 0.5 * 0.098572 + 0.5 * 0.0 = 0.049286
+        HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN = 0.049286
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "WATCH"),
+            min_history=30,
+            transaction_cost_pct=0.0030,
+            slippage_pct=0.0010,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        self.assertEqual(
+            eval_res.portfolio_forward_returns[5],
+            HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN,
+        )
 
     def test_portfolio_net_return_equals_weighted_net_position_returns(self) -> None:
         """Verify portfolio net return equals weighted sum of constituent position net returns."""
