@@ -657,8 +657,8 @@ class TestNoLookaheadAndEligibilityInteraction(unittest.TestCase):
         self.assertEqual(res.gross_return, 0.10)
 
 
-class TestPR102CostAwarePortfolioConsistency(unittest.TestCase):
-    """PR #102 Test Suite: Validation layer for cost-aware portfolio backtest consistency."""
+class TestCostAwarePortfolioConsistency(unittest.TestCase):
+    """Test suite validating layer for cost-aware portfolio backtest consistency."""
 
     def setUp(self) -> None:
         """Create synthetic data for multi-horizon and action testing."""
