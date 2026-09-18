@@ -590,26 +590,31 @@ def evaluate_portfolio_at_date(
             action=cand["action"],
         )
 
-        # Apply cost and slippage adjustments if configured
+        # Apply cost and slippage adjustments action-aware
         adjusted_returns: dict[int, float | None] = {}
-        if config.transaction_cost_pct > 0.0 or config.slippage_pct > 0.0:
-            p_entry = cand["entry_price"]
-            for h in horizons:
-                raw_ret = outcome.returns.get(h)
-                if raw_ret is not None and p_entry is not None and p_entry > 0:
-                    p_exit = p_entry * (1.0 + raw_ret)
-                    exec_res = calculate_execution_return(
-                        entry_price=p_entry,
-                        exit_price=p_exit,
-                        transaction_cost_pct=config.transaction_cost_pct,
-                        slippage_pct=config.slippage_pct,
-                        action=cand["action"],
-                    )
-                    adjusted_returns[h] = exec_res.net_return
+        p_entry = cand["entry_price"]
+        action = cand["action"]
+
+        for h in horizons:
+            strat_ret = outcome.strategy_returns.get(h)
+            if strat_ret is not None and p_entry is not None and p_entry > 0:
+                if action == "BUY":
+                    p_exit = p_entry * (1.0 + strat_ret)
+                elif action == "SELL":
+                    p_exit = p_entry * (1.0 - strat_ret)
                 else:
-                    adjusted_returns[h] = None
-        else:
-            adjusted_returns = outcome.returns
+                    p_exit = p_entry
+
+                exec_res = calculate_execution_return(
+                    entry_price=p_entry,
+                    exit_price=p_exit,
+                    transaction_cost_pct=config.transaction_cost_pct,
+                    slippage_pct=config.slippage_pct,
+                    action=action,
+                )
+                adjusted_returns[h] = exec_res.net_return
+            else:
+                adjusted_returns[h] = None
 
         pos = PortfolioPosition(
             symbol=sym,

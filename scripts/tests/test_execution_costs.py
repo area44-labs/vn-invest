@@ -6,6 +6,7 @@ and portfolio-level returns after costs in the backtesting framework.
 """
 
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -351,33 +352,44 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
         self.universe = {"STKA": df_a, "STKB": df_b}
         self.eval_date = dates[49]  # 50th trading session
 
-    def test_independent_portfolio_oracle_validation(self) -> None:
-        """Independent oracle test comparing portfolio return against hand-calculated constants."""
-        # Setup: STKA has BUY action and 5D price ratio 1.02^5 = 1.1040808...
-        # STKB has BUY action (allowed_actions=("BUY",))
-        # Position weight for STKA = 0.50, Position weight for STKB = 0.50
-        # Execution parameters: slippage 0.0010 (0.1%), total transaction cost 0.0030 (0.3%, 0.15% per leg)
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_independent_portfolio_oracle_validation(self, mock_gen_rec) -> None:
+        """Independent oracle test comparing portfolio return against hand-calculated constants with mock action controls."""
 
-        # Independent hand-calculation for STKA (5D price gain = 1.02^5 = 1.1040808...):
-        # Entry price P_0 = 10,000 * 1.02^49 = 26,915.88
-        # Exit price P_5 = 10,000 * 1.02^54 = 29,717.31
-        # Raw return R_raw = (P_5 / P_0) - 1.0 = 1.02^5 - 1.0 = 0.104081
-        # P_entry_exec = P_0 * 1.001
-        # P_exit_exec = P_5 * 0.999
-        # P_exit_exec / P_entry_exec = (P_5 / P_0) * (0.999 / 1.001) = 1.1040808... * 0.998001998... = 1.1018748...
-        # net_return_stka = (1 - 0.0015) * 1.1018748... * (1 - 0.0015) - 1.0 = 0.9985 * 1.1018748... * 0.9985 - 1.0 = 0.098572
+        # Deterministic mock recommendation responses:
+        # STKA -> Action: BUY, Signal Score: 80.0, Confidence: 0.8, Price: 26,915.88
+        # STKB -> Action: WATCH, Signal Score: 40.0, Confidence: 0.5, Price: 32,693.30
+        def side_effect(symbol, **kwargs):
+            if symbol == "STKA":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 26915.88},
+                }
+            return {
+                "action": "WATCH",
+                "signal_score": 40.0,
+                "risk_adjusted_score": 40.0,
+                "confidence": 0.5,
+                "trade_plan": {"current_price": 32693.30},
+            }
 
-        # Independent hand-calculation for STKB (5D price gain = 1.01^5 = 1.051010...):
-        # Entry price P_0 = 20,000 * 1.01^49 = 32,693.30
-        # Exit price P_5 = 20,000 * 1.01^54 = 34,361.01
-        # Raw return R_raw = 1.01^5 - 1.0 = 0.051010
-        # P_exit_exec / P_entry_exec = 1.05101005... * (0.999 / 1.001) = 1.0489100...
-        # net_return_stkb = 0.9985 * 1.0489100... * 0.9985 - 1.0 = 0.045763
+        mock_gen_rec.side_effect = side_effect
 
-        # Hand-calculated weighted portfolio return:
-        # STKA (BUY): weight 0.50, net return = 0.098572
-        # STKB (WATCH): weight 0.50, non-executed action WATCH -> net return = 0.0
-        # Weighted sum = 0.5 * 0.098572 + 0.5 * 0.0 = 0.049286
+        # Independent hand-calculation for STKA (BUY):
+        # Entry P_0 = 26,915.88, Exit P_5 = 26,915.88 * 1.02^5 = 29,717.3082
+        # Strategy return = +0.104081
+        # P_entry_exec = 26,915.88 * 1.001 = 26,942.79588
+        # P_exit_exec = 29,717.3082 * 0.999 = 29,687.59089
+        # net_return_stka = (1 - 0.0015) * (29,687.59089 / 26,942.79588) * (1 - 0.0015) - 1 = 0.098572
+
+        # Independent hand-calculation for STKB (WATCH):
+        # Action WATCH -> non-executed trade -> net_return_stkb = 0.0
+
+        # Equal weighting (0.50 each):
+        # Hand-calculated weighted portfolio return = 0.5 * 0.098572 + 0.5 * 0.0 = 0.049286
         HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN = 0.049286
 
         cfg = PortfolioConfig(
@@ -396,6 +408,12 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
             config=cfg,
             horizons=[5],
         )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        self.assertEqual(eval_res.positions[0].symbol, "STKA")
+        self.assertEqual(eval_res.positions[0].action, "BUY")
+        self.assertEqual(eval_res.positions[1].symbol, "STKB")
+        self.assertEqual(eval_res.positions[1].action, "WATCH")
 
         self.assertEqual(
             eval_res.portfolio_forward_returns[5],
@@ -472,6 +490,133 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
         self.assertLess(
             eval_res_cost.portfolio_forward_returns[5],
             eval_res_zero.portfolio_forward_returns[5],
+        )
+
+
+class TestSellExitPriceReconstructionAndPortfolioCoverage(unittest.TestCase):
+    """Test suite validating SELL exit price reconstruction and explicit BUY + SELL portfolio coverage."""
+
+    def test_sell_exit_price_reconstruction_from_100_to_90(self) -> None:
+        """Regression test: SELL trade with entry=100 and exit=90 reconstructs exit price as 90 (never 110)."""
+        entry_price = 100.0
+        exit_price = 90.0
+        tc = 0.0030
+        slip = 0.0010
+
+        # Directional strategy return for SELL when price drops 100 -> 90 is +10.0% (+0.10)
+        # Verify calculate_execution_return with action="SELL" and reference exit price 90.0
+        res = calculate_execution_return(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+            action="SELL",
+        )
+
+        # Reconstructed reference exit price must equal 90.0
+        self.assertEqual(res.entry_price, 100.0)
+        self.assertEqual(res.exit_price, 90.0)
+
+        # Execution entry price with SELL discount: 100.0 * (1 - 0.001) = 99.90
+        # Execution exit price with SELL markup: 90.0 * (1 + 0.001) = 90.09
+        self.assertEqual(res.entry_exec_price, 99.90)
+        self.assertEqual(res.exit_exec_price, 90.09)
+
+        # Gross return for SELL: 1.0 - (90 / 100) = +0.10
+        self.assertEqual(res.gross_return, 0.10)
+
+        # Slippage-adjusted return for SELL: 1.0 - (90.09 / 99.90) = 1 - 0.9018018... = +0.098198
+        self.assertEqual(res.slippage_adjusted_return, 0.098198)
+
+        # Net return after 0.15% entry and 0.15% exit transaction costs:
+        # factor = (1 - 0.0015) * (1 + 0.098198198...) * (1 - 0.0015) - 1.0 = 0.094906
+        self.assertEqual(res.net_return, 0.094906)
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_combined_buy_and_sell_portfolio_execution(self, mock_gen_rec) -> None:
+        """Verify combined BUY and SELL positions in portfolio backtest use correct exit prices and net returns."""
+        dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+
+        # Stock BUY (100 -> 110 at session 50)
+        prices_buy = [100.0] * 50 + [110.0] * 10
+        df_buy = pd.DataFrame(
+            {
+                "date": dates,
+                "open": prices_buy,
+                "high": prices_buy,
+                "low": prices_buy,
+                "close": prices_buy,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        # Stock SELL (100 -> 90 at session 50)
+        prices_sell = [100.0] * 50 + [90.0] * 10
+        df_sell = pd.DataFrame(
+            {
+                "date": dates,
+                "open": prices_sell,
+                "high": prices_sell,
+                "low": prices_sell,
+                "close": prices_sell,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        universe = {"STK_BUY": df_buy, "STK_SELL": df_sell}
+        eval_date = dates[49]  # 50th trading session
+
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "SELL",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.7,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "SELL"),
+            min_history=30,
+            transaction_cost_pct=0.0030,
+            slippage_pct=0.0010,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_date,
+            universe_stock_map=universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        pos_buy = [p for p in eval_res.positions if p.symbol == "STK_BUY"][0]
+        pos_sell = [p for p in eval_res.positions if p.symbol == "STK_SELL"][0]
+
+        # Verify net return of BUY position: 0.094511
+        self.assertEqual(pos_buy.forward_returns[5], 0.094511)
+
+        # Verify net return of SELL position: 0.094906
+        self.assertEqual(pos_sell.forward_returns[5], 0.094906)
+
+        # Hand-calculated oracle weighted net return:
+        # 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round to 6 decimals = 0.094709
+        HAND_CALCULATED_COMBINED_ORACLE_RETURN = 0.094709
+        self.assertEqual(
+            eval_res.portfolio_forward_returns[5], HAND_CALCULATED_COMBINED_ORACLE_RETURN
         )
 
 
