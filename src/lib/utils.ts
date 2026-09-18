@@ -1,1 +1,1 @@
-import { clsx, twMerge } from "cn";
+export { cn } from "cn";
