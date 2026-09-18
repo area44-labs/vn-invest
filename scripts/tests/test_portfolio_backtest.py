@@ -2433,7 +2433,17 @@ class TestPortfolioDeterminismAndStateIsolation(unittest.TestCase):
             pd.testing.assert_frame_equal(df_orig, stock_snapshots[sym], check_exact=True)
 
     def test_3_configuration_immutability(self) -> None:
-        """Requirement 3: Verify PortfolioConfig is not mutated after running backtest."""
+        """Requirement 3: Verify PortfolioConfig is not mutated after running backtest, including nested execution_config."""
+        from copy import deepcopy
+
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=2.0,
+            min_avg_volume=60000.0,
+            min_price=10000.0,
+            max_participation_rate=0.05,
+            lookback_window=15,
+        )
+
         cfg = PortfolioConfig(
             max_positions=3,
             min_signal_score=45.0,
@@ -2442,23 +2452,13 @@ class TestPortfolioDeterminismAndStateIsolation(unittest.TestCase):
             max_weight_per_position=0.30,
             min_history=40,
             require_executable=False,
+            execution_config=exec_cfg,
             transaction_cost_pct=0.002,
             slippage_pct=0.001,
         )
 
-        # Snapshot config fields
-        config_snapshot = {
-            "max_positions": cfg.max_positions,
-            "min_signal_score": cfg.min_signal_score,
-            "min_confidence": cfg.min_confidence,
-            "allowed_actions": cfg.allowed_actions,
-            "max_weight_per_position": cfg.max_weight_per_position,
-            "min_history": cfg.min_history,
-            "require_executable": cfg.require_executable,
-            "transaction_cost_pct": cfg.transaction_cost_pct,
-            "slippage_pct": cfg.slippage_pct,
-            "execution_config": cfg.execution_config,
-        }
+        # Independent deep snapshot of entire configuration state
+        cfg_snapshot = deepcopy(cfg)
 
         run_portfolio_backtest(
             evaluation_dates=self.eval_dates,
@@ -2468,16 +2468,43 @@ class TestPortfolioDeterminismAndStateIsolation(unittest.TestCase):
             df_vn30=self.df_vn30,
         )
 
-        self.assertEqual(cfg.max_positions, config_snapshot["max_positions"])
-        self.assertEqual(cfg.min_signal_score, config_snapshot["min_signal_score"])
-        self.assertEqual(cfg.min_confidence, config_snapshot["min_confidence"])
-        self.assertEqual(cfg.allowed_actions, config_snapshot["allowed_actions"])
-        self.assertEqual(cfg.max_weight_per_position, config_snapshot["max_weight_per_position"])
-        self.assertEqual(cfg.min_history, config_snapshot["min_history"])
-        self.assertEqual(cfg.require_executable, config_snapshot["require_executable"])
-        self.assertEqual(cfg.transaction_cost_pct, config_snapshot["transaction_cost_pct"])
-        self.assertEqual(cfg.slippage_pct, config_snapshot["slippage_pct"])
-        self.assertEqual(cfg.execution_config, config_snapshot["execution_config"])
+        # Assert all fields remain unmutated compared to independent deep snapshot
+        self.assertEqual(cfg.max_positions, cfg_snapshot.max_positions)
+        self.assertEqual(cfg.min_signal_score, cfg_snapshot.min_signal_score)
+        self.assertEqual(cfg.min_confidence, cfg_snapshot.min_confidence)
+        self.assertEqual(cfg.allowed_actions, cfg_snapshot.allowed_actions)
+        self.assertEqual(cfg.max_weight_per_position, cfg_snapshot.max_weight_per_position)
+        self.assertEqual(cfg.min_history, cfg_snapshot.min_history)
+        self.assertEqual(cfg.require_executable, cfg_snapshot.require_executable)
+        self.assertEqual(cfg.transaction_cost_pct, cfg_snapshot.transaction_cost_pct)
+        self.assertEqual(cfg.slippage_pct, cfg_snapshot.slippage_pct)
+
+        # Assert nested execution_config fields are unmutated and match deep snapshot
+        self.assertIsNotNone(cfg.execution_config)
+        self.assertIsNotNone(cfg_snapshot.execution_config)
+        self.assertIsNot(
+            cfg.execution_config, cfg_snapshot.execution_config
+        )  # Ensure independent object
+        self.assertEqual(
+            cfg.execution_config.min_avg_traded_value_bn,
+            cfg_snapshot.execution_config.min_avg_traded_value_bn,
+        )
+        self.assertEqual(
+            cfg.execution_config.min_avg_volume,
+            cfg_snapshot.execution_config.min_avg_volume,
+        )
+        self.assertEqual(
+            cfg.execution_config.min_price,
+            cfg_snapshot.execution_config.min_price,
+        )
+        self.assertEqual(
+            cfg.execution_config.max_participation_rate,
+            cfg_snapshot.execution_config.max_participation_rate,
+        )
+        self.assertEqual(
+            cfg.execution_config.lookback_window,
+            cfg_snapshot.execution_config.lookback_window,
+        )
 
     def test_4_universe_ordering_independence(self) -> None:
         """Requirement 4: Verify dictionary insertion order of universe symbols does not alter quantitative results."""
