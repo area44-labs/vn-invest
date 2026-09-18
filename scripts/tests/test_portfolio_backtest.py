@@ -1336,8 +1336,8 @@ class TestZeroReturnPositions(unittest.TestCase):
 
         # SELL flat trade: entry=100, exit=100
         # gross return = 0.0
-        # net_return = (1 - 0.0015) * (100.1 / 99.9) * (1 - 0.0015) - 1 = -0.001002
-        self.assertEqual(pos_sell.forward_returns[5], -0.001002)
+        # net_return = (1 - 0.0015) * (1 + (1 - 100.1 / 99.9)) * (1 - 0.0015) - 1 = -0.004994
+        self.assertEqual(pos_sell.forward_returns[5], -0.004994)
 
         # WATCH flat trade:
         # gross return = 0.0, net return = 0.0
