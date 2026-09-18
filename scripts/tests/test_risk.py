@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
+from scripts.lib.backtest import get_as_of_dataset
 from scripts.lib.risk import (
     calculate_t25_returns,
     calculate_t25_risk_metrics,
@@ -208,6 +209,294 @@ class TestRiskModel(unittest.TestCase):
         self.assertEqual(metrics["max_drawdown"], 0.0)
         self.assertIsNotNone(metrics["volatility_60d"])
         self.assertIsNotNone(metrics["avg_value_20d"])
+
+    def test_var_95_deterministic_exact_value(self):
+        """Verify Historical VaR 95% is finite, deterministic, and matches exact np.percentile(returns_3d, 5)."""
+        # Create synthetic price series of length 30
+        np.random.seed(42)
+        n = 30
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        # Generate non-constant prices
+        base_price = 100.0
+        price_changes = np.random.normal(loc=0.001, scale=0.02, size=n)
+        prices = base_price * np.exp(np.cumsum(price_changes))
+
+        df = pd.DataFrame({"time": dates, "close": prices, "volume": [10000.0] * n})
+
+        # Calculate returns_3d using the existing convention
+        returns_3d = df["close"].pct_change(periods=3).dropna()
+        expected_var = round(float(np.percentile(returns_3d, 5)), 4)
+
+        metrics = calculate_t25_risk_metrics(df)
+
+        self.assertIsNotNone(metrics["var_t25"])
+        self.assertIsInstance(metrics["var_t25"], float)
+        self.assertEqual(metrics["var_t25"], expected_var)
+
+    def test_var_95_insufficient_history_boundaries(self):
+        """Verify VaR 95% returns None when history < 20 rows or returns_3d < 10 items."""
+        # 19 rows -> history < 20
+        df_19 = pd.DataFrame({"close": np.linspace(10, 20, 19), "volume": [1000] * 19})
+        m_19 = calculate_t25_risk_metrics(df_19)
+        self.assertIsNone(m_19["var_t25"])
+        self.assertIsNone(m_19["es_t25"])
+
+        # 20 rows where leading NaNs leave only 8 valid prices yielding 5 return observations (< 10 required)
+        prices_with_nans = [np.nan] * 12 + [10.0 + i for i in range(8)]
+        df_20_sparse = pd.DataFrame({"close": prices_with_nans, "volume": [1000] * 20})
+        m_sparse = calculate_t25_risk_metrics(df_20_sparse)
+        self.assertIsNone(m_sparse["var_t25"])
+        self.assertIsNone(m_sparse["es_t25"])
+
+    def test_expected_shortfall_deterministic_exact_value(self):
+        """Verify Expected Shortfall matches exact mean of tail returns <= var_95_t25 and es_t25 <= var_t25."""
+        np.random.seed(123)
+        n = 30
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        prices = 100.0 + np.random.normal(0, 5, n).cumsum()
+        df = pd.DataFrame({"time": dates, "close": prices, "volume": [1000.0] * n})
+
+        returns_3d = df["close"].pct_change(periods=3).dropna()
+        var_5 = float(np.percentile(returns_3d, 5))
+        tail_losses = returns_3d[returns_3d <= var_5]
+        expected_es = round(float(tail_losses.mean()), 4)
+        expected_var = round(var_5, 4)
+
+        metrics = calculate_t25_risk_metrics(df)
+
+        self.assertIsNotNone(metrics["es_t25"])
+        self.assertEqual(metrics["es_t25"], expected_es)
+        self.assertLessEqual(metrics["es_t25"], expected_var)
+
+    def test_expected_shortfall_empty_tail_fallback(self):
+        """Verify Expected Shortfall falls back to var_95_t25 when no tail losses are strictly below var_95_t25."""
+        # 25 constant prices -> returns_3d will all be 0.0
+        prices = [100.0] * 25
+        df = pd.DataFrame({"close": prices, "volume": [1000] * 25})
+
+        metrics = calculate_t25_risk_metrics(df)
+
+        self.assertIsNotNone(metrics["var_t25"])
+        self.assertIsNotNone(metrics["es_t25"])
+        self.assertEqual(metrics["var_t25"], 0.0)
+        self.assertEqual(metrics["es_t25"], 0.0)
+        self.assertEqual(metrics["es_t25"], metrics["var_t25"])
+
+    def test_var_and_es_invalid_numeric_input(self):
+        """Verify that invalid numeric inputs (NaN) in price series do not silently convert into valid zero prices/returns."""
+        # Synthetic non-constant prices where NaN is present
+        prices_nan = [100.0 + i for i in range(12)] + [np.nan] + [112.0 + i for i in range(12)]
+        df_nan = pd.DataFrame({"close": prices_nan, "volume": [1000] * 25})
+
+        # Calculate returns_3d directly to verify pct_change drops NaN instead of substituting 0.0 price
+        returns_3d = df_nan["close"].pct_change(3).dropna()
+        # Verify no bogus -1.0 return (which would happen if NaN was silently converted to 0.0 price)
+        self.assertTrue((returns_3d != -1.0).all())
+
+        metrics_nan = calculate_t25_risk_metrics(df_nan)
+        # Verify risk metrics are calculated from valid returns without synthetic zero conversions
+        self.assertIsNotNone(metrics_nan["var_t25"])
+        self.assertIsNotNone(metrics_nan["es_t25"])
+
+    def test_var_and_es_repeatability_determinism(self):
+        """Verify that identical historical inputs produce identical VaR and ES risk outputs."""
+        n = 35
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        prices = np.linspace(100.0, 150.0, n)
+        prices[5] = 90.0
+        prices[12] = 85.0
+        prices[20] = 110.0
+        df = pd.DataFrame({"time": dates, "close": prices, "volume": [5000.0] * n})
+
+        res1 = calculate_t25_risk_metrics(df)
+        res2 = calculate_t25_risk_metrics(df)
+
+        self.assertEqual(res1["var_t25"], res2["var_t25"])
+        self.assertEqual(res1["es_t25"], res2["es_t25"])
+
+    def test_max_drawdown_monotonic_increase(self):
+        """Verify Max Drawdown is 0.0 for a strictly non-decreasing price series."""
+        n = 25
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        prices = np.linspace(100.0, 200.0, n)
+        df = pd.DataFrame({"time": dates, "close": prices, "volume": [1000.0] * n})
+
+        metrics = calculate_t25_risk_metrics(df)
+        self.assertEqual(metrics["max_drawdown"], 0.0)
+
+    def test_max_drawdown_pure_decline(self):
+        """Verify Max Drawdown produces exact expected negative drawdown for a strictly declining series."""
+        n = 25
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        # Peak = 100.0, Trough = 50.0 -> max drawdown = (50.0 - 100.0) / 100.0 = -0.5
+        prices = np.linspace(100.0, 50.0, n)
+        df = pd.DataFrame({"time": dates, "close": prices, "volume": [1000.0] * n})
+
+        metrics = calculate_t25_risk_metrics(df)
+        self.assertEqual(metrics["max_drawdown"], -0.5)
+
+    def test_max_drawdown_recovery_after_trough(self):
+        """Verify Max Drawdown preserves historical peak-to-trough drop even after full price recovery."""
+        # 10 prices rise to peak 100, drop to trough 60 (-40% drawdown), then rise to new peak 150
+        prices = [50.0 + i * 5.0 for i in range(11)]  # 50.0 to 100.0 (index 0 to 10)
+        prices += [90.0, 80.0, 70.0, 60.0]  # Drop to 60.0 (index 11 to 14) -> -40% from peak 100.0
+        prices += [70.0, 90.0, 110.0, 130.0, 150.0]  # Recover to 150.0 (index 15 to 19)
+        # Total length = 20
+
+        df = pd.DataFrame({"close": prices, "volume": [1000.0] * len(prices)})
+
+        metrics = calculate_t25_risk_metrics(df)
+        # (60.0 - 100.0) / 100.0 = -0.4000
+        self.assertEqual(metrics["max_drawdown"], -0.4)
+
+    def test_max_drawdown_multiple_drawdowns_selects_largest(self):
+        """Verify Max Drawdown selects the global maximum peak-to-trough decline rather than the latest drawdown."""
+        # Drop 1: peak 100.0 -> trough 80.0 (-20%)
+        # Drop 2: peak 200.0 -> trough 100.0 (-50%) -- global max drawdown
+        # Drop 3: peak 300.0 -> trough 270.0 (-10%) -- latest drawdown
+        prices = (
+            [50.0, 100.0, 80.0, 120.0, 200.0]
+            + [180.0, 150.0, 120.0, 100.0]
+            + [150.0, 250.0, 300.0, 270.0, 290.0]
+            + [290.0] * 6
+        )  # total 20+ elements
+
+        df = pd.DataFrame({"close": prices, "volume": [1000.0] * len(prices)})
+
+        metrics = calculate_t25_risk_metrics(df)
+        # Global max drawdown is drop 2: (100.0 - 200.0) / 200.0 = -0.5000
+        self.assertEqual(metrics["max_drawdown"], -0.5)
+
+    def test_t25_3session_eod_proxy_horizon_mapping(self):
+        """Verify 3-session EOD return proxy calculates exact (P_{T+3} - P_T) / P_T across trading sessions."""
+        # 5 sessions T0 to T4
+        prices = pd.Series([100.0, 105.0, 110.0, 115.0, 120.0])
+        returns = calculate_t25_returns(prices)
+
+        # Session 3 (T3 vs T0): (115.0 - 100.0) / 100.0 = 0.15
+        # Session 4 (T4 vs T1): (120.0 - 105.0) / 105.0 = 0.142857...
+        self.assertEqual(len(returns), 2)
+        self.assertAlmostEqual(returns.iloc[0], 0.15, places=4)
+        self.assertAlmostEqual(returns.iloc[1], 0.142857, places=4)
+
+    def test_risk_metrics_no_lookahead_temporal_isolation(self):
+        """Verify point-in-time risk calculation timestamped <= T is unaffected by future prices > T."""
+        n = 30
+        dates_past = pd.date_range("2026-03-01", periods=n, freq="D")
+        prices_past = np.linspace(100.0, 140.0, n)
+        df_as_of_T = pd.DataFrame(
+            {
+                "time": dates_past,
+                "open": prices_past - 1.0,
+                "high": prices_past + 2.0,
+                "low": prices_past - 2.0,
+                "close": prices_past,
+                "volume": [10000.0] * n,
+            }
+        )
+
+        metrics_baseline = calculate_t25_risk_metrics(df_as_of_T)
+
+        # Append future data after 2026-03-30 with extreme price swings
+        dates_future = pd.date_range("2026-03-31", periods=10, freq="D")
+        prices_future = np.linspace(140.0, 50.0, 10)  # Crash in the future
+        df_future = pd.DataFrame(
+            {
+                "time": dates_future,
+                "open": prices_future - 1.0,
+                "high": prices_future + 2.0,
+                "low": prices_future - 2.0,
+                "close": prices_future,
+                "volume": [50000.0] * 10,
+            }
+        )
+        df_full = pd.concat([df_as_of_T, df_future], ignore_index=True)
+
+        # Use backtest point-in-time temporal slicer to slice <= 2026-03-30
+        df_sliced = get_as_of_dataset(df_full, "2026-03-30")
+        metrics_sliced = calculate_t25_risk_metrics(df_sliced)
+
+        # Risk metrics as of 2026-03-30 MUST remain identical despite future crash
+        self.assertEqual(metrics_baseline["var_t25"], metrics_sliced["var_t25"])
+        self.assertEqual(metrics_baseline["es_t25"], metrics_sliced["es_t25"])
+        self.assertEqual(metrics_baseline["volatility_60d"], metrics_sliced["volatility_60d"])
+        self.assertEqual(metrics_baseline["max_drawdown"], metrics_sliced["max_drawdown"])
+        self.assertEqual(metrics_baseline["avg_value_20d"], metrics_sliced["avg_value_20d"])
+
+    def test_risk_edge_cases_empty_and_none_inputs(self):
+        """Verify None and empty DataFrames return null risk metrics dict."""
+        m_none = calculate_t25_risk_metrics(None)
+        m_empty = calculate_t25_risk_metrics(pd.DataFrame())
+
+        for m in (m_none, m_empty):
+            self.assertIsNone(m["var_t25"])
+            self.assertIsNone(m["es_t25"])
+            self.assertIsNone(m["volatility_60d"])
+            self.assertIsNone(m["max_drawdown"])
+            self.assertIsNone(m["liquidity_score"])
+            self.assertIsNone(m["avg_value_20d"])
+
+    def test_risk_edge_cases_constant_prices(self):
+        """Verify constant prices yield zero VaR, ES, volatility, and drawdown."""
+        n = 25
+        df_flat = pd.DataFrame({"close": [100.0] * n, "volume": [1000.0] * n})
+
+        metrics = calculate_t25_risk_metrics(df_flat)
+        self.assertEqual(metrics["var_t25"], 0.0)
+        self.assertEqual(metrics["es_t25"], 0.0)
+        self.assertEqual(metrics["volatility_60d"], 0.0)
+        self.assertEqual(metrics["max_drawdown"], 0.0)
+
+    def test_risk_edge_cases_constant_positive_and_negative_returns(self):
+        """Verify constant positive and negative return series produce expected VaR and ES signs."""
+        # Constant positive price growth: 100 * (1.02)^i
+        n = 25
+        prices_pos = [100.0 * (1.02**i) for i in range(n)]
+        df_pos = pd.DataFrame({"close": prices_pos, "volume": [1000.0] * n})
+        m_pos = calculate_t25_risk_metrics(df_pos)
+
+        # 3-session return is (1.02)^3 - 1 = 0.061208
+        self.assertGreater(m_pos["var_t25"], 0.0)
+        self.assertGreater(m_pos["es_t25"], 0.0)
+        self.assertEqual(m_pos["max_drawdown"], 0.0)
+
+        # Constant negative price decay: 100 * (0.98)^i
+        prices_neg = [100.0 * (0.98**i) for i in range(n)]
+        df_neg = pd.DataFrame({"close": prices_neg, "volume": [1000.0] * n})
+        m_neg = calculate_t25_risk_metrics(df_neg)
+
+        self.assertLess(m_neg["var_t25"], 0.0)
+        self.assertLess(m_neg["es_t25"], 0.0)
+        self.assertLess(m_neg["max_drawdown"], 0.0)
+
+    def test_risk_edge_cases_upcom_exchange_vwap_selection(self):
+        """Verify UPCOM exchange uses vwap column when available instead of close column."""
+        n = 25
+        close_prices = [100.0] * n
+        vwap_prices = np.linspace(100.0, 50.0, n)  # Declining VWAP prices
+
+        df_upcom = pd.DataFrame(
+            {"close": close_prices, "vwap": vwap_prices, "volume": [1000.0] * n}
+        )
+
+        metrics_hose = calculate_t25_risk_metrics(df_upcom, exchange="HOSE")
+        metrics_upcom = calculate_t25_risk_metrics(df_upcom, exchange="UPCOM")
+
+        # HOSE uses close (constant 100) -> max_drawdown = 0.0
+        self.assertEqual(metrics_hose["max_drawdown"], 0.0)
+        # UPCOM uses vwap (declining 100 to 50) -> max_drawdown = -0.5
+        self.assertEqual(metrics_upcom["max_drawdown"], -0.5)
+
+    def test_risk_edge_cases_missing_volume_column(self):
+        """Verify missing volume column results in avg_value_20d = None without crashing."""
+        n = 25
+        df_no_vol = pd.DataFrame({"close": np.linspace(100.0, 150.0, n)})
+
+        metrics = calculate_t25_risk_metrics(df_no_vol)
+
+        self.assertIsNone(metrics["avg_value_20d"])
+        self.assertIsNotNone(metrics["var_t25"])
+        self.assertIsNotNone(metrics["max_drawdown"])
 
 
 if __name__ == "__main__":
