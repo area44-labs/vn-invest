@@ -6,6 +6,7 @@ and portfolio-level returns after costs in the backtesting framework.
 """
 
 import unittest
+
 import pandas as pd
 
 from scripts.lib.backtest import (
