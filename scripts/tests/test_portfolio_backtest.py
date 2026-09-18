@@ -469,9 +469,21 @@ class TestPortfolioConstruction(unittest.TestCase):
 
     def test_execution_semantics_consistency_with_single_trade_backtest(self) -> None:
         """Verify portfolio backtest enforces same execution eligibility rules as single-trade backtest."""
-        # LOW1 has volume below min, HIGH1 has volume above min
-        df_low = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 1000.0)
-        df_high = create_synthetic_ohlcv("2024-01-01", 100, 50000.0, 100.0, 100000.0)
+        # LOW1 has volume below min and traded value below min; HIGH1 satisfies all liquidity thresholds
+        df_low = create_synthetic_ohlcv(
+            start_date="2024-01-01",
+            num_days=100,
+            base_price=10000.0,
+            daily_trend=10.0,
+            vol_base=1000.0,
+        )
+        df_high = create_synthetic_ohlcv(
+            start_date="2024-01-01",
+            num_days=100,
+            base_price=50000.0,
+            daily_trend=10.0,
+            vol_base=100000.0,
+        )
         universe = {"LOW1": df_low, "HIGH1": df_high}
 
         exec_cfg = ExecutionConfig(

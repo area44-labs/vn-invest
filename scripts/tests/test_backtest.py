@@ -1687,9 +1687,11 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
             evaluate_execution_eligibility(df_no_vol, eval_d, ExecutionConfig())
 
     def test_exec_zero_or_negative_price_or_volume_liquidity_rejection(self):
-        """Test zero or negative close price / volume triggers zero_or_negative_liquidity reason."""
+        """Test zero or negative close price / volume triggers zero_or_negative_liquidity reason or validation rejection."""
         dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
-        # 0 volume
+        eval_d = dates[-1]
+
+        # 1. Zero volume -> STATUS_NOT_EXECUTABLE with REASON_ZERO_OR_NEGATIVE_LIQUIDITY
         df_zero_vol = pd.DataFrame(
             {
                 "date": dates,
@@ -1700,12 +1702,52 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
                 "volume": [0.0] * 20,
             }
         )
-        eval_d = dates[-1]
-
         elig = evaluate_execution_eligibility(df_zero_vol, eval_d, ExecutionConfig())
         self.assertFalse(elig.is_executable)
         self.assertEqual(elig.status, STATUS_NOT_EXECUTABLE)
         self.assertIn("zero_or_negative_liquidity", elig.reasons)
+
+        # 2. Zero close price -> rejected at validation boundary with ValueError
+        df_zero_price = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [0.0] * 20,
+                "close": [0.0] * 20,
+                "volume": [100000.0] * 20,
+            }
+        )
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_zero_price, eval_d, ExecutionConfig())
+
+        # 3. Negative close price -> rejected at validation boundary with ValueError
+        df_neg_price = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [-100.0] * 20,
+                "close": [-100.0] * 20,
+                "volume": [100000.0] * 20,
+            }
+        )
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_neg_price, eval_d, ExecutionConfig())
+
+        # 4. Negative volume -> rejected at validation boundary with ValueError
+        df_neg_vol = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [10000.0] * 20,
+                "close": [10000.0] * 20,
+                "volume": [-500.0] * 20,
+            }
+        )
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_neg_vol, eval_d, ExecutionConfig())
 
     def test_exec_denominator_semantics_and_status_distinction(self):
         """Test denominator semantics: execution_evaluated_points vs total_signals, and explicit status counts."""
