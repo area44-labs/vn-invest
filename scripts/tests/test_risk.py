@@ -268,8 +268,8 @@ class TestRiskModel(unittest.TestCase):
         self.assertEqual(metrics["es_t25"], expected_es)
         self.assertLessEqual(metrics["es_t25"], expected_var)
 
-    def test_expected_shortfall_empty_tail_fallback(self):
-        """Verify Expected Shortfall falls back to var_95_t25 when no tail losses are strictly below var_95_t25."""
+    def test_expected_shortfall_constant_returns_equals_var(self):
+        """Verify that for constant return series, Expected Shortfall equals Historical VaR 95%."""
         # 25 constant prices -> returns_3d will all be 0.0
         prices = [100.0] * 25
         df = pd.DataFrame({"close": prices, "volume": [1000] * 25})
@@ -283,20 +283,29 @@ class TestRiskModel(unittest.TestCase):
         self.assertEqual(metrics["es_t25"], metrics["var_t25"])
 
     def test_var_and_es_invalid_numeric_input(self):
-        """Verify that invalid numeric inputs (NaN) in price series do not silently convert into valid zero prices/returns."""
-        # Synthetic non-constant prices where NaN is present
-        prices_nan = [100.0 + i for i in range(12)] + [np.nan] + [112.0 + i for i in range(12)]
-        df_nan = pd.DataFrame({"close": prices_nan, "volume": [1000] * 25})
+        """Verify that NaN prices in input Series are filtered by dropna() and risk metrics equal exact calculations on remaining valid returns."""
+        # 25 rows with 3 leading NaNs followed by 22 valid prices
+        prices_nan = [np.nan, np.nan, np.nan] + [100.0 + i * 2.0 for i in range(22)]
+        df_nan = pd.DataFrame({"close": prices_nan, "volume": [1000.0] * 25})
 
-        # Calculate returns_3d directly to verify pct_change drops NaN instead of substituting 0.0 price
-        returns_3d = df_nan["close"].pct_change(3).dropna()
-        # Verify no bogus -1.0 return (which would happen if NaN was silently converted to 0.0 price)
-        self.assertTrue((returns_3d != -1.0).all())
+        # calculate_t25_returns uses pct_change(3).dropna() to drop NaN return observations
+        returns_3d = calculate_t25_returns(df_nan["close"])
+        # With 22 valid prices, pct_change(3).dropna() yields 19 valid returns (>= 10 threshold)
+        self.assertEqual(len(returns_3d), 19)
 
-        metrics_nan = calculate_t25_risk_metrics(df_nan)
-        # Verify risk metrics are calculated from valid returns without synthetic zero conversions
-        self.assertIsNotNone(metrics_nan["var_t25"])
-        self.assertIsNotNone(metrics_nan["es_t25"])
+        expected_var = round(float(np.percentile(returns_3d, 5)), 4)
+        expected_es = round(float(returns_3d[returns_3d <= np.percentile(returns_3d, 5)].mean()), 4)
+
+        metrics = calculate_t25_risk_metrics(df_nan)
+        self.assertEqual(metrics["var_t25"], expected_var)
+        self.assertEqual(metrics["es_t25"], expected_es)
+
+        # When NaNs reduce remaining valid returns below 10 items, calculate_t25_risk_metrics returns nulls
+        prices_mostly_nan = [np.nan] * 18 + [100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0]
+        df_mostly_nan = pd.DataFrame({"close": prices_mostly_nan, "volume": [1000.0] * 25})
+        metrics_null = calculate_t25_risk_metrics(df_mostly_nan)
+        self.assertIsNone(metrics_null["var_t25"])
+        self.assertIsNone(metrics_null["es_t25"])
 
     def test_var_and_es_repeatability_determinism(self):
         """Verify that identical historical inputs produce identical VaR and ES risk outputs."""
