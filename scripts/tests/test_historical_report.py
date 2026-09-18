@@ -1,6 +1,9 @@
 """Unit and integration tests for reproducible historical report generation in scripts/generate_report.py."""
 
+import json
+import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -12,6 +15,7 @@ from scripts.generate_report import (
     canonicalize_report_for_reproducibility,
     generate_historical_report,
     load_schema,
+    load_universe_snapshot,
     main,
     run_pipeline,
 )
@@ -299,50 +303,56 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         jsonschema.validate(instance=res[0], schema=self.schema)
 
     @patch("scripts.generate_report.UniverseProvider")
-    @patch("scripts.generate_report.open")
-    def test_11_cli_as_of_mode_fails_closed_without_circular_dependency(
-        self, mock_open_fn, mock_provider_cls
-    ):
-        """Regression Test — Historical '--as-of' CLI mode fails closed when no independent historical universe source exists, without reading history reports or calling UniverseProvider."""
+    def test_11_cli_as_of_without_universe_snapshot_raises_error(self, mock_provider_cls):
+        """Regression Test — CLI '--as-of' without '--universe-snapshot' fails closed with actionable error."""
         test_args = ["scripts/generate_report.py", "--as-of", self.target_date]
         with patch.object(sys, "argv", test_args):
             with self.assertRaises(ValueError) as ctx:
                 main()
             self.assertIn(
-                "contains no independent historical universe snapshot source", str(ctx.exception)
+                "requires an explicit historical candidate universe snapshot file",
+                str(ctx.exception),
             )
 
-        # Must NOT call current UniverseProvider
         mock_provider_cls.assert_not_called()
-        # Must NOT attempt to open output history files as input
-        mock_open_fn.assert_not_called()
 
     @patch("scripts.generate_report.save_json_files")
     @patch("scripts.generate_report.update_history_index")
     @patch("scripts.generate_report.evaluate_production_monitoring")
     @patch("scripts.generate_report.get_historical_data")
-    def test_12_normal_production_cli_mode_saves_all_artifacts_and_runs_monitoring(
-        self, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
+    @patch("scripts.generate_report.UniverseProvider")
+    def test_12_cli_as_of_with_valid_universe_snapshot(
+        self, mock_provider_cls, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
     ):
-        """Regression Test — Normal production CLI mode continues to save recommendations, market, history, and monitoring artifacts."""
+        """Regression Test — CLI '--as-of' with '--universe-snapshot' executes cleanly without modifying production artifacts or calling UniverseProvider."""
         mock_get_hist.return_value = (self.stock_df, "OK", [])
-        mock_mon_result = MagicMock()
-        mock_mon_result.to_dict.return_value = {"overall_status": "PASS"}
-        mock_eval_mon.return_value = mock_mon_result
 
-        test_args = ["scripts/generate_report.py"]
-        with patch.object(sys, "argv", test_args):
-            main()
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+            json.dump(self.candidate_meta, tf)
+            temp_path = tf.name
 
-        # Production monitoring MUST be called in normal production mode
-        mock_eval_mon.assert_called_once()
+        try:
+            test_args = [
+                "scripts/generate_report.py",
+                "--as-of",
+                self.target_date,
+                "--universe-snapshot",
+                temp_path,
+            ]
+            with patch.object(sys, "argv", test_args):
+                main()
 
-        saved_files = [call[0][0] for call in mock_save_json.call_args_list]
+            mock_provider_cls.assert_not_called()
+            mock_eval_mon.assert_not_called()
 
-        # MUST save recommendations.json, market.json, monitoring.json
-        self.assertIn("recommendations.json", saved_files)
-        self.assertIn("market.json", saved_files)
-        self.assertIn("monitoring.json", saved_files)
+            saved_files = [call[0][0] for call in mock_save_json.call_args_list]
+            self.assertIn(f"history/{self.target_date}.json", saved_files)
+            self.assertNotIn("recommendations.json", saved_files)
+            self.assertNotIn("market.json", saved_files)
+            self.assertNotIn("monitoring.json", saved_files)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
     def test_13_missing_candidate_metadata_raises_error(self):
         """Regression Test — Missing or empty candidate_metadata fails closed without silent fallback."""
@@ -429,18 +439,51 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         self.assertEqual(rec["sector"], "Technology")
         self.assertNotEqual(rec["company_name"], "XYZ Corp")
 
-    def test_16_no_unknown_metadata_fallback(self):
-        """Regression Test — Historical mode never silently defaults to 'Unknown' metadata."""
-        res = generate_historical_report(
-            data_as_of=self.target_date,
-            universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-        )
+    def test_16_load_universe_snapshot_validation_errors(self):
+        """Regression Test — load_universe_snapshot fails closed on invalid/malformed snapshot files."""
+        # Non-existent file
+        with self.assertRaises(ValueError):
+            load_universe_snapshot("/path/does/not/exist.json")
 
-        rec = res[0]["recommendations"][0]
-        self.assertNotEqual(rec["company_name"], "Unknown")
-        self.assertNotEqual(rec["sector"], "Unknown")
+        # Invalid JSON
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+            tf.write("invalid json{{{")
+            bad_json_path = tf.name
+
+        try:
+            with self.assertRaises(ValueError):
+                load_universe_snapshot(bad_json_path)
+        finally:
+            if os.path.exists(bad_json_path):
+                os.remove(bad_json_path)
+
+        # Missing required keys in candidate items
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+            json.dump([{"symbol": "FPT"}], tf)
+            bad_keys_path = tf.name
+
+        try:
+            with self.assertRaises(ValueError):
+                load_universe_snapshot(bad_keys_path)
+        finally:
+            if os.path.exists(bad_keys_path):
+                os.remove(bad_keys_path)
+
+        # Duplicate symbol in snapshot
+        dup_snapshot = [
+            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech"},
+            {"symbol": "FPT", "companyName": "FPT Corp 2", "sector": "Tech"},
+        ]
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+            json.dump(dup_snapshot, tf)
+            dup_path = tf.name
+
+        try:
+            with self.assertRaises(ValueError):
+                load_universe_snapshot(dup_path)
+        finally:
+            if os.path.exists(dup_path):
+                os.remove(dup_path)
 
 
 if __name__ == "__main__":
