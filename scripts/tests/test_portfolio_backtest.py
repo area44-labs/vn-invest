@@ -1788,6 +1788,28 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
 
+    def assert_portfolio_construction_state_equals(
+        self, eval1: PortfolioEvaluation, eval2: PortfolioEvaluation
+    ) -> None:
+        """Assert exact equality of signal and portfolio construction states between two PortfolioEvaluations, excluding forward outcomes."""
+        self.assertEqual(eval1.evaluation_date, eval2.evaluation_date)
+        self.assertEqual(eval1.allocated_weight, eval2.allocated_weight)
+        self.assertEqual(eval1.unallocated_weight, eval2.unallocated_weight)
+        self.assertEqual(eval1.excluded_filtered, eval2.excluded_filtered)
+        self.assertEqual(eval1.excluded_non_executable, eval2.excluded_non_executable)
+        self.assertEqual(eval1.empty_reason, eval2.empty_reason)
+
+        self.assertEqual(len(eval1.positions), len(eval2.positions))
+        for p1, p2 in zip(eval1.positions, eval2.positions, strict=True):
+            self.assertEqual(p1.symbol, p2.symbol)
+            self.assertEqual(p1.weight, p2.weight)
+            self.assertEqual(p1.action, p2.action)
+            self.assertEqual(p1.signal_score, p2.signal_score)
+            self.assertEqual(p1.risk_adjusted_score, p2.risk_adjusted_score)
+            self.assertEqual(p1.confidence, p2.confidence)
+            self.assertEqual(p1.entry_price, p2.entry_price)
+            self.assertEqual(p1.is_executable, p2.is_executable)
+
     def test_case_a_evaluation_date_at_min_history_boundary(self) -> None:
         """Case A: Evaluation date at the start of sufficient min_history window (T-30 ... T ... T+N).
 
@@ -1831,13 +1853,8 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             horizons=[5],
         )
 
-        # Signals, actions, weights, scores at T must be identical
-        self.assertEqual(eval_d, res1.evaluation_date)
-        self.assertEqual([p.symbol for p in res1.positions], [p.symbol for p in res2.positions])
-        self.assertEqual([p.weight for p in res1.positions], [p.weight for p in res2.positions])
-        self.assertEqual(
-            [p.signal_score for p in res1.positions], [p.signal_score for p in res2.positions]
-        )
+        # Signals, actions, weights, scores, and all construction attributes at T must be strictly identical
+        self.assert_portfolio_construction_state_equals(res1, res2)
 
         # Forward outcomes must reflect mutated future prices (> T)
         pos1_aaa = next(p for p in res1.positions if p.symbol == "AAA")
@@ -1849,7 +1866,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
 
         Verify:
         - Signal/history is valid with sufficient history;
-        - All forward outcomes are unavailable (None);
+        - All forward outcomes are unavailable (None) at position and portfolio levels;
         - Portfolio forward return is None;
         - Aggregation does not treat unavailable outcome as zero.
         """
@@ -1871,7 +1888,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertEqual(eval_res.evaluation_date, last_eval_d)
         self.assertGreater(len(eval_res.positions), 0)
 
-        # Every position forward return must be None
+        # Every position forward return and availability must be False and None
         for pos in eval_res.positions:
             for h in [5, 10, 20]:
                 self.assertFalse(pos.forward_availability[h])
@@ -1894,8 +1911,8 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         """Case C: Evaluation date near the dataset end (e.g. exactly 1 session available after T).
 
         Verify:
-        - Horizon 1 is available if framework evaluated with horizon=[1, 5];
-        - Longer horizons (e.g. 5) are unavailable (None);
+        - Horizon 1 is available if framework evaluated with horizon=[1, 5] at both stock and portfolio levels;
+        - Longer horizons (e.g. 5) are unavailable (None) at both stock and portfolio levels;
         - Uses trading-session indexing, not calendar-day arithmetic.
         """
         eval_d = self.df_aaa["date"].iloc[-2]  # Exactly 1 session remaining after T
@@ -1915,11 +1932,18 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
 
         self.assertGreater(len(eval_res.positions), 0)
 
-        # Horizon 1 is available
+        # Stock-level assertions for selected positions
+        for pos in eval_res.positions:
+            self.assertTrue(pos.forward_availability[1])
+            self.assertIsNotNone(pos.forward_returns[1])
+
+            self.assertFalse(pos.forward_availability[5])
+            self.assertIsNone(pos.forward_returns[5])
+
+        # Portfolio-level assertions
         self.assertTrue(eval_res.horizon_availability[1])
         self.assertIsNotNone(eval_res.portfolio_forward_returns[1])
 
-        # Horizon 5 is unavailable
         self.assertFalse(eval_res.horizon_availability[5])
         self.assertIsNone(eval_res.portfolio_forward_returns[5])
 
@@ -2008,10 +2032,12 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertAlmostEqual(eval_res.portfolio_forward_returns[2], 0.20, places=5)
 
     def test_evaluation_date_must_be_exact_and_not_fallback(self) -> None:
-        """Verify evaluation date must be exact in price history.
+        """Verify evaluation date must be exact in price history for both non-trading dates and stock missing dates.
 
-        If evaluation_date is '2024-01-06' (Saturday, not in dataset),
-        it MUST fail closed with ValueError rather than silently falling back to '2024-01-05'.
+        Case 1: Evaluation date is a non-trading date outside dataset ('2024-01-06' Saturday).
+        Case 2: Evaluation date is within historical date range, but missing from target stock dataset (e.g. '2024-01-03' missing in stock with '2024-01-01', '2024-01-02', '2024-01-04').
+
+        MUST fail closed with ValueError rather than silently falling back to latest date <= T.
         """
         cfg = PortfolioConfig(min_history=30)
         non_trading_d = "2024-01-06"  # Saturday, not in synthetic dataset
@@ -2024,6 +2050,21 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             )
 
         self.assertIn("not present in dataset price history", str(ctx.exception))
+
+        # Case 2: Date within historical range, but missing from a stock dataset
+        df_gap_stock = (
+            self.df_aaa[self.df_aaa["date"] != "2024-01-15"].copy().reset_index(drop=True)
+        )
+        universe_missing_stock = {"AAA": df_gap_stock, "BBB": self.df_bbb}
+
+        with self.assertRaises(ValueError) as ctx_stock:
+            evaluate_portfolio_at_date(
+                evaluation_date="2024-01-15",
+                universe_stock_map=universe_missing_stock,
+                config=cfg,
+            )
+
+        self.assertIn("not present in dataset price history", str(ctx_stock.exception))
 
     def test_multiple_evaluation_dates_chronological_ordering_and_isolation(self) -> None:
         """Verify run_portfolio_backtest with multiple evaluation dates.
@@ -2096,11 +2137,11 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         """Verify cross-evaluation temporal isolation with T1 < T2.
 
         Scenario 1: Mutate data > T2.
-        - Results at T1 and T2 remain invariant in signals/regime/action/portfolio construction.
+        - Construction states at T1 and T2 remain strictly invariant.
 
         Scenario 2: Mutate data strictly between T1 and T2 (T1 < date <= T2).
-        - Results at T1 remain IDENTICAL in signals/regime/action/portfolio construction.
-        - Results at T2 update appropriately because that data has become historical information at T2.
+        - Construction state at T1 remains strictly IDENTICAL to baseline.
+        - Construction state at T2 changes deterministically compared to baseline because intermediate data became historical input at T2.
         """
         t1 = self.df_aaa["date"].iloc[40]
         t2 = self.df_aaa["date"].iloc[60]
@@ -2134,15 +2175,10 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             df_vnindex=self.df_vni,
         )
 
-        # Positions and signals at both T1 and T2 must remain identical to baseline
+        # Construction states at both T1 and T2 must remain strictly identical to baseline
         for idx in range(2):
-            self.assertEqual(
-                [p.symbol for p in baseline.evaluations[idx].positions],
-                [p.symbol for p in res_mut1.evaluations[idx].positions],
-            )
-            self.assertEqual(
-                [p.signal_score for p in baseline.evaluations[idx].positions],
-                [p.signal_score for p in res_mut1.evaluations[idx].positions],
+            self.assert_portfolio_construction_state_equals(
+                baseline.evaluations[idx], res_mut1.evaluations[idx]
             )
 
         # Scenario 2: Mutate data strictly between T1 and T2 (T1 < date <= T2)
@@ -2161,22 +2197,15 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             df_vnindex=self.df_vni,
         )
 
-        # At T1: signals, scores, positions MUST be IDENTICAL to baseline
-        self.assertEqual(
-            [p.symbol for p in baseline.evaluations[0].positions],
-            [p.symbol for p in res_mut2.evaluations[0].positions],
-        )
-        self.assertEqual(
-            [p.signal_score for p in baseline.evaluations[0].positions],
-            [p.signal_score for p in res_mut2.evaluations[0].positions],
+        # At T1: construction state MUST be strictly IDENTICAL to baseline
+        self.assert_portfolio_construction_state_equals(
+            baseline.evaluations[0], res_mut2.evaluations[0]
         )
 
-        # At T2: data in T1 < date <= T2 is historical data, so signal score at T2 may change
-        # Prove T1 signal isolation holds strictly regardless of intermediate mutations
-        self.assertEqual(
-            baseline.evaluations[0].positions[0].signal_score,
-            res_mut2.evaluations[0].positions[0].signal_score,
-        )
+        # At T2: entry_price at T2 changed due to intermediate price mutation <= T2
+        p2_base = next(p for p in baseline.evaluations[1].positions if p.symbol == "AAA")
+        p2_mut = next(p for p in res_mut2.evaluations[1].positions if p.symbol == "AAA")
+        self.assertNotEqual(p2_base.entry_price, p2_mut.entry_price)
 
     def test_horizon_boundary_isolation_exact_and_missing_sessions(self) -> None:
         """Verify horizon boundary isolation at exact and missing session thresholds.
