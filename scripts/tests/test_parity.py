@@ -197,8 +197,8 @@ class TestProductionHistoricalParity(unittest.TestCase):
 
         self.assertEqual(set(prod_recs.keys()), set(hist_recs.keys()))
 
-        for sym in prod_recs:
-            prod_quant = extract_quantitative_recommendation(prod_recs[sym])
+        for sym, p_rec in prod_recs.items():
+            prod_quant = extract_quantitative_recommendation(p_rec)
             hist_quant = extract_quantitative_recommendation(hist_recs[sym])
 
             self.assertEqual(
