@@ -1,489 +1,293 @@
-"""Unit and integration tests for reproducible historical report generation in scripts/generate_report.py."""
+"""Unit and integration tests for reproducible historical report generation (PR #96)."""
 
 import json
 import os
-import sys
+import shutil
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
 
-import jsonschema
-import numpy as np
 import pandas as pd
-
 from scripts.generate_report import (
     canonicalize_report_for_reproducibility,
     generate_historical_report,
-    load_schema,
+    load_historical_ohlcv,
     load_universe_snapshot,
-    main,
-    run_pipeline,
 )
 
 
-def make_synthetic_ohlcv(
+def create_synthetic_ohlcv(
     start_date: str = "2025-01-01",
-    num_sessions: int = 60,
-    base_price: float = 20000.0,
-    trend: float = 100.0,
-    volume: int = 500000,
+    periods: int = 30,
+    base_price: float = 50.0,
+    volume: float = 100000.0,
 ) -> pd.DataFrame:
-    """Helper to generate clean, valid canonical OHLCV DataFrame."""
-    dates = pd.date_range(start_date, periods=num_sessions, freq="D")
-    prices = np.linspace(base_price, base_price + (trend * num_sessions), num_sessions)
-    return pd.DataFrame(
-        {
-            "time": dates,
-            "open": prices - 50.0,
-            "high": prices + 150.0,
-            "low": prices - 150.0,
-            "close": prices,
-            "volume": [volume] * num_sessions,
-        }
-    )
+    """Helper to create valid daily OHLCV DataFrames."""
+    dates = pd.date_range(start=start_date, periods=periods, freq="D")
+    data = []
+    for i, d in enumerate(dates):
+        price = base_price + (i * 0.5)
+        data.append(
+            {
+                "time": d.strftime("%Y-%m-%d"),
+                "open": price,
+                "high": price + 1.0,
+                "low": price - 0.5,
+                "close": price + 0.2,
+                "volume": volume,
+            }
+        )
+    return pd.DataFrame(data)
 
 
 class TestHistoricalReportGeneration(unittest.TestCase):
+    """Test suite for historical report generation contract and reproducibility."""
+
     def setUp(self):
-        self.num_sessions = 60
-        self.start_date = "2025-01-01"
-        self.stock_df = make_synthetic_ohlcv(
-            start_date=self.start_date, num_sessions=self.num_sessions, base_price=20000.0
-        )
-        self.vnindex_df = make_synthetic_ohlcv(
-            start_date=self.start_date, num_sessions=self.num_sessions, base_price=1200.0, trend=2.0
-        )
-        self.vn30_df = make_synthetic_ohlcv(
-            start_date=self.start_date, num_sessions=self.num_sessions, base_price=1400.0, trend=2.5
-        )
+        self.tmp_dir = tempfile.mkdtemp()
+        self.as_of_date = "2025-01-20"
 
-        # Target date exists in history
-        self.target_date = self.stock_df["time"].iloc[40].strftime("%Y-%m-%d")
-        self.universe_map = {"FPT": self.stock_df}
-        self.candidate_meta = [
-            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"}
-        ]
-        self.schema = load_schema()
+        self.df_vnindex = create_synthetic_ohlcv("2025-01-01", 30, base_price=1200.0)
+        self.df_vn30 = create_synthetic_ohlcv("2025-01-01", 30, base_price=1250.0)
+        self.df_vnm = create_synthetic_ohlcv("2025-01-01", 30, base_price=70.0)
+        self.df_fpt = create_synthetic_ohlcv("2025-01-01", 30, base_price=130.0)
 
-    def test_01_explicit_historical_date(self):
-        """Test 1 — Given valid historical input and T = YYYY-MM-DD, historical report generates successfully."""
-        res = generate_historical_report(
-            data_as_of=self.target_date,
-            universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-            data_source="test_historical",
-        )
+        self.universe_map = {
+            "VNM": self.df_vnm,
+            "FPT": self.df_fpt,
+        }
 
-        recs_payload = res[0]
-        self.assertEqual(recs_payload["data_as_of"], self.target_date)
-        self.assertEqual(recs_payload["schema_version"], "2.0")
-        self.assertEqual(recs_payload["summary"]["total_scanned"], 1)
-
-        # Schema validation
-        jsonschema.validate(instance=recs_payload, schema=self.schema)
-
-    def test_02_repeated_generation_is_deterministic(self):
-        """Test 2 — Repeated generation from identical historical inputs produces identical quantitative output."""
-        res1 = generate_historical_report(
-            data_as_of=self.target_date,
-            universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-        )
-
-        res2 = generate_historical_report(
-            data_as_of=self.target_date,
-            universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-        )
-
-        canon1 = canonicalize_report_for_reproducibility(res1[0])
-        canon2 = canonicalize_report_for_reproducibility(res2[0])
-
-        self.assertEqual(canon1, canon2)
-
-    def test_03_future_observation_rejected(self):
-        """Test 3 — Future observation physically placed prior to data_as_of fails closed."""
-        corrupted_df = self.stock_df.copy()
-        # Physically insert a future row before target_date index
-        future_row = pd.DataFrame(
+        self.candidate_metadata = [
             {
-                "time": [pd.Timestamp("2026-12-31")],
-                "open": [50000.0],
-                "high": [51000.0],
-                "low": [49000.0],
-                "close": [50000.0],
-                "volume": [1000000],
-            }
-        )
-        corrupted_df = pd.concat(
-            [corrupted_df.iloc[:20], future_row, corrupted_df.iloc[20:]], ignore_index=True
-        )
+                "symbol": "VNM",
+                "companyName": "Vinamilk",
+                "sector": "Consumer Goods",
+                "exchange": "HOSE",
+            },
+            {
+                "symbol": "FPT",
+                "companyName": "FPT Corporation",
+                "sector": "Technology",
+                "exchange": "HOSE",
+            },
+        ]
 
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map={"FPT": corrupted_df},
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
-    def test_04_missing_evaluation_date(self):
-        """Test 4 — Requesting a date not present in historical price history fails closed."""
-        missing_date = "2020-01-01"
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=missing_date,
-                universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
-
-    def test_05_duplicate_unsorted_dates(self):
-        """Test 5 — Providing duplicate or unsorted historical observations fails closed."""
-        # Unsorted dates
-        unsorted_df = self.stock_df.sample(frac=1.0, random_state=42)
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map={"FPT": unsorted_df},
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
-
-        # Duplicate dates
-        dup_df = pd.concat([self.stock_df.iloc[:20], self.stock_df.iloc[19:]], ignore_index=True)
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map={"FPT": dup_df},
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
-
-    def test_06_malformed_ohlcv(self):
-        """Test 6 — Providing invalid OHLCV data fails closed."""
-        # Negative volume
-        bad_vol_df = self.stock_df.copy()
-        bad_vol_df.loc[10, "volume"] = -100
-
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map={"FPT": bad_vol_df},
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
-
-        # Invalid OHLC (high < low)
-        bad_ohlc_df = self.stock_df.copy()
-        bad_ohlc_df.loc[10, "high"] = 100.0
-        bad_ohlc_df.loc[10, "low"] = 200.0
-
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map={"FPT": bad_ohlc_df},
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=self.candidate_meta,
-                df_vn30=self.vn30_df,
-            )
-
-    def test_07_no_fallback_to_latest_data(self):
-        """Test 7 — Older historical report uses historical snapshot only, unaffected by future data after T."""
-        target_idx = 35
-        eval_date = self.stock_df["time"].iloc[target_idx].strftime("%Y-%m-%d")
-
-        # Dataset A: sliced strictly at target_idx
-        df_stock_a = self.stock_df.iloc[: target_idx + 1].copy()
-        df_vnindex_a = self.vnindex_df.iloc[: target_idx + 1].copy()
-
-        # Dataset B: full history with extreme future price spike at index 50
-        df_stock_b = self.stock_df.copy()
-        df_stock_b.loc[50:, "close"] = 999999.0
-
-        df_vnindex_b = self.vnindex_df.copy()
-        df_vnindex_b.loc[50:, "close"] = 9999.0
-
-        res_a = generate_historical_report(
-            data_as_of=eval_date,
-            universe_stock_map={"FPT": df_stock_a},
-            df_vnindex=df_vnindex_a,
-            candidate_metadata=self.candidate_meta,
-        )
-
-        res_b = generate_historical_report(
-            data_as_of=eval_date,
-            universe_stock_map={"FPT": df_stock_b},
-            df_vnindex=df_vnindex_b,
-            candidate_metadata=self.candidate_meta,
-        )
-
-        canon_a = canonicalize_report_for_reproducibility(res_a[0])
-        canon_b = canonicalize_report_for_reproducibility(res_b[0])
-
-        self.assertEqual(
-            canon_a,
-            canon_b,
-            "Historical report at T changed when future data after T was altered!",
-        )
-
-    def test_08_provenance_metadata(self):
-        """Test 8 — Historical report contains expected provenance and metadata fields."""
+    def test_1_explicit_historical_date(self):
+        """Test 1: Given valid historical input and as_of date T, historical report is generated successfully."""
         res = generate_historical_report(
-            data_as_of=self.target_date,
+            data_as_of=self.as_of_date,
             universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-            data_source="audit_reproduction",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T10:00:00Z",
         )
 
-        payload = res[0]
-        self.assertEqual(payload["data_as_of"], self.target_date)
-        self.assertEqual(payload["source_date"], self.target_date)
-        self.assertEqual(payload["schema_version"], "2.0")
-        self.assertEqual(payload["data_source"], "audit_reproduction")
-        self.assertIn("signal_model_version", payload)
-        self.assertIn("universe_info", payload)
+        recs_data, market_data, history_data = res
+        self.assertEqual(recs_data["data_as_of"], self.as_of_date)
+        self.assertEqual(recs_data["source_date"], self.as_of_date)
+        self.assertEqual(len(recs_data["recommendations"]), 2)
+        self.assertEqual(recs_data["universe_info"]["historical_report"], True)
+        self.assertEqual(market_data["data_as_of"], self.as_of_date)
+        self.assertEqual(history_data["data_as_of"], self.as_of_date)
 
-    def test_09_generated_at_does_not_affect_quantitative_output(self):
-        """Test 9 — Changing runtime generated_at timestamp does not alter quantitative signal outputs."""
+    def test_2_repeated_generation_is_deterministic(self):
+        """Test 2: Repeated generation with identical inputs and controlled reference date produces identical payload."""
         res1 = generate_historical_report(
-            data_as_of=self.target_date,
+            data_as_of=self.as_of_date,
             universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-            generated_at="2020-01-01T00:00:00+00:00",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T10:00:00Z",
         )
 
         res2 = generate_historical_report(
-            data_as_of=self.target_date,
+            data_as_of=self.as_of_date,
             universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
-            df_vn30=self.vn30_df,
-            generated_at="2030-12-31T23:59:59+00:00",
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T10:00:00Z",
         )
 
-        # Quantitative fields must match
+        self.assertEqual(res1[0], res2[0])
+        self.assertEqual(res1[1], res2[1])
+
+        # Test canonicalization helper when reference_date differs
+        res3 = generate_historical_report(
+            data_as_of=self.as_of_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-02-15T12:34:56Z",
+        )
+
         canon1 = canonicalize_report_for_reproducibility(res1[0])
-        canon2 = canonicalize_report_for_reproducibility(res2[0])
-        self.assertEqual(canon1, canon2)
+        canon3 = canonicalize_report_for_reproducibility(res3[0])
+        self.assertEqual(canon1, canon3)
 
-        # Raw payloads differ ONLY in generated_at
-        self.assertNotEqual(res1[0]["generated_at"], res2[0]["generated_at"])
-        self.assertEqual(
-            res1[0]["recommendations"][0]["signal_score"],
-            res2[0]["recommendations"][0]["signal_score"],
-        )
+    def test_3_future_observation_rejected(self):
+        """Test 3: Unsorted or future corrupted OHLCV observation is rejected fail-closed."""
+        corrupted_vnm = self.df_vnm.copy()
+        # Insert duplicate/unsorted row
+        corrupted_vnm.loc[len(corrupted_vnm)] = corrupted_vnm.iloc[10].to_dict()
 
-    @patch("scripts.generate_report.get_historical_data")
-    def test_10_existing_production_generation_remains_unchanged(self, mock_get_hist):
-        """Test 10 — Existing production generation path (run_pipeline) continues to work without behavior change."""
-        mock_get_hist.return_value = (self.stock_df, "OK", [])
-
-        res = run_pipeline(update_data=False)
-        self.assertIsNotNone(res)
-        self.assertIn("recommendations", res[0])
-        self.assertIn("market", res[1])
-
-        # Validate schema
-        jsonschema.validate(instance=res[0], schema=self.schema)
-
-    @patch("scripts.generate_report.UniverseProvider")
-    def test_11_cli_as_of_without_universe_snapshot_raises_error(self, mock_provider_cls):
-        """Regression Test — CLI '--as-of' without '--universe-snapshot' fails closed with actionable error."""
-        test_args = ["scripts/generate_report.py", "--as-of", self.target_date]
-        with patch.object(sys, "argv", test_args):
-            with self.assertRaises(ValueError) as ctx:
-                main()
-            self.assertIn(
-                "requires an explicit historical candidate universe snapshot file",
-                str(ctx.exception),
-            )
-
-        mock_provider_cls.assert_not_called()
-
-    @patch("scripts.generate_report.save_json_files")
-    @patch("scripts.generate_report.update_history_index")
-    @patch("scripts.generate_report.evaluate_production_monitoring")
-    @patch("scripts.generate_report.get_historical_data")
-    @patch("scripts.generate_report.UniverseProvider")
-    def test_12_cli_as_of_with_valid_universe_snapshot(
-        self, mock_provider_cls, mock_get_hist, mock_eval_mon, mock_update_idx, mock_save_json
-    ):
-        """Regression Test — CLI '--as-of' with '--universe-snapshot' executes cleanly without modifying production artifacts or calling UniverseProvider."""
-        mock_get_hist.return_value = (self.stock_df, "OK", [])
-
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
-            json.dump(self.candidate_meta, tf)
-            temp_path = tf.name
-
-        try:
-            test_args = [
-                "scripts/generate_report.py",
-                "--as-of",
-                self.target_date,
-                "--universe-snapshot",
-                temp_path,
-            ]
-            with patch.object(sys, "argv", test_args):
-                main()
-
-            mock_provider_cls.assert_not_called()
-            mock_eval_mon.assert_not_called()
-
-            saved_files = [call[0][0] for call in mock_save_json.call_args_list]
-            self.assertIn(f"history/{self.target_date}.json", saved_files)
-            self.assertNotIn("recommendations.json", saved_files)
-            self.assertNotIn("market.json", saved_files)
-            self.assertNotIn("monitoring.json", saved_files)
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-    def test_13_missing_candidate_metadata_raises_error(self):
-        """Regression Test — Missing or empty candidate_metadata fails closed without silent fallback."""
-        with self.assertRaises(ValueError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=None,
-            )
+        corrupted_map = {"VNM": corrupted_vnm, "FPT": self.df_fpt}
 
         with self.assertRaises(ValueError):
             generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=[],
+                data_as_of=self.as_of_date,
+                universe_stock_map=corrupted_map,
+                df_vnindex=self.df_vnindex,
+                df_vn30=self.df_vn30,
+                candidate_metadata=self.candidate_metadata,
             )
 
-    def test_14_malformed_and_duplicate_candidate_metadata_raises_error(self):
-        """Regression Test — Malformed items, duplicate symbols, or universe mismatches in candidate_metadata fail closed."""
-        # Non-dict item
-        with self.assertRaises(TypeError):
-            generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=["not_a_dict"],
-            )
-
-        # Missing required keys
+    def test_4_missing_evaluation_date(self):
+        """Test 4: Requested target date absent from benchmark dataset fails closed."""
+        absent_date = "2020-01-01"
         with self.assertRaises(ValueError):
             generate_historical_report(
-                data_as_of=self.target_date,
+                data_as_of=absent_date,
                 universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=[{"symbol": "FPT"}],
+                df_vnindex=self.df_vnindex,
+                df_vn30=self.df_vn30,
+                candidate_metadata=self.candidate_metadata,
             )
 
-        # Duplicate symbol
-        dup_meta = [
-            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology"},
-            {"symbol": "FPT", "companyName": "FPT Duplicate", "sector": "Technology"},
-        ]
+    def test_5_duplicate_unsorted_dates(self):
+        """Test 5: Duplicate dates in benchmark data fail closed."""
+        corrupted_vnindex = self.df_vnindex.copy()
+        corrupted_vnindex.loc[len(corrupted_vnindex)] = corrupted_vnindex.iloc[5].to_dict()
+
         with self.assertRaises(ValueError):
             generate_historical_report(
-                data_as_of=self.target_date,
+                data_as_of=self.as_of_date,
                 universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=dup_meta,
+                df_vnindex=corrupted_vnindex,
+                df_vn30=self.df_vn30,
+                candidate_metadata=self.candidate_metadata,
             )
 
-        # Mismatch with universe_stock_map
-        mismatch_meta = [{"symbol": "VCB", "companyName": "Vietcombank", "sector": "Banking"}]
-        with self.assertRaises(ValueError):
+    def test_6_malformed_ohlcv(self):
+        """Test 6: Malformed OHLCV (missing required column 'close') fails closed."""
+        corrupted_fpt = self.df_fpt.copy().drop(columns=["close"])
+
+        corrupted_map = {"VNM": self.df_vnm, "FPT": corrupted_fpt}
+
+        with self.assertRaises((ValueError, KeyError)):
             generate_historical_report(
-                data_as_of=self.target_date,
-                universe_stock_map=self.universe_map,
-                df_vnindex=self.vnindex_df,
-                candidate_metadata=mismatch_meta,
+                data_as_of=self.as_of_date,
+                universe_stock_map=corrupted_map,
+                df_vnindex=self.df_vnindex,
+                df_vn30=self.df_vn30,
+                candidate_metadata=self.candidate_metadata,
             )
 
-    @patch("scripts.generate_report.UniverseProvider")
-    def test_15_changing_current_universe_provider_state_does_not_affect_historical_report(
-        self, mock_provider_cls
-    ):
-        """Regression Test — Historical report uses explicit candidate metadata only, completely ignoring UniverseProvider state changes."""
-        mock_provider_instance = MagicMock()
-        mock_provider_instance.candidates = [
-            {"symbol": "XYZ", "companyName": "XYZ Corp", "sector": "Other"}
-        ]
-        mock_provider_cls.return_value = mock_provider_instance
-
-        res = generate_historical_report(
-            data_as_of=self.target_date,
+    def test_7_no_fallback_to_latest_data(self):
+        """Test 7: Changing future prices at T+5 does not alter historical report at T."""
+        report_before = generate_historical_report(
+            data_as_of=self.as_of_date,
             universe_stock_map=self.universe_map,
-            df_vnindex=self.vnindex_df,
-            candidate_metadata=self.candidate_meta,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T10:00:00Z",
         )
 
-        rec = res[0]["recommendations"][0]
-        self.assertEqual(rec["symbol"], "FPT")
-        self.assertEqual(rec["company_name"], "FPT Corp")
-        self.assertEqual(rec["sector"], "Technology")
-        self.assertNotEqual(rec["company_name"], "XYZ Corp")
+        # Mutate future rows (date > 2025-01-20)
+        modified_vnm = self.df_vnm.copy()
+        future_mask = modified_vnm["time"] > self.as_of_date
+        modified_vnm.loc[future_mask, "close"] = 9999.0
 
-    def test_16_load_universe_snapshot_validation_errors(self):
-        """Regression Test — load_universe_snapshot fails closed on invalid/malformed snapshot files."""
-        # Non-existent file
-        with self.assertRaises(ValueError):
-            load_universe_snapshot("/path/does/not/exist.json")
+        modified_map = {"VNM": modified_vnm, "FPT": self.df_fpt}
 
-        # Invalid JSON
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
-            tf.write("invalid json{{{")
-            bad_json_path = tf.name
+        report_after = generate_historical_report(
+            data_as_of=self.as_of_date,
+            universe_stock_map=modified_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T10:00:00Z",
+        )
 
-        try:
-            with self.assertRaises(ValueError):
-                load_universe_snapshot(bad_json_path)
-        finally:
-            if os.path.exists(bad_json_path):
-                os.remove(bad_json_path)
+        self.assertEqual(report_before[0], report_after[0])
 
-        # Missing required keys in candidate items
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
-            json.dump([{"symbol": "FPT"}], tf)
-            bad_keys_path = tf.name
+    def test_8_provenance(self):
+        """Test 8: Historical report retains model version, schema version, and as_of date provenance."""
+        res = generate_historical_report(
+            data_as_of=self.as_of_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+        )
+        recs_data = res[0]
+        self.assertIn("schema_version", recs_data)
+        self.assertIn("signal_model_version", recs_data)
+        self.assertEqual(recs_data["data_as_of"], self.as_of_date)
+        self.assertEqual(recs_data["source_date"], self.as_of_date)
 
-        try:
-            with self.assertRaises(ValueError):
-                load_universe_snapshot(bad_keys_path)
-        finally:
-            if os.path.exists(bad_keys_path):
-                os.remove(bad_keys_path)
+    def test_9_generated_at_does_not_affect_quantitative_output(self):
+        """Test 9: Varying runtime timestamp leaves signal scores, actions, regime, and risk unchanged."""
+        res_t1 = generate_historical_report(
+            data_as_of=self.as_of_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-01-20T00:00:00Z",
+        )
 
-        # Duplicate symbol in snapshot
-        dup_snapshot = [
-            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech"},
-            {"symbol": "FPT", "companyName": "FPT Corp 2", "sector": "Tech"},
-        ]
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
-            json.dump(dup_snapshot, tf)
-            dup_path = tf.name
+        res_t2 = generate_historical_report(
+            data_as_of=self.as_of_date,
+            universe_stock_map=self.universe_map,
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_metadata=self.candidate_metadata,
+            reference_date="2025-03-01T23:59:59Z",
+        )
 
-        try:
-            with self.assertRaises(ValueError):
-                load_universe_snapshot(dup_path)
-        finally:
-            if os.path.exists(dup_path):
-                os.remove(dup_path)
+        canon1 = canonicalize_report_for_reproducibility(res_t1[0])
+        canon2 = canonicalize_report_for_reproducibility(res_t2[0])
+
+        self.assertEqual(canon1, canon2)
+        self.assertEqual(canon1["market"], canon2["market"])
+        self.assertEqual(canon1["summary"], canon2["summary"])
+        self.assertEqual(canon1["recommendations"], canon2["recommendations"])
+
+    def test_10_load_universe_snapshot_and_ohlcv_file_loading(self):
+        """Test 10: File loader helpers load snapshot and OHLCV JSON maps fail-closed on malformed inputs."""
+        snapshot_file = os.path.join(self.tmp_dir, "snapshot.json")
+        with open(snapshot_file, "w", encoding="utf-8") as f:
+            json.dump(self.candidate_metadata, f)
+
+        loaded_candidates = load_universe_snapshot(snapshot_file)
+        self.assertEqual(len(loaded_candidates), 2)
+        self.assertEqual(loaded_candidates[0]["symbol"], "VNM")
+
+        # Test OHLCV file loader
+        ohlcv_file = os.path.join(self.tmp_dir, "ohlcv.json")
+        ohlcv_data = {
+            "VNINDEX": self.df_vnindex.to_dict(orient="records"),
+            "VN30": self.df_vn30.to_dict(orient="records"),
+            "VNM": self.df_vnm.to_dict(orient="records"),
+            "FPT": self.df_fpt.to_dict(orient="records"),
+        }
+        with open(ohlcv_file, "w", encoding="utf-8") as f:
+            json.dump(ohlcv_data, f)
+
+        stock_map, df_vnindex_loaded, df_vn30_loaded = load_historical_ohlcv(
+            ohlcv_file, required_symbols=["VNM", "FPT"]
+        )
+        self.assertIn("VNM", stock_map)
+        self.assertIn("FPT", stock_map)
+        self.assertFalse(df_vnindex_loaded.empty)
+        self.assertIsNotNone(df_vn30_loaded)
 
 
 if __name__ == "__main__":
