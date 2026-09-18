@@ -1778,5 +1778,544 @@ class TestPortfolioIntegration(unittest.TestCase):
         self.assertEqual(len(port_res.evaluations), len(wf_res.evaluation_dates))
 
 
+class TestPortfolioTemporalBoundaries(unittest.TestCase):
+    """Test Suite focusing on temporal boundaries, exact trading-session semantics, and evaluation-date coverage."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
+        self.df_vn30 = create_synthetic_ohlcv("2024-01-01", 100, 1250.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
+        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
+        self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
+
+    def assert_portfolio_construction_state_equals(
+        self, eval1: PortfolioEvaluation, eval2: PortfolioEvaluation
+    ) -> None:
+        """Assert exact equality of signal and portfolio construction states between two PortfolioEvaluations, excluding forward outcomes."""
+        self.assertEqual(eval1.evaluation_date, eval2.evaluation_date)
+        self.assertEqual(eval1.allocated_weight, eval2.allocated_weight)
+        self.assertEqual(eval1.unallocated_weight, eval2.unallocated_weight)
+        self.assertEqual(eval1.excluded_filtered, eval2.excluded_filtered)
+        self.assertEqual(eval1.excluded_non_executable, eval2.excluded_non_executable)
+        self.assertEqual(eval1.empty_reason, eval2.empty_reason)
+
+        self.assertEqual(len(eval1.positions), len(eval2.positions))
+        for p1, p2 in zip(eval1.positions, eval2.positions, strict=True):
+            self.assertEqual(p1.symbol, p2.symbol)
+            self.assertEqual(p1.weight, p2.weight)
+            self.assertEqual(p1.action, p2.action)
+            self.assertEqual(p1.signal_score, p2.signal_score)
+            self.assertEqual(p1.risk_adjusted_score, p2.risk_adjusted_score)
+            self.assertEqual(p1.confidence, p2.confidence)
+            self.assertEqual(p1.entry_price, p2.entry_price)
+            self.assertEqual(p1.is_executable, p2.is_executable)
+
+    def test_case_a_evaluation_date_at_min_history_boundary(self) -> None:
+        """Case A: Evaluation date at the start of sufficient min_history window (T-30 ... T ... T+N).
+
+        Verify:
+        - Signal is calculated using data <= T;
+        - Forward outcome starts strictly after T;
+        - No future leakage;
+        - Result is deterministic.
+        """
+        min_hist = 30
+        eval_d = self.df_aaa["date"].iloc[min_hist - 1]  # Exact 30th trading session
+
+        cfg = PortfolioConfig(
+            min_history=min_hist,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+
+        # Mutate future data (> T)
+        df_aaa_mut = self.df_aaa.copy()
+        mask = df_aaa_mut["date"] > eval_d
+        df_aaa_mut.loc[mask, "close"] *= 5.0
+        df_aaa_mut.loc[mask, "open"] *= 5.0
+        df_aaa_mut.loc[mask, "high"] *= 5.0
+        df_aaa_mut.loc[mask, "low"] *= 5.0
+        universe_mut = {"AAA": df_aaa_mut, "BBB": self.df_bbb}
+
+        res2 = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe_mut,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+
+        # Signals, actions, weights, scores, and all construction attributes at T must be strictly identical
+        self.assert_portfolio_construction_state_equals(res1, res2)
+
+        # Forward outcomes must reflect mutated future prices (> T)
+        pos1_aaa = next(p for p in res1.positions if p.symbol == "AAA")
+        pos2_aaa = next(p for p in res2.positions if p.symbol == "AAA")
+        self.assertNotEqual(pos1_aaa.forward_returns[5], pos2_aaa.forward_returns[5])
+
+    def test_case_b_evaluation_date_at_last_trading_session(self) -> None:
+        """Case B: Evaluation date at the last trading session in the dataset.
+
+        Verify:
+        - Signal/history is valid with sufficient history;
+        - All forward outcomes are unavailable (None) at position and portfolio levels;
+        - Portfolio forward return is None;
+        - Aggregation does not treat unavailable outcome as zero.
+        """
+        last_eval_d = self.df_aaa["date"].iloc[-1]
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=last_eval_d,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10, 20],
+        )
+
+        self.assertEqual(eval_res.evaluation_date, last_eval_d)
+        self.assertGreater(len(eval_res.positions), 0)
+
+        # Every position forward return and availability must be False and None
+        for pos in eval_res.positions:
+            for h in [5, 10, 20]:
+                self.assertFalse(pos.forward_availability[h])
+                self.assertIsNone(pos.forward_returns[h])
+
+        # Portfolio forward returns must be None
+        for h in [5, 10, 20]:
+            self.assertFalse(eval_res.horizon_availability[h])
+            self.assertIsNone(eval_res.portfolio_forward_returns[h])
+
+        # Aggregate accounting must exclude unavailable evaluation point from denominator
+        agg = aggregate_portfolio_results([eval_res], horizons=[5])
+        h5 = agg["horizon_metrics"][5]
+        self.assertEqual(h5["valid_evaluation_points"], 0)
+        self.assertIsNone(h5["mean"])
+        self.assertIsNone(h5["hit_rate"])
+        self.assertIsNone(h5["sequential_compounded_return"])
+
+    def test_case_c_evaluation_date_near_dataset_end(self) -> None:
+        """Case C: Evaluation date near the dataset end (e.g. exactly 1 session available after T).
+
+        Verify:
+        - Horizon 1 is available if framework evaluated with horizon=[1, 5] at both stock and portfolio levels;
+        - Longer horizons (e.g. 5) are unavailable (None) at both stock and portfolio levels;
+        - Uses trading-session indexing, not calendar-day arithmetic.
+        """
+        eval_d = self.df_aaa["date"].iloc[-2]  # Exactly 1 session remaining after T
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[1, 5],
+        )
+
+        self.assertGreater(len(eval_res.positions), 0)
+
+        # Stock-level assertions for selected positions
+        for pos in eval_res.positions:
+            self.assertTrue(pos.forward_availability[1])
+            self.assertIsNotNone(pos.forward_returns[1])
+
+            self.assertFalse(pos.forward_availability[5])
+            self.assertIsNone(pos.forward_returns[5])
+
+        # Portfolio-level assertions
+        self.assertTrue(eval_res.horizon_availability[1])
+        self.assertIsNotNone(eval_res.portfolio_forward_returns[1])
+
+        self.assertFalse(eval_res.horizon_availability[5])
+        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+
+    def test_case_d_evaluation_date_before_min_history(self) -> None:
+        """Case D: Evaluation date before min_history requirement is satisfied.
+
+        Verify:
+        - Raises ValueError for insufficient history;
+        - Does NOT convert this into a malformed-data error.
+        """
+        eval_d = self.df_aaa["date"].iloc[10]  # Only 11 sessions <= T
+        cfg = PortfolioConfig(min_history=50)
+
+        with self.assertRaises(ValueError) as ctx:
+            evaluate_portfolio_at_date(
+                evaluation_date=eval_d,
+                universe_stock_map=self.universe,
+                config=cfg,
+                df_vnindex=self.df_vni,
+            )
+
+        self.assertIn("insufficient history", str(ctx.exception))
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_exact_trading_session_semantics_with_weekend_gap(self, mock_gen_rec) -> None:
+        """Verify exact trading-session indexing across weekend/holiday gaps.
+
+        Friday   = T
+        Monday   = T+1
+        Tuesday  = T+2
+
+        Verify forward returns are taken from exact trading observations, not calendar days.
+        """
+        # Create 33 business days synthetic data
+        df_gap = create_synthetic_ohlcv(
+            start_date="2024-01-01", num_days=33, base_price=10000.0, daily_trend=100.0
+        )
+        p_T = df_gap.loc[29, "close"]
+
+        # Row 29 is Friday (2024-02-09)
+        # Row 30 is Monday (2024-02-12) -> price 110% of Friday close
+        # Row 31 is Tuesday (2024-02-13) -> price 120% of Friday close
+        df_gap.loc[30, "close"] = p_T * 1.10
+        df_gap.loc[30, "open"] = p_T * 1.09
+        df_gap.loc[30, "high"] = p_T * 1.11
+        df_gap.loc[30, "low"] = p_T * 1.08
+
+        df_gap.loc[31, "close"] = p_T * 1.20
+        df_gap.loc[31, "open"] = p_T * 1.19
+        df_gap.loc[31, "high"] = p_T * 1.21
+        df_gap.loc[31, "low"] = p_T * 1.18
+
+        eval_fri = df_gap["date"].iloc[29]  # Friday evaluation date
+
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 80.0,
+            "risk_adjusted_score": 80.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": p_T},
+        }
+
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_fri,
+            universe_stock_map={"GAP_STK": df_gap},
+            config=cfg,
+            horizons=[1, 2],
+        )
+
+        pos = eval_res.positions[0]
+
+        # Horizon 1 must use Monday (T+1 trading session) price 110% -> 0.10 return
+        self.assertAlmostEqual(pos.forward_returns[1], 0.10, places=5)
+        self.assertAlmostEqual(eval_res.portfolio_forward_returns[1], 0.10, places=5)
+
+        # Horizon 2 must use Tuesday (T+2 trading session) price 120% -> 0.20 return
+        self.assertAlmostEqual(pos.forward_returns[2], 0.20, places=5)
+        self.assertAlmostEqual(eval_res.portfolio_forward_returns[2], 0.20, places=5)
+
+    def test_evaluation_date_must_be_exact_and_not_fallback(self) -> None:
+        """Verify evaluation date must be exact in price history for both non-trading dates and stock missing dates.
+
+        Case 1: Evaluation date is a non-trading date outside dataset ('2024-01-06' Saturday).
+        Case 2: Evaluation date is within historical date range, but missing from target stock dataset (e.g. '2024-01-03' missing in stock with '2024-01-01', '2024-01-02', '2024-01-04').
+
+        MUST fail closed with ValueError rather than silently falling back to latest date <= T.
+        """
+        cfg = PortfolioConfig(min_history=30)
+        non_trading_d = "2024-01-06"  # Saturday, not in synthetic dataset
+
+        with self.assertRaises(ValueError) as ctx:
+            evaluate_portfolio_at_date(
+                evaluation_date=non_trading_d,
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+
+        self.assertIn("not present in dataset price history", str(ctx.exception))
+
+        # Case 2: Date within historical range, but missing from a stock dataset
+        df_gap_stock = (
+            self.df_aaa[self.df_aaa["date"] != "2024-01-15"].copy().reset_index(drop=True)
+        )
+        universe_missing_stock = {"AAA": df_gap_stock, "BBB": self.df_bbb}
+
+        with self.assertRaises(ValueError) as ctx_stock:
+            evaluate_portfolio_at_date(
+                evaluation_date="2024-01-15",
+                universe_stock_map=universe_missing_stock,
+                config=cfg,
+            )
+
+        self.assertIn("not present in dataset price history", str(ctx_stock.exception))
+
+    def test_multiple_evaluation_dates_chronological_ordering_and_isolation(self) -> None:
+        """Verify run_portfolio_backtest with multiple evaluation dates.
+
+        Verify:
+        - Dates processed in chronological order;
+        - Duplicate dates rejected with ValueError;
+        - Unsorted dates rejected with ValueError;
+        - Outcome at T1 does not leak into signal input at T2;
+        - Running T1 and T2 together matches running them individually.
+        """
+        t1 = self.df_aaa["date"].iloc[40]
+        t2 = self.df_aaa["date"].iloc[50]
+        t3 = self.df_aaa["date"].iloc[60]
+
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        # 1. Unsorted dates raise ValueError
+        with self.assertRaises(ValueError) as ctx_unsorted:
+            run_portfolio_backtest(
+                evaluation_dates=[t2, t1],
+                universe_stock_map=self.universe,
+                config=cfg,
+                df_vnindex=self.df_vni,
+            )
+        self.assertIn("not sorted in chronological order", str(ctx_unsorted.exception))
+
+        # 2. Duplicate dates raise ValueError
+        with self.assertRaises(ValueError) as ctx_dup:
+            run_portfolio_backtest(
+                evaluation_dates=[t1, t1, t2],
+                universe_stock_map=self.universe,
+                config=cfg,
+                df_vnindex=self.df_vni,
+            )
+        self.assertIn("contains duplicate entries", str(ctx_dup.exception))
+
+        # 3. Valid chronological run
+        res_multi = run_portfolio_backtest(
+            evaluation_dates=[t1, t2, t3],
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(res_multi.evaluation_dates, [t1, t2, t3])
+
+        # 4. State isolation check: compare with individual runs
+        res_t1 = evaluate_portfolio_at_date(
+            evaluation_date=t1,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        res_t2 = evaluate_portfolio_at_date(
+            evaluation_date=t2,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        self.assertEqual(res_multi.evaluations[0].to_dict(), res_t1.to_dict())
+        self.assertEqual(res_multi.evaluations[1].to_dict(), res_t2.to_dict())
+
+    def test_cross_evaluation_temporal_isolation_mutation_boundary(self) -> None:
+        """Verify cross-evaluation temporal isolation with T1 < T2.
+
+        Scenario 1: Mutate data > T2.
+        - Construction states at T1 and T2 remain strictly invariant.
+
+        Scenario 2: Mutate data strictly between T1 and T2 (T1 < date <= T2).
+        - Construction state at T1 remains strictly IDENTICAL to baseline.
+        - Construction state at T2 changes deterministically compared to baseline because intermediate data became historical input at T2.
+        """
+        t1 = self.df_aaa["date"].iloc[40]
+        t2 = self.df_aaa["date"].iloc[60]
+
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        baseline = run_portfolio_backtest(
+            evaluation_dates=[t1, t2],
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Scenario 1: Mutate data > T2
+        df_aaa_mut_post_t2 = self.df_aaa.copy()
+        mask_post_t2 = df_aaa_mut_post_t2["date"] > t2
+        df_aaa_mut_post_t2.loc[mask_post_t2, "close"] *= 3.0
+        df_aaa_mut_post_t2.loc[mask_post_t2, "open"] *= 3.0
+        df_aaa_mut_post_t2.loc[mask_post_t2, "high"] *= 3.0
+        df_aaa_mut_post_t2.loc[mask_post_t2, "low"] *= 3.0
+        universe_mut1 = {"AAA": df_aaa_mut_post_t2, "BBB": self.df_bbb}
+
+        res_mut1 = run_portfolio_backtest(
+            evaluation_dates=[t1, t2],
+            universe_stock_map=universe_mut1,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # Construction states at both T1 and T2 must remain strictly identical to baseline
+        for idx in range(2):
+            self.assert_portfolio_construction_state_equals(
+                baseline.evaluations[idx], res_mut1.evaluations[idx]
+            )
+
+        # Scenario 2: Mutate data strictly between T1 and T2 (T1 < date <= T2)
+        df_aaa_mut_mid = self.df_aaa.copy()
+        mask_mid = (df_aaa_mut_mid["date"] > t1) & (df_aaa_mut_mid["date"] <= t2)
+        df_aaa_mut_mid.loc[mask_mid, "close"] *= 2.0
+        df_aaa_mut_mid.loc[mask_mid, "open"] *= 2.0
+        df_aaa_mut_mid.loc[mask_mid, "high"] *= 2.0
+        df_aaa_mut_mid.loc[mask_mid, "low"] *= 2.0
+        universe_mut2 = {"AAA": df_aaa_mut_mid, "BBB": self.df_bbb}
+
+        res_mut2 = run_portfolio_backtest(
+            evaluation_dates=[t1, t2],
+            universe_stock_map=universe_mut2,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+
+        # At T1: construction state MUST be strictly IDENTICAL to baseline
+        self.assert_portfolio_construction_state_equals(
+            baseline.evaluations[0], res_mut2.evaluations[0]
+        )
+
+        # At T2: entry_price at T2 changed due to intermediate price mutation <= T2
+        p2_base = next(p for p in baseline.evaluations[1].positions if p.symbol == "AAA")
+        p2_mut = next(p for p in res_mut2.evaluations[1].positions if p.symbol == "AAA")
+        self.assertNotEqual(p2_base.entry_price, p2_mut.entry_price)
+
+    def test_horizon_boundary_isolation_exact_and_missing_sessions(self) -> None:
+        """Verify horizon boundary isolation at exact and missing session thresholds.
+
+        Dataset has 100 rows.
+        At T = index 89 (90th day), exactly 10 sessions exist after T (index 90 to 99).
+        Horizons:
+        - 5D: 10 >= 5 -> available -> return calculated.
+        - 10D: 10 >= 10 -> available -> return calculated.
+        - 11D: 10 < 11 -> unavailable -> None.
+        - 20D: 10 < 20 -> unavailable -> None.
+        """
+        eval_d = self.df_aaa["date"].iloc[89]  # 90th day, 10 future sessions
+        cfg = PortfolioConfig(
+            min_history=30,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5, 10, 11, 20],
+        )
+
+        self.assertTrue(eval_res.horizon_availability[5])
+        self.assertIsNotNone(eval_res.portfolio_forward_returns[5])
+
+        self.assertTrue(eval_res.horizon_availability[10])
+        self.assertIsNotNone(eval_res.portfolio_forward_returns[10])
+
+        self.assertFalse(eval_res.horizon_availability[11])
+        self.assertIsNone(eval_res.portfolio_forward_returns[11])
+
+        self.assertFalse(eval_res.horizon_availability[20])
+        self.assertIsNone(eval_res.portfolio_forward_returns[20])
+
+    def test_fail_closed_temporal_boundary_input_validation(self) -> None:
+        """Verify fail-closed input validation for temporal boundary edge cases.
+
+        Verify distinct error handling for:
+        - Empty evaluation_dates;
+        - Duplicate evaluation_dates;
+        - Unsorted evaluation_dates;
+        - Invalid evaluation date format;
+        - Timezone-aware evaluation date;
+        - Evaluation date out of historical range;
+        - Insufficient historical observations (< min_history).
+        """
+        cfg = PortfolioConfig(min_history=50)
+
+        # 1. Empty evaluation_dates
+        with self.assertRaises(ValueError) as ctx1:
+            run_portfolio_backtest(
+                evaluation_dates=[],
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("cannot be empty", str(ctx1.exception))
+
+        # 2. Duplicate evaluation_dates
+        t1 = self.df_aaa["date"].iloc[50]
+        with self.assertRaises(ValueError) as ctx2:
+            run_portfolio_backtest(
+                evaluation_dates=[t1, t1],
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("duplicate", str(ctx2.exception))
+
+        # 3. Invalid evaluation date string
+        with self.assertRaises(ValueError) as ctx3:
+            run_portfolio_backtest(
+                evaluation_dates=["invalid-date-string"],
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("canonical 'YYYY-MM-DD'", str(ctx3.exception))
+
+        # 4. Timezone-aware evaluation date
+        tz_d = pd.Timestamp("2024-03-01T00:00:00Z")
+        with self.assertRaises(ValueError) as ctx4:
+            evaluate_portfolio_at_date(
+                evaluation_date=tz_d,
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("Timezone-aware", str(ctx4.exception))
+
+        # 5. Evaluation date out of historical range
+        with self.assertRaises(ValueError) as ctx5:
+            evaluate_portfolio_at_date(
+                evaluation_date="2099-12-31",
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("not present in dataset price history", str(ctx5.exception))
+
+        # 6. Insufficient historical observations
+        early_d = self.df_aaa["date"].iloc[10]  # only 11 sessions <= T
+        with self.assertRaises(ValueError) as ctx6:
+            evaluate_portfolio_at_date(
+                evaluation_date=early_d,
+                universe_stock_map=self.universe,
+                config=cfg,
+            )
+        self.assertIn("insufficient history", str(ctx6.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
