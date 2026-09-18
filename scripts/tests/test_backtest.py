@@ -20,6 +20,7 @@ from scripts.lib.backtest import (
     ConfidenceCalibrationResult,
     ConfidenceObservation,
     ExecutionConfig,
+    ExecutionEligibility,
     ForwardOutcome,
     RegimeEvaluationResult,
     RegimeObservation,
@@ -1591,6 +1592,219 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(exec_sum["execution_evaluated_points"], 2)
         self.assertEqual(exec_sum["executable_count"], 2)
         self.assertEqual(exec_sum["executable_ratio"], 1.0)
+
+    def test_exec_order_value_vnd_participation(self):
+        """Test participation rate calculation using estimated_order_value_vnd."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        # 20 sessions: close = 50,000 VND, volume = 100,000 -> daily value = 5.0 billion VND
+        df_val = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [50000.0] * 20,
+                "high": [50000.0] * 20,
+                "low": [50000.0] * 20,
+                "close": [50000.0] * 20,
+                "volume": [100000.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        # Order value = 250,000,000 VND -> ratio = 250m / 5bn = 0.05 (5%)
+        config = ExecutionConfig(
+            max_participation_rate=0.10,
+            estimated_order_value_vnd=250_000_000.0,
+            lookback_window=20,
+        )
+        elig = evaluate_execution_eligibility(df_val, eval_d, config)
+        self.assertTrue(elig.is_executable)
+        self.assertEqual(elig.status, STATUS_EXECUTABLE)
+        self.assertAlmostEqual(elig.metrics["estimated_participation_rate"], 0.05, places=4)
+
+    def test_exec_zero_order_size_zero_participation(self):
+        """Test zero order size (0.0 shares) produces 0.0 participation rate and remains executable."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        df_val = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [50000.0] * 20,
+                "high": [50000.0] * 20,
+                "low": [50000.0] * 20,
+                "close": [50000.0] * 20,
+                "volume": [100000.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        config = ExecutionConfig(
+            max_participation_rate=0.10,
+            estimated_order_size_shares=0.0,
+            lookback_window=20,
+        )
+        elig = evaluate_execution_eligibility(df_val, eval_d, config)
+        self.assertTrue(elig.is_executable)
+        self.assertEqual(elig.metrics["estimated_participation_rate"], 0.0)
+
+    def test_exec_order_size_overflow_rejection(self):
+        """Test order size far exceeding available market volume is rejected with REASON_EXCEEDS_MAX_PARTICIPATION."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        # Daily volume = 10,000 shares
+        df_low_vol = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [10000.0] * 20,
+                "close": [10000.0] * 20,
+                "volume": [10000.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        # Order size = 50,000 shares -> 500% participation rate > 10% max limit
+        config = ExecutionConfig(
+            max_participation_rate=0.10,
+            estimated_order_size_shares=50_000.0,
+            lookback_window=20,
+        )
+        elig = evaluate_execution_eligibility(df_low_vol, eval_d, config)
+        self.assertFalse(elig.is_executable)
+        self.assertEqual(elig.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn(REASON_EXCEEDS_MAX_PARTICIPATION, elig.reasons)
+        self.assertAlmostEqual(elig.metrics["estimated_participation_rate"], 5.0, places=4)
+
+    def test_exec_missing_price_or_volume_columns_raises_value_error(self):
+        """Test DataFrame missing required OHLC or volume columns raises ValueError via get_as_of_dataset validation."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        df_no_vol = pd.DataFrame(
+            {
+                "date": dates,
+                "close": [10000.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        with self.assertRaises(ValueError):
+            evaluate_execution_eligibility(df_no_vol, eval_d, ExecutionConfig())
+
+    def test_exec_zero_or_negative_price_or_volume_liquidity_rejection(self):
+        """Test zero or negative close price / volume triggers zero_or_negative_liquidity reason."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
+        # 0 volume
+        df_zero_vol = pd.DataFrame(
+            {
+                "date": dates,
+                "open": [10000.0] * 20,
+                "high": [10000.0] * 20,
+                "low": [10000.0] * 20,
+                "close": [10000.0] * 20,
+                "volume": [0.0] * 20,
+            }
+        )
+        eval_d = dates[-1]
+
+        elig = evaluate_execution_eligibility(df_zero_vol, eval_d, ExecutionConfig())
+        self.assertFalse(elig.is_executable)
+        self.assertEqual(elig.status, STATUS_NOT_EXECUTABLE)
+        self.assertIn("zero_or_negative_liquidity", elig.reasons)
+
+    def test_exec_denominator_semantics_and_status_distinction(self):
+        """Test denominator semantics: execution_evaluated_points vs total_signals, and explicit status counts."""
+        sig_exec = BacktestSignal(
+            symbol="AAA",
+            evaluation_date="2025-01-10",
+            action="BUY",
+            signal_score=80.0,
+            confidence=0.8,
+            market_regime="BULL",
+            risk_adjusted_score=80.0,
+            data_quality="SUFFICIENT",
+            model_version="2.0",
+            entry_price=10.0,
+            execution_eligibility=ExecutionEligibility(
+                status=STATUS_EXECUTABLE,
+                is_executable=True,
+                reasons=[],
+                metrics={"avg_traded_value_bn": 2.0, "avg_volume": 100000.0},
+            ),
+        )
+
+        sig_not_exec = BacktestSignal(
+            symbol="BBB",
+            evaluation_date="2025-01-10",
+            action="BUY",
+            signal_score=70.0,
+            confidence=0.7,
+            market_regime="BULL",
+            risk_adjusted_score=70.0,
+            data_quality="SUFFICIENT",
+            model_version="2.0",
+            entry_price=10.0,
+            execution_eligibility=ExecutionEligibility(
+                status=STATUS_NOT_EXECUTABLE,
+                is_executable=False,
+                reasons=[REASON_BELOW_MIN_TRADED_VALUE],
+                metrics={"avg_traded_value_bn": 0.2, "avg_volume": 10000.0},
+            ),
+        )
+
+        sig_insuff_hist = BacktestSignal(
+            symbol="CCC",
+            evaluation_date="2025-01-10",
+            action="BUY",
+            signal_score=60.0,
+            confidence=0.6,
+            market_regime="BULL",
+            risk_adjusted_score=60.0,
+            data_quality="SUFFICIENT",
+            model_version="2.0",
+            entry_price=10.0,
+            execution_eligibility=ExecutionEligibility(
+                status=STATUS_INSUFFICIENT_LIQUIDITY_HISTORY,
+                is_executable=False,
+                reasons=[REASON_INSUFFICIENT_LOOKBACK_SESSIONS],
+                metrics={},
+            ),
+        )
+
+        sig_unevaluated = BacktestSignal(
+            symbol="DDD",
+            evaluation_date="2025-01-10",
+            action="HOLD",
+            signal_score=50.0,
+            confidence=0.5,
+            market_regime="NEUTRAL",
+            risk_adjusted_score=50.0,
+            data_quality="SUFFICIENT",
+            model_version="2.0",
+            entry_price=10.0,
+            execution_eligibility=None,  # Unevaluated signal
+        )
+
+        out = ForwardOutcome(
+            evaluation_date="2025-01-10",
+            returns={5: 0.01},
+            availability={5: True},
+            strategy_returns={5: 0.01},
+        )
+
+        results = [
+            BacktestResult(signal=sig_exec, outcome=out),
+            BacktestResult(signal=sig_not_exec, outcome=out),
+            BacktestResult(signal=sig_insuff_hist, outcome=out),
+            BacktestResult(signal=sig_unevaluated, outcome=out),
+        ]
+
+        summary = aggregate_backtest_results(results, horizons=[5])
+        exec_sum = summary["execution_summary"]
+
+        self.assertEqual(exec_sum["total_evaluation_points"], 4)
+        self.assertEqual(exec_sum["execution_evaluated_points"], 3)
+        self.assertEqual(exec_sum["executable_count"], 1)
+        self.assertEqual(exec_sum["non_executable_count"], 1)
+        self.assertEqual(exec_sum["insufficient_history_count"], 1)
+        self.assertEqual(exec_sum["invalid_data_count"], 0)
+        # Ratio = executable_count / execution_evaluated_points = 1 / 3 = 0.3333
+        self.assertAlmostEqual(exec_sum["executable_ratio"], 0.3333, places=4)
 
     def test_exec_mixed_inputs_aggregation(self):
         """Test aggregate_backtest_results() correctly handles mixed results (some with execution eligibility, some without)."""

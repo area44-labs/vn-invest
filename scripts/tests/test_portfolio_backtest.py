@@ -440,6 +440,86 @@ class TestPortfolioConstruction(unittest.TestCase):
         self.assertEqual(eval_res.empty_reason, "no_eligible_candidates")
         self.assertIsNone(eval_res.portfolio_forward_returns[5])
 
+    def test_empty_portfolio_when_all_candidates_non_executable(self) -> None:
+        # All stocks have volume far below min_avg_volume requirement
+        df_low1 = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 100.0)
+        df_low2 = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0, 100.0)
+        universe_low_vol = {"LOW1": df_low1, "LOW2": df_low2}
+
+        exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
+        cfg = PortfolioConfig(
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=True,
+            execution_config=exec_cfg,
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe_low_vol,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            df_vn30=self.df_vn30,
+        )
+        self.assertEqual(len(eval_res.positions), 0)
+        self.assertEqual(eval_res.allocated_weight, 0.0)
+        self.assertEqual(eval_res.unallocated_weight, 1.0)
+        self.assertEqual(eval_res.empty_reason, "all_candidates_non_executable")
+        self.assertEqual(len(eval_res.excluded_non_executable), 2)
+        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+
+    def test_execution_semantics_consistency_with_single_trade_backtest(self) -> None:
+        """Verify portfolio backtest enforces same execution eligibility rules as single-trade backtest."""
+        # LOW1 has volume below min, HIGH1 has volume above min
+        df_low = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0, 1000.0)
+        df_high = create_synthetic_ohlcv("2024-01-01", 100, 50000.0, 100.0, 100000.0)
+        universe = {"LOW1": df_low, "HIGH1": df_high}
+
+        exec_cfg = ExecutionConfig(
+            min_avg_traded_value_bn=1.0,
+            min_avg_volume=50000.0,
+            min_price=10000.0,
+        )
+
+        # 1. With require_executable=True: LOW1 is excluded, HIGH1 selected
+        cfg_req = PortfolioConfig(
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=True,
+            execution_config=exec_cfg,
+        )
+        eval_req = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe,
+            config=cfg_req,
+            df_vnindex=self.df_vni,
+        )
+        selected_req = [p.symbol for p in eval_req.positions]
+        self.assertIn("HIGH1", selected_req)
+        self.assertNotIn("LOW1", selected_req)
+        self.assertIn("LOW1", eval_req.excluded_non_executable)
+
+        # 2. With require_executable=False: Both selected, LOW1 has is_executable=False, HIGH1 has is_executable=True
+        cfg_noreq = PortfolioConfig(
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=False,
+            execution_config=exec_cfg,
+        )
+        eval_noreq = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe,
+            config=cfg_noreq,
+            df_vnindex=self.df_vni,
+        )
+        selected_noreq = [p.symbol for p in eval_noreq.positions]
+        self.assertIn("HIGH1", selected_noreq)
+        self.assertIn("LOW1", selected_noreq)
+
+        pos_low = next(p for p in eval_noreq.positions if p.symbol == "LOW1")
+        pos_high = next(p for p in eval_noreq.positions if p.symbol == "HIGH1")
+        self.assertFalse(pos_low.is_executable)
+        self.assertTrue(pos_high.is_executable)
+
 
 class TestPortfolioReturnCalculation(unittest.TestCase):
     """Test Suite for forward portfolio return calculation."""
