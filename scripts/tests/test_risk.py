@@ -283,27 +283,54 @@ class TestRiskModel(unittest.TestCase):
         self.assertEqual(metrics["es_t25"], metrics["var_t25"])
 
     def test_var_and_es_invalid_numeric_input(self):
-        """Verify that NaN prices in input Series are filtered by dropna() and risk metrics equal exact calculations on remaining valid returns."""
-        # 25 rows with 3 leading NaNs followed by 22 valid prices
-        prices_nan = [np.nan, np.nan, np.nan] + [100.0 + i * 2.0 for i in range(22)]
-        df_nan = pd.DataFrame({"close": prices_nan, "volume": [1000.0] * 25})
+        """Verify clean-data boundary rejects NaN rows and risk metrics match exact calculations on clean prices."""
+        n = 25
+        dates = pd.date_range("2026-01-01", periods=n, freq="D")
+        raw_prices = [100.0 + i * 2.0 for i in range(22)] + [np.nan, np.nan, np.nan]
+        df_raw = pd.DataFrame(
+            {
+                "time": dates,
+                "open": [p - 1.0 if not np.isnan(p) else np.nan for p in raw_prices],
+                "high": [p + 2.0 if not np.isnan(p) else np.nan for p in raw_prices],
+                "low": [p - 2.0 if not np.isnan(p) else np.nan for p in raw_prices],
+                "close": raw_prices,
+                "volume": [1000.0] * n,
+            }
+        )
 
-        # calculate_t25_returns uses pct_change(3).dropna() to drop NaN return observations
-        returns_3d = calculate_t25_returns(df_nan["close"])
-        # With 22 valid prices, pct_change(3).dropna() yields 19 valid returns (>= 10 threshold)
-        self.assertEqual(len(returns_3d), 19)
+        # 1. Verify clean data boundary detects NaN issues and excludes invalid rows
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
+        self.assertIn("nan_values", val_res["issues"])
+        self.assertEqual(len(clean_df), 22)
 
-        expected_var = round(float(np.percentile(returns_3d, 5)), 4)
-        expected_es = round(float(returns_3d[returns_3d <= np.percentile(returns_3d, 5)].mean()), 4)
+        # 2. Verify calculate_t25_risk_metrics on clean DataFrame produces exact VaR and ES
+        returns_clean = clean_df["close"].pct_change(3).dropna()
+        expected_var = round(float(np.percentile(returns_clean, 5)), 4)
+        expected_es = round(
+            float(returns_clean[returns_clean <= np.percentile(returns_clean, 5)].mean()), 4
+        )
 
-        metrics = calculate_t25_risk_metrics(df_nan)
+        metrics = calculate_t25_risk_metrics(clean_df)
         self.assertEqual(metrics["var_t25"], expected_var)
         self.assertEqual(metrics["es_t25"], expected_es)
 
-        # When NaNs reduce remaining valid returns below 10 items, calculate_t25_risk_metrics returns nulls
-        prices_mostly_nan = [np.nan] * 18 + [100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0]
-        df_mostly_nan = pd.DataFrame({"close": prices_mostly_nan, "volume": [1000.0] * 25})
-        metrics_null = calculate_t25_risk_metrics(df_mostly_nan)
+        # 3. Verify that when NaNs reduce clean rows below minimum history (< 20), risk metrics return nulls
+        raw_prices_short = [100.0 + i for i in range(15)] + [np.nan] * 10
+        df_raw_short = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-01-01", periods=25, freq="D"),
+                "open": [p - 1.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
+                "high": [p + 2.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
+                "low": [p - 2.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
+                "close": raw_prices_short,
+                "volume": [1000.0] * 25,
+            }
+        )
+        clean_short_df, val_short_res = get_clean_ohlcv_data(df_raw_short, "TEST")
+        self.assertEqual(len(clean_short_df), 15)
+        self.assertIn("insufficient_history", val_short_res["issues"])
+
+        metrics_null = calculate_t25_risk_metrics(clean_short_df)
         self.assertIsNone(metrics_null["var_t25"])
         self.assertIsNone(metrics_null["es_t25"])
 
