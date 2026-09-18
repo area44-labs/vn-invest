@@ -1,11 +1,13 @@
 """Unit & Integration Tests for Portfolio Backtesting Framework."""
 
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
 from scripts.lib.backtest import (
     ExecutionConfig,
+    calculate_execution_return,
     run_walk_forward_backtest,
 )
 from scripts.lib.portfolio_backtest import (
@@ -859,6 +861,734 @@ class TestPortfolioAggregation(unittest.TestCase):
         # Sequential compounding: (1 + 0.10) * (1 - 0.05) - 1 = 1.10 * 0.95 - 1 = 1.045 - 1 = 0.045
         self.assertIn("sequential_compounded_return", h5)
         self.assertAlmostEqual(h5["sequential_compounded_return"], 0.045, places=5)
+
+
+class TestZeroCostEquivalence(unittest.TestCase):
+    """Test Suite verifying transaction_cost_pct=0 and slippage_pct=0 equivalence."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
+        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 150.0)
+        self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
+        self.eval_date = self.df_aaa["date"].iloc[40]
+
+    def test_zero_cost_and_slippage_field_level_equivalence(self) -> None:
+        """Verify position returns, portfolio return, weights, allocated and unallocated weight when cost/slippage are zero."""
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        pos_a = eval_res.positions[0]
+        pos_b = eval_res.positions[1]
+
+        # Weights check
+        self.assertEqual(pos_a.weight, 0.5)
+        self.assertEqual(pos_b.weight, 0.5)
+        self.assertEqual(eval_res.allocated_weight, 1.0)
+        self.assertEqual(eval_res.unallocated_weight, 0.0)
+
+        # Expected gross return for AAA (BUY):
+        # Entry price at session 40, Exit price at session 45
+        p_entry_a = pos_a.entry_price
+        df_a_as_of = self.df_aaa[self.df_aaa["date"] >= self.eval_date]
+        p_exit_a = df_a_as_of["close"].iloc[5]
+        expected_ret_a = round((p_exit_a / p_entry_a) - 1.0, 6)
+
+        # Expected gross return for BBB
+        p_entry_b = pos_b.entry_price
+        df_b_as_of = self.df_bbb[self.df_bbb["date"] >= self.eval_date]
+        p_exit_b = df_b_as_of["close"].iloc[5]
+        expected_ret_b = round((p_exit_b / p_entry_b) - 1.0, 6)
+
+        self.assertEqual(pos_a.forward_returns[5], expected_ret_a)
+        self.assertEqual(pos_b.forward_returns[5], expected_ret_b)
+
+        expected_portfolio_ret = round(0.5 * expected_ret_a + 0.5 * expected_ret_b, 6)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], expected_portfolio_ret)
+
+
+class TestAllocationInvariants(unittest.TestCase):
+    """Test Suite verifying sum(weights) + unallocated_weight == 1.0 across configurations."""
+
+    def setUp(self) -> None:
+        self.df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
+        self.df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0, 200000.0)
+        self.df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 150.0, 300000.0)
+        self.df_ccc = create_synthetic_ohlcv("2024-01-01", 80, 30000.0, 50.0, 150000.0)
+        self.universe = {
+            "AAA": self.df_aaa,
+            "BBB": self.df_bbb,
+            "CCC": self.df_ccc,
+        }
+        self.eval_date = self.df_aaa["date"].iloc[40]
+
+    def test_allocation_invariant_single_position(self) -> None:
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        self.assertEqual(len(eval_res.positions), 1)
+        self.assertEqual(eval_res.positions[0].weight, 1.0)
+        self.assertEqual(eval_res.allocated_weight, 1.0)
+        self.assertEqual(eval_res.unallocated_weight, 0.0)
+        self.assertAlmostEqual(
+            sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight,
+            1.0,
+            places=6,
+        )
+
+    def test_allocation_invariant_two_positions(self) -> None:
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        self.assertEqual(len(eval_res.positions), 2)
+        total_w = sum(p.weight for p in eval_res.positions)
+        self.assertEqual(eval_res.allocated_weight, round(total_w, 6))
+        self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
+
+    def test_allocation_invariant_multiple_positions_with_cap(self) -> None:
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            max_weight_per_position=0.25,
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        self.assertEqual(len(eval_res.positions), 3)
+        for pos in eval_res.positions:
+            self.assertEqual(pos.weight, 0.25)
+        self.assertEqual(eval_res.allocated_weight, 0.75)
+        self.assertEqual(eval_res.unallocated_weight, 0.25)
+        self.assertAlmostEqual(
+            sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight,
+            1.0,
+            places=6,
+        )
+
+    def test_allocation_invariant_non_executable_filtering(self) -> None:
+        # LOW_VOL is non-executable
+        df_low_vol = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0, 1000.0)
+        universe_exec = {
+            "LOW_VOL": df_low_vol,
+            "BBB": self.df_bbb,
+            "CCC": self.df_ccc,
+        }
+        exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=True,
+            execution_config=exec_cfg,
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe_exec,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        self.assertEqual(len(eval_res.positions), 2)
+        total_w = sum(p.weight for p in eval_res.positions)
+        self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
+        self.assertNotIn("LOW_VOL", [p.symbol for p in eval_res.positions])
+
+    def test_allocation_invariant_mixed_executable_require_false(self) -> None:
+        df_low_vol = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0, 1000.0)
+        universe_exec = {
+            "LOW_VOL": df_low_vol,
+            "BBB": self.df_bbb,
+        }
+        exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            require_executable=False,
+            execution_config=exec_cfg,
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=universe_exec,
+            config=cfg,
+            df_vnindex=self.df_vni,
+        )
+        self.assertEqual(len(eval_res.positions), 2)
+        total_w = sum(p.weight for p in eval_res.positions)
+        self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
+
+
+class TestMixedActionPortfolio(unittest.TestCase):
+    """Test Suite verifying mixed BUY/SELL/WATCH portfolio semantics."""
+
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+
+        # BUY stock (100 -> 110 at +5D)
+        prices_buy = [100.0] * 50 + [110.0] * 10
+        self.df_buy = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_buy,
+                "high": prices_buy,
+                "low": prices_buy,
+                "close": prices_buy,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        # SELL stock (100 -> 90 at +5D)
+        prices_sell = [100.0] * 50 + [90.0] * 10
+        self.df_sell = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_sell,
+                "high": prices_sell,
+                "low": prices_sell,
+                "close": prices_sell,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        # WATCH stock (100 -> 120 at +5D - price moves, but WATCH must earn 0 return and 0 fees)
+        prices_watch = [100.0] * 50 + [120.0] * 10
+        self.df_watch = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_watch,
+                "high": prices_watch,
+                "low": prices_watch,
+                "close": prices_watch,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+
+        self.universe = {
+            "STK_BUY": self.df_buy,
+            "STK_SELL": self.df_sell,
+            "STK_WATCH": self.df_watch,
+        }
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_mixed_buy_sell_watch_portfolio_returns(self, mock_gen_rec) -> None:
+        def side_effect(symbol, **kwargs):
+            if symbol == "STK_BUY":
+                return {
+                    "action": "BUY",
+                    "signal_score": 85.0,
+                    "risk_adjusted_score": 85.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            if symbol == "STK_SELL":
+                return {
+                    "action": "SELL",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.7,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "WATCH",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.6,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        tc = 0.0030
+        slip = 0.0010
+
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "SELL", "WATCH"),
+            min_history=30,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 3)
+        pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
+        pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
+        pos_watch = next(p for p in eval_res.positions if p.symbol == "STK_WATCH")
+
+        # Equal weighting (1/3 each)
+        w = round(1.0 / 3.0, 6)
+        self.assertEqual(pos_buy.weight, w)
+        self.assertEqual(pos_sell.weight, w)
+        self.assertEqual(pos_watch.weight, w)
+
+        # BUY net return: 0.094511
+        self.assertEqual(pos_buy.forward_returns[5], 0.094511)
+
+        # SELL net return: 0.094906
+        self.assertEqual(pos_sell.forward_returns[5], 0.094906)
+
+        # WATCH net return: STRICTLY 0.0 (no trading P&L, no transaction costs, no slippage)
+        self.assertEqual(pos_watch.forward_returns[5], 0.0)
+
+        # Expected portfolio return: round(w * 0.094511 + w * 0.094906 + w * 0.0, 6)
+        expected_port_ret = round(w * 0.094511 + w * 0.094906, 6)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], expected_port_ret)
+
+
+class TestZeroReturnPositions(unittest.TestCase):
+    """Test Suite verifying zero price-change positions (entry price == exit price)."""
+
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+        prices_flat = [100.0] * 60
+        self.df_flat = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_flat,
+                "high": prices_flat,
+                "low": prices_flat,
+                "close": prices_flat,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+        self.universe = {
+            "BUY_FLAT": self.df_flat,
+            "SELL_FLAT": self.df_flat.copy(),
+            "WATCH_FLAT": self.df_flat.copy(),
+        }
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_zero_price_change_gross_vs_net_returns(self, mock_gen_rec) -> None:
+        def side_effect(symbol, **kwargs):
+            if symbol == "BUY_FLAT":
+                return {
+                    "action": "BUY",
+                    "signal_score": 85.0,
+                    "risk_adjusted_score": 85.0,
+                    "confidence": 0.8,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            if symbol == "SELL_FLAT":
+                return {
+                    "action": "SELL",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.7,
+                    "trade_plan": {"current_price": 100.0},
+                }
+            return {
+                "action": "WATCH",
+                "signal_score": 75.0,
+                "risk_adjusted_score": 75.0,
+                "confidence": 0.6,
+                "trade_plan": {"current_price": 100.0},
+            }
+
+        mock_gen_rec.side_effect = side_effect
+
+        tc = 0.0030
+        slip = 0.0010
+
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY", "SELL", "WATCH"),
+            min_history=30,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        pos_buy = next(p for p in eval_res.positions if p.symbol == "BUY_FLAT")
+        pos_sell = next(p for p in eval_res.positions if p.symbol == "SELL_FLAT")
+        pos_watch = next(p for p in eval_res.positions if p.symbol == "WATCH_FLAT")
+
+        # BUY flat trade: entry=100, exit=100
+        # gross return = 0.0
+        # slippage ret = (99.9 / 100.1) - 1 = -0.001998
+        # net return = 0.9985 * (99.9 / 100.1) * 0.9985 - 1 = -0.00499
+        self.assertEqual(pos_buy.forward_returns[5], -0.00499)
+
+        # SELL flat trade: entry=100, exit=100
+        # gross return = 0.0
+        # net return = -0.004994
+        self.assertEqual(pos_sell.forward_returns[5], -0.004994)
+
+        # WATCH flat trade:
+        # gross return = 0.0, net return = 0.0
+        self.assertEqual(pos_watch.forward_returns[5], 0.0)
+
+
+class TestPartialCapitalAllocation(unittest.TestCase):
+    """Test Suite verifying partial allocation where allocated_weight < 1.0."""
+
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
+        prices_buy = [100.0] * 50 + [120.0] * 10
+        self.df_buy = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices_buy,
+                "high": prices_buy,
+                "low": prices_buy,
+                "close": prices_buy,
+                "volume": [1_000_000.0] * 60,
+            }
+        )
+        self.universe = {"STK_BUY": self.df_buy}
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_partial_allocation_portfolio_return_contribution(self, mock_gen_rec) -> None:
+        """Verify position_weight = 0.5 with zero cost yields portfolio_return = 0.5 * 20% = 10%."""
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 85.0,
+            "risk_adjusted_score": 85.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
+
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            min_confidence=0.0,
+            allowed_actions=("BUY",),
+            max_weight_per_position=0.50,  # 50% max position weight
+            min_history=30,
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 1)
+        pos = eval_res.positions[0]
+        self.assertEqual(pos.weight, 0.50)
+        self.assertEqual(eval_res.allocated_weight, 0.50)
+        self.assertEqual(eval_res.unallocated_weight, 0.50)
+
+        # Position return: (120/100) - 1 = +0.20
+        self.assertEqual(pos.forward_returns[5], 0.20)
+
+        # Portfolio return contribution: 0.50 * 0.20 = 0.10 (unallocated capital earns 0.0)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.10)
+
+
+class TestMultipleHorizonsIndependence(unittest.TestCase):
+    """Test Suite verifying independence across multiple horizons (5D, 10D)."""
+
+    def setUp(self) -> None:
+        self.dates = pd.date_range("2024-01-01", periods=65, freq="B").strftime("%Y-%m-%d")
+        # Session 50: entry = 100.0, Session 55 (+5D): exit = 110.0, Session 60 (+10D): exit = 120.0
+        prices = [100.0] * 50 + [110.0] * 5 + [120.0] * 10
+        self.df_stock = pd.DataFrame(
+            {
+                "date": self.dates,
+                "open": prices,
+                "high": prices,
+                "low": prices,
+                "close": prices,
+                "volume": [1_000_000.0] * 65,
+            }
+        )
+        self.universe = {"STK_BUY": self.df_stock}
+        self.eval_date = self.dates[49]
+
+    @patch("scripts.lib.portfolio_backtest.generate_recommendation")
+    def test_horizons_calculated_independently_without_double_counting(self, mock_gen_rec) -> None:
+        mock_gen_rec.return_value = {
+            "action": "BUY",
+            "signal_score": 85.0,
+            "risk_adjusted_score": 85.0,
+            "confidence": 0.8,
+            "trade_plan": {"current_price": 100.0},
+        }
+
+        tc = 0.0030
+        slip = 0.0010
+
+        cfg = PortfolioConfig(
+            max_positions=1,
+            min_signal_score=0.0,
+            allowed_actions=("BUY",),
+            min_history=30,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=self.eval_date,
+            universe_stock_map=self.universe,
+            config=cfg,
+            horizons=[5, 10],
+        )
+
+        pos = eval_res.positions[0]
+
+        # 5D net return: 0.094511 (from 100 -> 110)
+        self.assertEqual(pos.forward_returns[5], 0.094511)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.094511)
+
+        # 10D net return: 0.194012 (from 100 -> 120)
+        self.assertEqual(pos.forward_returns[10], 0.194012)
+        self.assertEqual(eval_res.portfolio_forward_returns[10], 0.194012)
+
+
+class TestIndependentMathOracleCostSlippage(unittest.TestCase):
+    """Test Suite validating portfolio net returns against an independent mathematical oracle."""
+
+    def test_independent_math_oracle_100pct_allocation(self) -> None:
+        """Verify 100% single position net return matches independent mathematical formula exactly."""
+        # BUY trade with entry=100, exit=120, cost=0.0030 (0.15% entry, 0.15% exit), slippage=0.0010 (0.10%)
+        # Independent formula:
+        # P_entry_exec = 100.0 * (1 + 0.0010) = 100.10
+        # P_exit_exec  = 120.0 * (1 - 0.0010) = 119.88
+        # net_return   = (1 - 0.0015) * (119.88 / 100.10) * (1 - 0.0015) - 1.0
+        #              = 0.9985 * 1.1976023976... * 0.9985 - 1.0 = 1.194011894... - 1.0 = 0.194011894...
+        # round(..., 6) = 0.194012
+        p_entry = 100.0
+        p_exit = 120.0
+        tc = 0.0030
+        slip = 0.0010
+
+        p_entry_exec = round(p_entry * (1.0 + slip), 6)
+        p_exit_exec = round(p_exit * (1.0 - slip), 6)
+        c_entry = tc / 2.0
+        c_exit = tc / 2.0
+        oracle_net = round((1.0 - c_entry) * (p_exit_exec / p_entry_exec) * (1.0 - c_exit) - 1.0, 6)
+
+        self.assertEqual(oracle_net, 0.194012)
+
+        # Run via calculate_execution_return
+        res = calculate_execution_return(
+            entry_price=p_entry,
+            exit_price=p_exit,
+            transaction_cost_pct=tc,
+            slippage_pct=slip,
+            action="BUY",
+        )
+        self.assertEqual(res.net_return, oracle_net)
+
+
+class TestMissingOutcomeSemantics(unittest.TestCase):
+    """Test Suite verifying strict missing forward outcome contracts."""
+
+    def test_all_outcomes_available(self) -> None:
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=0.5,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.10},
+            forward_availability={5: True},
+        )
+        p2 = PortfolioPosition(
+            symbol="BBB",
+            weight=0.5,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: 0.04},
+            forward_availability={5: True},
+        )
+        eval_res = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1, p2],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.07},
+            horizon_availability={5: True},
+        )
+        self.assertTrue(eval_res.horizon_availability[5])
+        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.07)
+
+    def test_some_outcomes_missing(self) -> None:
+        """When 1 position lacks forward outcome, portfolio return MUST be None, not converted to 0."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 50, 1200.0, 1.0)
+        # df_aaa has 50 rows, df_bbb has 42 rows
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 50, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 42, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+
+        # Date 40 (index 39): AAA has 10 sessions after date 40, BBB only has 2 sessions after date 40
+        eval_d = df_bbb["date"].iloc[39]
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        pos_aaa = next(p for p in eval_res.positions if p.symbol == "AAA")
+        pos_bbb = next(p for p in eval_res.positions if p.symbol == "BBB")
+
+        self.assertTrue(pos_aaa.forward_availability[5])
+        self.assertIsNotNone(pos_aaa.forward_returns[5])
+
+        self.assertFalse(pos_bbb.forward_availability[5])
+        self.assertIsNone(pos_bbb.forward_returns[5])
+
+        # Portfolio level horizon_availability MUST be False, portfolio_forward_returns MUST be None
+        self.assertFalse(eval_res.horizon_availability[5])
+        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+
+    def test_all_outcomes_missing(self) -> None:
+        df_vni = create_synthetic_ohlcv("2024-01-01", 42, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 42, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 42, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+
+        eval_d = df_aaa["date"].iloc[40]
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        for pos in eval_res.positions:
+            self.assertFalse(pos.forward_availability[5])
+            self.assertIsNone(pos.forward_returns[5])
+
+        self.assertFalse(eval_res.horizon_availability[5])
+        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+
+    def test_missing_outcome_aggregation_accounting(self) -> None:
+        """Verify aggregate_portfolio_results excludes unavailable evaluation points from mean/hit_rate denominator."""
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=1.0,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.10},
+            forward_availability={5: True},
+        )
+        eval_avail = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.10},
+            horizon_availability={5: True},
+        )
+
+        p2 = PortfolioPosition(
+            symbol="BBB",
+            weight=1.0,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: None},
+            forward_availability={5: False},
+        )
+        eval_unavail = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p2],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+        )
+
+        agg = aggregate_portfolio_results([eval_avail, eval_unavail], horizons=[5])
+        h5 = agg["horizon_metrics"][5]
+
+        # Denominator MUST be 1 valid_evaluation_point, not 2
+        self.assertEqual(h5["valid_evaluation_points"], 1)
+        self.assertEqual(h5["mean"], 0.10)
+        self.assertEqual(h5["hit_rate"], 1.0)
 
 
 class TestPortfolioIntegration(unittest.TestCase):
