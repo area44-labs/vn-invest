@@ -234,6 +234,151 @@ class ExecutionConfig:
 
 
 @dataclass
+class ExecutionReturn:
+    """Execution price and net return breakdown after transaction costs and slippage.
+
+    Attributes:
+    - entry_price: Reference EOD entry price at session T (VND/share).
+    - exit_price: Reference EOD exit price at session T + N (VND/share).
+    - action: Trade recommendation action ('BUY', 'SELL', 'HOLD', 'WATCH', 'AVOID').
+    - entry_exec_price: Execution entry price after adverse slippage.
+    - exit_exec_price: Execution exit price after adverse slippage.
+    - gross_return: Reference price return before slippage and transaction costs.
+    - slippage_adjusted_return: Return after adverse execution slippage, before transaction costs.
+    - net_return: Final net return after execution slippage and transaction costs.
+    - transaction_cost_pct: Total round-trip transaction cost ratio (e.g. 0.0030 = 0.30%).
+    - slippage_pct: One-way adverse slippage ratio (e.g. 0.0010 = 0.10%).
+    """
+
+    entry_price: float
+    exit_price: float
+    action: str
+    entry_exec_price: float
+    exit_exec_price: float
+    gross_return: float
+    slippage_adjusted_return: float
+    net_return: float
+    transaction_cost_pct: float
+    slippage_pct: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "entry_price": self.entry_price,
+            "exit_price": self.exit_price,
+            "action": self.action,
+            "entry_exec_price": self.entry_exec_price,
+            "exit_exec_price": self.exit_exec_price,
+            "gross_return": self.gross_return,
+            "slippage_adjusted_return": self.slippage_adjusted_return,
+            "net_return": self.net_return,
+            "transaction_cost_pct": self.transaction_cost_pct,
+            "slippage_pct": self.slippage_pct,
+        }
+
+
+def calculate_execution_return(
+    entry_price: float,
+    exit_price: float,
+    transaction_cost_pct: float = 0.0,
+    slippage_pct: float = 0.0,
+    action: str = "BUY",
+    cost_entry_pct: float | None = None,
+    cost_exit_pct: float | None = None,
+) -> ExecutionReturn:
+    """Calculate deterministic execution price, slippage-adjusted return, and final net return.
+
+    Fail-Closed Validation:
+    - Rejects non-positive prices, negative costs/slippage, NaN, Inf, non-numeric types, and booleans.
+    - Action must be strictly one of ('BUY', 'SELL', 'HOLD', 'WATCH', 'AVOID').
+    - Requires explicit entry/exit costs (cost_entry_pct, cost_exit_pct) to be consistent with transaction_cost_pct:
+      if cost_entry_pct and cost_exit_pct are supplied alongside non-zero transaction_cost_pct,
+      abs(transaction_cost_pct - (cost_entry_pct + cost_exit_pct)) must be < 1e-9.
+
+    Action Semantics:
+    - BUY / SELL: Directional executed trades. BUY applies entry markup and exit discount.
+      SELL applies entry discount and exit markup (short position strategy return matching evaluate_forward_outcomes).
+    - HOLD / WATCH / AVOID: Non-executed signals that take no market exposure. Execution prices equal reference prices,
+      and gross, slippage-adjusted, and net returns are strictly 0.0 without incurring transaction fees or slippage.
+
+    Transaction Cost Multiplicative Semantics:
+    - Default total transaction cost (transaction_cost_pct) is split 50/50 across entry and exit legs as an implementation convention.
+    - Net value return factor = (1 - cost_entry) * (exit_exec / entry_exec) * (1 - cost_exit) - 1.0 for BUY trades.
+    - Zero cost and zero slippage preserves exact reference gross return.
+    """
+    _validate_config_number(entry_price, "entry_price", min_val=0.0, allow_zero=False)
+    _validate_config_number(exit_price, "exit_price", min_val=0.0, allow_zero=False)
+    _validate_config_number(
+        transaction_cost_pct, "transaction_cost_pct", min_val=0.0, max_val=1.0, allow_zero=True
+    )
+    _validate_config_number(slippage_pct, "slippage_pct", min_val=0.0, max_val=1.0, allow_zero=True)
+    _validate_config_number(
+        cost_entry_pct, "cost_entry_pct", min_val=0.0, max_val=1.0, allow_zero=True
+    )
+    _validate_config_number(
+        cost_exit_pct, "cost_exit_pct", min_val=0.0, max_val=1.0, allow_zero=True
+    )
+
+    if not isinstance(action, str) or action not in ("BUY", "SELL", "HOLD", "WATCH", "AVOID"):
+        raise ValueError(f"Invalid action '{action}'. Must be one of BUY, SELL, HOLD, WATCH, AVOID")
+
+    p_entry = float(entry_price)
+    p_exit = float(exit_price)
+    tc = float(transaction_cost_pct)
+    slip = float(slippage_pct)
+
+    # Validate or reconcile explicit entry/exit costs
+    if cost_entry_pct is not None and cost_exit_pct is not None:
+        c_entry = float(cost_entry_pct)
+        c_exit = float(cost_exit_pct)
+        if tc != 0.0 and abs(tc - (c_entry + c_exit)) > 1e-9:
+            raise ValueError(
+                f"Inconsistent cost configuration: transaction_cost_pct ({tc}) does not equal cost_entry_pct ({c_entry}) + cost_exit_pct ({c_exit})"
+            )
+        tc = c_entry + c_exit
+    elif cost_entry_pct is not None:
+        c_entry = float(cost_entry_pct)
+        c_exit = tc - c_entry if tc >= c_entry else 0.0
+    elif cost_exit_pct is not None:
+        c_exit = float(cost_exit_pct)
+        c_entry = tc - c_exit if tc >= c_exit else 0.0
+    else:
+        c_entry = tc / 2.0
+        c_exit = tc / 2.0
+
+    if action == "BUY":
+        entry_exec = round(p_entry * (1.0 + slip), 6)
+        exit_exec = round(p_exit * (1.0 - slip), 6)
+        gross_ret = round((p_exit / p_entry) - 1.0, 6)
+        slip_ret = round((exit_exec / entry_exec) - 1.0, 6)
+        net_ret = round((1.0 - c_entry) * (exit_exec / entry_exec) * (1.0 - c_exit) - 1.0, 6)
+    elif action == "SELL":
+        entry_exec = round(p_entry * (1.0 - slip), 6)
+        exit_exec = round(p_exit * (1.0 + slip), 6)
+        gross_ret = round(1.0 - (p_exit / p_entry), 6)
+        slip_ret = round(1.0 - (exit_exec / entry_exec), 6)
+        net_ret = round((1.0 - c_entry) * (1.0 + slip_ret) * (1.0 - c_exit) - 1.0, 6)
+    else:  # HOLD / WATCH / AVOID
+        entry_exec = p_entry
+        exit_exec = p_exit
+        gross_ret = 0.0
+        slip_ret = 0.0
+        net_ret = 0.0
+
+    return ExecutionReturn(
+        entry_price=p_entry,
+        exit_price=p_exit,
+        action=action,
+        entry_exec_price=entry_exec,
+        exit_exec_price=exit_exec,
+        gross_return=gross_ret,
+        slippage_adjusted_return=slip_ret,
+        net_return=net_ret,
+        transaction_cost_pct=tc,
+        slippage_pct=slip,
+    )
+
+
+@dataclass
 class ExecutionEligibility:
     """Execution and market-liquidity eligibility status at evaluation date T.
 
