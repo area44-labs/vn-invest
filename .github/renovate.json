@@ -5,12 +5,12 @@
     {
       "matchManagers": ["npm", "pnpm"],
       "groupName": "frontend dependencies",
-      "labels": ["frontend"]
+      "labels": ["frontend", "renovate"]
     },
     {
       "matchManagers": ["pip_requirements", "pep621", "pip_setup"],
       "groupName": "backend dependencies",
-      "labels": ["backend"]
+      "labels": ["backend", "renovate"]
     }
   ]
 }
