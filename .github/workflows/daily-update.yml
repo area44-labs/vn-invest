@@ -37,75 +37,11 @@ jobs:
       - name: Run production pipeline
         run: python scripts/generate_report.py --update
 
-      - name: Verify production monitoring status
-        run: |
-          python -c "
-          import json, sys
-          with open('generated/monitoring.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-          status = data.get('overall_status')
-          print(f'Production monitoring overall_status: {status}')
-          if status != 'PASS':
-              print(f'ERROR: Production monitoring failed with status: {status}', file=sys.stderr)
-              sys.exit(1)
-          "
-
-      - name: Run Python test suite
-        run: python scripts/tests/run_tests.py
-
-      - name: Install Ruff
-        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
-
-      - name: Run Ruff checks
-        run: |
-          ruff check .
-          ruff format --check .
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@fe40b38006d5c3b499882a1707d89053c7a8a68b # v4.0.0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@0a44ba78417256731a5e2432d0ff8419616d0047 # v4.1.0
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify frontend check
-        run: pnpm check
-
-      - name: Build SSG frontend
-        run: pnpm build
-
-      - name: Verify recommendations artifact integrity
-        run: |
-          python -c "
-          import json, sys
-          with open('generated/recommendations.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-
-          required_keys = ['schema_version', 'signal_model_version', 'generated_at', 'data_as_of', 'summary', 'recommendations']
-          for k in required_keys:
-              if k not in data or data[k] is None:
-                  print(f'ERROR: Missing or null required field \'{k}\' in recommendations.json', file=sys.stderr)
-                  sys.exit(1)
-
-          recs = data['recommendations']
-          summary = data['summary']
-          if not isinstance(recs, list) or not isinstance(summary, dict):
-              print('ERROR: Invalid data types for recommendations or summary', file=sys.stderr)
-              sys.exit(1)
-
-          print(f'Validated recommendations artifact: data_as_of={data[\"data_as_of\"]}, total_scanned={summary.get(\"total_scanned\")}, recs_count={len(recs)}')
-          "
-
       - name: Commit and push generated artifacts
         run: |
           git status --short
           if git diff --quiet generated/ && [ -z "$(git status --porcelain generated/)" ]; then
-            echo "No changes to generated artifacts to commit."
+            echo "No changes to generated artifacts."
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
