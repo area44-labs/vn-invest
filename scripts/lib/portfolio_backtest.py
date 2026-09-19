@@ -704,7 +704,7 @@ def aggregate_portfolio_results(
                     f"evaluations[{idx}].positions[{p_idx}] must be a PortfolioPosition instance, got {type(pos).__name__}"
                 )
             if isinstance(pos.weight, bool) or not isinstance(pos.weight, (int, float)):
-                raise ValueError(
+                raise TypeError(
                     f"evaluations[{idx}].positions[{p_idx}].weight must be numeric, got {type(pos.weight).__name__}: {pos.weight}"
                 )
             f_w = float(pos.weight)
