@@ -3639,58 +3639,50 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
         self.assertEqual(oracle_seq_comp, 0.0659)
 
     def test_9_position_to_portfolio_weighted_return_consistency(self) -> None:
-        """Test 9: Verify portfolio_forward_returns[N] == Σ(w_i × r_i) matching independent weighted sum oracle."""
-        p1 = PortfolioPosition(
-            symbol="AAA",
-            weight=0.5,
-            action="BUY",
-            signal_score=80.0,
-            risk_adjusted_score=75.0,
-            confidence=0.8,
-            entry_price=100.0,
-            is_executable=True,
-            forward_returns={5: 0.12},
-            forward_availability={5: True},
-        )
-        p2 = PortfolioPosition(
-            symbol="BBB",
-            weight=0.3,
-            action="BUY",
-            signal_score=70.0,
-            risk_adjusted_score=65.0,
-            confidence=0.7,
-            entry_price=200.0,
-            is_executable=True,
-            forward_returns={5: -0.04},
-            forward_availability={5: True},
-        )
-        p3 = PortfolioPosition(
-            symbol="CCC",
-            weight=0.2,
-            action="BUY",
-            signal_score=60.0,
-            risk_adjusted_score=55.0,
-            confidence=0.6,
-            entry_price=300.0,
-            is_executable=True,
-            forward_returns={5: 0.05},
-            forward_availability={5: True},
+        """Test 9: Verify portfolio_forward_returns[N] == Σ(w_i × r_i) matching independent weighted sum oracle on production evaluate_portfolio_at_date output."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 200.0)
+        df_ccc = create_synthetic_ohlcv("2024-01-01", 80, 30000.0, -50.0)
+
+        universe = {"AAA": df_aaa, "BBB": df_bbb, "CCC": df_ccc}
+        eval_d = df_aaa["date"].iloc[40]
+
+        cfg = PortfolioConfig(
+            max_positions=3,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            transaction_cost_pct=0.0,
+            slippage_pct=0.0,
         )
 
-        # Independent Math Oracle: 0.5 * 0.12 + 0.3 * (-0.04) + 0.2 * 0.05 = 0.058
-        oracle_port_ret = round(0.5 * 0.12 + 0.3 * (-0.04) + 0.2 * 0.05, 6)
-
-        eval_res = PortfolioEvaluation(
-            evaluation_date="2024-03-01",
-            positions=[p1, p2, p3],
-            allocated_weight=1.0,
-            unallocated_weight=0.0,
-            portfolio_forward_returns={5: oracle_port_ret},
-            horizon_availability={5: True},
+        res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
         )
 
-        self.assertEqual(eval_res.portfolio_forward_returns[5], oracle_port_ret)
-        self.assertEqual(oracle_port_ret, 0.058)
+        self.assertGreaterEqual(len(res.positions), 2)
+        self.assertTrue(res.horizon_availability[5])
+
+        # Production Result Actual
+        actual_port_ret = res.portfolio_forward_returns[5]
+
+        # Independent Mathematical Oracle computed strictly from position weights and position returns
+        expected_port_ret = round(
+            sum(
+                p.weight * p.forward_returns[5]
+                for p in res.positions
+                if p.forward_returns[5] is not None
+            ),
+            6,
+        )
+
+        # Assert production weighted-return matches independent oracle
+        self.assertEqual(actual_port_ret, expected_port_ret)
 
     def test_10_unavailable_constituent_propagation(self) -> None:
         """Test 10: Verify unavailable constituent in portfolio forces portfolio return to None and horizon_availability to False."""
@@ -3725,84 +3717,82 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
         self.assertIsNone(eval_res.portfolio_forward_returns[5])
 
     def test_11_allocation_weight_invariant_oracle(self) -> None:
-        """Test 11: Verify sum(pos.weight) == allocated_weight and allocated_weight + unallocated_weight == 1.0 across full, partial, and empty portfolios."""
-        # Case 1: Full allocation
-        p1 = PortfolioPosition(
-            symbol="AAA",
-            weight=0.5,
-            action="BUY",
-            signal_score=80.0,
-            risk_adjusted_score=75.0,
-            confidence=0.8,
-            entry_price=100.0,
-            is_executable=True,
+        """Test 11: Verify sum(pos.weight) == allocated_weight and allocated_weight + unallocated_weight == 1.0 across full, partial, and empty portfolios using production evaluate_portfolio_at_date."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+        eval_d = df_aaa["date"].iloc[40]
+
+        # Case A: Full allocation
+        cfg_full = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
         )
-        p2 = PortfolioPosition(
-            symbol="BBB",
-            weight=0.5,
-            action="BUY",
-            signal_score=70.0,
-            risk_adjusted_score=65.0,
-            confidence=0.7,
-            entry_price=200.0,
-            is_executable=True,
+        res_full = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg_full,
+            df_vnindex=df_vni,
         )
-        e_full = PortfolioEvaluation(
-            evaluation_date="2024-01-01",
-            positions=[p1, p2],
-            allocated_weight=1.0,
-            unallocated_weight=0.0,
-            portfolio_forward_returns={5: 0.05},
-            horizon_availability={5: True},
+        self.assertGreater(len(res_full.positions), 0)
+        oracle_alloc_full = round(sum(p.weight for p in res_full.positions), 6)
+        oracle_unalloc_full = round(1.0 - oracle_alloc_full, 6)
+
+        self.assertEqual(res_full.allocated_weight, oracle_alloc_full)
+        self.assertEqual(res_full.unallocated_weight, oracle_unalloc_full)
+        self.assertEqual(res_full.allocated_weight, 1.0)
+        self.assertEqual(res_full.unallocated_weight, 0.0)
+        self.assertAlmostEqual(
+            res_full.allocated_weight + res_full.unallocated_weight, 1.0, places=6
         )
 
-        # Case 2: Partial allocation (capped at 0.30 per position, 2 positions -> 0.60 allocated, 0.40 unallocated)
-        p3 = PortfolioPosition(
-            symbol="AAA",
-            weight=0.30,
-            action="BUY",
-            signal_score=80.0,
-            risk_adjusted_score=75.0,
-            confidence=0.8,
-            entry_price=100.0,
-            is_executable=True,
+        # Case B: Partial allocation (max_weight_per_position < 1.0, e.g. 0.30 per position)
+        cfg_partial = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+            max_weight_per_position=0.30,
+            min_history=30,
         )
-        p4 = PortfolioPosition(
-            symbol="BBB",
-            weight=0.30,
-            action="BUY",
-            signal_score=70.0,
-            risk_adjusted_score=65.0,
-            confidence=0.7,
-            entry_price=200.0,
-            is_executable=True,
+        res_partial = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg_partial,
+            df_vnindex=df_vni,
         )
-        e_partial = PortfolioEvaluation(
-            evaluation_date="2024-01-15",
-            positions=[p3, p4],
-            allocated_weight=0.60,
-            unallocated_weight=0.40,
-            portfolio_forward_returns={5: 0.03},
-            horizon_availability={5: True},
+        self.assertGreater(len(res_partial.positions), 0)
+        oracle_alloc_partial = round(sum(p.weight for p in res_partial.positions), 6)
+        oracle_unalloc_partial = round(1.0 - oracle_alloc_partial, 6)
+
+        self.assertEqual(res_partial.allocated_weight, oracle_alloc_partial)
+        self.assertEqual(res_partial.unallocated_weight, oracle_unalloc_partial)
+        self.assertEqual(res_partial.allocated_weight, 0.60)
+        self.assertEqual(res_partial.unallocated_weight, 0.40)
+        self.assertAlmostEqual(
+            res_partial.allocated_weight + res_partial.unallocated_weight, 1.0, places=6
         )
 
-        # Case 3: Empty portfolio
-        e_empty = PortfolioEvaluation(
-            evaluation_date="2024-02-01",
-            positions=[],
-            allocated_weight=0.0,
-            unallocated_weight=1.0,
-            portfolio_forward_returns={5: None},
-            horizon_availability={5: False},
-            empty_reason="no_eligible_candidates",
+        # Case C: Empty portfolio (e.g. min_signal_score=99.9 filters out all candidates)
+        cfg_empty = PortfolioConfig(
+            min_signal_score=99.9,
+            min_history=30,
         )
-
-        for eval_item in [e_full, e_partial, e_empty]:
-            sum_weights = sum(p.weight for p in eval_item.positions)
-            self.assertAlmostEqual(sum_weights, eval_item.allocated_weight, places=6)
-            self.assertAlmostEqual(
-                eval_item.allocated_weight + eval_item.unallocated_weight, 1.0, places=6
-            )
+        res_empty = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg_empty,
+            df_vnindex=df_vni,
+        )
+        self.assertEqual(res_empty.positions, [])
+        self.assertEqual(res_empty.allocated_weight, 0.0)
+        self.assertEqual(res_empty.unallocated_weight, 1.0)
+        self.assertEqual(res_empty.empty_reason, "no_eligible_candidates")
+        self.assertAlmostEqual(
+            res_empty.allocated_weight + res_empty.unallocated_weight, 1.0, places=6
+        )
 
     def test_12_serialized_result_matches_in_memory_aggregation(self) -> None:
         """Test 12: Verify serialized result (.to_dict()) aggregate metrics match in-memory dataclass objects and independent oracles."""
