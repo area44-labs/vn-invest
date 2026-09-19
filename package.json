@@ -9,7 +9,7 @@
     "preview": "vp preview",
     "lint": "vp lint",
     "fmt": "vp fmt",
-    "check": "vp check --fix"
+    "check": "vp check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
