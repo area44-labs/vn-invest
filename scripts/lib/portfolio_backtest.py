@@ -732,12 +732,8 @@ def aggregate_portfolio_results(
                     raise ValueError(
                         f"evaluations[{idx}] horizon {h} marked available but portfolio_forward_returns[{h}] is None."
                     )
-                if isinstance(ret, bool):
-                    raise ValueError(
-                        f"evaluations[{idx}] horizon {h} return cannot be a boolean, got {ret}"
-                    )
-                if not isinstance(ret, (int, float)):
-                    raise ValueError(
+                if isinstance(ret, bool) or not isinstance(ret, (int, float)):
+                    raise TypeError(
                         f"evaluations[{idx}] horizon {h} return must be numeric, got {type(ret).__name__}: {ret}"
                     )
                 f_ret = float(ret)

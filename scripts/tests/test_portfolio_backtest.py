@@ -4015,7 +4015,7 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
             portfolio_forward_returns={5: True},  # type: ignore[dict-item]
             horizon_availability={5: True},
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             aggregate_portfolio_results([bool_eval], horizons=[5])
 
         # 4. Non-numeric return when marked available
@@ -4027,7 +4027,7 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
             portfolio_forward_returns={5: "invalid_return"},  # type: ignore[dict-item]
             horizon_availability={5: True},
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             aggregate_portfolio_results([str_eval], horizons=[5])
 
         # 5. NaN return when marked available
