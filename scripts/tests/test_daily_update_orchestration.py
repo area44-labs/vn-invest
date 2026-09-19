@@ -57,7 +57,7 @@ class TestDailyUpdateOrchestration(unittest.TestCase):
     def test_e_generated_artifacts_contract(self):
         """Test E: Verify production pipeline execution produces valid recommendations.json, market.json, monitoring.json, and history/index.json."""
         pipeline_res = run_pipeline(update_data=False)
-        recs_data, market_data, history_data = pipeline_res
+        recs_data, market_data, _history_data = pipeline_res
 
         # 1. Schema validation
         with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
