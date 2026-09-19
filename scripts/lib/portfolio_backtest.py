@@ -282,6 +282,9 @@ def validate_portfolio_weights(weights: list[float]) -> None:
         raise ValueError(f"Total allocated portfolio weight exceeds 1.0: got {total_w}")
 
 
+from copy import deepcopy
+
+
 @dataclass
 class PortfolioPosition:
     """Individual stock position held in the portfolio as of evaluation date T."""
@@ -307,8 +310,8 @@ class PortfolioPosition:
             "confidence": self.confidence,
             "entry_price": self.entry_price,
             "is_executable": self.is_executable,
-            "forward_returns": self.forward_returns,
-            "forward_availability": self.forward_availability,
+            "forward_returns": dict(self.forward_returns),
+            "forward_availability": dict(self.forward_availability),
         }
 
 
@@ -332,10 +335,10 @@ class PortfolioEvaluation:
             "positions": [p.to_dict() for p in self.positions],
             "allocated_weight": self.allocated_weight,
             "unallocated_weight": self.unallocated_weight,
-            "portfolio_forward_returns": self.portfolio_forward_returns,
-            "horizon_availability": self.horizon_availability,
-            "excluded_non_executable": self.excluded_non_executable,
-            "excluded_filtered": self.excluded_filtered,
+            "portfolio_forward_returns": dict(self.portfolio_forward_returns),
+            "horizon_availability": dict(self.horizon_availability),
+            "excluded_non_executable": list(self.excluded_non_executable),
+            "excluded_filtered": list(self.excluded_filtered),
             "empty_reason": self.empty_reason,
         }
 
@@ -351,7 +354,7 @@ class PortfolioBacktestResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "evaluation_dates": self.evaluation_dates,
+            "evaluation_dates": list(self.evaluation_dates),
             "evaluations": [e.to_dict() for e in self.evaluations],
             "config": {
                 "max_positions": self.config.max_positions,
@@ -364,7 +367,7 @@ class PortfolioBacktestResult:
                 "transaction_cost_pct": self.config.transaction_cost_pct,
                 "slippage_pct": self.config.slippage_pct,
             },
-            "aggregate": self.aggregate,
+            "aggregate": deepcopy(self.aggregate),
         }
 
 
