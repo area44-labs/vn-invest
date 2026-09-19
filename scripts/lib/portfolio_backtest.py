@@ -689,6 +689,59 @@ def aggregate_portfolio_results(
     if horizons is None:
         horizons = DEFAULT_HORIZONS
 
+    if not isinstance(evaluations, (list, tuple)):
+        raise TypeError(f"evaluations must be a list or tuple, got {type(evaluations).__name__}")
+
+    for idx, e in enumerate(evaluations):
+        if not isinstance(e, PortfolioEvaluation):
+            raise TypeError(
+                f"evaluations[{idx}] must be a PortfolioEvaluation instance, got {type(e).__name__}"
+            )
+
+        for p_idx, pos in enumerate(e.positions):
+            if not isinstance(pos, PortfolioPosition):
+                raise TypeError(
+                    f"evaluations[{idx}].positions[{p_idx}] must be a PortfolioPosition instance, got {type(pos).__name__}"
+                )
+            if isinstance(pos.weight, bool) or not isinstance(pos.weight, (int, float)):
+                raise TypeError(
+                    f"evaluations[{idx}].positions[{p_idx}].weight must be numeric, got {type(pos.weight).__name__}: {pos.weight}"
+                )
+            f_w = float(pos.weight)
+            if math.isnan(f_w) or math.isinf(f_w) or f_w < 0.0:
+                raise ValueError(
+                    f"evaluations[{idx}].positions[{p_idx}].weight must be a finite non-negative number, got {pos.weight}"
+                )
+
+        if not isinstance(e.portfolio_forward_returns, dict):
+            raise TypeError(f"evaluations[{idx}].portfolio_forward_returns must be a dictionary.")
+
+        if not isinstance(e.horizon_availability, dict):
+            raise TypeError(f"evaluations[{idx}].horizon_availability must be a dictionary.")
+
+        for h in horizons:
+            is_avail = e.horizon_availability.get(h, False)
+            if not isinstance(is_avail, bool):
+                raise TypeError(
+                    f"evaluations[{idx}].horizon_availability[{h}] must be a boolean, got {type(is_avail).__name__}: {is_avail}"
+                )
+
+            if is_avail:
+                ret = e.portfolio_forward_returns.get(h)
+                if ret is None:
+                    raise ValueError(
+                        f"evaluations[{idx}] horizon {h} marked available but portfolio_forward_returns[{h}] is None."
+                    )
+                if isinstance(ret, bool) or not isinstance(ret, (int, float)):
+                    raise TypeError(
+                        f"evaluations[{idx}] horizon {h} return must be numeric, got {type(ret).__name__}: {ret}"
+                    )
+                f_ret = float(ret)
+                if math.isnan(f_ret) or math.isinf(f_ret):
+                    raise ValueError(
+                        f"evaluations[{idx}] horizon {h} return cannot be NaN or Inf, got {ret}"
+                    )
+
     total_points = len(evaluations)
     non_empty_evals = [e for e in evaluations if len(e.positions) > 0]
     empty_evals = [e for e in evaluations if len(e.positions) == 0]
