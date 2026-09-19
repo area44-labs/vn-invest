@@ -1,3 +1,16 @@
 {
-  "extends": ["github>area44/renovate-config"]
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>area44/renovate-config"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm", "pnpm"],
+      "groupName": "frontend dependencies",
+      "labels": ["frontend"]
+    },
+    {
+      "matchManagers": ["pip_requirements", "pep621", "pip_setup"],
+      "groupName": "backend dependencies",
+      "labels": ["backend"]
+    }
+  ]
 }

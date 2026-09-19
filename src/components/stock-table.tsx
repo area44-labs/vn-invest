@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip } from "@/components/ui/tooltip";
 import { formatRisk, formatVnd } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 interface StockTableProps {
   recommendations: Recommendation[];
@@ -66,11 +67,12 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
         {badges.map((b) => (
           <span
             key={b.tf}
-            className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${
+            className={cn(
+              "inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[9px] font-bold",
               b.type === "BULLISH"
                 ? "border border-trend-up-border bg-trend-up-bg text-trend-up-text"
-                : "border border-trend-down-border bg-trend-down-bg text-trend-down-text"
-            }`}
+                : "border border-trend-down-border bg-trend-down-bg text-trend-down-text",
+            )}
           >
             {b.type === "BULLISH" ? `📈 ${b.tf}` : `📉 ${b.tf}`}
           </span>
@@ -188,11 +190,12 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
                   {/* Buy/Sell Zone */}
                   <TableCell className="px-4 py-3 text-center">
                     <span
-                      className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-bold ${
+                      className={cn(
+                        "inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-bold",
                         isBuy
                           ? "border border-trend-up-border bg-trend-up-bg text-trend-up-text"
-                          : "border border-trend-down-border bg-trend-down-bg text-trend-down-text"
-                      }`}
+                          : "border border-trend-down-border bg-trend-down-bg text-trend-down-text",
+                      )}
                     >
                       {isBuy && r.trade_plan.entry_low != null
                         ? `${formatVnd(r.trade_plan.entry_low)} - ${formatVnd(r.trade_plan.entry_high)}`

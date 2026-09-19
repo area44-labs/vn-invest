@@ -1,6 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface IndexData {
   name: string;
@@ -38,11 +39,12 @@ export function MarketSummary({ marketData }: MarketSummaryProps) {
             </span>
             {hasData && data.changePercent != null ? (
               <span
-                className={`inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-[10px] tracking-tight ${
+                className={cn(
+                  "inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-[10px] tracking-tight",
                   isPositive
                     ? "border border-trend-up-border bg-trend-up-bg text-trend-up-text"
-                    : "border border-trend-down-border bg-trend-down-bg text-trend-down-text"
-                }`}
+                    : "border border-trend-down-border bg-trend-down-bg text-trend-down-text",
+                )}
               >
                 {isPositive ? (
                   <ArrowUpRight className="mr-0.5 h-3 w-3" />
@@ -71,9 +73,10 @@ export function MarketSummary({ marketData }: MarketSummaryProps) {
               </span>
               {data.change != null && (
                 <span
-                  className={`ml-1.5 text-[11px] font-medium tabular-nums ${
-                    isPositive ? "text-trend-up-text" : "text-trend-down-text"
-                  }`}
+                  className={cn(
+                    "ml-1.5 text-[11px] font-medium tabular-nums",
+                    isPositive ? "text-trend-up-text" : "text-trend-down-text",
+                  )}
                 >
                   {isPositive ? "+" : ""}
                   {data.change.toLocaleString("vi-VN", { minimumFractionDigits: 2 })}
