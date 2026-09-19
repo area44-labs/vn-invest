@@ -722,7 +722,7 @@ def aggregate_portfolio_results(
         for h in horizons:
             is_avail = e.horizon_availability.get(h, False)
             if not isinstance(is_avail, bool):
-                raise ValueError(
+                raise TypeError(
                     f"evaluations[{idx}].horizon_availability[{h}] must be a boolean, got {type(is_avail).__name__}: {is_avail}"
                 )
 
