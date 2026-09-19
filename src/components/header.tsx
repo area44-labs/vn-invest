@@ -1,6 +1,7 @@
 import { Sun, Moon } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   currentView: "dashboard" | "stock" | "history";
@@ -26,21 +27,23 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
           <nav className="flex items-center space-x-2 font-mono text-xs">
             <button
               onClick={() => onNavigate("dashboard")}
-              className={`cursor-pointer rounded-sm px-2.5 py-1 transition-colors ${
+              className={cn(
+                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors",
                 currentView === "dashboard"
                   ? "bg-primary font-bold text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
               Dashboard
             </button>
             <button
               onClick={() => onNavigate("history")}
-              className={`cursor-pointer rounded-sm px-2.5 py-1 transition-colors ${
+              className={cn(
+                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors",
                 currentView === "history"
                   ? "bg-primary font-bold text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
               Lịch Sử
             </button>

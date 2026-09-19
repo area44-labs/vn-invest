@@ -3,7 +3,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 const base = process.env.BASE || process.env.BASE_URL || "/";
 
@@ -39,7 +39,7 @@ export function resolveGeneratedFilePath(
 function generatedDataPlugin() {
   return {
     name: "vite-plugin-generated-data",
-    configureServer(server: import("vite").ViteDevServer) {
+    configureServer(server: import("vite-plus").ViteDevServer) {
       server.middlewares.use((req, res, next) => {
         if (req.url) {
           const filePath = resolveGeneratedFilePath(req.url);
@@ -103,9 +103,67 @@ const prerenderPages = [
   ...prerenderStockSymbols.map((sym) => ({ path: `/stock/${sym}` })),
 ];
 
-// https://vite.dev/config/
+// https://viteplus.dev/config/
 export default defineConfig({
   base,
+  fmt: {
+    ignorePatterns: [
+      "*.min.*",
+      "*.map",
+      "**/public",
+      "**/build",
+      "**/dist",
+      "**/out",
+      "**/.github",
+      "**/.next",
+      "**/.astro",
+      "**/.netlify",
+      "src/routeTree.gen.ts",
+    ],
+    sortImports: {
+      groups: [
+        "type-import",
+        ["value-builtin", "value-external"],
+        "type-internal",
+        "value-internal",
+        ["type-parent", "type-sibling", "type-index"],
+        ["value-parent", "value-sibling", "value-index"],
+        "unknown",
+      ],
+    },
+    sortTailwindcss: {
+      stylesheet: "./src/index.css",
+      attributes: ["class", "className"],
+      functions: ["clsx", "cn", "cva", "tv"],
+    },
+  },
+  lint: {
+    ignorePatterns: [
+      "*.min.*",
+      "*.map",
+      "**/public",
+      "**/build",
+      "**/dist",
+      "**/out",
+      "**/.github",
+      "**/.next",
+      "**/.astro",
+      "**/.netlify",
+      "src/routeTree.gen.ts",
+    ],
+    plugins: [
+      "typescript",
+      "unicorn",
+      "react",
+      "react-perf",
+      "import",
+      "jsx-a11y",
+      "node",
+      "promise",
+      "vitest",
+      "vue",
+    ],
+  },
   plugins: [
     tanstackStart({
       pages: prerenderPages,

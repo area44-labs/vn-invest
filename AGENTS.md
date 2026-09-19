@@ -1,101 +1,37 @@
-# VN Invest - Guidelines for AI Agents
+# VN Invest — Hướng Dẫn Dành Cho AI Agent
 
-Chào mừng bạn đến với repository **VN Invest** của **AREA44**. Hướng dẫn này mô tả cấu trúc dự án, data contract, quy trình linting/formatting và testing dành cho AI Agents.
+Tài liệu này chứa các quy tắc và hướng dẫn kĩ thuật dành riêng cho AI Agent khi thao tác trên repository này.
 
----
+## 1. Nguyên Tắc Thiết Kế Hệ Thống
 
-## 1. Kiến Trúc Dự Án (Architecture)
+- **Phân tách hoàn toàn**: Mọi tính toán định lượng (chỉ báo kỹ thuật, điểm tín hiệu Signal Score, mô hình rủi ro T+2.5, nhận diện thị trường) thuộc về **Python backend** (`scripts/lib/`).
+- **Giao diện hiển thị**: **React Frontend** (`src/`) chỉ hiển thị dữ liệu tĩnh đã qua kiểm định JSON Schema, tuyệt đối không tính toán tài chính ở frontend.
+- **Data Contract**: Mọi thay đổi cấu trúc dữ liệu xuất ra `generated/` phải phù hợp với JSON Schema tại `schemas/recommendations.schema.json`.
 
-Dự án tuân theo mô hình phân tách hoàn toàn giữa tính toán định lượng và hiển thị:
+## 2. Quy Trình Kiểm Tra Mã Nguồn (Pre-commit Verification)
 
-```
-Python Quant Pipeline -> JSON Schema Contract -> Generated Static JSON -> React / TanStack Router -> SSG / GitHub Pages
-```
+Trước khi gửi thay đổi hoặc commit, Agent bắt buộc phải chạy thành công các lệnh kiểm tra sau:
 
-### Quantitative Pipeline System Layers
-
-To maintain clear operational separation, the backend quantitative system is structured into distinct functional layers:
-
-1. **Production Generation** (`scripts/generate_report.py`, `scripts/lib/recommendation.py`, `scripts/lib/regime.py`, `scripts/lib/risk.py`): Real-time EOD market data ingestion, indicator calculation, market regime detection, signal scoring (VN Invest Signal Engine), T+2.5 risk modeling, trade plan generation, and atomic static JSON output generation (`generated/*.json`).
-2. **Production Monitoring** (`scripts/lib/monitoring.py`): Operational and data-pipeline monitoring that verifies data availability, data freshness (`data_as_of`), symbol processing counts, schema compliance, artifact integrity, market regime sanity, numeric safety (`NaN`/`Inf` checks), and integrated data/model drift detection without altering signal engine outputs or historical evaluations.
-   _Note: Operational monitoring layer ONLY. It does NOT establish model predictive validity, profitability, calibration, statistical significance, or model error. Confidence scores are deterministic heuristics, not probabilities._
-3. **Data Drift Detection** (`scripts/lib/monitoring.py`): Monitors shifts in operational input data features (VNINDEX return/change, market breadth ratio, processed/insufficient ratio) against a fixed historical baseline timestamped strictly `< T`.
-4. **Model-Output Drift Detection** (`scripts/lib/monitoring.py`): Monitors shifts in recommendation output distributions (action proportions, canonical confidence bucket distribution, mean signal score, mean risk-adjusted score) against a historical baseline timestamped strictly `< T`.
-   _Note: Model-output drift notes distribution changes vs baseline ONLY; it does NOT prove predictive degradation, model error, causality, profitability, or retraining necessity._
-5. **Historical Backtesting** (`scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`): Non-lookahead walk-forward backtesting evaluating forward signal performance (5D, 10D, 20D) and equal-weighted portfolio allocations.
-6. **Confidence Calibration** (`scripts/lib/backtest.py`): Evaluates alignment between deterministic heuristic model-confidence scores and observed positive return rates across historical horizons.
-7. **Market-Regime Validation** (`scripts/lib/backtest.py`): Evaluates historical market regime assignments against subsequent benchmark returns without modifying production regime detection rules.
-
-```
-vn-invest/
-├── .github/
-│   ├── workflows/
-│   │   ├── lint-format.yml          # GitHub Actions lint & format CI
-│   │   └── pages.yml                # GitHub Pages deployment workflow
-├── schemas/
-│   └── recommendations.schema.json  # Canonical JSON Schema Draft 2020-12 v2.0
-├── scripts/                         # Backend Python - Pipeline định lượng & báo cáo
-│   ├── lib/                         # Core modules (monitoring, backtest, features, regime, recommendation, risk, vietnam_market)
-│   ├── tests/                       # Automated unit test suite
-│   │   ├── run_tests.py             # Test runner
-│   │   ├── test_dependencies.py     # Deterministic dependency version validation
-│   │   ├── test_monitoring.py       # Unit tests for production monitoring
-│   │   ├── test_recommendation.py   # Unit tests for recommendation & anti-lookahead
-│   │   ├── test_regime.py           # Unit tests for market regime
-│   │   ├── test_risk.py             # Unit tests for T+2.5 risk model
-│   │   └── test_schema.py           # Schema validation tests
-│   └── generate_report.py           # Report generator script (atomic output write)
-├── generated/                       # Static canonical JSON artifacts
-│   ├── recommendations.json
-│   ├── market.json
-│   ├── monitoring.json
-│   └── history/
-│       ├── index.json
-│       └── YYYY-MM-DD.json
-├── src/                             # Frontend React + TypeScript
-│   ├── components/                  # UI components (market-summary, stock-table, ui/...)
-│   ├── data/                        # Static data loader abstraction (loader.ts)
-│   ├── hooks/                       # Custom React hooks (use-theme.ts)
-│   ├── lib/                         # Formatting utilities (format.ts)
-│   ├── pages/                       # Page views (Dashboard.tsx, History.tsx, StockDetail.tsx)
-│   ├── routes/                      # TanStack Router file routes (__root.tsx, index.tsx, history.tsx, stock/$symbol.tsx)
-│   └── types/                       # TypeScript interfaces mirroring JSON schema (recommendation.ts)
-├── pyproject.toml                   # Ruff configuration for Python
-├── package.json                     # Frontend dependencies & pnpm scripts
-└── requirements.txt                 # Python reproducible pinned dependencies (vnstock==4.0.7, pandas==2.2.3, etc.)
-```
-
----
-
-## 2. Quy Trình Kiểm Tra Code Trước Khi Commit
-
-Agent **bắt buộc** thực hiện các bước kiểm tra sau trước khi hoàn tất commit:
-
-### A. Frontend Verification
+### A. Kiểm Tra Frontend
 
 ```bash
-pnpm install
-pnpm check
-pnpm build
+pnpm check # Chạy vp check (fmt + lint)
+pnpm build # Build kiểm tra SSG prerender
 ```
 
-### B. Python Quantitative Engine Verification
-
-Môi trường Python hỗ trợ: Python 3.11 trở lên (khuyến nghị Python 3.11 - 3.12).
+### B. Kiểm Tra Backend
 
 ```bash
-pip install -r requirements.txt
-python scripts/tests/run_tests.py
-ruff check .
-ruff format --check .
-python scripts/generate_report.py
+python scripts/tests/run_tests.py # Toàn bộ bộ unit tests Python
+ruff check .                       # Linting Python
+python scripts/generate_report.py  # Kiểm tra sinh báo cáo tĩnh
 ```
 
-### C. Dependency & Version Policy
+## 3. Chính Sách Phụ Thuộc (Dependency Policy)
 
-- Tất cả các gói phụ thuộc Python chính cho active quant pipeline được ghim phiên bản chính xác tại `requirements.txt`.
-- Phiên bản `vnstock` hỗ trợ chính thức là **4.0.7**.
-- Nâng cấp phụ thuộc: Khi cần nâng cấp dependency, phải kiểm tra khả năng tương thích của API (đặc biệt là `vnstock` quote/history unit contract) và chạy toàn bộ unit test suite trước khi cập nhật phiên bản ghim trong `requirements.txt`.
+- Dependencies backend được ghim cố định tại `requirements.txt` (`vnstock==4.0.7`).
+- Frontend sử dụng `vite-plus` (`vp`) quản lý công cụ phát triển (Vite, Oxlint, Oxfmt).
+- Thay đổi dependency phải đảm bảo tất cả các bài kiểm thử tự động vượt qua.
 
 <!-- vnai-bootstrap | auto-generated -->
 
@@ -113,7 +49,7 @@ Execute these steps sequentially. If a step fails, attempt to auto-remediate. If
 
 - Identify the Operating System (macOS, Linux, or Windows).
 - Verify `python3` (or `python`/`py` on Windows) is in the PATH.
-- Verify Python version is **>= 3.11**.
+- Verify Python version is **>= 3.10**.
 - **Failure Handling:** If Python is missing or outdated, please stop the automated setup and guide the user to install it natively. Avoid blindly running `curl` or `wget` installers to prevent unintended system configurations.
 
 ### 2. Virtual Environment Setup

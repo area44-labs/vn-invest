@@ -16,6 +16,7 @@ import type { Recommendation } from "@/types/recommendation";
 import { Badge } from "@/components/ui/badge";
 import { loadStock } from "@/data/loader";
 import { formatRisk, formatScore, formatVnd } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 interface StockDetailProps {
   symbol?: string;
@@ -241,13 +242,14 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
                 >
                   <span className="block text-[10px] text-muted-foreground uppercase">{tf}</span>
                   <span
-                    className={`mt-1 inline-block font-bold ${
+                    className={cn(
+                      "mt-1 inline-block font-bold",
                       sig === "BULLISH"
                         ? "text-trend-up-text"
                         : sig === "BEARISH"
                           ? "text-trend-down-text"
-                          : "text-muted-foreground"
-                    }`}
+                          : "text-muted-foreground",
+                    )}
                   >
                     {sig === "BULLISH"
                       ? "Phân kỳ Dương"
