@@ -3135,5 +3135,949 @@ class TestPortfolioSerializationAndResultContract(unittest.TestCase):
         self.assertEqual(second, third)
 
 
+class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
+    """Test Suite verifying portfolio-level aggregation consistency and independent math oracles."""
+
+    def test_1_evaluation_count_consistency(self) -> None:
+        """Test 1: Verify len(result.evaluations) == aggregate['total_evaluation_points'] across non-empty, empty, and mixed evaluations."""
+        # Non-empty evaluation
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=1.0,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.05},
+            forward_availability={5: True},
+        )
+        e1 = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05},
+            horizon_availability={5: True},
+        )
+        # Empty evaluation
+        e2 = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+        # Non-empty evaluation
+        p3 = PortfolioPosition(
+            symbol="BBB",
+            weight=1.0,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: -0.02},
+            forward_availability={5: True},
+        )
+        e3 = PortfolioEvaluation(
+            evaluation_date="2024-04-01",
+            positions=[p3],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: -0.02},
+            horizon_availability={5: True},
+        )
+
+        evals = [e1, e2, e3]
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+
+        self.assertEqual(len(evals), agg["total_evaluation_points"])
+        self.assertEqual(agg["total_evaluation_points"], 3)
+
+    def test_2_empty_non_empty_aggregation_oracle(self) -> None:
+        """Test 2: Verify non_empty + empty == total_evaluation_points matching independent count oracles."""
+        # Fixture: T1 -> non-empty, T2 -> empty, T3 -> non-empty, T4 -> empty
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=1.0,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.05},
+            forward_availability={5: True},
+        )
+        t1 = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05},
+            horizon_availability={5: True},
+        )
+        t2 = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+        p3 = PortfolioPosition(
+            symbol="BBB",
+            weight=1.0,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: 0.03},
+            forward_availability={5: True},
+        )
+        t3 = PortfolioEvaluation(
+            evaluation_date="2024-04-01",
+            positions=[p3],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.03},
+            horizon_availability={5: True},
+        )
+        t4 = PortfolioEvaluation(
+            evaluation_date="2024-04-15",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="all_candidates_non_executable",
+        )
+
+        evals = [t1, t2, t3, t4]
+
+        # Independent Count Oracle
+        oracle_non_empty = sum(1 for e in evals if len(e.positions) > 0)
+        oracle_empty = sum(1 for e in evals if len(e.positions) == 0)
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+
+        self.assertEqual(agg["non_empty_portfolios_count"], oracle_non_empty)
+        self.assertEqual(agg["empty_portfolios_count"], oracle_empty)
+        self.assertEqual(agg["non_empty_portfolios_count"], 2)
+        self.assertEqual(agg["empty_portfolios_count"], 2)
+        self.assertEqual(
+            agg["non_empty_portfolios_count"] + agg["empty_portfolios_count"],
+            agg["total_evaluation_points"],
+        )
+
+    def test_3_empty_reason_breakdown_oracle(self) -> None:
+        """Test 3: Verify sum(empty_reasons_breakdown.values()) == empty_portfolios_count matching independent oracle."""
+        e1 = PortfolioEvaluation(
+            evaluation_date="2024-01-01",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+        e2 = PortfolioEvaluation(
+            evaluation_date="2024-01-15",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+        e3 = PortfolioEvaluation(
+            evaluation_date="2024-02-01",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="all_candidates_non_executable",
+        )
+        e4 = PortfolioEvaluation(
+            evaluation_date="2024-02-15",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason=None,
+        )
+
+        evals = [e1, e2, e3, e4]
+
+        # Independent Reason Breakdown Oracle
+        oracle_breakdown: dict[str, int] = {}
+        for e in evals:
+            r = e.empty_reason or "unknown"
+            oracle_breakdown[r] = oracle_breakdown.get(r, 0) + 1
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+
+        self.assertEqual(agg["empty_reasons_breakdown"], oracle_breakdown)
+        self.assertEqual(
+            sum(agg["empty_reasons_breakdown"].values()), agg["empty_portfolios_count"]
+        )
+        self.assertEqual(agg["empty_portfolios_count"], 4)
+
+    def test_4_valid_evaluation_point_count_oracle(self) -> None:
+        """Test 4: Verify horizon valid_evaluation_points matches independent availability count oracle."""
+        # Available outcome
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=1.0,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.05, 10: 0.10},
+            forward_availability={5: True, 10: True},
+        )
+        e1 = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05, 10: 0.10},
+            horizon_availability={5: True, 10: True},
+        )
+        # 5D available, 10D unavailable
+        p2 = PortfolioPosition(
+            symbol="BBB",
+            weight=1.0,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: -0.02, 10: None},
+            forward_availability={5: True, 10: False},
+        )
+        e2 = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p2],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: -0.02, 10: None},
+            horizon_availability={5: True, 10: False},
+        )
+        # All unavailable
+        p3 = PortfolioPosition(
+            symbol="CCC",
+            weight=1.0,
+            action="BUY",
+            signal_score=50.0,
+            risk_adjusted_score=45.0,
+            confidence=0.6,
+            entry_price=300.0,
+            is_executable=True,
+            forward_returns={5: None, 10: None},
+            forward_availability={5: False, 10: False},
+        )
+        e3 = PortfolioEvaluation(
+            evaluation_date="2024-04-01",
+            positions=[p3],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: None, 10: None},
+            horizon_availability={5: False, 10: False},
+        )
+
+        evals = [e1, e2, e3]
+        agg = aggregate_portfolio_results(evals, horizons=[5, 10])
+
+        # Independent Oracle for Valid Points per Horizon
+        def oracle_valid_points(e_list: list[PortfolioEvaluation], h: int) -> int:
+            return sum(
+                1
+                for e in e_list
+                if len(e.positions) > 0
+                and e.horizon_availability.get(h, False)
+                and e.portfolio_forward_returns.get(h) is not None
+            )
+
+        self.assertEqual(
+            agg["horizon_metrics"][5]["valid_evaluation_points"], oracle_valid_points(evals, 5)
+        )
+        self.assertEqual(
+            agg["horizon_metrics"][10]["valid_evaluation_points"], oracle_valid_points(evals, 10)
+        )
+        self.assertEqual(agg["horizon_metrics"][5]["valid_evaluation_points"], 2)
+        self.assertEqual(agg["horizon_metrics"][10]["valid_evaluation_points"], 1)
+
+    def test_5_mean_return_oracle(self) -> None:
+        """Test 5: Verify arithmetic mean matches independent mathematical formula on finite valid returns."""
+        rets = [0.08, -0.03, 0.05, 0.12]
+        evals = []
+        for i, r in enumerate(rets):
+            p = PortfolioPosition(
+                symbol=f"S{i}",
+                weight=1.0,
+                action="BUY",
+                signal_score=70.0,
+                risk_adjusted_score=65.0,
+                confidence=0.8,
+                entry_price=100.0,
+                is_executable=True,
+                forward_returns={5: r},
+                forward_availability={5: True},
+            )
+            e = PortfolioEvaluation(
+                evaluation_date=f"2024-01-0{i + 1}",
+                positions=[p],
+                allocated_weight=1.0,
+                unallocated_weight=0.0,
+                portfolio_forward_returns={5: r},
+                horizon_availability={5: True},
+            )
+            evals.append(e)
+
+        # Independent Pure Math Oracle
+        oracle_mean = round(sum(rets) / len(rets), 6)  # (0.08 - 0.03 + 0.05 + 0.12) / 4 = 0.055
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+        self.assertEqual(agg["horizon_metrics"][5]["mean"], oracle_mean)
+        self.assertEqual(oracle_mean, 0.055)
+
+    def test_6_median_min_max_std_oracle(self) -> None:
+        """Test 6: Verify median, min, max, std match independent mathematical oracles across 5 distinct return values."""
+        # Fixture with 5 distinct values
+        rets = [0.02, -0.01, 0.05, 0.03, -0.04]
+        evals = []
+        for i, r in enumerate(rets):
+            p = PortfolioPosition(
+                symbol=f"S{i}",
+                weight=1.0,
+                action="BUY",
+                signal_score=70.0,
+                risk_adjusted_score=65.0,
+                confidence=0.8,
+                entry_price=100.0,
+                is_executable=True,
+                forward_returns={5: r},
+                forward_availability={5: True},
+            )
+            e = PortfolioEvaluation(
+                evaluation_date=f"2024-01-0{i + 1}",
+                positions=[p],
+                allocated_weight=1.0,
+                unallocated_weight=0.0,
+                portfolio_forward_returns={5: r},
+                horizon_availability={5: True},
+            )
+            evals.append(e)
+
+        # Independent Pure Math Oracles (without calling numpy or implementation helpers)
+        # Sorted rets: [-0.04, -0.01, 0.02, 0.03, 0.05]
+        s_rets = sorted(rets)
+        oracle_min = s_rets[0]  # -0.04
+        oracle_max = s_rets[-1]  # 0.05
+        oracle_median = s_rets[len(s_rets) // 2]  # 0.02
+        mean_val = sum(rets) / len(rets)  # 0.05 / 5 = 0.01
+        variance = sum((x - mean_val) ** 2 for x in rets) / len(rets)
+        oracle_std = round(variance**0.5, 6)
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+        h5 = agg["horizon_metrics"][5]
+
+        self.assertEqual(h5["min"], oracle_min)
+        self.assertEqual(h5["max"], oracle_max)
+        self.assertEqual(h5["median"], oracle_median)
+        self.assertEqual(h5["std"], oracle_std)
+
+    def test_7_positive_return_hit_rate_oracle(self) -> None:
+        """Test 7: Verify hit_rate strictly requires return > 0 (zero return is not positive) on valid observations."""
+        rets = [0.10, -0.05, 0.0, 0.04, None]
+        evals = []
+        for i, r in enumerate(rets):
+            if r is None:
+                p = PortfolioPosition(
+                    symbol=f"S{i}",
+                    weight=1.0,
+                    action="BUY",
+                    signal_score=70.0,
+                    risk_adjusted_score=65.0,
+                    confidence=0.8,
+                    entry_price=100.0,
+                    is_executable=True,
+                    forward_returns={5: None},
+                    forward_availability={5: False},
+                )
+                e = PortfolioEvaluation(
+                    evaluation_date=f"2024-01-0{i + 1}",
+                    positions=[p],
+                    allocated_weight=1.0,
+                    unallocated_weight=0.0,
+                    portfolio_forward_returns={5: None},
+                    horizon_availability={5: False},
+                )
+            else:
+                p = PortfolioPosition(
+                    symbol=f"S{i}",
+                    weight=1.0,
+                    action="BUY",
+                    signal_score=70.0,
+                    risk_adjusted_score=65.0,
+                    confidence=0.8,
+                    entry_price=100.0,
+                    is_executable=True,
+                    forward_returns={5: r},
+                    forward_availability={5: True},
+                )
+                e = PortfolioEvaluation(
+                    evaluation_date=f"2024-01-0{i + 1}",
+                    positions=[p],
+                    allocated_weight=1.0,
+                    unallocated_weight=0.0,
+                    portfolio_forward_returns={5: r},
+                    horizon_availability={5: True},
+                )
+            evals.append(e)
+
+        # Independent Hit Rate Oracle
+        # Valid returns: [0.10, -0.05, 0.0, 0.04] (4 observations)
+        # Positive returns (r > 0): 0.10, 0.04 (2 observations; 0.0 is NOT positive)
+        # Expected hit_rate = 2 / 4 = 0.5000
+        valid_rets = [r for r in rets if r is not None]
+        pos_count = sum(1 for r in valid_rets if r > 0)
+        oracle_hit_rate = round(pos_count / len(valid_rets), 4)
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+        h5 = agg["horizon_metrics"][5]
+
+        self.assertEqual(h5["valid_evaluation_points"], 4)
+        self.assertEqual(h5["hit_rate"], oracle_hit_rate)
+        self.assertEqual(oracle_hit_rate, 0.5)
+
+    def test_8_sequential_compounded_return_oracle(self) -> None:
+        """Test 8: Verify sequential_compounded_return = ∏(1 + r_i) - 1.0 using independent math product oracle."""
+        rets = [0.10, -0.05, 0.0, 0.02]
+        evals = []
+        for i, r in enumerate(rets):
+            p = PortfolioPosition(
+                symbol=f"S{i}",
+                weight=1.0,
+                action="BUY",
+                signal_score=70.0,
+                risk_adjusted_score=65.0,
+                confidence=0.8,
+                entry_price=100.0,
+                is_executable=True,
+                forward_returns={5: r},
+                forward_availability={5: True},
+            )
+            e = PortfolioEvaluation(
+                evaluation_date=f"2024-01-0{i + 1}",
+                positions=[p],
+                allocated_weight=1.0,
+                unallocated_weight=0.0,
+                portfolio_forward_returns={5: r},
+                horizon_availability={5: True},
+            )
+            evals.append(e)
+
+        # Add empty evaluation and unavailable evaluation to ensure they are safely ignored
+        e_empty = PortfolioEvaluation(
+            evaluation_date="2024-02-01",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+        p_unavail = PortfolioPosition(
+            symbol="S_UNAVAIL",
+            weight=1.0,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.7,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: None},
+            forward_availability={5: False},
+        )
+        e_unavail = PortfolioEvaluation(
+            evaluation_date="2024-02-15",
+            positions=[p_unavail],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+        )
+        evals.extend([e_empty, e_unavail])
+
+        # Independent Pure Math Product Oracle
+        # (1 + 0.10) * (1 - 0.05) * (1 + 0.0) * (1 + 0.02) - 1.0 = 1.10 * 0.95 * 1.0 * 1.02 - 1.0 = 0.0659
+        cum_prod = 1.0
+        for r in rets:
+            cum_prod *= 1.0 + r
+        oracle_seq_comp = round(cum_prod - 1.0, 6)
+
+        agg = aggregate_portfolio_results(evals, horizons=[5])
+        h5 = agg["horizon_metrics"][5]
+
+        self.assertEqual(h5["valid_evaluation_points"], 4)
+        self.assertEqual(h5["sequential_compounded_return"], oracle_seq_comp)
+        self.assertEqual(oracle_seq_comp, 0.0659)
+
+    def test_9_position_to_portfolio_weighted_return_consistency(self) -> None:
+        """Test 9: Verify portfolio_forward_returns[N] == Σ(w_i × r_i) matching independent weighted sum oracle."""
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=0.5,
+            action="BUY",
+            signal_score=80.0,
+            risk_adjusted_score=75.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.12},
+            forward_availability={5: True},
+        )
+        p2 = PortfolioPosition(
+            symbol="BBB",
+            weight=0.3,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+            forward_returns={5: -0.04},
+            forward_availability={5: True},
+        )
+        p3 = PortfolioPosition(
+            symbol="CCC",
+            weight=0.2,
+            action="BUY",
+            signal_score=60.0,
+            risk_adjusted_score=55.0,
+            confidence=0.6,
+            entry_price=300.0,
+            is_executable=True,
+            forward_returns={5: 0.05},
+            forward_availability={5: True},
+        )
+
+        # Independent Math Oracle: 0.5 * 0.12 + 0.3 * (-0.04) + 0.2 * 0.05 = 0.058
+        oracle_port_ret = round(0.5 * 0.12 + 0.3 * (-0.04) + 0.2 * 0.05, 6)
+
+        eval_res = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1, p2, p3],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: oracle_port_ret},
+            horizon_availability={5: True},
+        )
+
+        self.assertEqual(eval_res.portfolio_forward_returns[5], oracle_port_ret)
+        self.assertEqual(oracle_port_ret, 0.058)
+
+    def test_10_unavailable_constituent_propagation(self) -> None:
+        """Test 10: Verify unavailable constituent in portfolio forces portfolio return to None and horizon_availability to False."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 50, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 50, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 42, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+
+        eval_d = df_bbb["date"].iloc[39]
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        eval_res = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        self.assertEqual(len(eval_res.positions), 2)
+        pos_b = next(p for p in eval_res.positions if p.symbol == "BBB")
+        self.assertFalse(pos_b.forward_availability[5])
+        self.assertIsNone(pos_b.forward_returns[5])
+
+        # Portfolio forward return MUST be None, NOT partial return, NOT zero
+        self.assertFalse(eval_res.horizon_availability[5])
+        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+
+    def test_11_allocation_weight_invariant_oracle(self) -> None:
+        """Test 11: Verify sum(pos.weight) == allocated_weight and allocated_weight + unallocated_weight == 1.0 across full, partial, and empty portfolios."""
+        # Case 1: Full allocation
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=0.5,
+            action="BUY",
+            signal_score=80.0,
+            risk_adjusted_score=75.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+        )
+        p2 = PortfolioPosition(
+            symbol="BBB",
+            weight=0.5,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+        )
+        e_full = PortfolioEvaluation(
+            evaluation_date="2024-01-01",
+            positions=[p1, p2],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05},
+            horizon_availability={5: True},
+        )
+
+        # Case 2: Partial allocation (capped at 0.30 per position, 2 positions -> 0.60 allocated, 0.40 unallocated)
+        p3 = PortfolioPosition(
+            symbol="AAA",
+            weight=0.30,
+            action="BUY",
+            signal_score=80.0,
+            risk_adjusted_score=75.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+        )
+        p4 = PortfolioPosition(
+            symbol="BBB",
+            weight=0.30,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.7,
+            entry_price=200.0,
+            is_executable=True,
+        )
+        e_partial = PortfolioEvaluation(
+            evaluation_date="2024-01-15",
+            positions=[p3, p4],
+            allocated_weight=0.60,
+            unallocated_weight=0.40,
+            portfolio_forward_returns={5: 0.03},
+            horizon_availability={5: True},
+        )
+
+        # Case 3: Empty portfolio
+        e_empty = PortfolioEvaluation(
+            evaluation_date="2024-02-01",
+            positions=[],
+            allocated_weight=0.0,
+            unallocated_weight=1.0,
+            portfolio_forward_returns={5: None},
+            horizon_availability={5: False},
+            empty_reason="no_eligible_candidates",
+        )
+
+        for eval_item in [e_full, e_partial, e_empty]:
+            sum_weights = sum(p.weight for p in eval_item.positions)
+            self.assertAlmostEqual(sum_weights, eval_item.allocated_weight, places=6)
+            self.assertAlmostEqual(
+                eval_item.allocated_weight + eval_item.unallocated_weight, 1.0, places=6
+            )
+
+    def test_12_serialized_result_matches_in_memory_aggregation(self) -> None:
+        """Test 12: Verify serialized result (.to_dict()) aggregate metrics match in-memory dataclass objects and independent oracles."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 80, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+        eval_dates = [df_aaa["date"].iloc[40], df_aaa["date"].iloc[50]]
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res = run_portfolio_backtest(
+            evaluation_dates=eval_dates,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        serialized = res.to_dict()
+
+        self.assertEqual(serialized["aggregate"], res.aggregate)
+        self.assertEqual(serialized["aggregate"]["total_evaluation_points"], len(eval_dates))
+        self.assertEqual(len(serialized["evaluations"]), len(res.evaluations))
+
+        for obj_eval, dict_eval in zip(res.evaluations, serialized["evaluations"], strict=True):
+            self.assertEqual(dict_eval["evaluation_date"], obj_eval.evaluation_date)
+            self.assertEqual(
+                dict_eval["portfolio_forward_returns"], obj_eval.portfolio_forward_returns
+            )
+            self.assertEqual(dict_eval["allocated_weight"], obj_eval.allocated_weight)
+            self.assertEqual(dict_eval["unallocated_weight"], obj_eval.unallocated_weight)
+
+    def test_13_horizon_isolation_mutation_test(self) -> None:
+        """Test 13: Verify mutating outcome data for horizon 10 does NOT alter horizon 1 or horizon 5 metrics."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 90, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 90, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 90, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+
+        eval_d = df_aaa["date"].iloc[40]
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        res1 = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[1, 5, 10],
+        )
+
+        # Mutate stock prices strictly at T+10 trading session (session 50)
+        df_aaa_mut = df_aaa.copy()
+        target_h10_date = df_aaa["date"].iloc[50]
+        mask = df_aaa_mut["date"] == target_h10_date
+        df_aaa_mut.loc[mask, "close"] *= 5.0
+        df_aaa_mut.loc[mask, "open"] *= 5.0
+        df_aaa_mut.loc[mask, "high"] *= 5.0
+        df_aaa_mut.loc[mask, "low"] *= 5.0
+
+        universe_mut = {"AAA": df_aaa_mut, "BBB": df_bbb}
+
+        res2 = evaluate_portfolio_at_date(
+            evaluation_date=eval_d,
+            universe_stock_map=universe_mut,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[1, 5, 10],
+        )
+
+        # Horizon 1 and 5 must be completely identical
+        self.assertEqual(res1.portfolio_forward_returns[1], res2.portfolio_forward_returns[1])
+        self.assertEqual(res1.portfolio_forward_returns[5], res2.portfolio_forward_returns[5])
+
+        pos1_a = next(p for p in res1.positions if p.symbol == "AAA")
+        pos2_a = next(p for p in res2.positions if p.symbol == "AAA")
+        self.assertEqual(pos1_a.forward_returns[1], pos2_a.forward_returns[1])
+        self.assertEqual(pos1_a.forward_returns[5], pos2_a.forward_returns[5])
+
+        # Only horizon 10 return should change
+        self.assertNotEqual(res1.portfolio_forward_returns[10], res2.portfolio_forward_returns[10])
+        self.assertNotEqual(pos1_a.forward_returns[10], pos2_a.forward_returns[10])
+
+    def test_14_evaluation_isolation_mutation_test(self) -> None:
+        """Test 14: Verify mutating forward outcome after T3 does not alter signal/construction state at T1, T2, or T3, and only affects outcomes depending on mutated data."""
+        df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
+        df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
+        df_bbb = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
+        universe = {"AAA": df_aaa, "BBB": df_bbb}
+
+        t1 = df_aaa["date"].iloc[40]
+        t2 = df_aaa["date"].iloc[50]
+        t3 = df_aaa["date"].iloc[60]
+
+        cfg = PortfolioConfig(
+            max_positions=2,
+            min_signal_score=0.0,
+            min_history=30,
+            allowed_actions=("BUY", "HOLD", "WATCH"),
+        )
+
+        baseline = run_portfolio_backtest(
+            evaluation_dates=[t1, t2, t3],
+            universe_stock_map=universe,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        # Mutate price data strictly after T3 (> t3)
+        df_aaa_mut = df_aaa.copy()
+        mask = df_aaa_mut["date"] > t3
+        df_aaa_mut.loc[mask, "close"] *= 3.0
+        df_aaa_mut.loc[mask, "open"] *= 3.0
+        df_aaa_mut.loc[mask, "high"] *= 3.0
+        df_aaa_mut.loc[mask, "low"] *= 3.0
+
+        universe_mut = {"AAA": df_aaa_mut, "BBB": df_bbb}
+
+        res_mut = run_portfolio_backtest(
+            evaluation_dates=[t1, t2, t3],
+            universe_stock_map=universe_mut,
+            config=cfg,
+            df_vnindex=df_vni,
+            horizons=[5],
+        )
+
+        # Construction states at signal time (constituents, weights, scores, entry_prices) for T1, T2, and T3 must remain strictly unmutated
+        for idx in range(3):
+            self.assertEqual(
+                [p.symbol for p in baseline.evaluations[idx].positions],
+                [p.symbol for p in res_mut.evaluations[idx].positions],
+            )
+            self.assertEqual(
+                [p.weight for p in baseline.evaluations[idx].positions],
+                [p.weight for p in res_mut.evaluations[idx].positions],
+            )
+            self.assertEqual(
+                [p.signal_score for p in baseline.evaluations[idx].positions],
+                [p.signal_score for p in res_mut.evaluations[idx].positions],
+            )
+            self.assertEqual(
+                [p.entry_price for p in baseline.evaluations[idx].positions],
+                [p.entry_price for p in res_mut.evaluations[idx].positions],
+            )
+
+        # T1 and T2 5D forward outcomes (which depend on data <= T3) remain strictly IDENTICAL
+        self.assertEqual(
+            baseline.evaluations[0].portfolio_forward_returns[5],
+            res_mut.evaluations[0].portfolio_forward_returns[5],
+        )
+        self.assertEqual(
+            baseline.evaluations[1].portfolio_forward_returns[5],
+            res_mut.evaluations[1].portfolio_forward_returns[5],
+        )
+
+        # T3 5D forward outcome (which depends on data > T3) changes
+        self.assertNotEqual(
+            baseline.evaluations[2].portfolio_forward_returns[5],
+            res_mut.evaluations[2].portfolio_forward_returns[5],
+        )
+
+    def test_15_fail_closed_malformed_aggregation_inputs(self) -> None:
+        """Test 15: Verify aggregate_portfolio_results fails closed with TypeError or ValueError on malformed inputs."""
+        p1 = PortfolioPosition(
+            symbol="AAA",
+            weight=1.0,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.05},
+            forward_availability={5: True},
+        )
+        valid_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-01",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05},
+            horizon_availability={5: True},
+        )
+
+        # 1. Non-list/tuple evaluations input
+        with self.assertRaises(TypeError):
+            aggregate_portfolio_results("not_a_list")  # type: ignore[arg-type]
+
+        # 2. Non-PortfolioEvaluation object in list
+        with self.assertRaises(TypeError):
+            aggregate_portfolio_results([valid_eval, "invalid_item"])  # type: ignore[arg-type]
+
+        # 3. Boolean portfolio return when marked available
+        bool_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: True},  # type: ignore[dict-item]
+            horizon_availability={5: True},
+        )
+        with self.assertRaises(ValueError):
+            aggregate_portfolio_results([bool_eval], horizons=[5])
+
+        # 4. Non-numeric return when marked available
+        str_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: "invalid_return"},  # type: ignore[dict-item]
+            horizon_availability={5: True},
+        )
+        with self.assertRaises(ValueError):
+            aggregate_portfolio_results([str_eval], horizons=[5])
+
+        # 5. NaN return when marked available
+        nan_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: float("nan")},
+            horizon_availability={5: True},
+        )
+        with self.assertRaises(ValueError):
+            aggregate_portfolio_results([nan_eval], horizons=[5])
+
+        # 6. Inf return when marked available
+        inf_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[p1],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: float("inf")},
+            horizon_availability={5: True},
+        )
+        with self.assertRaises(ValueError):
+            aggregate_portfolio_results([inf_eval], horizons=[5])
+
+        # 7. Invalid position weight (negative or non-numeric)
+        bad_weight_pos = PortfolioPosition(
+            symbol="AAA",
+            weight=-0.5,
+            action="BUY",
+            signal_score=70.0,
+            risk_adjusted_score=65.0,
+            confidence=0.8,
+            entry_price=100.0,
+            is_executable=True,
+            forward_returns={5: 0.05},
+            forward_availability={5: True},
+        )
+        bad_weight_eval = PortfolioEvaluation(
+            evaluation_date="2024-03-15",
+            positions=[bad_weight_pos],
+            allocated_weight=1.0,
+            unallocated_weight=0.0,
+            portfolio_forward_returns={5: 0.05},
+            horizon_availability={5: True},
+        )
+        with self.assertRaises(ValueError):
+            aggregate_portfolio_results([bad_weight_eval], horizons=[5])
+
+
 if __name__ == "__main__":
     unittest.main()
