@@ -25,7 +25,7 @@ The table below provides a comprehensive inventory of all paths in the repositor
 | **Frontend Entry / Router** | `src/router.tsx`, `src/routes/*`      | TanStack Router setup, route definitions (`/`, `/history`, `/methodology`, `/stock/$symbol`).                                                                                           | React 19, `@tanstack/react-router`                                                                                          | **LOW** (Pure UI presentation and routing)                                                                                       |
 | **Frontend Components**     | `src/components/*`                    | UI cards, stock tables, market summary, stock detail modal, Tailwind UI primitives.                                                                                                     | React 19, Lucide React, Tailwind CSS v4                                                                                     | **LOW** (Presentation layer)                                                                                                     |
 | **Frontend Data Loader**    | `src/data/loader.ts`                  | Data access layer fetching generated JSON artifacts with fallback mechanics and caching.                                                                                                | Fetch API, `src/types/recommendation.ts`                                                                                    | **HIGH** (Contains runtime fallback hacks and heuristic unit formatting)                                                         |
-| **Frontend Types**          | `src/types/recommendation.ts`         | TypeScript interface definitions matching backend recommendations payload.                                                                                                              | TypeScript                                                                                                                  | **MEDIUM** (Must manually sync with `schemas/recommendations.schema.json`)                                                       |
+| **Frontend Types**          | `src/types/recommendation.ts`         | TypeScript interface definitions matching backend recommendations payload.                                                                                                              | TypeScript                                                                                                                  | **HIGH** (Contract drift detected: `MarketRegime` type misses `"NEUTRAL"` present in Python `VALID_MARKET_REGIMES`)              |
 | **Vite / Build Config**     | `vite.config.ts`                      | Vite configuration, TanStack Router plugin, Tailwind CSS v4, SSG prerendering config (`prerenderRoutes`), dev server artifact plugin (`generatedDataPlugin`).                           | Vite, `@tanstack/router-plugin`, `@tailwindcss/vite`                                                                        | **HIGH** (Controls SSG prerendering, dev artifact serving, and build artifact copying)                                           |
 | **Package / Dependencies**  | `package.json`, `pnpm-lock.yaml`      | Node.js dependencies, pnpm package manager config (`pnpm@10.30.3`), build scripts.                                                                                                      | Node.js, pnpm                                                                                                               | **LOW** (Standard package configuration)                                                                                         |
 | **Python Dependencies**     | `requirements.txt`, `pyproject.toml`  | Pinned Python package dependencies (`pandas==2.2.3`, `vnstock==4.0.7`, `jsonschema==4.26.0`, etc.).                                                                                     | Python 3.11+                                                                                                                | **LOW** (Pinned versions)                                                                                                        |
@@ -64,111 +64,9 @@ React SSG Build & Hydration (vite.config.ts :: prerenderRoutes, src/data/loader.
 GitHub Pages Host (Static hosting via .github/workflows/pages.yml)
 ```
 
-### Detailed Layer Specifications
-
-#### Layer 1: Data Sources
-
-- **Actual File/Module:** `scripts/data_provider.py`
-- **Main Function/Class:** `VnstockDataProvider`
-- **Input:** Symbol (e.g. `'VCB'`), date range (`start_date`, `end_date`), source (e.g. `'KBS'`)
-- **Output:** Raw `pandas.DataFrame` containing OHLCV quote data
-- **Dependencies:** `vnstock` library (`vnstock.api.quote`)
-- **Side Effects:** Makes external HTTP network requests, implements retry wait loops
-- **Called By:** `scripts/lib/vietnam_market.py :: get_historical_data`
-
-#### Layer 2: Data Acquisition & Validation Contract
-
-- **Actual File/Module:** `scripts/data_provider.py`
-- **Main Function/Class:** `validate_canonical_ohlcv`
-- **Input:** Raw `pandas.DataFrame` from provider
-- **Output:** Validated DataFrame (or raises `CanonicalOHLCVError`)
-- **Dependencies:** `pandas`, `numpy`
-- **Side Effects:** None (Pure validation)
-- **Called By:** `scripts/data_provider.py :: VnstockDataProvider.fetch_ohlcv`
-
-#### Layer 3: Data Cleaning & Unit Normalization
-
-- **Actual File/Module:** `scripts/lib/vietnam_market.py`
-- **Main Function/Class:** `normalize_ohlcv_units`, `get_clean_ohlcv_data`
-- **Input:** Raw/validated DataFrame, `source_price_unit`, `source_volume_unit`
-- **Output:** Clean DataFrame normalized to canonical internal unit contract (`VND/share`, `shares`, `VND`)
-- **Dependencies:** `pandas`
-- **Side Effects:** None (Returns explicit clean DataFrame)
-- **Called By:** `scripts/generate_report.py`, `scripts/lib/recommendation.py`, `scripts/lib/risk.py`, `scripts/lib/backtest.py`
-
-#### Layer 4: Feature / Indicator Calculation
-
-- **Actual File/Module:** `scripts/lib/features.py`
-- **Main Function/Class:** `calculate_multi_timeframe_features`, `calculate_single_tf_indicators`, `detect_divergence`
-- **Input:** Clean stock DataFrame (`df_clean`)
-- **Output:** Dictionary of technical features across 1D, 1W, 1M timeframes (SMA, EMA, RSI, MACD, ATR, divergence signals)
-- **Dependencies:** `pandas`
-- **Side Effects:** None (Pure mathematical transformation)
-- **Called By:** `scripts/lib/recommendation.py :: generate_recommendation`
-
-#### Layer 5: Market Breadth & Market Regime
-
-- **Actual File/Module:** `scripts/lib/regime.py`, `scripts/generate_report.py`
-- **Main Function/Class:** `detect_market_regime`
-- **Input:** Clean benchmark DataFrames (`df_vnindex`, `df_vn30`), `breadth_ratio`
-- **Output:** Market regime dictionary (`regime`, `regime_score`, `confidence`, `metrics`)
-- **Dependencies:** `pandas`, `logging`
-- **Side Effects:** Logs regime determination info
-- **Called By:** `scripts/generate_report.py :: run_pipeline`, `generate_historical_report`
-
-#### Layer 6: Stock Signal Scoring & Recommendation
-
-- **Actual File/Module:** `scripts/lib/recommendation.py`
-- **Main Function/Class:** `generate_recommendation`, `calculate_signal_score`, `calculate_confidence`, `calculate_risk_adjusted_score`
-- **Input:** Stock symbol, candidate metadata, stock clean DataFrame (`df_stock`), market regime dict, benchmark DataFrames
-- **Output:** Comprehensive recommendation dictionary (action, signal_score, confidence, trade_plan, indicators, risk_metrics)
-- **Dependencies:** `scripts.lib.features`, `scripts.lib.risk`, `scripts.lib.vietnam_market`, `scripts.lib.config`
-- **Side Effects:** None
-- **Called By:** `scripts/generate_report.py :: run_pipeline`, `generate_historical_report`
-
-#### Layer 7: Universe Liquidity Score Normalization
-
-- **Actual File/Module:** `scripts/lib/risk.py`
-- **Main Function/Class:** `normalize_universe_liquidity_scores`
-- **Input:** List of raw recommendation dictionaries
-- **Output:** Mutated/updated recommendation list with `liquidity_score` set to 0–100 percentile rank within the universe
-- **Dependencies:** `numpy`, `pandas`, `scripts.lib.recommendation` (`VALID_MARKET_REGIMES`, `calculate_risk_adjusted_score`)
-- **Side Effects:** Mutates recommendation dictionaries in-place
-- **Called By:** `scripts/generate_report.py :: run_pipeline`, `generate_historical_report`
-
-#### Layer 8: Pipeline Monitoring & Schema Validation
-
-- **Actual File/Module:** `scripts/lib/monitoring.py`, `scripts/generate_report.py`
-- **Main Function/Class:** `evaluate_production_monitoring`, `load_schema`, `jsonschema.validate`
-- **Input:** Recommendations payload, market payload, generated directory path, history index
-- **Output:** Schema validation result, `monitoring.json` payload
-- **Dependencies:** `jsonschema`, `pandas`
-- **Side Effects:** Writes `generated/monitoring.json`
-- **Called By:** `scripts/generate_report.py :: main`
-
-#### Layer 9: Artifact Persistence
-
-- **Actual File/Module:** `scripts/generate_report.py`
-- **Main Function/Class:** `save_json_files`, `update_history_index`
-- **Input:** Dict of JSON payloads and target directory (`generated/`)
-- **Output:** Files written to disk (`generated/recommendations.json`, `market.json`, `history/YYYY-MM-DD.json`, `history/index.json`)
-- **Dependencies:** `json`, `os`
-- **Side Effects:** Overwrites files in `generated/` directory
-- **Called By:** `scripts/generate_report.py :: main`, `generate_historical_report`
-
-#### Layer 10: Frontend Data Consumption & Prerendering
-
-- **Actual File/Module:** `vite.config.ts`, `src/data/loader.ts`, `src/routes/*`
-- **Main Function/Class:** `loadRecommendationsData`, `loadMarketData`, `loadHistoryIndexData`
-- **Input:** Generated JSON artifacts in `public/generated/` or `/generated/`
-- **Output:** Typed React component state
-- **Dependencies:** Fetch API, TanStack Router, Vite SSG plugin
-- **Side Effects:** Prerenders static HTML files at build time (`dist/client/index.html`, `dist/client/history/index.html`)
-- **Called By:** React routes during SSG build and client hydration
-
 ---
 
-## 3. Dependency Analysis
+## 3. Dependency Analysis & Circular Import Audit
 
 ### Coupling Graph & Import Traversal
 
@@ -197,84 +95,19 @@ generate_report.py
 ### Key Architectural Findings
 
 1. **Circular Import Dependency (`risk.py` <-> `recommendation.py`):**
-   - `scripts/lib/risk.py` imports `VALID_MARKET_REGIMES` and `calculate_risk_adjusted_score` from `scripts.lib.recommendation`.
+   - `scripts/lib/risk.py` imports `VALID_MARKET_REGIMES` and `calculate_risk_adjusted_score` from `scripts.lib.recommendation` inside `normalize_universe_liquidity_scores()`.
    - `scripts/lib/recommendation.py` imports `calculate_t25_risk_metrics` from `scripts.lib.risk`.
-   - _Impact:_ Creates a direct circular import loop between `risk.py` and `recommendation.py`. In addition, `risk.py` contains market regime validation and risk-adjusted scoring logic that should be owned by a shared quantitative scoring module.
+   - _Impact:_ Deferring the import into function scope inside `normalize_universe_liquidity_scores()` avoids a top-level `ImportError` at startup, but leaves a bidirectional runtime dependency loop (`recommendation` -> `risk` -> `recommendation`). `risk.py` should strictly focus on risk metrics (`calculate_t25_risk_metrics`, `calculate_t25_returns`), while shared scoring logic (`calculate_risk_adjusted_score`) and constants (`VALID_MARKET_REGIMES`) belong in `scripts/lib/config.py` or a dedicated `scripts/lib/scoring.py` module.
 
-2. **Excessive Coupling & Duplicated Configuration Re-Exports:**
-   - `scripts/lib/config.py` defines quantitative constants (`SIGNAL_MODEL_VERSION`, `SIGNAL_WEIGHTS`, `DIVERGENCE_TIMEFRAME_WEIGHTS`, `VALID_MARKET_REGIMES`).
-   - `scripts/lib/recommendation.py` re-exports these exact same constants.
-   - _Impact:_ Modules import constants from `recommendation.py` instead of `config.py`, making `recommendation.py` a bottleneck dependency.
+2. **Contract Drift (Python Schema vs TypeScript Types):**
+   - Python `VALID_MARKET_REGIMES` in `config.py`/`recommendation.py` defines 6 regimes: `{"STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"}`.
+   - TypeScript `MarketRegime` type in `src/types/recommendation.ts` defines 5 regimes: `"STRONG_BULL" | "BULL" | "DEFENSIVE" | "BEAR" | "PANIC"`, omitting `"NEUTRAL"`.
+   - _Impact:_ Manual synchronization of TypeScript interfaces leads to silent type drift. Phase 6 will implement automated build-time generation of TypeScript interfaces directly from `schemas/recommendations.schema.json`.
 
-3. **In-Place Mutation Side Effects:**
-   - `normalize_universe_liquidity_scores` in `scripts/lib/risk.py` takes a list of recommendation dictionaries and mutates `rec['risk_metrics']['liquidity_score']` and `rec['risk_adjusted_score']` in-place.
-   - _Impact:_ Pure quantitative functions should be non-mutating and return new structures.
-
-4. **God Modules / Too Many Responsibilities:**
+3. **God Modules / Too Many Responsibilities:**
    - `scripts/generate_report.py`: Handles CLI parsing, historical report generation, snapshot loading, historical OHLCV loading, history index file management, pipeline execution, reproducibility canonicalization, schema validation, and JSON writing.
    - `scripts/lib/backtest.py`: Combines point-in-time dataset slicing (`get_as_of_dataset`), market execution eligibility calculations (`evaluate_execution_eligibility`), stock-level backtesting (`evaluate_forward_outcomes`), walk-forward evaluation, regime calibration, component calibration, and confidence calibration in a single 1000+ line file.
 
-5. **Hardcoded Stock Universe in Production Code:**
+4. **Hardcoded Stock Universe in Production Code:**
    - `scripts/lib/vietnam_market.py` contains `UniverseProvider` with a hardcoded candidate stock universe list of 30 symbols.
    - _Impact:_ Adding or modifying candidate stocks requires editing Python source code instead of configuration or data snapshots.
-
----
-
-## 4. Architecture Problems & Risk Categorization
-
-### Critical Architectural Problems
-
-1. **Circular Import Dependency Between Quant Modules (`risk.py` <-> `recommendation.py`)**
-   - **Evidence:** `scripts/lib/risk.py` imports `from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_score`. `scripts/lib/recommendation.py` imports `from scripts.lib.risk import calculate_t25_risk_metrics`.
-   - **Why it matters:** Violates layered software architecture. Quantitative risk calculation and liquidity score normalization rely on higher-level recommendation scoring functions and constants.
-   - **Affected Modules:** `scripts/lib/risk.py`, `scripts/lib/recommendation.py`
-   - **Potential Consequence:** Import errors during refactoring, inability to execute risk module independently in isolated test environments.
-   - **Recommended Direction:** Move `calculate_risk_adjusted_score` and `VALID_MARKET_REGIMES` to `config.py` / a shared scoring module (`scripts/lib/scoring.py`), establishing a unidirectional graph: `config` -> `risk` -> `scoring` -> `recommendation`.
-
-2. **Frontend UI Utility Performs Business Logic & Presentation Conversions**
-   - **Evidence:** `src/data/loader.ts` contains fallback dummy data generation and client-side unit heuristics; `src/lib/format.ts` formats raw currency values.
-   - **Why it matters:** Violates strict rule that Python backend is the sole source of quantitative truth and React frontend is presentation-only.
-   - **Affected Modules:** `src/data/loader.ts`, `src/lib/format.ts`
-   - **Potential Consequence:** Inconsistencies between backend calculation and frontend display if fallback data or client formatting diverges.
-   - **Recommended Direction:** Remove fallback dummy data generation from frontend loader; ensure backend outputs schema-compliant JSON or explicit error states.
-
-### High Priority Problems
-
-1. **God Module Responsibilities in Pipeline Orchestrator (`scripts/generate_report.py`)**
-   - **Evidence:** `generate_report.py` is 600+ lines mixing CLI argument parsing, snapshot file loading, history index persistence, schema validation, report canonicalization, execution timing, and file I/O.
-   - **Why it matters:** Orchestrator is difficult to unit test and maintain; changes to historical loading risk breaking daily production report execution.
-   - **Affected Modules:** `scripts/generate_report.py`
-   - **Potential Consequence:** Regression bugs when modifying historical or snapshot report generation logic.
-   - **Recommended Direction:** Decompose `generate_report.py` into separate modules for report pipeline orchestration, CLI argument handling, and snapshot persistence.
-
-2. **Hardcoded Candidate Stock Universe in Source Code (`scripts/lib/vietnam_market.py`)**
-   - **Evidence:** `UniverseProvider.get_default_universe()` defines a static list of 30 stock dictionaries inside python code.
-   - **Why it matters:** Changing universe scope requires source code changes and deployment.
-   - **Affected Modules:** `scripts/lib/vietnam_market.py`
-   - **Potential Consequence:** Inflexibility in running multi-universe research or updating tracking symbols.
-   - **Recommended Direction:** Externalize universe candidate definitions into JSON/YAML configuration files or universe snapshot files (`Universe(as_of=T)`).
-
-### Medium Priority Problems
-
-1. **In-Place Mutation of Recommendation Payloads during Liquidity Normalization**
-   - **Evidence:** `normalize_universe_liquidity_scores` in `scripts/lib/risk.py` modifies dictionary items in-place (`r['risk_metrics']['liquidity_score']` and `r['risk_adjusted_score']`).
-   - **Why it matters:** Non-functional side effects make pipeline behavior dependent on call order and object mutation state.
-   - **Affected Modules:** `scripts/lib/risk.py`, `scripts/generate_report.py`
-   - **Potential Consequence:** Data leakage or unexpected state mutations if recommendations list is reused across calculations.
-   - **Recommended Direction:** Refactor `normalize_universe_liquidity_scores` to return new updated dictionaries or explicit scores without mutating inputs.
-
-2. **Duplicate Re-Exports of Quantitative Configuration Constants**
-   - **Evidence:** `SIGNAL_MODEL_VERSION`, `SIGNAL_WEIGHTS`, etc., are defined in `config.py` and re-assigned in `recommendation.py`.
-   - **Why it matters:** Creates confusion over where constants should be imported from and risks value drift if changed in one place.
-   - **Affected Modules:** `scripts/lib/config.py`, `scripts/lib/recommendation.py`
-   - **Potential Consequence:** Inconsistent parameter usage across quantitative and backtest modules.
-   - **Recommended Direction:** Standardize all quant parameter imports directly from `scripts.lib.config`.
-
-### Low Priority Problems
-
-1. **Unused SQL Database Schema File (`scripts/audit_trail_schema.sql`)**
-   - **Evidence:** File `scripts/audit_trail_schema.sql` exists in `scripts/` but is never referenced by any python code, CI workflow, or test.
-   - **Why it matters:** Dead code / clutter in repository.
-   - **Affected Modules:** `scripts/audit_trail_schema.sql`
-   - **Potential Consequence:** Maintenance confusion for developers wondering if a SQL database is active.
-   - **Recommended Direction:** Document as optional audit schema or archive in documentation folder.

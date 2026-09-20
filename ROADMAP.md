@@ -10,16 +10,16 @@ This roadmap defines the sequential phases for refactoring and enhancing the VN 
 Phase 0: Audit & Architecture Analysis (CURRENT PHASE — COMPLETE)
     │
     ▼
-Phase 1: Architecture & Data Foundation (Unidirectional Imports & Ownership)
+Phase 1: Architecture & Data Foundation (Unidirectional Imports & Scoring Decoupling)
     │
     ▼
-Phase 2: Data Quality, Boundary Hardening & Historical Universe (Universe(as_of=T))
+Phase 2: Data Quality, Boundary Hardening & Historical Universe (Universe(as_of=T) - HIGH Risk)
     │
     ▼
 Phase 3: Quant Engine Decoupling & Pure Functional Separation
     │
     ▼
-Phase 4: Research & Backtest Validation (Parity Tests & Characterization)
+Phase 4: Research & Backtest Validation (Characterization Parity & Golden Fixtures)
     │
     ▼
 Phase 5: Application Pipeline & Snapshot Separation
@@ -34,7 +34,7 @@ Phase 7: Operational Monitoring & Drift Enhancement
 Phase 8: Frontend Loader & SSG Cleanup (Explicit Error States)
     │
     ▼
-Phase 9: CI/CD Hardening & Automated Quality Gates (Branch Coverage & Gates)
+Phase 9: CI/CD Hardening & Automated Quality Gates (pytest --cov Branch Gates)
 ```
 
 ---
@@ -43,43 +43,44 @@ Phase 9: CI/CD Hardening & Automated Quality Gates (Branch Coverage & Gates)
 
 ### Phase 1: Architecture & Data Foundation
 
-- **Goal:** Resolve circular import dependency (`risk.py` <-> `recommendation.py`), establish a strict unidirectional import graph (`config` -> `risk` -> `scoring` -> `recommendation`), and centralize configuration imports.
+- **Goal:** Remove all module-level and runtime dependencies from `risk.py` to `recommendation.py`. Establish a strict unidirectional import graph (`config` -> `risk` -> `scoring` -> `recommendation`) by creating `scripts/lib/scoring.py` for shared scoring functions (`calculate_risk_adjusted_score`) and constants (`VALID_MARKET_REGIMES`).
 - **Dependencies:** Phase 0 Audit Complete.
-- **Files Affected:** `scripts/lib/risk.py`, `scripts/lib/recommendation.py`, `scripts/lib/config.py`, new `scripts/lib/scoring.py`, `scripts/lib/formatting.py`.
-- **Expected Outcome:** `risk.py` operates without importing `recommendation.py`. Shared scoring logic (`calculate_risk_adjusted_score`) and constants (`VALID_MARKET_REGIMES`) reside in `config.py` / `scoring.py`.
-- **Risk:** **LOW** (Refactoring module boundaries and import locations without altering mathematical formulas).
-- **Validation:** Run `python scripts/tests/run_tests.py` and verify `scripts.lib.risk` imports cleanly in isolation.
+- **Files Affected:** `scripts/lib/risk.py`, `scripts/lib/recommendation.py`, `scripts/lib/config.py`, new `scripts/lib/scoring.py`, `scripts/lib/formatting.py`, `scripts/tests/test_risk.py`.
+- **Expected Outcome:** `risk.py` calculates risk metrics (`calculate_t25_risk_metrics`, `calculate_t25_returns`) without importing `recommendation.py` either at top-level or at function runtime.
+- **Risk:** **LOW**.
+- **Validation:** Run `python scripts/tests/run_tests.py` and verify explicit import isolation via architecture test: `assert "scripts.lib.recommendation" not in sys.modules["scripts.lib.risk"].__dict__`.
 
 ### Phase 2: Data Quality, Boundary Hardening & Historical Universe Membership
 
-- **Goal:** Externalize candidate stock universe definitions into configuration files and implement point-in-time historical universe resolution (`Universe(as_of=T)`), supporting delisted or historically tracked securities.
+- **Goal:** Externalize candidate stock universe definitions into configuration files and implement point-in-time historical universe resolution (`Universe(as_of=T)`), supporting delisted or historically tracked securities to prevent survivorship bias in long-horizon research.
 - **Dependencies:** Phase 1 Complete.
-- **Files Affected:** `scripts/lib/vietnam_market.py`, `scripts/data_provider.py`, new `config/universe_default.json`.
-- **Expected Outcome:** Candidate stock lists read from JSON configuration instead of hardcoded Python dictionaries, with point-in-time historical universe awareness preventing survivorship bias.
-- **Risk:** **LOW**.
+- **Files Affected:** `scripts/lib/vietnam_market.py`, `scripts/data_provider.py`, new `config/universe_default.json`, `config/historical_universe.json`.
+- **Expected Outcome:** Candidate stock lists read from JSON configuration instead of hardcoded Python dictionaries, with point-in-time historical universe membership preventing survivorship bias.
+- **Risk:** **HIGH** (Modifies candidate selection population, historical data resolution, and backtest portfolio statistics).
 - **Validation:** Run `test_data_provider.py`, `test_data_quality.py`, `test_unit_normalization.py`.
 
 ### Phase 3: Quant Engine Decoupling & Pure Functional Separation
 
-- **Goal:** Eliminate in-place dictionary mutations during universe liquidity score normalization and standardize parameter imports.
+- **Goal:** Eliminate in-place dictionary mutations during universe liquidity score normalization and move liquidity/risk-adjusted scoring into `scoring.py`. Standardize all quantitative parameter imports directly from `scripts.lib.config`.
 - **Dependencies:** Phase 1 & 2 Complete.
-- **Files Affected:** `scripts/lib/risk.py`, `scripts/lib/recommendation.py`, `scripts/generate_report.py`.
+- **Files Affected:** `scripts/lib/risk.py`, `scripts/lib/scoring.py`, `scripts/lib/recommendation.py`, `scripts/generate_report.py`.
 - **Expected Outcome:** `normalize_universe_liquidity_scores` returns new updated payloads without mutating input dictionaries in-place.
 - **Risk:** **MEDIUM**.
 - **Validation:** Run `test_risk.py`, `test_recommendation.py`, `test_parity.py`.
 
 ### Phase 4: Research & Backtest Validation
 
-- **Goal:** Enforce characterization parity tests (`old_output == new_output`) prior to decomposing `scripts/lib/backtest.py` into focused submodules (`execution.py`, `walk_forward.py`, `calibration.py`).
+- **Goal:** Enforce characterization parity tests (`old_output == new_output`) against golden fixtures before decomposing `scripts/lib/backtest.py` into focused submodules (`execution.py`, `walk_forward.py`, `calibration.py`).
 - **Dependencies:** Phase 3 Complete.
 - **Files Affected:** `scripts/lib/backtest.py`, `scripts/lib/portfolio_backtest.py`, `scripts/tests/test_backtest.py`, `scripts/tests/test_parity.py`.
-- **Expected Outcome:** Clean separation of stock backtesting, portfolio evaluation, and calibration logic with verified 100% mathematical output parity.
+- **Expected Outcome:** Clean separation of stock backtesting, portfolio evaluation, and calibration logic with verified output behavior preservation across all characterized test cases (with explicit floating-point tolerance rules).
 - **Risk:** **MEDIUM**.
 - **Validation:** Run `test_backtest.py`, `test_portfolio_backtest.py`, `test_e2e_backtest_integrity.py`, `test_parity.py`.
 
 ### Phase 5: Application Pipeline & Snapshot Separation
 
 - **Goal:** Decompose God module `scripts/generate_report.py` into modular orchestrator (`pipeline_orchestrator.py`), snapshot loader (`snapshot_loader.py`), and report writer (`report_writer.py`) components.
+- **Invariants:** `generate_report.py` and pipeline orchestrators must NOT contain quantitative business logic.
 - **Dependencies:** Phase 3 & 4 Complete.
 - **Files Affected:** `scripts/generate_report.py`, new `scripts/pipeline_orchestrator.py`, `scripts/snapshot_loader.py`.
 - **Expected Outcome:** Modular pipeline orchestrator with isolated historical report generation and snapshot loading.
@@ -88,7 +89,7 @@ Phase 9: CI/CD Hardening & Automated Quality Gates (Branch Coverage & Gates)
 
 ### Phase 6: Artifact Contract Strictness & Automated TS Type Generation
 
-- **Goal:** Implement automated build-time generation of TypeScript interfaces (`src/types/recommendation.ts`) directly from `schemas/recommendations.schema.json` using `json-schema-to-typescript`, eliminating manual type sync drift.
+- **Goal:** Implement automated build-time generation of TypeScript interfaces (`src/types/recommendation.ts`) directly from `schemas/recommendations.schema.json` using `json-schema-to-typescript`, resolving contract drift (e.g. adding `"NEUTRAL"` market regime to TypeScript types).
 - **Dependencies:** Phase 5 Complete.
 - **Files Affected:** `schemas/recommendations.schema.json`, `src/types/recommendation.ts`, `package.json`, `scripts/tests/test_schema.py`.
 - **Expected Outcome:** Automated type generation ensuring TypeScript interfaces match JSON Schema contracts exactly.

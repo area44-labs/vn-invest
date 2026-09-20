@@ -26,7 +26,7 @@ The repository contains 20 Python test modules located in `scripts/tests/`, mana
 | `test_schema.py`                 | JSON Schema validation contract                        | 10            | Offline Fixtures          | ~0.2s          | Validates generated JSON payloads against `schemas/recommendations.schema.json`.                                                                          |
 | `test_ssg_html.py`               | SSG build artifact static HTML checks                  | 8             | Offline Fixtures          | ~0.1s          | Verifies static HTML title tags, meta tags, and rendered content in `dist/client/`. Auto-skips when build artifacts are missing.                          |
 | `test_dependencies.py`           | Environment & dependency version verification          | 5             | Offline Fixtures          | ~0.05s         | Verifies exact pinned dependency versions (`pandas==2.2.3`, `vnstock==4.0.7`, etc.).                                                                      |
-| **TOTAL**                        | **20 Test Files**                                      | **456 Tests** | **Offline Test Design**   | **~112s**      | **Extensive Automated Test Inventory for Identified Critical Paths**                                                                                      |
+| **TOTAL**                        | **20 Test Files**                                      | **460 Tests** | **Offline Test Design**   | **~112s**      | **Extensive Automated Test Inventory for Identified Critical Paths**                                                                                      |
 
 ---
 
@@ -43,6 +43,10 @@ Or via standard `pytest`:
 ```bash
 python -m pytest
 ```
+
+### Audit Methodology Qualification
+
+_Important:_ Test count is not a coverage metric. Having 460 tests indicates an extensive test inventory for identified critical paths, but does not substitute for formal line, branch, or mutation coverage.
 
 ### Key Strengths & Qualifications
 
@@ -63,4 +67,4 @@ python -m pytest
 
 3. **Line & Branch Coverage Reporting (`pytest --cov`):**
    - _Gap:_ Automated CI workflows do not currently enforce line/branch code coverage metrics or mutation testing.
-   - _Impact:_ While the test inventory is extensive (456 tests), line/branch coverage percentages have not been formally measured across all quantitative edge cases. Added to Phase 9.
+   - _Impact:_ Formal line/branch coverage gates will be established in Phase 9.

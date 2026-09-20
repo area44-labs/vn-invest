@@ -2,7 +2,7 @@
 
 ## 1. Target Architecture Overview
 
-To resolve identified architectural problems (circular imports, God module responsibilities, hardcoded universe data, frontend fallback logic), the target architecture establishes strict unidirectional data flow across 5 cleanly separated layers:
+To resolve identified architectural problems (circular imports, God module responsibilities, hardcoded universe data, contract drift), the target architecture establishes strict unidirectional data flow across 5 cleanly separated layers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -65,7 +65,9 @@ To resolve identified architectural problems (circular imports, God module respo
 - **Responsibility:** Pure mathematical quantitative algorithms: technical indicator calculation (`features.py`), market regime detection (`regime.py`), T+2.5 risk metrics (`risk.py`), composite signal scoring, confidence calculation, risk-adjusted scoring (`scoring.py`), and trade plan generation (`recommendation.py`).
 - **Unidirectional Quant Dependency Graph:**
   $$\text{config} \longrightarrow \text{features} \longrightarrow \text{regime} \longrightarrow \text{risk} \longrightarrow \text{scoring} \longrightarrow \text{recommendation}$$
-- **Strict Boundary Rule:** Pure functions only. Zero network calls, zero file I/O side effects, zero circular imports (`risk.py` must NOT import `recommendation.py`).
+- **Strict Boundary Rules:**
+  1. Pure functions only. Zero network calls, zero file I/O side effects.
+  2. Zero circular imports: `risk.py` must NOT import `recommendation.py` (either at top-level or at function runtime). `risk.py` calculates pure risk metrics (`calculate_t25_risk_metrics`, `calculate_t25_returns`). Shared scoring logic (`calculate_risk_adjusted_score`) and constants (`VALID_MARKET_REGIMES`) reside in `config.py` / `scoring.py`.
 
 ### Layer 3: Research Engine
 
@@ -75,15 +77,15 @@ To resolve identified architectural problems (circular imports, God module respo
 ### Layer 4: Application Pipeline
 
 - **Responsibility:** Pipeline orchestration (`run_pipeline`), historical snapshot generation (`generate_historical_report`), health checks, schema validation against `schemas/recommendations.schema.json`, data/model drift monitoring, and artifact persistence (`generated/`).
-- **Strict Boundary Rule:** Orchestrates lower layers; does not define quantitative formulas or UI presentation logic.
+- **Strict Boundary Invariant:** `generate_report.py` and pipeline orchestrators must NOT contain quantitative business logic. They orchestrate lower layers, validate schemas, write artifacts, and execute monitoring.
 
 ### Layer 5: React SSG Presentation Layer
 
 - **Responsibility:** Static site prerendering via TanStack Router and Vite, route management (`/`, `/history`, `/methodology`, `/stock/$symbol`), interactive UI components, and charts.
 - **Strict Architectural Invariants:**
   1. Presentation only. Zero quantitative formula recomputation.
-  2. Zero synthetic fallback recommendation generation (`src/data/loader.ts` displays explicit error/empty UI states when JSON artifacts are absent).
-  3. TypeScript types (`src/types/recommendation.ts`) must be generated directly from `schemas/recommendations.schema.json`.
+  2. Zero synthetic fallback recommendation generation (`src/data/loader.ts` throws explicit errors during build or renders explicit error UI states when JSON artifacts are absent).
+  3. TypeScript types (`src/types/recommendation.ts`) must be generated directly from `schemas/recommendations.schema.json` using `json-schema-to-typescript` to prevent contract drift (e.g., ensuring `"NEUTRAL"` market regime is present in frontend types).
 
 ---
 
