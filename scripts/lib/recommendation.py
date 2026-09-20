@@ -16,7 +16,6 @@ import math
 
 from scripts.lib.features import calculate_multi_timeframe_features
 from scripts.lib.risk import calculate_t25_risk_metrics
-from scripts.lib.scoring import calculate_risk_adjusted_score
 from scripts.lib.vietnam_market import (
     clamp_price_limits,
     extract_latest_trading_date,
@@ -337,6 +336,50 @@ def calculate_confidence(
         base_conf -= 0.05
 
     return round(max(0.10, min(0.95, base_conf)), 2)
+
+
+def calculate_risk_adjusted_score(
+    signal_score: float | None,
+    regime: str,
+    volatility_60d: float | None = None,
+    max_drawdown: float | None = None,
+    liquidity_score: float | None = None,
+) -> float | None:
+    """Calculate deterministic and explainable risk-adjusted signal score."""
+    if signal_score is None:
+        return None
+
+    regime_map = {
+        "STRONG_BULL": 1.05,
+        "BULL": 1.00,
+        "NEUTRAL": 0.90,
+        "DEFENSIVE": 0.90,
+        "BEAR": 0.75,
+        "PANIC": 0.50,
+    }
+    if regime not in regime_map:
+        raise ValueError(
+            f"Invalid market regime: '{regime}'. Must be one of {VALID_MARKET_REGIMES}"
+        )
+    regime_factor = regime_map[regime]
+
+    vol_penalty = 0.0
+    vol60 = _safe_float(volatility_60d)
+    if vol60 is not None:
+        vol_penalty = min(0.25, max(0.0, (vol60 - 0.20) * 0.5))
+
+    mdd_penalty = 0.0
+    mdd = _safe_float(max_drawdown)
+    if mdd is not None:
+        mdd_penalty = min(0.25, max(0.0, (abs(mdd) - 0.15) * 0.5))
+
+    liq_factor = 1.0
+    liq = _safe_float(liquidity_score)
+    if liq is not None:
+        liq_factor = 0.85 + 0.15 * (max(0.0, min(100.0, liq)) / 100.0)
+
+    score = signal_score * regime_factor * (1.0 - vol_penalty) * (1.0 - mdd_penalty) * liq_factor
+    return max(0.0, min(100.0, round(score, 1)))
 
 
 def classify_action(

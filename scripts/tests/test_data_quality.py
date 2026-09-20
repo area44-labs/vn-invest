@@ -1,4 +1,4 @@
-"""Comprehensive Deterministic Unit Tests for OHLCV Data Quality Gate and Point-in-Time Universe.
+"""Comprehensive Deterministic Unit Tests for OHLCV Data Quality Gate.
 
 Covers Tests A through M without live API dependencies.
 """
@@ -11,7 +11,7 @@ import pandas as pd
 from scripts.generate_report import run_pipeline
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
-from scripts.lib.vietnam_market import UniverseProvider, get_clean_ohlcv_data, validate_ohlcv_data
+from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
 
 
 def make_valid_df(num_rows: int = 30, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -212,34 +212,6 @@ class TestDataQualityGate(unittest.TestCase):
         pd.testing.assert_frame_equal(df_orig, df_copy)
 
 
-class TestHistoricalUniversePIT(unittest.TestCase):
-    def test_point_in_time_universe_membership(self):
-        """Verify Universe(as_of=T1) != Universe(as_of=T2) when symbol listing bounds change."""
-        up = UniverseProvider()
-        # Add a custom delisted candidate with valid_to
-        up.candidates.append(
-            {
-                "symbol": "OLD_CO",
-                "companyName": "Delisted Company",
-                "sector": "Industrials",
-                "exchange": "HOSE",
-                "valid_from": "2020-01-01",
-                "valid_to": "2024-12-31",
-                "listing_status": "delisted",
-            }
-        )
-
-        u_2022 = up.get_as_of_universe("2022-06-01")
-        u_2025 = up.get_as_of_universe("2025-06-01")
-
-        symbols_2022 = [c["symbol"] for c in u_2022]
-        symbols_2025 = [c["symbol"] for c in u_2025]
-
-        self.assertIn("OLD_CO", symbols_2022)
-        self.assertNotIn("OLD_CO", symbols_2025)
-        self.assertNotEqual(symbols_2022, symbols_2025)
-
-
 class TestMarketCleanDataBoundary(unittest.TestCase):
     def test_a_invalid_latest_vnindex_row(self):
         """Test A — Invalid latest VNINDEX row: data_as_of uses latest clean valid date (2026-09-11), not invalid date (2026-09-12)."""
@@ -303,9 +275,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertEqual(len(clean_df), 29)
 
         regime = detect_market_regime(df_vnindex=clean_df)
-        self.assertIn(
-            regime["regime"], ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]
-        )
+        self.assertIn(regime["regime"], ["STRONG_BULL", "BULL", "DEFENSIVE", "BEAR", "PANIC"])
 
     def test_e_insufficient_clean_benchmark(self):
         """Test E — Insufficient clean benchmark: fixture with >=20 raw rows but <20 valid rows produces INSUFFICIENT status and graceful fallback."""

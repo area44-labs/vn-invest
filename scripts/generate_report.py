@@ -34,7 +34,7 @@ from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
-from scripts.lib.scoring import normalize_universe_liquidity_scores
+from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     get_clean_ohlcv_data,

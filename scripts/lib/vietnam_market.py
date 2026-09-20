@@ -342,25 +342,6 @@ class UniverseProvider:
             },
         ]
 
-    def get_as_of_universe(self, as_of_date: str) -> list[dict]:
-        """Return point-in-time active universe candidate list timestamped as_of_date (YYYY-MM-DD).
-
-        Filters securities by membership validity bounds (valid_from <= as_of_date <= valid_to)
-        and listing_status ('active'). Delisted securities active at as_of_date are included.
-        """
-        pt_universe = []
-        for cand in self.candidates:
-            v_from = cand.get("valid_from", "1900-01-01")
-            v_to = cand.get("valid_to")
-
-            if v_from and as_of_date < v_from:
-                continue
-            if v_to and as_of_date > v_to:
-                continue
-            pt_universe.append(cand)
-
-        return pt_universe
-
     def get_info(self) -> dict:
         return {
             "universe_type": self.universe_type,

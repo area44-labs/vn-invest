@@ -49,7 +49,7 @@
       "properties": {
         "regime": {
           "type": "string",
-          "enum": ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]
+          "enum": ["STRONG_BULL", "BULL", "DEFENSIVE", "BEAR", "PANIC"]
         },
         "confidence": {
           "type": ["number", "null"],
