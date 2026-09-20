@@ -5,7 +5,7 @@ Independent of recommendation composition/orchestration layer.
 """
 
 import math
-import numpy as np
+
 import pandas as pd
 
 from scripts.lib.config import VALID_MARKET_REGIMES

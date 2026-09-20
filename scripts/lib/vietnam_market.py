@@ -352,7 +352,6 @@ class UniverseProvider:
         for cand in self.candidates:
             v_from = cand.get("valid_from", "1900-01-01")
             v_to = cand.get("valid_to")
-            status = cand.get("listing_status", "active")
 
             if v_from and as_of_date < v_from:
                 continue

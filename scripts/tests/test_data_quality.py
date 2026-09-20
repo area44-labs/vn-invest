@@ -303,7 +303,9 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertEqual(len(clean_df), 29)
 
         regime = detect_market_regime(df_vnindex=clean_df)
-        self.assertIn(regime["regime"], ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"])
+        self.assertIn(
+            regime["regime"], ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]
+        )
 
     def test_e_insufficient_clean_benchmark(self):
         """Test E — Insufficient clean benchmark: fixture with >=20 raw rows but <20 valid rows produces INSUFFICIENT status and graceful fallback."""

@@ -2,11 +2,11 @@
 
 import json
 import os
-import re
 import unittest
 
 import jsonschema
-from scripts.lib.config import SIGNAL_MODEL_VERSION, VALID_MARKET_REGIMES
+
+from scripts.lib.config import VALID_MARKET_REGIMES
 
 
 class TestSchemaValidation(unittest.TestCase):
@@ -17,7 +17,9 @@ class TestSchemaValidation(unittest.TestCase):
         self.data_path = os.path.join(self.root_dir, "generated", "recommendations.json")
 
     def test_generated_recommendations_schema(self):
-        self.assertTrue(os.path.exists(self.schema_path), f"Schema file not found: {self.schema_path}")
+        self.assertTrue(
+            os.path.exists(self.schema_path), f"Schema file not found: {self.schema_path}"
+        )
 
         with open(self.schema_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
@@ -52,7 +54,7 @@ class TestSchemaValidation(unittest.TestCase):
             )
 
     def test_signal_model_version_contract_consistency(self):
-        """Contract test: Verify SIGNAL_MODEL_VERSION is documented in schema and TS types."""
+        """Contract test: Verify signal_model_version is documented in schema and TS types."""
         with open(self.schema_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
 
