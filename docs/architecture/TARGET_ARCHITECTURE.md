@@ -7,7 +7,8 @@ To resolve identified architectural problems (circular imports, God module respo
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     1. Data Layer                       │
-│  providers / cache / unit normalization / validation    │
+│  providers / cache / unit normalization / validation /   │
+│  point-in-time universe membership Universe(as_of=T)    │
 │  files: scripts/data_provider.py, lib/vietnam_market.py │
 └────────────────────────────┬────────────────────────────┘
                              │
@@ -16,7 +17,7 @@ To resolve identified architectural problems (circular imports, God module respo
 │                    2. Quant Engine                      │
 │   indicators / features / signals / scoring / risk      │
 │   files: lib/config.py, lib/features.py, lib/regime.py  │
-│          lib/risk.py, lib/recommendation.py             │
+│          lib/risk.py, lib/scoring.py, recommendation.py │
 └────────────────────────────┬────────────────────────────┘
                              │
                              ▼
@@ -43,22 +44,28 @@ To resolve identified architectural problems (circular imports, God module respo
 │                     5. React SSG                        │
 │             presentation & visualization only           │
 │             files: src/routes/*, src/components/*       │
-└─────────────────────────────────────────────────────────┘
+└────────────────────────────┬────────────────────────────┘
+                             │
+                             ▼
+              Generated TypeScript Interfaces
+                (src/types/recommendation.ts)
 ```
 
 ---
 
-## 2. Layer & Module Boundaries
+## 2. Layer & Module Boundaries & Architectural Invariants
 
 ### Layer 1: Data Layer
 
-- **Responsibility:** Raw market data acquisition from `vnstock`, provider abstraction, canonical unit normalization (`VND/share`, `shares`, `VND`), clean-data boundary validation (`get_clean_ohlcv_data`), and snapshot loading.
+- **Responsibility:** Raw market data acquisition from `vnstock`, provider abstraction, canonical unit normalization (`VND/share`, `shares`, `VND`), clean-data boundary validation (`get_clean_ohlcv_data`), snapshot loading, and point-in-time historical universe resolution (`Universe(as_of=T)`).
 - **Strict Boundary Rule:** Must NOT import from Quant Engine, Research Engine, or Application Pipeline.
 
 ### Layer 2: Quant Engine
 
-- **Responsibility:** Pure mathematical quantitative algorithms: technical indicator calculation (`features.py`), market regime detection (`regime.py`), T+2.5 risk metrics (`risk.py`), composite signal scoring, confidence calculation, and trade plan generation (`recommendation.py`).
-- **Strict Boundary Rule:** Pure functions only. Zero network calls, zero file I/O side effects, zero circular imports. Quantitative formatting helpers (e.g. `format_vnd`) reside in a dedicated utility module (`formatting.py`).
+- **Responsibility:** Pure mathematical quantitative algorithms: technical indicator calculation (`features.py`), market regime detection (`regime.py`), T+2.5 risk metrics (`risk.py`), composite signal scoring, confidence calculation, risk-adjusted scoring (`scoring.py`), and trade plan generation (`recommendation.py`).
+- **Unidirectional Quant Dependency Graph:**
+  $$\text{config} \longrightarrow \text{features} \longrightarrow \text{regime} \longrightarrow \text{risk} \longrightarrow \text{scoring} \longrightarrow \text{recommendation}$$
+- **Strict Boundary Rule:** Pure functions only. Zero network calls, zero file I/O side effects, zero circular imports (`risk.py` must NOT import `recommendation.py`).
 
 ### Layer 3: Research Engine
 
@@ -73,7 +80,10 @@ To resolve identified architectural problems (circular imports, God module respo
 ### Layer 5: React SSG Presentation Layer
 
 - **Responsibility:** Static site prerendering via TanStack Router and Vite, route management (`/`, `/history`, `/methodology`, `/stock/$symbol`), interactive UI components, and charts.
-- **Strict Boundary Rule:** Presentation only. Zero quantitative formula recomputation, zero synthetic fallback recommendation generation. Displays explicit error/empty UI when generated JSON artifacts are absent.
+- **Strict Architectural Invariants:**
+  1. Presentation only. Zero quantitative formula recomputation.
+  2. Zero synthetic fallback recommendation generation (`src/data/loader.ts` displays explicit error/empty UI states when JSON artifacts are absent).
+  3. TypeScript types (`src/types/recommendation.ts`) must be generated directly from `schemas/recommendations.schema.json`.
 
 ---
 
