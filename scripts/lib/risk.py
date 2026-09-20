@@ -5,8 +5,10 @@ Implements Vietnam-specific T+2.5 settlement horizon risk calculations:
 - T+2.5 Expected Shortfall (ES 95%)
 - 60-day Annualized Volatility
 - Max Drawdown
-- Liquidity Score (0-100 Universe Percentile Rank)
+- Average 20-day Trading Value
 Returns null values if data is insufficient.
+
+INVARIANT: This module contains pure risk calculations and must NEVER import scripts.lib.recommendation.
 """
 
 import numpy as np
@@ -114,7 +116,7 @@ def calculate_t25_risk_metrics(
         "es_t25": round(es_95_t25, 4) if es_95_t25 is not None else None,
         "volatility_60d": round(volatility_60d, 4) if volatility_60d is not None else None,
         "max_drawdown": round(max_dd, 4) if max_dd is not None else None,
-        "liquidity_score": None,  # Computed via universe percentile
+        "liquidity_score": None,  # Computed via universe percentile in scoring.py
         "avg_value_20d": round(avg_val_20d_bn, 2) if avg_val_20d_bn is not None else None,
     }
 
@@ -123,56 +125,7 @@ def normalize_universe_liquidity_scores(
     scanned_recommendations: list[dict],
     market_regime: str | dict | None = None,
 ) -> list[dict]:
-    """Compute 0-100 percentile rank for liquidity_score across all stocks in universe at same point in time.
+    """Forwarding wrapper for backward compatibility. Delegates strictly to scripts.lib.scoring."""
+    from scripts.lib.scoring import normalize_universe_liquidity_scores as _normalize
 
-    Also updates risk_adjusted_score using the finalized liquidity_score and explicitly provided market_regime.
-    """
-    from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_score
-
-    regime_str = None
-    if isinstance(market_regime, dict):
-        regime_str = market_regime.get("regime")
-    elif isinstance(market_regime, str):
-        regime_str = market_regime
-
-    if not regime_str or regime_str not in VALID_MARKET_REGIMES:
-        raise ValueError(
-            f"Invalid or missing market regime: '{market_regime}'. Must be one of {VALID_MARKET_REGIMES}"
-        )
-
-    values = []
-    for r in scanned_recommendations:
-        val = r.get("risk_metrics", {}).get("avg_value_20d")
-        if val is not None:
-            values.append(val)
-
-    if not values:
-        return scanned_recommendations
-
-    s_values = pd.Series(values)
-    # Compute percentile rank (0 to 100)
-    ranks = (s_values.rank(pct=True) * 100.0).round(1)
-
-    idx_map = 0
-    for r in scanned_recommendations:
-        if r.get("risk_metrics", {}).get("avg_value_20d") is not None:
-            liq_score = float(ranks.iloc[idx_map])
-            r["risk_metrics"]["liquidity_score"] = liq_score
-            idx_map += 1
-
-            # Re-calculate risk_adjusted_score with populated liquidity_score using explicit market_regime
-            if r.get("signal_score") is not None:
-                final_adj = calculate_risk_adjusted_score(
-                    signal_score=r["signal_score"],
-                    regime=regime_str,
-                    volatility_60d=r["risk_metrics"].get("volatility_60d"),
-                    max_drawdown=r["risk_metrics"].get("max_drawdown"),
-                    liquidity_score=liq_score,
-                )
-                r["risk_adjusted_score"] = final_adj
-            else:
-                r["risk_adjusted_score"] = None
-        else:
-            r["risk_metrics"]["liquidity_score"] = None
-
-    return scanned_recommendations
+    return _normalize(scanned_recommendations, market_regime=market_regime)

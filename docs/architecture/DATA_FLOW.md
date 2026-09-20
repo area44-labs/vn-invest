@@ -1,6 +1,6 @@
-# Data Flow Audit — End-to-End Lineage
+# Data Flow Audit — End-to-End Lineage & Schema Contracts
 
-This document provides a complete audit of the data lineage, validation boundaries, unit transformations, timestamp semantics, and persistence contracts across the VN Invest quantitative engine and frontend application.
+This document provides a complete audit of the data lineage, validation boundaries, unit transformations, timestamp semantics, schema versioning, and persistence contracts across the VN Invest quantitative engine and frontend application.
 
 ---
 
@@ -41,9 +41,10 @@ This document provides a complete audit of the data lineage, validation boundari
               ├─► Market Regime & Breadth [regime.py, generate_report.py]
               │      - Breadth ratio = count(stock_close > MA20) / total_valid_stocks
               │      - Regime = detect_market_regime(df_vnindex, df_vn30, breadth_ratio)
+              │        Valid regimes: {"STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"}
               │      - Market data_as_of = extract_latest_trading_date(df_vnindex)
               │
-              ├─► Signal Engine & Recommendations [recommendation.py, features.py, risk.py]
+              ├─► Signal Engine & Recommendations [recommendation.py, features.py, risk.py, scoring.py]
               │      - Features = calculate_multi_timeframe_features(df_stock)
               │      - Signal Score = calculate_signal_score(features)
               │      - Risk Metrics = calculate_t25_risk_metrics(df_stock)
@@ -52,9 +53,9 @@ This document provides a complete audit of the data lineage, validation boundari
               ▼
 [Raw Recommendations Payload]
               │
-              ├─► normalize_universe_liquidity_scores() [risk.py]
+              ├─► calculate_liquidity_scores() [scoring.py]
               │      - Ranks 20-day avg trading values across universe
-              │      - Calculates percentile liquidity_score (0.0 – 100.0)
+              │      - Calculates percentile liquidity_score (0.0 – 100.0) without mutating inputs
               │
               ▼
 [Final Quant Payload (dict)]
@@ -82,7 +83,26 @@ This document provides a complete audit of the data lineage, validation boundari
 
 ---
 
-## 2. Answers to Data Audit Questions
+## 2. Canonical Schema Contract & Version Semantics
+
+### Canonical Schema Source of Truth
+
+`schemas/recommendations.schema.json` is the canonical contract for all generated report payloads.
+
+1. **MarketRegime Domain Alignment:**
+   - Canonical Enum: `["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]`.
+   - All layers (Python `VALID_MARKET_REGIMES`, JSON Schema, generated JSON payloads, and TypeScript `src/types/recommendation.ts`) must support `"NEUTRAL"`.
+   - Phase 6 implements automated TypeScript interface generation (`json-schema-to-typescript`) directly from `schemas/recommendations.schema.json` to prevent type drift.
+
+2. **Explicit Version Semantics:**
+   - `schema_version` (e.g. `"2.0"`): Version of the JSON structure and schema contract. Incrementing `schema_version` indicates structural schema or field definition changes.
+   - `signal_model_version` (e.g. `"2.0"`): Version of the quantitative scoring algorithm and signal rules. Present in top-level JSON payloads and TypeScript types.
+   - `generated_at`: ISO 8601 UTC timestamp representing system execution time.
+   - `data_as_of`: Calendar date (`YYYY-MM-DD`) representing the latest EOD market data session present in the dataset.
+
+---
+
+## 3. Answers to Data Audit Questions
 
 ### Q1: Where is data fetched from?
 
@@ -96,7 +116,7 @@ This document provides a complete audit of the data lineage, validation boundari
 
 ### Q3: Where is the cache located?
 
-**Code Location:** `generated/history/*.json` and user-provided snapshot files (e.g., `generated/snapshots/`).
+**Code Location:** `generated/history/*.json` and user-provided snapshot files.
 **Details:** Disk artifacts in `generated/` serve as persistent point-in-time snapshots.
 
 ### Q4: Where is data validated?
@@ -120,7 +140,7 @@ This document provides a complete audit of the data lineage, validation boundari
 
 ### Q7: Where is "data_as_of" created?
 
-**Code Location:** `scripts/generate_report.py :: run_pipeline` (line 152) and `generate_historical_report` (line 330)
+**Code Location:** `scripts/generate_report.py :: run_pipeline` and `generate_historical_report`
 **Details:** `data_as_of` for top-level market reports is extracted directly from the validated benchmark `VNINDEX` DataFrame: `data_as_of = extract_latest_trading_date(clean_vnindex)`. If `clean_vnindex` is empty or null, `data_as_of` remains `None`. In historical `--as-of` mode, `data_as_of` is the explicitly supplied target date string.
 
 ### Q8: How is missing data handled?
@@ -159,4 +179,4 @@ This document provides a complete audit of the data lineage, validation boundari
 ### Q13: Where does frontend consume JSON?
 
 **Code Location:** `src/data/loader.ts`
-**Details:** The frontend loader fetches JSON files from `generated/recommendations.json`, `generated/market.json`, `generated/history/index.json`, and `generated/history/{date}.json`. During Vite build, `vite.config.ts` copies `generated/` to `dist/client/generated/`. In development mode, Vite serves `generated/` via a custom middleware plugin (`generatedDataPlugin`).
+**Details:** The frontend loader fetches JSON files from `generated/recommendations.json`, `generated/market.json`, `generated/history/index.json`, and `generated/history/{date}.json`. During Vite SSG build, if generated JSON artifacts are missing, explicit build errors are thrown.

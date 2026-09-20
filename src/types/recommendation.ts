@@ -1,4 +1,4 @@
-export type MarketRegime = "STRONG_BULL" | "BULL" | "DEFENSIVE" | "BEAR" | "PANIC";
+export type MarketRegime = "STRONG_BULL" | "BULL" | "NEUTRAL" | "DEFENSIVE" | "BEAR" | "PANIC";
 
 export type ActionType = "BUY" | "WATCH" | "HOLD" | "SELL" | "AVOID";
 
@@ -107,6 +107,7 @@ export interface UniverseInfo {
 
 export interface RecommendationsPayload {
   schema_version: "2.0";
+  signal_model_version?: string;
   generated_at: string;
   data_as_of?: string | null;
   source_date: string | null;
