@@ -1,6 +1,6 @@
 {
   "overall_status": "FAIL",
-  "generated_at": "2026-09-21T13:34:52.168625+00:00",
+  "generated_at": "2026-09-21T16:45:36.490534+00:00",
   "data_as_of": "2026-09-21",
   "checks": [
     {
@@ -50,8 +50,8 @@
         "insufficient_count": 1,
         "processed_ratio": 0.9762,
         "actions": {
-          "BUY": 8,
-          "WATCH": 5,
+          "BUY": 7,
+          "WATCH": 6,
           "HOLD": 3,
           "SELL": 25,
           "AVOID": 1
@@ -127,8 +127,8 @@
       "check_name": "drift_action_distribution",
       "status": "WARNING",
       "measured_value": {
-        "BUY": 0.190476,
-        "WATCH": 0.119048,
+        "BUY": 0.166667,
+        "WATCH": 0.142857,
         "HOLD": 0.071429,
         "SELL": 0.595238,
         "AVOID": 0.02381
@@ -145,42 +145,42 @@
         "0.2-0.3": 0.0,
         "0.3-0.4": 0.0,
         "0.4-0.5": 0.02381,
-        "0.5-0.6": 0.285714,
-        "0.6-0.7": 0.380952,
+        "0.5-0.6": 0.261905,
+        "0.6-0.7": 0.404762,
         "0.7-0.8": 0.238095,
         "0.8-0.9": 0.047619,
         "0.9-1.0": 0.0
       },
       "expected_condition": "Within threshold of baseline ({'0.0-0.1': 0.0, '0.1-0.2': 0.035714, '0.2-0.3': 0.0, '0.3-0.4': 0.0, '0.4-0.5': 0.0, '0.5-0.6': 0.386905, '0.6-0.7': 0.208333, '0.7-0.8': 0.35119, '0.8-0.9': 0.017857, '0.9-1.0': 0.0})",
-      "message": "Confidence bucket distribution max proportion shift is 0.1726"
+      "message": "Confidence bucket distribution max proportion shift is 0.1964"
     },
     {
       "check_name": "drift_signal_score",
       "status": "PASS",
-      "measured_value": 43.6683,
+      "measured_value": 43.278,
       "expected_condition": "Within threshold of baseline (44.9981)",
-      "message": "Signal score mean diff is 1.3298 (current=43.6683, baseline=44.9981)"
+      "message": "Signal score mean diff is 1.7201 (current=43.2780, baseline=44.9981)"
     },
     {
       "check_name": "drift_risk_adjusted_score",
       "status": "PASS",
-      "measured_value": 31.361,
+      "measured_value": 31.0317,
       "expected_condition": "Within threshold of baseline (36.2167)",
-      "message": "Risk-adjusted score mean diff is 4.8557 (current=31.3610, baseline=36.2167)"
+      "message": "Risk-adjusted score mean diff is 5.1850 (current=31.0317, baseline=36.2167)"
     },
     {
       "check_name": "drift_confidence_mean",
       "status": "PASS",
-      "measured_value": 0.6279,
+      "measured_value": 0.6295,
       "expected_condition": "Within threshold of baseline (0.6172)",
-      "message": "Confidence mean diff is 0.0107 (current=0.6279, baseline=0.6172)"
+      "message": "Confidence mean diff is 0.0123 (current=0.6295, baseline=0.6172)"
     }
   ],
   "metrics": {
     "signal_model_version": "2.0",
     "total_scanned": 42,
-    "buy_count": 8,
-    "watch_count": 5,
+    "buy_count": 7,
+    "watch_count": 6,
     "hold_count": 3,
     "sell_count": 25,
     "avoid_count": 1,
@@ -365,8 +365,8 @@
               "AVOID": 0.017857
             },
             "current_value": {
-              "BUY": 0.190476,
-              "WATCH": 0.119048,
+              "BUY": 0.166667,
+              "WATCH": 0.142857,
               "HOLD": 0.071429,
               "SELL": 0.595238,
               "AVOID": 0.02381
@@ -374,8 +374,8 @@
             "absolute_difference": {
               "max_difference": 0.267857,
               "per_action": {
-                "BUY": 0.026786,
-                "WATCH": 0.208333,
+                "BUY": 0.050595,
+                "WATCH": 0.184524,
                 "HOLD": 0.03869,
                 "SELL": 0.267857,
                 "AVOID": 0.005953
@@ -429,22 +429,22 @@
               "0.2-0.3": 0.0,
               "0.3-0.4": 0.0,
               "0.4-0.5": 0.02381,
-              "0.5-0.6": 0.285714,
-              "0.6-0.7": 0.380952,
+              "0.5-0.6": 0.261905,
+              "0.6-0.7": 0.404762,
               "0.7-0.8": 0.238095,
               "0.8-0.9": 0.047619,
               "0.9-1.0": 0.0
             },
             "absolute_difference": {
-              "max_difference": 0.172619,
+              "max_difference": 0.196429,
               "per_bucket": {
                 "0.0-0.1": 0.0,
                 "0.1-0.2": 0.011904,
                 "0.2-0.3": 0.0,
                 "0.3-0.4": 0.0,
                 "0.4-0.5": 0.02381,
-                "0.5-0.6": 0.101191,
-                "0.6-0.7": 0.172619,
+                "0.5-0.6": 0.125,
+                "0.6-0.7": 0.196429,
                 "0.7-0.8": 0.113095,
                 "0.8-0.9": 0.029762,
                 "0.9-1.0": 0.0
@@ -455,7 +455,7 @@
               "fail": 0.4
             },
             "status": "PASS",
-            "message": "Confidence bucket distribution max proportion shift is 0.1726"
+            "message": "Confidence bucket distribution max proportion shift is 0.1964"
           }
         },
         {
@@ -481,14 +481,14 @@
             },
             "current_period": "2026-09-21",
             "baseline_value": 44.9981,
-            "current_value": 43.6683,
-            "absolute_difference": 1.3298,
+            "current_value": 43.278,
+            "absolute_difference": 1.7201,
             "threshold": {
               "warning": 15.0,
               "fail": 25.0
             },
             "status": "PASS",
-            "message": "Signal score mean diff is 1.3298 (current=43.6683, baseline=44.9981)"
+            "message": "Signal score mean diff is 1.7201 (current=43.2780, baseline=44.9981)"
           }
         },
         {
@@ -514,14 +514,14 @@
             },
             "current_period": "2026-09-21",
             "baseline_value": 36.2167,
-            "current_value": 31.361,
-            "absolute_difference": 4.8557,
+            "current_value": 31.0317,
+            "absolute_difference": 5.185,
             "threshold": {
               "warning": 15.0,
               "fail": 25.0
             },
             "status": "PASS",
-            "message": "Risk-adjusted score mean diff is 4.8557 (current=31.3610, baseline=36.2167)"
+            "message": "Risk-adjusted score mean diff is 5.1850 (current=31.0317, baseline=36.2167)"
           }
         },
         {
@@ -547,14 +547,14 @@
             },
             "current_period": "2026-09-21",
             "baseline_value": 0.6172,
-            "current_value": 0.6279,
-            "absolute_difference": 0.0107,
+            "current_value": 0.6295,
+            "absolute_difference": 0.0123,
             "threshold": {
               "warning": 0.15,
               "fail": 0.25
             },
             "status": "PASS",
-            "message": "Confidence mean diff is 0.0107 (current=0.6279, baseline=0.6172)"
+            "message": "Confidence mean diff is 0.0123 (current=0.6295, baseline=0.6172)"
           }
         }
       ]
