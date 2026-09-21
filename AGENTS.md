@@ -15,8 +15,8 @@ Trước khi gửi thay đổi hoặc commit, Agent bắt buộc phải chạy t
 ### A. Kiểm Tra Frontend
 
 ```bash
-pnpm check # Chạy vp check (fmt + lint)
-pnpm build # Build kiểm tra SSG prerender
+vp check # Chạy vp check (fmt + lint)
+vp build # Build kiểm tra SSG prerender
 ```
 
 ### B. Kiểm Tra Backend
@@ -29,7 +29,7 @@ python scripts/generate_report.py  # Kiểm tra sinh báo cáo tĩnh
 
 ## 3. Chính Sách Phụ Thuộc (Dependency Policy)
 
-- Dependencies backend được ghim cố định tại `requirements.txt` (`vnstock==4.0.7`).
+- Dependencies backend được ghim cố định tại `requirements.txt` (`vnstock==4.0.8`).
 - Frontend sử dụng `vite-plus` (`vp`) quản lý công cụ phát triển (Vite, Oxlint, Oxfmt).
 - Thay đổi dependency phải đảm bảo tất cả các bài kiểm thử tự động vượt qua.
 

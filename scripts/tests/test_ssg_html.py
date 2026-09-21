@@ -93,7 +93,7 @@ console.log(JSON.stringify(tests));
 
         self.assertTrue(
             os.path.exists(index_html_path),
-            f"Build artifact missing: {index_html_path}. Run `pnpm build` before running SSG tests.",
+            f"Build artifact missing: {index_html_path}. Run `vp build` before running SSG tests.",
         )
         self.assertTrue(
             os.path.exists(rec_json_path),
@@ -229,7 +229,7 @@ console.log(JSON.stringify(tests));
         stock_dir = os.path.join(os.getcwd(), "dist", "client", "stock")
         self.assertTrue(
             os.path.exists(stock_dir),
-            f"Stock output directory missing: {stock_dir}. Run `pnpm build` first.",
+            f"Stock output directory missing: {stock_dir}. Run `vp build` first.",
         )
 
         # 2. Check actual prerendered directories in dist/client/stock/

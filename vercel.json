@@ -1,15 +1,8 @@
 {
   "name": "@area44/vn-invest",
   "framework": "vite",
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm run build",
+  "buildCommand": "vpr build",
   "outputDirectory": "dist/client",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
   "github": {
     "autoJobCancelation": true
   }
