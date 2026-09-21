@@ -21,10 +21,10 @@ React SSG / Vite+ (src/)
 ### Frontend (React / Vite+)
 
 ```bash
-pnpm install # Cài đặt dependencies
-pnpm dev     # Chạy dev server
-pnpm check   # Format, lint và kiểm tra loại
-pnpm build   # Build trang web SSG
+vp install # Cài đặt dependencies
+vp dev     # Chạy dev server
+vpr check   # Format, lint và kiểm tra loại
+vpr build   # Build trang web SSG
 ```
 
 ### Backend (Python Quantitative Engine)
