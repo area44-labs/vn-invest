@@ -3,7 +3,25 @@ name: Tests
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "src/**"
+      - "public/**"
+      - "vite.config.ts"
+      - "tsconfig.json"
+      - "components.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
   pull_request:
+    paths-ignore:
+      - "src/**"
+      - "public/**"
+      - "vite.config.ts"
+      - "tsconfig.json"
+      - "components.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
 
 permissions:
   contents: read
