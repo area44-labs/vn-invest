@@ -7,6 +7,12 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+overrides = [
+    { name = "numpy", specifier = ">=2.5.0" },
+    { name = "pandas", specifier = ">=3.0.0" },
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -486,6 +492,19 @@ wheels = [
 ]
 
 [[package]]
+name = "mplfinance"
+version = "0.12.10b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "pandas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6c/a9/34e7998d02fb58fae04f750444ce4e95e75f3a08dad17fb2d32098a97834/mplfinance-0.12.10b0.tar.gz", hash = "sha256:7da150b5851aa5119ad6e06b55e48338b619bb6773f1b85df5de67a5ffd917bf", size = 70117, upload-time = "2023-08-02T15:13:53.829Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/d9/31c436ea7673c21a5bf3fc747bc7f63377582dfe845c3004d3e46f9deee0/mplfinance-0.12.10b0-py3-none-any.whl", hash = "sha256:76d3b095f05ff35de730751649de063bea4064d0c49b21b6182c82997a7f52bb", size = 75016, upload-time = "2023-08-02T15:13:52.022Z" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.5.3"
 source = { registry = "https://pypi.org/simple" }
@@ -896,15 +915,6 @@ wheels = [
 ]
 
 [[package]]
-name = "squarify"
-version = "0.4.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a5/33/26dbf6025af9c5289519f9ac20b82b3e8cff1eb570af4d055b6f0fd31bdd/squarify-0.4.5.tar.gz", hash = "sha256:733c9ef74cee369a83d61a050aea0812f182f0216d9b2bde76691c87443f6883", size = 5549, upload-time = "2026-09-11T02:30:04.65Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/cf/d4d904419659d7e971f02b80690437f846c308b0ddd0a16c9a38fec4457e/squarify-0.4.5-py3-none-any.whl", hash = "sha256:2689b426eccf4c5aefc28c7fc5363a9e671c0391a17d86c50de8f6ea739606f3", size = 4147, upload-time = "2026-09-11T02:30:03.877Z" },
-]
-
-[[package]]
 name = "tenacity"
 version = "9.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -972,7 +982,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.0" },
     { name = "requests", specifier = ">=2.34.2" },
-    { name = "vnstock", specifier = ">=4.0.2" },
+    { name = "vnstock", specifier = ">=4.0.8" },
 ]
 
 [[package]]
@@ -992,7 +1002,7 @@ wheels = [
 
 [[package]]
 name = "vnstock"
-version = "4.0.2"
+version = "4.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1009,54 +1019,29 @@ dependencies = [
     { name = "vnai" },
     { name = "vnstock-ezchart" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e6/4a/3679bb40622eb46d56085a10d8ff41faec122261c84fbfeef4bff7b7a1dc/vnstock-4.0.2.tar.gz", hash = "sha256:a60052f1a8b2566e375c538456199c4d1d6e58fdd32e6e2ff790b51aece84041", size = 251523, upload-time = "2026-04-28T11:10:55.14Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/a4/8bdaeb71c54be6f7b30c089a57e4a7a94dd93ee9574f6def422034792ce6/vnstock-4.0.8.tar.gz", hash = "sha256:9ac35fcfba8d3dcb3a02c9b6e5163e4039b4efcc7b12caf959fdfcccf8d1a1f1", size = 241724, upload-time = "2026-09-15T17:36:22.861Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/81/8ac4ffc5104d70e5fdf04125ac3913df380ae0d534d756db55319c0e570f/vnstock-4.0.2-py3-none-any.whl", hash = "sha256:4a32c169b934bc130dcb0267ffd01635d3e7e3f12cf485c82909e38a9cdf9489", size = 277380, upload-time = "2026-04-28T11:10:53.54Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/8c/b048e4bb73b3cbed2b29d2d6301fea6264b3c032b0e736de5910df37aa75/vnstock-4.0.8-py3-none-any.whl", hash = "sha256:95057b9705c3e7883501237e1c95ad02c48b1ed056e5da084dbe42a4c35eff87", size = 284861, upload-time = "2026-09-15T17:36:21.159Z" },
 ]
 
 [[package]]
 name = "vnstock-ezchart"
-version = "0.0.3"
+version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "openpyxl" },
-    { name = "requests" },
-    { name = "squarify" },
-    { name = "vnstock" },
-    { name = "wordcloud" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/24/63bfb363fe8a43767217833f0c8242e1fa540b6c953b5c7282a92e11a495/vnstock_ezchart-0.0.3.tar.gz", hash = "sha256:e91c36babdd083dbf490a2c3905a687fae2ae054a3d10a26f105f6d6513a6a52", size = 16270, upload-time = "2025-11-08T10:31:59.19Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/fe/1ad5a5015ff3550462a07fb4df555ba65d26f47e023dedb7828e90f19ebe/vnstock_ezchart-0.0.3-py3-none-any.whl", hash = "sha256:cd060e7feabd255820f070c365c102325bf86e35f23865dcab3416d093e6bf32", size = 15133, upload-time = "2025-11-08T10:31:58.077Z" },
-]
-
-[[package]]
-name = "wordcloud"
-version = "1.9.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
+    { name = "cycler" },
     { name = "matplotlib" },
+    { name = "mplfinance" },
     { name = "numpy" },
-    { name = "pillow" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "requests" },
+    { name = "seaborn" },
+    { name = "vnstock" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/04/a3d3c4b94a35586ddb97c6a3c508913159161cd558b34f315b382b924bf7/wordcloud-1.9.6.tar.gz", hash = "sha256:df17c468ff903bd0aba4f87c6540745d13a4931220dd4937cb363ad85a4771b9", size = 27563741, upload-time = "2026-01-22T02:08:52.976Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/3e/e708a13bc70cb0c0ba743498a642fa95c02585e37c0bb846923083bd555f/vnstock_ezchart-1.0.2.tar.gz", hash = "sha256:b66ce3ffcffedf6ec38dc79b136a076fea5d24dcb25218c788c6fdcaae3dcfd6", size = 29942, upload-time = "2026-05-17T07:48:58.69Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/a4/da39308bffd24e82761d804797f04d428011b4bb3be51135177a5b884842/wordcloud-1.9.6-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:5cd785127483b835d22c7e7a235fbd925d01fcd2846c2eacf45d715e32775563", size = 169670, upload-time = "2026-01-22T02:08:21.127Z" },
-    { url = "https://files.pythonhosted.org/packages/64/72/a703bd2fbc79fa6ae78aaee34d01e24d0324e5874c0a7918c73f27857f5c/wordcloud-1.9.6-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:f9bfe99fde048e109343858a7a866bdccd95f70cabe171aa7fd9fb7609bff12b", size = 168911, upload-time = "2026-01-22T02:08:22.238Z" },
-    { url = "https://files.pythonhosted.org/packages/7c/f8/fc2b3f5689a91aeab55bd47f0022371e41ee41e2a705eebbc2a0981a8c60/wordcloud-1.9.6-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bfc67c14d5af51a8ddf2a36be85f4ef017c835f3f37a11ab7ef1a898c950f8b4", size = 542948, upload-time = "2026-01-22T02:08:23.548Z" },
-    { url = "https://files.pythonhosted.org/packages/9a/cf/f15a13027b0d976ebcbb1c1f3c0a52aaa93a06a84952859e12d0cb7079f8/wordcloud-1.9.6-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2998a9a6ea9dc18c81a980403d03ed97822c971bd971b2faa3b5ee2da047f237", size = 546260, upload-time = "2026-01-22T02:08:24.612Z" },
-    { url = "https://files.pythonhosted.org/packages/59/f5/290bd0b7e039f3b94e9961fff6acabcb761bef27d0a65516423e014bbfec/wordcloud-1.9.6-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:e11c048f9056a9dda20627c29c578cb34f6778b152d0f0eb0dd33581faf03f65", size = 535535, upload-time = "2026-01-22T02:08:25.828Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/93/6eb7bae66bc2b34e4e2f5bd1c5cae8ddc789255a163c15a816b602519fc2/wordcloud-1.9.6-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:aaaebdc056052fc3f21e3aebc6653fc76ee6c4fdcd5785a9991ce186eb15a776", size = 548616, upload-time = "2026-01-22T02:08:27.367Z" },
-    { url = "https://files.pythonhosted.org/packages/63/89/8001d176085d6d31b107b58c29b7648898d6af9cb23b9d76d67d83cf88f3/wordcloud-1.9.6-cp314-cp314-win32.whl", hash = "sha256:eabd94c69435b19163991da8e71310bb4873e31982e54ff4cf62317f0e1223b0", size = 297137, upload-time = "2026-01-22T02:08:28.391Z" },
-    { url = "https://files.pythonhosted.org/packages/74/8e/b9ff7ab3dc030cbf7b2737adc5eddc847b99c8665a45007b25e558cfff8b/wordcloud-1.9.6-cp314-cp314-win_amd64.whl", hash = "sha256:8549f85a93626f5d03c06e63106ce228910008becd1e1f3b49693d13e33a5873", size = 308629, upload-time = "2026-01-22T02:08:29.662Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/64/2183079c0eca58a211f1456f524bcb283fafc65f1ccae54f412b07efab52/wordcloud-1.9.6-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:a4070ef896396d3fbb7a71c775c08138d61b85ea4d414e86b4e132f8736f20f6", size = 174014, upload-time = "2026-01-22T02:08:30.912Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/e1/397cb2e0e2c9424841ace579edbe96d133291496f8312f24d70a855b36d3/wordcloud-1.9.6-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:436b99261ef31369019b989137a940835de887de52dce5b63786ef13fb82e18a", size = 174152, upload-time = "2026-01-22T02:08:32.053Z" },
-    { url = "https://files.pythonhosted.org/packages/bf/5c/a0570972c5951c6586dbe9b25b87914f5376406b4da9ec877bce9b0fcf47/wordcloud-1.9.6-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d4804bee501b85b6f6015c434879a3e9ef2795b97c00aec387a0d6adfcaa2ca5", size = 559434, upload-time = "2026-01-22T02:08:33.192Z" },
-    { url = "https://files.pythonhosted.org/packages/89/00/0d5d6731c98312c5ceef83dbdc50a34479b63377c8258e17b613e37fead0/wordcloud-1.9.6-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:33a4b3dcbd9095a968dd3201bc6667d9788ec7b949f6d8356985a8fc64a0590b", size = 551605, upload-time = "2026-01-22T02:08:34.633Z" },
-    { url = "https://files.pythonhosted.org/packages/d5/f9/7089b537fe791447abce3bbbf89edf9cd6585a25f80764bcf386b2a245b4/wordcloud-1.9.6-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:74c9e5cb52c35aa822ff7f3251a633aa52b830ba206be275c1da743de255a15c", size = 542705, upload-time = "2026-01-22T02:08:35.726Z" },
-    { url = "https://files.pythonhosted.org/packages/78/77/a14ab3680c08ca585b25c1549ca9b3ca52a078e82450ad513475d9edffbc/wordcloud-1.9.6-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:337b73155c60fc536cab8a998bd8312f81c99524716c86e3e43f3b6408f42bdc", size = 545800, upload-time = "2026-01-22T02:08:37.105Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/a7/bb2bbc36739472e8328dbe4246c5b7593b3fa4f8b77a1214dc3ad8e0a7fd/wordcloud-1.9.6-cp314-cp314t-win32.whl", hash = "sha256:32f93e42b44dca992eb5f692ddd258f043465f49d9a53e6aa3d4853fca615e23", size = 306383, upload-time = "2026-01-22T02:08:38.627Z" },
-    { url = "https://files.pythonhosted.org/packages/8c/fd/2704f0be5f4913c623b283a1c92016b9ce93cab5ea0f6e86e8517c617c32/wordcloud-1.9.6-cp314-cp314t-win_amd64.whl", hash = "sha256:22cf91490bcc0fa23585acbab1906a44a438fa7dd4d9a2b2663f39c8650634a6", size = 320391, upload-time = "2026-01-22T02:08:40.094Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/8f/3cd5a3938d70d68dec36e54cc846706134e1a1eaadfb7249556fe96022c9/vnstock_ezchart-1.0.2-py3-none-any.whl", hash = "sha256:b5ca85613fce8f8ce77487be37f7b2b362e71cfcf83c525be980cedaea217d18", size = 22659, upload-time = "2026-05-17T07:48:56.48Z" },
 ]
 
 [[package]]

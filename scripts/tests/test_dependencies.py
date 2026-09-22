@@ -14,10 +14,11 @@ class TestDependencyVersions(unittest.TestCase):
         """Verify vnstock version matches supported reproducible version contract."""
         import vnstock
 
-        version = getattr(vnstock, "__version__", "4.0.2")
-        self.assertTrue(
-            version.startswith("4."),
-            f"vnstock version mismatch! Expected 4.x, got {version}",
+        version = getattr(vnstock, "__version__", "4.0.8")
+        self.assertEqual(
+            version,
+            "4.0.8",
+            f"vnstock version mismatch! Expected 4.0.8, got {version}",
         )
 
     def test_pandas_version(self):
