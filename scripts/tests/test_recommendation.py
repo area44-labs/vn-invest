@@ -8,9 +8,12 @@ import numpy as np
 import pandas as pd
 
 from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
+from scripts.lib.backtest import _safe_float as backtest_safe_float
+from scripts.lib.portfolio_backtest import _safe_float as portfolio_safe_float
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
+    _safe_float as recommendation_safe_float,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
@@ -21,8 +24,82 @@ from scripts.lib.recommendation import (
     classify_action,
     generate_recommendation,
 )
+from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+
+
+class TestSafeFloatAndExceptionHandling(unittest.TestCase):
+    def test_safe_float_all_implementations(self):
+        """Verify _safe_float across recommendation, backtest, and portfolio_backtest modules."""
+        safe_float_funcs = [
+            ("recommendation", recommendation_safe_float),
+            ("backtest", backtest_safe_float),
+            ("portfolio_backtest", portfolio_safe_float),
+        ]
+
+        for mod_name, fn in safe_float_funcs:
+            with self.subTest(module=mod_name):
+                # Valid numeric value (float)
+                self.assertEqual(fn(123.45), 123.45)
+                self.assertEqual(fn(-45.6), -45.6)
+                self.assertEqual(fn(0.0), 0.0)
+
+                # Integer input
+                self.assertEqual(fn(100), 100.0)
+                self.assertEqual(fn(0), 0.0)
+
+                # Numeric string
+                self.assertEqual(fn("123.45"), 123.45)
+                self.assertEqual(fn("100"), 100.0)
+                self.assertEqual(fn("-50.5"), -50.5)
+
+                # None
+                self.assertIsNone(fn(None))
+
+                # NaN (float and string)
+                self.assertIsNone(fn(float("nan")))
+                self.assertIsNone(fn("NaN"))
+                self.assertIsNone(fn("nan"))
+
+                # Infinity (float and string)
+                self.assertIsNone(fn(float("inf")))
+                self.assertIsNone(fn(float("-inf")))
+                self.assertIsNone(fn("Infinity"))
+                self.assertIsNone(fn("inf"))
+                self.assertIsNone(fn("-Infinity"))
+
+                # Invalid string (triggers ValueError inside float conversion)
+                self.assertIsNone(fn("invalid"))
+                self.assertIsNone(fn("abc"))
+                self.assertIsNone(fn("12.34.56"))
+
+                # Non-convertible objects (triggers TypeError inside float conversion)
+                self.assertIsNone(fn([]))
+                self.assertIsNone(fn({}))
+                self.assertIsNone(fn(object()))
+
+    def test_vietnam_market_exception_handling_helpers(self):
+        """Verify exception handling in get_exchange_price_limits and clamp_price_limits."""
+        # Valid inputs
+        ref_p, ceil_p, floor_p = get_exchange_price_limits(10000.0, "HOSE")
+        self.assertEqual(ref_p, 10000.0)
+        self.assertEqual(ceil_p, 10700.0)
+        self.assertEqual(floor_p, 9300.0)
+
+        # Invalid reference price inputs (triggers ValueError or TypeError, falls back to 10000.0)
+        ref_p_str, ceil_str, floor_str = get_exchange_price_limits("invalid_ref", "HOSE")
+        self.assertEqual(ref_p_str, 10000.0)
+
+        ref_p_list, ceil_list, floor_list = get_exchange_price_limits([], "HOSE")
+        self.assertEqual(ref_p_list, 10000.0)
+
+        # clamp_price_limits with invalid price input (falls back to 0.0)
+        clamped_invalid_str = clamp_price_limits("invalid_price", 10000.0, "HOSE")
+        self.assertEqual(clamped_invalid_str, 9300.0)  # max(floor 9300, min(ceil 10700, 0)) = 9300
+
+        clamped_invalid_type = clamp_price_limits({}, 10000.0, "HOSE")
+        self.assertEqual(clamped_invalid_type, 9300.0)
 
 
 class TestVNInvestSignalEngine(unittest.TestCase):
