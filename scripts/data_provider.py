@@ -22,6 +22,13 @@ try:
 except ImportError:
     VNSTOCK_AVAILABLE = False
 
+try:
+    import requests
+
+    REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (requests.exceptions.RequestException,)
+except ImportError:
+    REQUESTS_EXCEPTIONS = ()
+
 # Provider unit constants
 SOURCE_PRICE_UNIT_VNSTOCK = "thousand_VND/share"
 SOURCE_VOLUME_UNIT_VNSTOCK = "shares"
@@ -31,6 +38,67 @@ REQUIRED_OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 class CanonicalOHLCVError(ValueError):
     """Exception raised when canonical OHLCV validation fails."""
+
+
+NON_RETRYABLE_EXCEPTIONS = (
+    CanonicalOHLCVError,
+    TypeError,
+    ValueError,
+    KeyError,
+    AttributeError,
+    IndexError,
+)
+
+TRANSIENT_EXCEPTION_TYPES = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+    *REQUESTS_EXCEPTIONS,
+)
+
+TRANSIENT_ERROR_PATTERNS = [
+    "rate limit",
+    "giới hạn",
+    "wait",
+    "quota",
+    "429",
+    "500",
+    "502",
+    "503",
+    "504",
+    "timeout",
+    "connection",
+    "connect",
+    "reset by peer",
+    "network",
+    "temporarily unavailable",
+    "service unavailable",
+    "too many requests",
+]
+
+
+def is_retryable_exception(exc: Exception) -> bool:
+    """Determine whether an exception represents a transient failure that can be retried.
+
+    Non-retryable failures include:
+    - CanonicalOHLCVError (validation failures on returned data)
+    - TypeError, ValueError, KeyError, AttributeError, IndexError (deterministic code/data errors)
+
+    Retryable failures include:
+    - Network/connection/timeout exceptions (ConnectionError, TimeoutError, OSError, RequestException)
+    - Transient API notices (rate limits, HTTP 429/5xx, timeouts) in exception string representations
+    """
+    if isinstance(exc, NON_RETRYABLE_EXCEPTIONS):
+        return False
+
+    if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
+        return True
+
+    err_str = str(exc).lower()
+    if any(p in err_str for p in TRANSIENT_ERROR_PATTERNS):
+        return True
+
+    return False
 
 
 def parse_wait_seconds(err_str: str) -> int:
@@ -193,6 +261,8 @@ class VnstockDataProvider:
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
                 except Exception as e:  # noqa: BLE001
+                    if not is_retryable_exception(e):
+                        raise
                     last_exception = e
                     err_str = str(e).lower()
                     if any(
@@ -201,7 +271,6 @@ class VnstockDataProvider:
                             "rate limit",
                             "giới hạn",
                             "wait",
-                            "systemexit",
                             "quota",
                             "429",
                         ]
