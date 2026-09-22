@@ -17,29 +17,24 @@ import copy
 import json
 import logging
 import os
-import sys
 from datetime import UTC, datetime
 from typing import Any
 
 import jsonschema
+import pandas as pd
 
-# Add repository root to path
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
-import pandas as pd  # noqa: E402
-
-from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset  # noqa: E402
-from scripts.lib.monitoring import evaluate_production_monitoring  # noqa: E402
-from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation  # noqa: E402
-from scripts.lib.regime import detect_market_regime  # noqa: E402
-from scripts.lib.risk import normalize_universe_liquidity_scores  # noqa: E402
-from scripts.lib.vietnam_market import (  # noqa: E402
+from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
+from scripts.lib.monitoring import evaluate_production_monitoring
+from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
+from scripts.lib.regime import detect_market_regime
+from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.lib.vietnam_market import (
     UniverseProvider,
     get_clean_ohlcv_data,
     get_historical_data,
 )
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
