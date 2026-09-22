@@ -88,10 +88,10 @@ class TestSafeFloatAndExceptionHandling(unittest.TestCase):
         self.assertEqual(floor_p, 9300.0)
 
         # Invalid reference price inputs (triggers ValueError or TypeError, falls back to 10000.0)
-        ref_p_str, ceil_str, floor_str = get_exchange_price_limits("invalid_ref", "HOSE")
+        ref_p_str, _, _ = get_exchange_price_limits("invalid_ref", "HOSE")
         self.assertEqual(ref_p_str, 10000.0)
 
-        ref_p_list, ceil_list, floor_list = get_exchange_price_limits([], "HOSE")
+        ref_p_list, _, _ = get_exchange_price_limits([], "HOSE")
         self.assertEqual(ref_p_list, 10000.0)
 
         # clamp_price_limits with invalid price input (falls back to 0.0)
