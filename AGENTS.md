@@ -16,14 +16,15 @@ Trước khi gửi thay đổi hoặc commit, Agent bắt buộc phải chạy t
 
 ```bash
 vp check # Chạy vp check (fmt + lint)
-vp build # Build kiểm tra SSG prerender
+vpr build # Build kiểm tra SSG prerender
 ```
 
 ### B. Kiểm Tra Backend
 
 ```bash
 uv run python scripts/tests/run_tests.py # Toàn bộ bộ unit tests Python (Python 3.14)
-uv run ruff check .                       # Linting Python
+uv run ruff check --fix scripts # Linting Python
+uv run ruff format scripts # Formating Python
 uv run python scripts/generate_report.py  # Kiểm tra sinh báo cáo tĩnh
 ```
 
