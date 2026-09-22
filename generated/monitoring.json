@@ -1,7 +1,7 @@
 {
   "overall_status": "FAIL",
-  "generated_at": "2026-09-21T16:45:36.490534+00:00",
-  "data_as_of": "2026-09-21",
+  "generated_at": "2026-09-22T15:23:02.253171+00:00",
+  "data_as_of": "2026-09-22",
   "checks": [
     {
       "check_name": "artifact_existence",
@@ -26,11 +26,11 @@
       "check_name": "data_freshness",
       "status": "PASS",
       "measured_value": {
-        "data_as_of": "2026-09-21",
+        "data_as_of": "2026-09-22",
         "staleness_days": 0
       },
       "expected_condition": "staleness_days <= 3",
-      "message": "Data is fresh (0 days old as of 2026-09-21)"
+      "message": "Data is fresh (0 days old as of 2026-09-22)"
     },
     {
       "check_name": "numeric_sanity",
@@ -50,9 +50,9 @@
         "insufficient_count": 1,
         "processed_ratio": 0.9762,
         "actions": {
-          "BUY": 7,
-          "WATCH": 6,
-          "HOLD": 3,
+          "BUY": 9,
+          "WATCH": 5,
+          "HOLD": 2,
           "SELL": 25,
           "AVOID": 1
         }
@@ -64,77 +64,77 @@
       "check_name": "market_regime_status",
       "status": "PASS",
       "measured_value": {
-        "regime": "DEFENSIVE",
+        "regime": "BULL",
         "confidence": 0.85,
-        "vnindex_value": 1799.67,
-        "market_breadth_ratio": 0.31
+        "vnindex_value": 1816.93,
+        "market_breadth_ratio": 0.33
       },
       "expected_condition": "Valid regime, bounded confidence, and valid metrics",
-      "message": "Market regime 'DEFENSIVE' verified successfully"
+      "message": "Market regime 'BULL' verified successfully"
     },
     {
       "check_name": "history_index_status",
       "status": "PASS",
       "measured_value": {
-        "total_reports": 9,
-        "latest_date": "2026-09-21"
+        "total_reports": 10,
+        "latest_date": "2026-09-22"
       },
       "expected_condition": "Valid sorted dates list containing data_as_of",
-      "message": "History index verified with 9 historical report entries"
+      "message": "History index verified with 10 historical report entries"
     },
     {
       "check_name": "ohlcv_quality_vnindex",
       "status": "PASS",
       "measured_value": {
         "status": "SUFFICIENT",
-        "valid_row_count": 248
+        "valid_row_count": 249
       },
       "expected_condition": "OHLCV data for VNINDEX is SUFFICIENT",
-      "message": "OHLCV data quality for 'VNINDEX' is SUFFICIENT (248 valid rows)"
+      "message": "OHLCV data quality for 'VNINDEX' is SUFFICIENT (249 valid rows)"
     },
     {
       "check_name": "ohlcv_quality_vn30",
       "status": "PASS",
       "measured_value": {
         "status": "SUFFICIENT",
-        "valid_row_count": 248
+        "valid_row_count": 249
       },
       "expected_condition": "OHLCV data for VN30 is SUFFICIENT",
-      "message": "OHLCV data quality for 'VN30' is SUFFICIENT (248 valid rows)"
+      "message": "OHLCV data quality for 'VN30' is SUFFICIENT (249 valid rows)"
     },
     {
       "check_name": "drift_processed_ratio",
       "status": "FAIL",
       "measured_value": 0.97619,
-      "expected_condition": "Within threshold of baseline (0.482143)",
-      "message": "Processed ratio diff is 0.4940 (current=0.9762, baseline=0.4821)"
+      "expected_condition": "Within threshold of baseline (0.537037)",
+      "message": "Processed ratio diff is 0.4392 (current=0.9762, baseline=0.5370)"
     },
     {
       "check_name": "drift_market_breadth",
-      "status": "WARNING",
-      "measured_value": 0.31,
-      "expected_condition": "Within threshold of baseline (0.60375)",
-      "message": "Market breadth ratio diff is 0.2938 (current=0.3100, baseline=0.6038)"
+      "status": "PASS",
+      "measured_value": 0.33,
+      "expected_condition": "Within threshold of baseline (0.571111)",
+      "message": "Market breadth ratio diff is 0.2411 (current=0.3300, baseline=0.5711)"
     },
     {
       "check_name": "drift_vnindex_change_pct",
       "status": "PASS",
-      "measured_value": -0.88,
-      "expected_condition": "Within threshold of baseline (-0.4787)",
-      "message": "VNINDEX change pct diff is 0.4013% (current=-0.8800%, baseline=-0.4787%)"
+      "measured_value": 0.96,
+      "expected_condition": "Within threshold of baseline (-0.5233)",
+      "message": "VNINDEX change pct diff is 1.4833% (current=0.9600%, baseline=-0.5233%)"
     },
     {
       "check_name": "drift_action_distribution",
       "status": "WARNING",
       "measured_value": {
-        "BUY": 0.166667,
-        "WATCH": 0.142857,
-        "HOLD": 0.071429,
+        "BUY": 0.214286,
+        "WATCH": 0.119048,
+        "HOLD": 0.047619,
         "SELL": 0.595238,
         "AVOID": 0.02381
       },
-      "expected_condition": "Within threshold of baseline ({'BUY': 0.217262, 'WATCH': 0.327381, 'HOLD': 0.110119, 'SELL': 0.327381, 'AVOID': 0.017857})",
-      "message": "Action distribution max proportion shift is 0.2679 across actions"
+      "expected_condition": "Within threshold of baseline ({'BUY': 0.21164, 'WATCH': 0.306878, 'HOLD': 0.10582, 'SELL': 0.357143, 'AVOID': 0.018519})",
+      "message": "Action distribution max proportion shift is 0.2381 across actions"
     },
     {
       "check_name": "drift_confidence_distribution",
@@ -144,59 +144,60 @@
         "0.1-0.2": 0.02381,
         "0.2-0.3": 0.0,
         "0.3-0.4": 0.0,
-        "0.4-0.5": 0.02381,
-        "0.5-0.6": 0.261905,
-        "0.6-0.7": 0.404762,
+        "0.4-0.5": 0.0,
+        "0.5-0.6": 0.357143,
+        "0.6-0.7": 0.333333,
         "0.7-0.8": 0.238095,
         "0.8-0.9": 0.047619,
         "0.9-1.0": 0.0
       },
-      "expected_condition": "Within threshold of baseline ({'0.0-0.1': 0.0, '0.1-0.2': 0.035714, '0.2-0.3': 0.0, '0.3-0.4': 0.0, '0.4-0.5': 0.0, '0.5-0.6': 0.386905, '0.6-0.7': 0.208333, '0.7-0.8': 0.35119, '0.8-0.9': 0.017857, '0.9-1.0': 0.0})",
-      "message": "Confidence bucket distribution max proportion shift is 0.1964"
+      "expected_condition": "Within threshold of baseline ({'0.0-0.1': 0.0, '0.1-0.2': 0.033333, '0.2-0.3': 0.0, '0.3-0.4': 0.0, '0.4-0.5': 0.004762, '0.5-0.6': 0.361905, '0.6-0.7': 0.247619, '0.7-0.8': 0.328571, '0.8-0.9': 0.02381, '0.9-1.0': 0.0})",
+      "message": "Confidence bucket distribution max proportion shift is 0.0905"
     },
     {
       "check_name": "drift_signal_score",
       "status": "PASS",
-      "measured_value": 43.278,
-      "expected_condition": "Within threshold of baseline (44.9981)",
-      "message": "Signal score mean diff is 1.7201 (current=43.2780, baseline=44.9981)"
+      "measured_value": 43.922,
+      "expected_condition": "Within threshold of baseline (44.6507)",
+      "message": "Signal score mean diff is 0.7287 (current=43.9220, baseline=44.6507)"
     },
     {
       "check_name": "drift_risk_adjusted_score",
       "status": "PASS",
-      "measured_value": 31.0317,
-      "expected_condition": "Within threshold of baseline (36.2167)",
-      "message": "Risk-adjusted score mean diff is 5.1850 (current=31.0317, baseline=36.2167)"
+      "measured_value": 34.6854,
+      "expected_condition": "Within threshold of baseline (35.1695)",
+      "message": "Risk-adjusted score mean diff is 0.4841 (current=34.6854, baseline=35.1695)"
     },
     {
       "check_name": "drift_confidence_mean",
       "status": "PASS",
-      "measured_value": 0.6295,
-      "expected_condition": "Within threshold of baseline (0.6172)",
-      "message": "Confidence mean diff is 0.0123 (current=0.6295, baseline=0.6172)"
+      "measured_value": 0.6207,
+      "expected_condition": "Within threshold of baseline (0.6197)",
+      "message": "Confidence mean diff is 0.0010 (current=0.6207, baseline=0.6197)"
     }
   ],
   "metrics": {
     "signal_model_version": "2.0",
     "total_scanned": 42,
-    "buy_count": 7,
-    "watch_count": 6,
-    "hold_count": 3,
+    "buy_count": 9,
+    "watch_count": 5,
+    "hold_count": 2,
     "sell_count": 25,
     "avoid_count": 1,
-    "market_regime": "DEFENSIVE",
+    "market_regime": "BULL",
     "drift_monitoring": {
       "overall_status": "FAIL",
-      "data_as_of": "2026-09-21",
+      "data_as_of": "2026-09-22",
       "baseline_summary": {
         "status": "SUFFICIENT",
-        "report_count": 8,
+        "report_count": 9,
         "baseline_period": {
           "status": "SUFFICIENT",
-          "report_count": 8,
+          "report_count": 9,
           "start_date": "2026-08-30",
-          "end_date": "2026-09-17",
+          "end_date": "2026-09-21",
           "baseline_dates": [
+            "2026-09-21",
             "2026-09-17",
             "2026-09-14",
             "2026-09-13",
@@ -208,29 +209,29 @@
           ]
         },
         "baseline_metrics": {
-          "processed_ratio": 0.482143,
-          "market_breadth_ratio": 0.60375,
-          "vnindex_change_pct": -0.4787,
-          "signal_score_mean": 44.9981,
-          "risk_adjusted_score_mean": 36.2167,
-          "confidence_mean": 0.6172,
+          "processed_ratio": 0.537037,
+          "market_breadth_ratio": 0.571111,
+          "vnindex_change_pct": -0.5233,
+          "signal_score_mean": 44.6507,
+          "risk_adjusted_score_mean": 35.1695,
+          "confidence_mean": 0.6197,
           "action_proportions": {
-            "BUY": 0.217262,
-            "WATCH": 0.327381,
-            "HOLD": 0.110119,
-            "SELL": 0.327381,
-            "AVOID": 0.017857
+            "BUY": 0.21164,
+            "WATCH": 0.306878,
+            "HOLD": 0.10582,
+            "SELL": 0.357143,
+            "AVOID": 0.018519
           },
           "confidence_bucket_proportions": {
             "0.0-0.1": 0.0,
-            "0.1-0.2": 0.035714,
+            "0.1-0.2": 0.033333,
             "0.2-0.3": 0.0,
             "0.3-0.4": 0.0,
-            "0.4-0.5": 0.0,
-            "0.5-0.6": 0.386905,
-            "0.6-0.7": 0.208333,
-            "0.7-0.8": 0.35119,
-            "0.8-0.9": 0.017857,
+            "0.4-0.5": 0.004762,
+            "0.5-0.6": 0.361905,
+            "0.6-0.7": 0.247619,
+            "0.7-0.8": 0.328571,
+            "0.8-0.9": 0.02381,
             "0.9-1.0": 0.0
           }
         }
@@ -243,10 +244,11 @@
             "check_name": "drift_processed_ratio",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -257,29 +259,30 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": 0.482143,
+            "current_period": "2026-09-22",
+            "baseline_value": 0.537037,
             "current_value": 0.97619,
-            "absolute_difference": 0.494047,
+            "absolute_difference": 0.439153,
             "threshold": {
               "warning": 0.15,
               "fail": 0.3
             },
             "status": "FAIL",
-            "message": "Processed ratio diff is 0.4940 (current=0.9762, baseline=0.4821)"
+            "message": "Processed ratio diff is 0.4392 (current=0.9762, baseline=0.5370)"
           }
         },
         {
           "check_name": "drift_market_breadth",
-          "status": "WARNING",
+          "status": "PASS",
           "observation": {
             "check_name": "drift_market_breadth",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -290,16 +293,16 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": 0.60375,
-            "current_value": 0.31,
-            "absolute_difference": 0.29375,
+            "current_period": "2026-09-22",
+            "baseline_value": 0.571111,
+            "current_value": 0.33,
+            "absolute_difference": 0.241111,
             "threshold": {
               "warning": 0.25,
               "fail": 0.4
             },
-            "status": "WARNING",
-            "message": "Market breadth ratio diff is 0.2938 (current=0.3100, baseline=0.6038)"
+            "status": "PASS",
+            "message": "Market breadth ratio diff is 0.2411 (current=0.3300, baseline=0.5711)"
           }
         },
         {
@@ -309,10 +312,11 @@
             "check_name": "drift_vnindex_change_pct",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -323,16 +327,16 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": -0.4787,
-            "current_value": -0.88,
-            "absolute_difference": 0.4013,
+            "current_period": "2026-09-22",
+            "baseline_value": -0.5233,
+            "current_value": 0.96,
+            "absolute_difference": 1.4833,
             "threshold": {
               "warning": 3.0,
               "fail": 5.0
             },
             "status": "PASS",
-            "message": "VNINDEX change pct diff is 0.4013% (current=-0.8800%, baseline=-0.4787%)"
+            "message": "VNINDEX change pct diff is 1.4833% (current=0.9600%, baseline=-0.5233%)"
           }
         },
         {
@@ -342,10 +346,11 @@
             "check_name": "drift_action_distribution",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -356,29 +361,29 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
+            "current_period": "2026-09-22",
             "baseline_value": {
-              "BUY": 0.217262,
-              "WATCH": 0.327381,
-              "HOLD": 0.110119,
-              "SELL": 0.327381,
-              "AVOID": 0.017857
+              "BUY": 0.21164,
+              "WATCH": 0.306878,
+              "HOLD": 0.10582,
+              "SELL": 0.357143,
+              "AVOID": 0.018519
             },
             "current_value": {
-              "BUY": 0.166667,
-              "WATCH": 0.142857,
-              "HOLD": 0.071429,
+              "BUY": 0.214286,
+              "WATCH": 0.119048,
+              "HOLD": 0.047619,
               "SELL": 0.595238,
               "AVOID": 0.02381
             },
             "absolute_difference": {
-              "max_difference": 0.267857,
+              "max_difference": 0.238095,
               "per_action": {
-                "BUY": 0.050595,
-                "WATCH": 0.184524,
-                "HOLD": 0.03869,
-                "SELL": 0.267857,
-                "AVOID": 0.005953
+                "BUY": 0.002646,
+                "WATCH": 0.18783,
+                "HOLD": 0.058201,
+                "SELL": 0.238095,
+                "AVOID": 0.005291
               }
             },
             "threshold": {
@@ -386,7 +391,7 @@
               "fail": 0.35
             },
             "status": "WARNING",
-            "message": "Action distribution max proportion shift is 0.2679 across actions"
+            "message": "Action distribution max proportion shift is 0.2381 across actions"
           }
         },
         {
@@ -396,10 +401,11 @@
             "check_name": "drift_confidence_distribution",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -410,17 +416,17 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
+            "current_period": "2026-09-22",
             "baseline_value": {
               "0.0-0.1": 0.0,
-              "0.1-0.2": 0.035714,
+              "0.1-0.2": 0.033333,
               "0.2-0.3": 0.0,
               "0.3-0.4": 0.0,
-              "0.4-0.5": 0.0,
-              "0.5-0.6": 0.386905,
-              "0.6-0.7": 0.208333,
-              "0.7-0.8": 0.35119,
-              "0.8-0.9": 0.017857,
+              "0.4-0.5": 0.004762,
+              "0.5-0.6": 0.361905,
+              "0.6-0.7": 0.247619,
+              "0.7-0.8": 0.328571,
+              "0.8-0.9": 0.02381,
               "0.9-1.0": 0.0
             },
             "current_value": {
@@ -428,25 +434,25 @@
               "0.1-0.2": 0.02381,
               "0.2-0.3": 0.0,
               "0.3-0.4": 0.0,
-              "0.4-0.5": 0.02381,
-              "0.5-0.6": 0.261905,
-              "0.6-0.7": 0.404762,
+              "0.4-0.5": 0.0,
+              "0.5-0.6": 0.357143,
+              "0.6-0.7": 0.333333,
               "0.7-0.8": 0.238095,
               "0.8-0.9": 0.047619,
               "0.9-1.0": 0.0
             },
             "absolute_difference": {
-              "max_difference": 0.196429,
+              "max_difference": 0.090476,
               "per_bucket": {
                 "0.0-0.1": 0.0,
-                "0.1-0.2": 0.011904,
+                "0.1-0.2": 0.009523,
                 "0.2-0.3": 0.0,
                 "0.3-0.4": 0.0,
-                "0.4-0.5": 0.02381,
-                "0.5-0.6": 0.125,
-                "0.6-0.7": 0.196429,
-                "0.7-0.8": 0.113095,
-                "0.8-0.9": 0.029762,
+                "0.4-0.5": 0.004762,
+                "0.5-0.6": 0.004762,
+                "0.6-0.7": 0.085714,
+                "0.7-0.8": 0.090476,
+                "0.8-0.9": 0.023809,
                 "0.9-1.0": 0.0
               }
             },
@@ -455,7 +461,7 @@
               "fail": 0.4
             },
             "status": "PASS",
-            "message": "Confidence bucket distribution max proportion shift is 0.1964"
+            "message": "Confidence bucket distribution max proportion shift is 0.0905"
           }
         },
         {
@@ -465,10 +471,11 @@
             "check_name": "drift_signal_score",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -479,16 +486,16 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": 44.9981,
-            "current_value": 43.278,
-            "absolute_difference": 1.7201,
+            "current_period": "2026-09-22",
+            "baseline_value": 44.6507,
+            "current_value": 43.922,
+            "absolute_difference": 0.7287,
             "threshold": {
               "warning": 15.0,
               "fail": 25.0
             },
             "status": "PASS",
-            "message": "Signal score mean diff is 1.7201 (current=43.2780, baseline=44.9981)"
+            "message": "Signal score mean diff is 0.7287 (current=43.9220, baseline=44.6507)"
           }
         },
         {
@@ -498,10 +505,11 @@
             "check_name": "drift_risk_adjusted_score",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -512,16 +520,16 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": 36.2167,
-            "current_value": 31.0317,
-            "absolute_difference": 5.185,
+            "current_period": "2026-09-22",
+            "baseline_value": 35.1695,
+            "current_value": 34.6854,
+            "absolute_difference": 0.4841,
             "threshold": {
               "warning": 15.0,
               "fail": 25.0
             },
             "status": "PASS",
-            "message": "Risk-adjusted score mean diff is 5.1850 (current=31.0317, baseline=36.2167)"
+            "message": "Risk-adjusted score mean diff is 0.4841 (current=34.6854, baseline=35.1695)"
           }
         },
         {
@@ -531,10 +539,11 @@
             "check_name": "drift_confidence_mean",
             "baseline_period": {
               "status": "SUFFICIENT",
-              "report_count": 8,
+              "report_count": 9,
               "start_date": "2026-08-30",
-              "end_date": "2026-09-17",
+              "end_date": "2026-09-21",
               "baseline_dates": [
+                "2026-09-21",
                 "2026-09-17",
                 "2026-09-14",
                 "2026-09-13",
@@ -545,24 +554,24 @@
                 "2026-08-30"
               ]
             },
-            "current_period": "2026-09-21",
-            "baseline_value": 0.6172,
-            "current_value": 0.6295,
-            "absolute_difference": 0.0123,
+            "current_period": "2026-09-22",
+            "baseline_value": 0.6197,
+            "current_value": 0.6207,
+            "absolute_difference": 0.001,
             "threshold": {
               "warning": 0.15,
               "fail": 0.25
             },
             "status": "PASS",
-            "message": "Confidence mean diff is 0.0123 (current=0.6295, baseline=0.6172)"
+            "message": "Confidence mean diff is 0.0010 (current=0.6207, baseline=0.6197)"
           }
         }
       ]
     },
     "check_counts": {
       "total_checks": 17,
-      "pass_count": 14,
-      "warning_count": 2,
+      "pass_count": 15,
+      "warning_count": 1,
       "fail_count": 1
     }
   }
