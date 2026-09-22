@@ -193,5 +193,66 @@ class TestVnstockProviderBoundary(unittest.TestCase):
         self.assertTrue(validate_canonical_ohlcv(canonical_df))
 
 
+class TestDataProviderExceptionHandling(unittest.TestCase):
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_catches_standard_exceptions_and_retries(self, mock_quote, mock_sleep):
+        """Standard exceptions (e.g. ValueError, ConnectionError) are caught and retried."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = ValueError("Data parse error")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(RuntimeError) as ctx:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
+        # 2 attempts * 2 sources = 4 calls
+        self.assertEqual(mock_inst.history.call_count, 4)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_preserves_system_exit(self, mock_quote, mock_sleep):
+        """SystemExit is NOT caught by fetch_ohlcv and propagates immediately without retrying."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = SystemExit("SystemExit raised")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(SystemExit):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_preserves_keyboard_interrupt(self, mock_quote, mock_sleep):
+        """KeyboardInterrupt is NOT caught by fetch_ohlcv and propagates immediately."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = KeyboardInterrupt("Ctrl+C pressed")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(KeyboardInterrupt):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        # Should fail immediately on first call without retrying
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_preserves_generator_exit(self, mock_quote, mock_sleep):
+        """GeneratorExit is NOT caught by fetch_ohlcv and propagates immediately."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = GeneratorExit("Generator closed")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(GeneratorExit):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
