@@ -7,13 +7,12 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.backtest import _safe_float as backtest_safe_float
+from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.portfolio_backtest import _safe_float as portfolio_safe_float
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
-    _safe_float as recommendation_safe_float,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
@@ -24,9 +23,12 @@ from scripts.lib.recommendation import (
     classify_action,
     generate_recommendation,
 )
-from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
+from scripts.lib.recommendation import (
+    _safe_float as recommendation_safe_float,
+)
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
 
 
 class TestSafeFloatAndExceptionHandling(unittest.TestCase):
