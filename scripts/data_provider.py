@@ -192,7 +192,7 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
-                except (Exception, SystemExit, BaseException) as e:  # noqa: BLE001
+                except (Exception, SystemExit) as e:  # noqa: BLE001
                     last_exception = e
                     err_str = str(e).lower()
                     if any(
