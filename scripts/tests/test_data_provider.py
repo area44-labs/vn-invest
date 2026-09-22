@@ -212,18 +212,17 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_catches_system_exit_and_retries(self, mock_quote, mock_sleep):
-        """SystemExit is caught and retried."""
+    def test_fetch_ohlcv_preserves_system_exit(self, mock_quote, mock_sleep):
+        """SystemExit is NOT caught by fetch_ohlcv and propagates immediately without retrying."""
         mock_inst = MagicMock()
-        mock_inst.history.side_effect = SystemExit("SystemExit rate limit notice")
+        mock_inst.history.side_effect = SystemExit("SystemExit raised")
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError) as ctx:
+        with self.assertRaises(SystemExit):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
-        self.assertEqual(mock_inst.history.call_count, 4)
+        self.assertEqual(mock_inst.history.call_count, 1)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
