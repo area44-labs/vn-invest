@@ -95,10 +95,7 @@ def is_retryable_exception(exc: Exception) -> bool:
         return True
 
     err_str = str(exc).lower()
-    if any(p in err_str for p in TRANSIENT_ERROR_PATTERNS):
-        return True
-
-    return False
+    return any(p in err_str for p in TRANSIENT_ERROR_PATTERNS)
 
 
 def parse_wait_seconds(err_str: str) -> int:
@@ -260,7 +257,7 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     if not is_retryable_exception(e):
                         raise
                     last_exception = e
