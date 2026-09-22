@@ -73,7 +73,7 @@ def _safe_float(val) -> float | None:
         if math.isnan(f) or math.isinf(f):
             return None
         return f
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 

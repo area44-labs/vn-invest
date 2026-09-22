@@ -25,7 +25,7 @@ jobs:
           ref: main
 
       - name: Set up uv and Python
-        uses: astral-sh/setup-uv@f3380e2d192be5a072d7335e386926e8db005a30 # v5.3.0
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.14"
           enable-cache: true
