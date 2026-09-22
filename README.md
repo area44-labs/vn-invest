@@ -16,27 +16,6 @@ Static JSON Artifacts (generated/)
 React SSG / Vite+ (src/)
 ```
 
-## Lệnh Phát Triển
-
-### Frontend (React / Vite+)
-
-```bash
-vp install # Cài đặt dependencies
-vp dev     # Chạy dev server
-vpr check   # Format, lint và kiểm tra loại
-vpr build   # Build trang web SSG
-```
-
-### Backend (Python Quantitative Engine - Python 3.14 / uv)
-
-```bash
-uv venv --python 3.14            # Tạo môi trường ảo Python 3.14
-uv pip install -r requirements.txt # Cài đặt dependencies (Pandas v3, NumPy v2.5)
-uv run python scripts/generate_report.py # Chạy báo cáo định lượng
-uv run python scripts/tests/run_tests.py # Chạy bộ unit tests
-uv run ruff check .               # Linting mã nguồn Python
-```
-
 ## Giấy Phép
 
 Mã nguồn mở phát hành theo giấy phép [MIT](LICENSE).
