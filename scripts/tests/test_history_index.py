@@ -11,7 +11,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
+from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index  # noqa: E402
 
 
 class TestHistoryIndexLoader(unittest.TestCase):

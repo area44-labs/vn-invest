@@ -48,6 +48,7 @@ Key Architectural & Evaluation Principles:
 """
 
 import math
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -280,9 +281,6 @@ def validate_portfolio_weights(weights: list[float]) -> None:
     total_w = round(total_w, 9)
     if total_w > 1.0 + 1e-9:
         raise ValueError(f"Total allocated portfolio weight exceeds 1.0: got {total_w}")
-
-
-from copy import deepcopy
 
 
 @dataclass

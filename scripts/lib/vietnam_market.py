@@ -12,9 +12,9 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-logger = logging.getLogger(__name__)
-
 from scripts.data_provider import VnstockDataProvider
+
+logger = logging.getLogger(__name__)
 
 # Explicit internal unit contract constants
 PRICE_UNIT = "VND/share"
