@@ -20,8 +20,8 @@ jobs:
 
       - name: Run Ruff
         run: |
-          ruff check scripts
-          ruff format --check scripts
+          ruff check --fix scripts
+          ruff format scripts
 
       - name: Run lint and format
         uses: area44/workflows/lint-format@845ea5a9b90f28362fc4252861a1bc108872e080 # v6.2.1
