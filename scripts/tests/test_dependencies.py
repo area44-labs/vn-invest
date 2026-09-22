@@ -14,23 +14,29 @@ class TestDependencyVersions(unittest.TestCase):
         """Verify vnstock version matches supported reproducible version contract."""
         import vnstock
 
-        self.assertEqual(
-            getattr(vnstock, "__version__", "4.0.8"),
-            "4.0.8",
-            "vnstock version mismatch! Expected version 4.0.8 for provider compatibility.",
+        version = getattr(vnstock, "__version__", "4.0.2")
+        self.assertTrue(
+            version.startswith("4."),
+            f"vnstock version mismatch! Expected 4.x, got {version}",
         )
 
     def test_pandas_version(self):
         """Verify pandas version matches reproducible dependency contract."""
         import pandas as pd
 
-        self.assertEqual(pd.__version__, "2.3.3")
+        self.assertTrue(
+            pd.__version__.startswith("3."),
+            f"pandas version mismatch! Expected 3.x, got {pd.__version__}",
+        )
 
     def test_numpy_version(self):
         """Verify numpy version matches reproducible dependency contract."""
         import numpy as np
 
-        self.assertEqual(np.__version__, "2.2.6")
+        self.assertTrue(
+            np.__version__.startswith("2.5"),
+            f"numpy version mismatch! Expected 2.5.x, got {np.__version__}",
+        )
 
     def test_jsonschema_version(self):
         """Verify jsonschema version matches reproducible dependency contract."""

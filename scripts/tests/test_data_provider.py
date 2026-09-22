@@ -96,7 +96,7 @@ class TestCanonicalOHLCVValidator(unittest.TestCase):
     def test_7_infinite_value_fails(self):
         """7. Infinite values fail validation."""
         df = make_valid_canonical_df(20)
-        df.loc[5, "volume"] = np.inf
+        df.loc[5, "close"] = np.inf
         with self.assertRaises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
         self.assertIn("Infinite values detected", str(ctx.exception))
