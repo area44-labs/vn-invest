@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
-
-from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
 
 
 class TestHistoryIndexLoader(unittest.TestCase):

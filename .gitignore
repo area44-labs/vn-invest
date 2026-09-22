@@ -3,7 +3,6 @@ logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
@@ -13,6 +12,10 @@ dist-ssr
 *.local
 
 # Python
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 __pycache__/
 *.py[cod]
 *$py.class

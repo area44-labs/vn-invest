@@ -22,14 +22,15 @@ vp build # Build kiểm tra SSG prerender
 ### B. Kiểm Tra Backend
 
 ```bash
-python scripts/tests/run_tests.py # Toàn bộ bộ unit tests Python
-ruff check .                       # Linting Python
-python scripts/generate_report.py  # Kiểm tra sinh báo cáo tĩnh
+uv run python scripts/tests/run_tests.py # Toàn bộ bộ unit tests Python (Python 3.14)
+uv run ruff check .                       # Linting Python
+uv run python scripts/generate_report.py  # Kiểm tra sinh báo cáo tĩnh
 ```
 
 ## 3. Chính Sách Phụ Thuộc (Dependency Policy)
 
-- Dependencies backend được ghim cố định tại `requirements.txt` (`vnstock==4.0.8`).
+- Python runtime sử dụng Python >= 3.14, quản lý gói bằng `uv`.
+- Dependencies backend bao gồm `pandas>=3.0.0` (`pandas==3.0.6`), `numpy>=2.5.0` (`numpy==2.5.3`), `vnstock==4.0.2` được khai báo trong `pyproject.toml` và ghim tại `requirements.txt`.
 - Frontend sử dụng `vite-plus` (`vp`) quản lý công cụ phát triển (Vite, Oxlint, Oxfmt).
 - Thay đổi dependency phải đảm bảo tất cả các bài kiểm thử tự động vượt qua.
 

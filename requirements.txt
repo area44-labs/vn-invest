@@ -1,6 +1,6 @@
 vnstock==4.0.8
 requests==2.34.2
-pandas==2.3.3
-numpy==2.2.6
+pandas==3.0.6
+numpy==2.5.3
 openpyxl==3.1.5
 jsonschema==4.26.0

@@ -17,17 +17,10 @@ import copy
 import json
 import logging
 import os
-import sys
 from datetime import UTC, datetime
 from typing import Any
 
 import jsonschema
-
-# Add repository root to path
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
 import pandas as pd
 
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
@@ -40,6 +33,8 @@ from scripts.lib.vietnam_market import (
     get_clean_ohlcv_data,
     get_historical_data,
 )
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
