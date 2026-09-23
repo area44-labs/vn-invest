@@ -22,6 +22,13 @@ try:
 except ImportError:
     VNSTOCK_AVAILABLE = False
 
+try:
+    import requests
+
+    REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (requests.exceptions.RequestException,)
+except ImportError:
+    REQUESTS_EXCEPTIONS = ()
+
 # Provider unit constants
 SOURCE_PRICE_UNIT_VNSTOCK = "thousand_VND/share"
 SOURCE_VOLUME_UNIT_VNSTOCK = "shares"
@@ -31,6 +38,76 @@ REQUIRED_OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 class CanonicalOHLCVError(ValueError):
     """Exception raised when canonical OHLCV validation fails."""
+
+
+NON_RETRYABLE_EXCEPTIONS = (
+    CanonicalOHLCVError,
+    TypeError,
+    ValueError,
+    KeyError,
+    AttributeError,
+    IndexError,
+)
+
+TRANSIENT_EXCEPTION_TYPES = (
+    ConnectionError,
+    TimeoutError,
+)
+
+RETRYABLE_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
+
+PROVIDER_RATE_LIMIT_PATTERNS = [
+    "rate limit",
+    "giới hạn",
+    "wait",
+    "quota",
+    "temporarily unavailable",
+    "service unavailable",
+    "too many requests",
+]
+
+
+def is_retryable_exception(exc: Exception) -> bool:
+    """Determine whether an exception represents a transient failure that can be retried.
+
+    Non-retryable failures include:
+    - CanonicalOHLCVError (validation failures on returned data)
+    - TypeError, ValueError, KeyError, AttributeError, IndexError (deterministic code/data errors)
+    - Generic OSError (non-network system/IO errors)
+    - Deterministic HTTP client errors (e.g., 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found)
+
+    Retryable failures include:
+    - Explicit network/connection/timeout exceptions (ConnectionError, TimeoutError)
+    - Structured HTTP response status codes in 429 (Too Many Requests) or 5xx (Server Error)
+    - Provider-specific rate limit, quota, and wait notices in exception messages
+    """
+    if isinstance(exc, NON_RETRYABLE_EXCEPTIONS):
+        return False
+
+    # Check for structured HTTP response status code if attached
+    response = getattr(exc, "response", None)
+    if response is not None and hasattr(response, "status_code"):
+        try:
+            status_code = int(response.status_code)
+            if status_code in RETRYABLE_HTTP_STATUS_CODES:
+                return True
+            if 400 <= status_code < 500:
+                return False
+            if status_code >= 500:
+                return True
+        except ValueError, TypeError:
+            pass
+
+    # Standard Requests exceptions without explicit response status or with request-level failures
+    if REQUESTS_EXCEPTIONS and isinstance(exc, REQUESTS_EXCEPTIONS):
+        # HTTPError with response is handled above; other RequestExceptions (ConnectionError, Timeout) are retryable
+        return True
+
+    if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
+        return True
+
+    err_str = str(exc).lower()
+    return any(p in err_str for p in PROVIDER_RATE_LIMIT_PATTERNS)
 
 
 def parse_wait_seconds(err_str: str) -> int:
@@ -192,7 +269,9 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
+                    if not is_retryable_exception(e):
+                        raise
                     last_exception = e
                     err_str = str(e).lower()
                     if any(
@@ -201,7 +280,6 @@ class VnstockDataProvider:
                             "rate limit",
                             "giới hạn",
                             "wait",
-                            "systemexit",
                             "quota",
                             "429",
                         ]
