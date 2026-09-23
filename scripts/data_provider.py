@@ -167,10 +167,7 @@ def is_transient_exception(exc: BaseException) -> bool:
         except ValueError, TypeError:
             pass
 
-    if REQUESTS_EXCEPTIONS and isinstance(exc, REQUESTS_EXCEPTIONS):
-        return True
-
-    return False
+    return bool(REQUESTS_EXCEPTIONS) and isinstance(exc, REQUESTS_EXCEPTIONS)
 
 
 def is_vnstock_rate_limit_exit(exc: BaseException) -> bool:
