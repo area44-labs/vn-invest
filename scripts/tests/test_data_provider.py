@@ -362,7 +362,7 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_fetch_ohlcv_catches_rate_limit_system_exit_and_waits(self, mock_quote, mock_sleep):
-        """Rate limit SystemExit is caught, parsed for wait time, and slept before retrying."""
+        """Rate limit SystemExit with standard string message is caught, parsed for wait time, and slept before retrying."""
         raw_data = [
             {
                 "time": "2026-08-01",
@@ -388,6 +388,42 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         self.assertFalse(res_df.empty)
         # Should have slept 12s (10 + 2 padding)
         mock_sleep.assert_any_call(12)
+        self.assertEqual(mock_inst.history.call_count, 2)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_catches_rate_limit_system_exit_in_code_attribute(
+        self, mock_quote, mock_sleep
+    ):
+        """Rate limit SystemExit where message resides in exc.code is caught and retried successfully."""
+        raw_data = [
+            {
+                "time": "2026-08-01",
+                "open": 100.0,
+                "high": 105.0,
+                "low": 95.0,
+                "close": 102.0,
+                "volume": 500000,
+            }
+        ]
+        raw_df = pd.DataFrame(raw_data)
+
+        rate_limit_exit = SystemExit()
+        rate_limit_exit.code = "GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded). Chờ 15 giây"
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = [
+            rate_limit_exit,
+            raw_df,
+        ]
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        res_df = provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertFalse(res_df.empty)
+        # Should have slept 17s (15 + 2 padding)
+        mock_sleep.assert_any_call(17)
         self.assertEqual(mock_inst.history.call_count, 2)
 
     @patch("scripts.data_provider.time.sleep")
