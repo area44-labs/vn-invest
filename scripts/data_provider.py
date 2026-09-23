@@ -67,6 +67,25 @@ PROVIDER_RATE_LIMIT_PATTERNS = [
 ]
 
 
+def get_exception_message(exc: BaseException) -> str:
+    """Extract normalized string representation of an exception including str(exc) and exc.code if present."""
+    msg = str(exc)
+    code = getattr(exc, "code", None)
+    if code is not None:
+        code_str = str(code)
+        if code_str and code_str not in msg:
+            msg = f"{msg} {code_str}".strip() if msg else code_str
+    return msg
+
+
+def is_vnstock_rate_limit_exit(exc: BaseException) -> bool:
+    """Determine whether a SystemExit represents a vnstock rate-limit condition."""
+    if not isinstance(exc, SystemExit):
+        return False
+    msg_str = get_exception_message(exc).lower()
+    return any(p in msg_str for p in ["rate limit", "giới hạn", "wait", "quota", "429"])
+
+
 def is_retryable_exception(exc: Exception) -> bool:
     """Determine whether an exception represents a transient failure that can be retried.
 
@@ -106,7 +125,7 @@ def is_retryable_exception(exc: Exception) -> bool:
     if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
         return True
 
-    err_str = str(exc).lower()
+    err_str = get_exception_message(exc).lower()
     return any(p in err_str for p in PROVIDER_RATE_LIMIT_PATTERNS)
 
 
@@ -269,12 +288,17 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
-                except Exception as e:
-                    if not is_retryable_exception(e):
+                except (Exception, SystemExit) as exc:
+                    if isinstance(exc, SystemExit):
+                        if not is_vnstock_rate_limit_exit(exc):
+                            raise
+                    elif not is_retryable_exception(exc):
                         raise
-                    last_exception = e
-                    err_str = str(e).lower()
-                    if any(
+
+                    last_exception = exc
+                    err_msg = get_exception_message(exc)
+                    err_str = err_msg.lower()
+                    is_rate_limit = any(
                         x in err_str
                         for x in [
                             "rate limit",
@@ -283,8 +307,16 @@ class VnstockDataProvider:
                             "quota",
                             "429",
                         ]
-                    ):
-                        wait_sec = parse_wait_seconds(str(e))
+                    )
+
+                    if is_rate_limit:
+                        wait_sec = parse_wait_seconds(err_msg)
+                        logger.warning(
+                            "Rate limit encountered for '%s' (source=%s). Waiting %d seconds before retrying...",
+                            sym,
+                            source,
+                            wait_sec,
+                        )
                         time.sleep(wait_sec)
                     else:
                         time.sleep(0.1)

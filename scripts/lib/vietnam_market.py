@@ -618,6 +618,7 @@ def get_historical_data(
     max_retries: int = 2,
     use_cache_only: bool = False,
     allow_synthetic: bool = False,
+    throttle_delay: float = 0.0,
 ):
     """Fetch real historical EOD OHLCV data for a given symbol via provider boundary."""
     sym = normalize_symbol(symbol)
@@ -625,6 +626,11 @@ def get_historical_data(
         now_dt = datetime.now(UTC)
         end_date = now_dt.strftime("%Y-%m-%d")
         start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    if throttle_delay > 0:
+        import time
+
+        time.sleep(throttle_delay)
 
     try:
         provider = VnstockDataProvider()
