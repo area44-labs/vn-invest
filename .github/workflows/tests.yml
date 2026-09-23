@@ -3,25 +3,17 @@ name: Tests
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - "src/**"
-      - "public/**"
-      - "vite.config.ts"
-      - "tsconfig.json"
-      - "components.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
   pull_request:
-    paths-ignore:
-      - "src/**"
-      - "public/**"
-      - "vite.config.ts"
-      - "tsconfig.json"
-      - "components.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
 
 permissions:
   contents: read
