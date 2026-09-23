@@ -110,7 +110,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
-        df_stock, tag, warns = get_historical_data(sym, max_retries=1, use_cache_only=use_cache)
+        df_stock, tag, warns = get_historical_data(
+            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=1.0 if update_data else 0.0
+        )
         stock_data_map[sym] = (df_stock, tag, warns)
 
         # Pre-breadth check: price above MA20 using clean OHLCV data

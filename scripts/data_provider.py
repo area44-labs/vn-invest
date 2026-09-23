@@ -192,10 +192,11 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
-                except Exception as e:  # noqa: BLE001
+                except (Exception, SystemExit) as e:
                     last_exception = e
-                    err_str = str(e).lower()
-                    if any(
+                    err_msg = str(getattr(e, "code", e))
+                    err_str = err_msg.lower()
+                    is_rate_limit = any(
                         x in err_str
                         for x in [
                             "rate limit",
@@ -205,8 +206,19 @@ class VnstockDataProvider:
                             "quota",
                             "429",
                         ]
-                    ):
-                        wait_sec = parse_wait_seconds(str(e))
+                    )
+
+                    if isinstance(e, SystemExit) and not is_rate_limit:
+                        raise
+
+                    if is_rate_limit:
+                        wait_sec = parse_wait_seconds(err_msg)
+                        logger.warning(
+                            "Rate limit encountered for '%s' (source=%s). Waiting %d seconds before retrying...",
+                            sym,
+                            source,
+                            wait_sec,
+                        )
                         time.sleep(wait_sec)
                     else:
                         time.sleep(0.1)
