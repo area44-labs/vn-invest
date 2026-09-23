@@ -237,7 +237,7 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_fetch_ohlcv_fails_fast_on_non_retryable_exception(self, mock_quote, mock_sleep):
-        """Deterministic/non-retryable exceptions (e.g. CanonicalOHLCVError, ValueError, TypeError) re-raise immediately without retrying."""
+        """Deterministic/non-retryable exceptions (CanonicalOHLCVError, ValueError, TypeError, generic OSError) re-raise immediately."""
         # Test CanonicalOHLCVError
         mock_inst = MagicMock()
         mock_inst.history.side_effect = CanonicalOHLCVError("Invalid OHLC relationship")
@@ -248,6 +248,57 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
         self.assertEqual(mock_inst.history.call_count, 1)
+
+        # Test generic OSError (non-network system/IO error)
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = OSError("Disk read error")
+        with self.assertRaises(OSError):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_structured_http_status_codes(self, mock_quote, mock_sleep):
+        """Structured HTTP 429/5xx status codes trigger retries, whereas HTTP 400 fails fast."""
+
+        def make_http_err(status_code: int):
+            err = Exception(f"HTTP {status_code} Error")
+            res_mock = MagicMock()
+            res_mock.status_code = status_code
+            err.response = res_mock
+            return err
+
+        mock_inst = MagicMock()
+
+        # HTTP 400 Bad Request -> Fail fast immediately (call_count == 1)
+        mock_inst.history.side_effect = make_http_err(400)
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(Exception) as ctx_400:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("HTTP 400 Error", str(ctx_400.exception))
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+        # HTTP 429 Too Many Requests -> Retried (2 attempts * 2 sources = 4 calls)
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = make_http_err(429)
+        with self.assertRaises(RuntimeError) as ctx_429:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx_429.exception))
+        self.assertEqual(mock_inst.history.call_count, 4)
+
+        # HTTP 500 Internal Server Error -> Retried
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = make_http_err(500)
+        with self.assertRaises(RuntimeError) as ctx_500:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx_500.exception))
+        self.assertEqual(mock_inst.history.call_count, 4)
 
         # Test ValueError
         mock_inst.reset_mock()
