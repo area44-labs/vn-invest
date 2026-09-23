@@ -196,10 +196,10 @@ class TestVnstockProviderBoundary(unittest.TestCase):
 class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_catches_standard_exceptions_and_retries(self, mock_quote, mock_sleep):
-        """Standard exceptions (e.g. ValueError, ConnectionError) are caught and retried."""
+    def test_fetch_ohlcv_retries_transient_exception_and_exhausts(self, mock_quote, mock_sleep):
+        """Transient exceptions (e.g. ConnectionError, TimeoutError) are caught and retried until max_retries."""
         mock_inst = MagicMock()
-        mock_inst.history.side_effect = ValueError("Data parse error")
+        mock_inst.history.side_effect = ConnectionError("Connection reset by peer")
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
@@ -209,6 +209,141 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
         # 2 attempts * 2 sources = 4 calls
         self.assertEqual(mock_inst.history.call_count, 4)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_succeeds_after_transient_retry(self, mock_quote, mock_sleep):
+        """Transient failure on first call succeeds on subsequent retry."""
+        valid_df = make_valid_canonical_df(10)
+        # 100000 VND / 1000 -> 100.0 thousand VND for raw input simulation
+        raw_df = valid_df.copy()
+        for col in ["open", "high", "low", "close"]:
+            raw_df[col] = raw_df[col] / 1000.0
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = [
+            TimeoutError("Request timed out"),
+            raw_df,
+        ]
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        df_res = provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIsNotNone(df_res)
+        self.assertEqual(len(df_res), 10)
+        self.assertEqual(mock_inst.history.call_count, 2)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_fails_fast_on_non_retryable_exception(self, mock_quote, mock_sleep):
+        """Deterministic/non-retryable exceptions (CanonicalOHLCVError, ValueError, TypeError, generic OSError) re-raise immediately."""
+        # Test CanonicalOHLCVError
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = CanonicalOHLCVError("Invalid OHLC relationship")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(CanonicalOHLCVError):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+        # Test generic OSError (non-network system/IO error)
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = OSError("Disk read error")
+        with self.assertRaises(OSError):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_structured_http_status_codes(self, mock_quote, mock_sleep):
+        """Structured HTTP 429/5xx status codes trigger retries, whereas HTTP 400 fails fast."""
+
+        def make_http_err(status_code: int):
+            err = Exception(f"HTTP {status_code} Error")
+            res_mock = MagicMock()
+            res_mock.status_code = status_code
+            err.response = res_mock
+            return err
+
+        mock_inst = MagicMock()
+
+        # HTTP 400 Bad Request -> Fail fast immediately (call_count == 1)
+        mock_inst.history.side_effect = make_http_err(400)
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(Exception) as ctx_400:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("HTTP 400 Error", str(ctx_400.exception))
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+        # HTTP 429 Too Many Requests -> Retried (2 attempts * 2 sources = 4 calls)
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = make_http_err(429)
+        with self.assertRaises(RuntimeError) as ctx_429:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx_429.exception))
+        self.assertEqual(mock_inst.history.call_count, 4)
+
+        # HTTP 500 Internal Server Error -> Retried
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = make_http_err(500)
+        with self.assertRaises(RuntimeError) as ctx_500:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx_500.exception))
+        self.assertEqual(mock_inst.history.call_count, 4)
+
+        # Test ValueError
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = ValueError("Invalid argument")
+        with self.assertRaises(ValueError):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+        # Test TypeError
+        mock_inst.reset_mock()
+        mock_inst.history.side_effect = TypeError("Expected string, got int")
+        with self.assertRaises(TypeError):
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_fetch_ohlcv_preserves_provider_fallback_order(self, mock_quote, mock_sleep):
+        """Transient errors on primary source 'kbs' fall back to secondary source 'msn' before attempt 2."""
+        valid_df = make_valid_canonical_df(10)
+        raw_df = valid_df.copy()
+        for col in ["open", "high", "low", "close"]:
+            raw_df[col] = raw_df[col] / 1000.0
+
+        calls = []
+
+        def mock_quote_factory(symbol, source):
+            m = MagicMock()
+            if source == "kbs":
+                m.history.side_effect = ConnectionError("KBS service unavailable")
+            else:
+                m.history.return_value = raw_df
+            calls.append(source)
+            return m
+
+        mock_quote.side_effect = mock_quote_factory
+
+        provider = VnstockDataProvider(is_available=True)
+        df_res = provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIsNotNone(df_res)
+        # Attempt 1 source 1 ('kbs') -> ConnectionError, Attempt 1 source 2 ('msn') -> success
+        self.assertEqual(calls, ["kbs", "msn"])
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
