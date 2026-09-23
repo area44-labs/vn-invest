@@ -103,23 +103,25 @@ const prerenderPages = [
   ...prerenderStockSymbols.map((sym) => ({ path: `/stock/${sym}` })),
 ];
 
+const ignorePatterns = [
+  "*.min.*",
+  "*.map",
+  "**/public",
+  "**/build",
+  "**/dist",
+  "**/out",
+  "**/.github",
+  "**/.next",
+  "**/.astro",
+  "**/.netlify",
+  "**/*.gen.*",
+];
+
 // https://viteplus.dev/config/
 export default defineConfig({
   base,
   fmt: {
-    ignorePatterns: [
-      "*.min.*",
-      "*.map",
-      "**/public",
-      "**/build",
-      "**/dist",
-      "**/out",
-      "**/.github",
-      "**/.next",
-      "**/.astro",
-      "**/.netlify",
-      "src/routeTree.gen.ts",
-    ],
+    ignorePatterns,
     sortImports: {
       groups: [
         "type-import",
@@ -138,19 +140,7 @@ export default defineConfig({
     },
   },
   lint: {
-    ignorePatterns: [
-      "*.min.*",
-      "*.map",
-      "**/public",
-      "**/build",
-      "**/dist",
-      "**/out",
-      "**/.github",
-      "**/.next",
-      "**/.astro",
-      "**/.netlify",
-      "src/routeTree.gen.ts",
-    ],
+    ignorePatterns,
     plugins: [
       "typescript",
       "unicorn",

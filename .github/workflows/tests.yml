@@ -3,25 +3,17 @@ name: Tests
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - "src/**"
-      - "public/**"
-      - "vite.config.ts"
-      - "tsconfig.json"
-      - "components.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
   pull_request:
-    paths-ignore:
-      - "src/**"
-      - "public/**"
-      - "vite.config.ts"
-      - "tsconfig.json"
-      - "components.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
 
 permissions:
   contents: read
@@ -35,7 +27,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up uv and Python
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.14"
           enable-cache: true
