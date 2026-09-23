@@ -40,6 +40,49 @@ class CanonicalOHLCVError(ValueError):
     """Exception raised when canonical OHLCV validation fails."""
 
 
+class ProviderRateLimitError(Exception):
+    """Exception raised when the market data provider encounters a rate limit condition."""
+
+    def __init__(
+        self, message: str, cooldown_seconds: int | None = None, symbol: str | None = None
+    ):
+        super().__init__(message)
+        self.cooldown_seconds = cooldown_seconds
+        self.symbol = symbol
+
+
+# Global process-wide rate limit circuit breaker state
+_CIRCUIT_BREAKER_ACTIVE = False
+_CIRCUIT_BREAKER_REASON = ""
+_CIRCUIT_BREAKER_COOLDOWN = None
+
+
+def is_circuit_breaker_active() -> bool:
+    """Return True if the process-wide rate-limit circuit breaker is active."""
+    return _CIRCUIT_BREAKER_ACTIVE
+
+
+def get_circuit_breaker_info() -> tuple[bool, str, int | None]:
+    """Get process-wide circuit breaker state info (is_active, reason, cooldown_seconds)."""
+    return _CIRCUIT_BREAKER_ACTIVE, _CIRCUIT_BREAKER_REASON, _CIRCUIT_BREAKER_COOLDOWN
+
+
+def reset_circuit_breaker() -> None:
+    """Reset process-wide circuit breaker state (useful for testing or process restarts)."""
+    global _CIRCUIT_BREAKER_ACTIVE, _CIRCUIT_BREAKER_REASON, _CIRCUIT_BREAKER_COOLDOWN
+    _CIRCUIT_BREAKER_ACTIVE = False
+    _CIRCUIT_BREAKER_REASON = ""
+    _CIRCUIT_BREAKER_COOLDOWN = None
+
+
+def trip_circuit_breaker(reason: str, cooldown_seconds: int | None = None) -> None:
+    """Trip process-wide rate-limit circuit breaker."""
+    global _CIRCUIT_BREAKER_ACTIVE, _CIRCUIT_BREAKER_REASON, _CIRCUIT_BREAKER_COOLDOWN
+    _CIRCUIT_BREAKER_ACTIVE = True
+    _CIRCUIT_BREAKER_REASON = reason
+    _CIRCUIT_BREAKER_COOLDOWN = cooldown_seconds
+
+
 NON_RETRYABLE_EXCEPTIONS = (
     CanonicalOHLCVError,
     TypeError,
@@ -54,16 +97,17 @@ TRANSIENT_EXCEPTION_TYPES = (
     TimeoutError,
 )
 
-RETRYABLE_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
+TRANSIENT_HTTP_STATUS_CODES = {500, 502, 503, 504}
+CLIENT_AUTH_HTTP_STATUS_CODES = {400, 401, 403, 404}
 
 PROVIDER_RATE_LIMIT_PATTERNS = [
+    "ratelimitederror",
     "rate limit",
     "giới hạn",
     "wait",
     "quota",
-    "temporarily unavailable",
-    "service unavailable",
     "too many requests",
+    "429",
 ]
 
 
@@ -78,55 +122,73 @@ def get_exception_message(exc: BaseException) -> str:
     return msg
 
 
+def is_rate_limit_exception(exc: BaseException) -> bool:
+    """Determine whether an exception or SystemExit represents a rate-limit condition."""
+    exc_type_name = type(exc).__name__.lower()
+    if "ratelimit" in exc_type_name:
+        return True
+
+    # Check for structured HTTP response status code == 429
+    response = getattr(exc, "response", None)
+    if response is not None and hasattr(response, "status_code"):
+        try:
+            if int(response.status_code) == 429:
+                return True
+        except ValueError, TypeError:
+            pass
+
+    err_msg = get_exception_message(exc).lower()
+    return any(pattern in err_msg for pattern in PROVIDER_RATE_LIMIT_PATTERNS)
+
+
+def is_client_auth_exception(exc: BaseException) -> bool:
+    """Determine whether an exception represents a client/auth/permission error (400, 401, 403, 404)."""
+    response = getattr(exc, "response", None)
+    if response is not None and hasattr(response, "status_code"):
+        try:
+            status_code = int(response.status_code)
+            if status_code in CLIENT_AUTH_HTTP_STATUS_CODES:
+                return True
+        except ValueError, TypeError:
+            pass
+    return False
+
+
+def is_transient_exception(exc: BaseException) -> bool:
+    """Determine whether an exception represents a transient network/server error (500, 502, 503, 504, ConnectionError, TimeoutError)."""
+    if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
+        return True
+
+    response = getattr(exc, "response", None)
+    if response is not None and hasattr(response, "status_code"):
+        try:
+            status_code = int(response.status_code)
+            if status_code in TRANSIENT_HTTP_STATUS_CODES:
+                return True
+        except ValueError, TypeError:
+            pass
+
+    if REQUESTS_EXCEPTIONS and isinstance(exc, REQUESTS_EXCEPTIONS):
+        return True
+
+    return False
+
+
 def is_vnstock_rate_limit_exit(exc: BaseException) -> bool:
     """Determine whether a SystemExit represents a vnstock rate-limit condition."""
-    if not isinstance(exc, SystemExit):
-        return False
-    msg_str = get_exception_message(exc).lower()
-    return any(p in msg_str for p in ["rate limit", "giới hạn", "wait", "quota", "429"])
+    return is_rate_limit_exception(exc)
 
 
 def is_retryable_exception(exc: Exception) -> bool:
     """Determine whether an exception represents a transient failure that can be retried.
 
-    Non-retryable failures include:
-    - CanonicalOHLCVError (validation failures on returned data)
-    - TypeError, ValueError, KeyError, AttributeError, IndexError (deterministic code/data errors)
-    - Generic OSError (non-network system/IO errors)
-    - Deterministic HTTP client errors (e.g., 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found)
-
-    Retryable failures include:
-    - Explicit network/connection/timeout exceptions (ConnectionError, TimeoutError)
-    - Structured HTTP response status codes in 429 (Too Many Requests) or 5xx (Server Error)
-    - Provider-specific rate limit, quota, and wait notices in exception messages
+    Rate limits and client/auth errors are NOT retryable.
     """
+    if is_rate_limit_exception(exc) or is_client_auth_exception(exc):
+        return False
     if isinstance(exc, NON_RETRYABLE_EXCEPTIONS):
         return False
-
-    # Check for structured HTTP response status code if attached
-    response = getattr(exc, "response", None)
-    if response is not None and hasattr(response, "status_code"):
-        try:
-            status_code = int(response.status_code)
-            if status_code in RETRYABLE_HTTP_STATUS_CODES:
-                return True
-            if 400 <= status_code < 500:
-                return False
-            if status_code >= 500:
-                return True
-        except ValueError, TypeError:
-            pass
-
-    # Standard Requests exceptions without explicit response status or with request-level failures
-    if REQUESTS_EXCEPTIONS and isinstance(exc, REQUESTS_EXCEPTIONS):
-        # HTTPError with response is handled above; other RequestExceptions (ConnectionError, Timeout) are retryable
-        return True
-
-    if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
-        return True
-
-    err_str = get_exception_message(exc).lower()
-    return any(p in err_str for p in PROVIDER_RATE_LIMIT_PATTERNS)
+    return is_transient_exception(exc)
 
 
 def parse_wait_seconds(err_str: str) -> int:
@@ -253,6 +315,14 @@ class VnstockDataProvider:
         Converts provider output into canonical internal representation, normalizes units,
         runs validation, and returns canonical OHLCV DataFrame.
         """
+        if is_circuit_breaker_active():
+            _active, reason, cooldown = get_circuit_breaker_info()
+            raise ProviderRateLimitError(
+                f"Provider rate-limit circuit breaker is active. Skipping request for '{symbol}'. Reason: {reason}",
+                cooldown_seconds=cooldown,
+                symbol=symbol,
+            )
+
         if not self.is_available:
             raise RuntimeError("vnstock provider package is not available in environment.")
 
@@ -267,6 +337,14 @@ class VnstockDataProvider:
 
         for attempt in range(max_retries):
             for source in sources:
+                if is_circuit_breaker_active():
+                    _active, reason, cooldown = get_circuit_breaker_info()
+                    raise ProviderRateLimitError(
+                        f"Provider rate-limit circuit breaker is active. Skipping request for '{sym}'. Reason: {reason}",
+                        cooldown_seconds=cooldown,
+                        symbol=sym,
+                    )
+
                 try:
                     q = VnQuote(symbol=sym, source=source)
                     raw_df = q.history(start=start_date, end=end_date)
@@ -289,37 +367,41 @@ class VnstockDataProvider:
                         validate_canonical_ohlcv(df_norm)
                         return df_norm
                 except (Exception, SystemExit) as exc:
-                    if isinstance(exc, SystemExit):
-                        if not is_vnstock_rate_limit_exit(exc):
-                            raise
-                    elif not is_retryable_exception(exc):
+                    if is_rate_limit_exception(exc):
+                        err_msg = get_exception_message(exc)
+                        cooldown_sec = parse_wait_seconds(err_msg)
+                        trip_circuit_breaker(
+                            reason=f"Rate limit encountered on symbol '{sym}' (source={source}): {err_msg}",
+                            cooldown_seconds=cooldown_sec,
+                        )
+                        logger.error(
+                            "Vnstock rate limit encountered for symbol '%s' (source=%s): %s. Tripping circuit breaker.",
+                            sym,
+                            source,
+                            err_msg,
+                        )
+                        raise ProviderRateLimitError(
+                            f"Vnstock provider rate limited for symbol '{sym}': {err_msg}",
+                            cooldown_seconds=cooldown_sec,
+                            symbol=sym,
+                        ) from exc
+
+                    if is_client_auth_exception(exc):
+                        err_msg = get_exception_message(exc)
+                        logger.error(
+                            "Client/Auth error encountered for symbol '%s' (source=%s): %s. Failing fast.",
+                            sym,
+                            source,
+                            err_msg,
+                        )
+                        raise
+
+                    if not is_retryable_exception(exc):
                         raise
 
                     last_exception = exc
-                    err_msg = get_exception_message(exc)
-                    err_str = err_msg.lower()
-                    is_rate_limit = any(
-                        x in err_str
-                        for x in [
-                            "rate limit",
-                            "giới hạn",
-                            "wait",
-                            "quota",
-                            "429",
-                        ]
-                    )
+                    time.sleep(0.1)
 
-                    if is_rate_limit:
-                        wait_sec = parse_wait_seconds(err_msg)
-                        logger.warning(
-                            "Rate limit encountered for '%s' (source=%s). Waiting %d seconds before retrying...",
-                            sym,
-                            source,
-                            wait_sec,
-                        )
-                        time.sleep(wait_sec)
-                    else:
-                        time.sleep(0.1)
             if attempt < max_retries - 1:
                 time.sleep(0.2)
 

@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from scripts.data_provider import VnstockDataProvider
+from scripts.data_provider import ProviderRateLimitError, VnstockDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -642,6 +642,11 @@ def get_historical_data(
         )
         val_res = validate_ohlcv_data(df_out, sym)
         return df_out, "REAL_DATA", val_res["issues"]
+    except ProviderRateLimitError:
+        logger.error(
+            "Provider rate-limit error encountered while fetching '%s'. Re-raising loudly.", sym
+        )
+        raise
     except Exception as e:  # noqa: BLE001
         logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
         return (
