@@ -147,8 +147,7 @@ def is_client_auth_exception(exc: BaseException) -> bool:
     if response is not None and hasattr(response, "status_code"):
         try:
             status_code = int(response.status_code)
-            if status_code in CLIENT_AUTH_HTTP_STATUS_CODES:
-                return True
+            return status_code in CLIENT_AUTH_HTTP_STATUS_CODES
         except ValueError, TypeError:
             pass
     return False
