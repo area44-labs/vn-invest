@@ -104,7 +104,6 @@ PROVIDER_RATE_LIMIT_PATTERNS = [
     "ratelimitederror",
     "rate limit",
     "giới hạn",
-    "wait",
     "quota",
     "too many requests",
     "429",

@@ -324,6 +324,25 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
+    def test_generic_wait_message_does_not_trip_circuit_breaker(self, mock_quote, mock_sleep):
+        """A generic exception containing the word 'wait' is NOT classified as a rate limit and does NOT trip the circuit breaker."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = ConnectionError(
+            "Please wait while the server processes the request"
+        )
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(RuntimeError) as ctx:
+            provider.fetch_ohlcv("FPT", max_retries=2)
+
+        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
+        # It was treated as a transient ConnectionError, so it retried (2 attempts * 2 sources = 4 calls)
+        self.assertEqual(mock_inst.history.call_count, 4)
+        self.assertFalse(is_circuit_breaker_active())
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
     def test_fetch_ohlcv_retries_transient_network_exception_and_exhausts(
         self, mock_quote, mock_sleep
     ):
