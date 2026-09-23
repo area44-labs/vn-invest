@@ -95,7 +95,7 @@ def is_retryable_exception(exc: Exception) -> bool:
                 return False
             if status_code >= 500:
                 return True
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
 
     # Standard Requests exceptions without explicit response status or with request-level failures

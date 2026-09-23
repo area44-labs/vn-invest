@@ -435,7 +435,7 @@ def get_exchange_price_limits(
     """Calculate exchange daily price reference, ceiling and floor bounds."""
     try:
         ref_p = float(ref_price) if ref_price is not None else 10000.0
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         ref_p = 10000.0
 
     if ref_p <= 0:
@@ -454,7 +454,7 @@ def clamp_price_limits(price: float, ref_price: float = 0.0, exchange: str = "HO
     """Enforce exchange daily price floor and ceiling bounds."""
     try:
         p = float(price) if price is not None else 0.0
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         p = 0.0
 
     _ref_p, ceiling_p, floor_p = get_exchange_price_limits(ref_price, exchange)
