@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+from vnai.beam.quota import RateLimitExceeded
 
 from scripts.data_provider import (
     CanonicalOHLCVError,
@@ -370,7 +371,6 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.VnQuote")
     def test_parse_wait_seconds_formats(self, mock_quote, mock_sleep):
         """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', 40s/60s, retry_after attr, and fallback."""
-        from vnai.beam.quota import RateLimitExceeded
         from scripts.data_provider import parse_wait_seconds
 
         self.assertEqual(parse_wait_seconds("Rate limit. wait 10 seconds"), 12)
@@ -533,8 +533,6 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
     @patch("scripts.data_provider.VnQuote")
     def test_real_vnai_rate_limit_exceeded_exception_40s_cooldown(self, mock_quote, mock_sleep):
         """Regression test verifying real Vnai RateLimitExceeded exception format with 40s wait."""
-        from vnai.beam.quota import RateLimitExceeded
-
         exc = RateLimitExceeded(
             resource_type="quote.history",
             limit_type="min",
@@ -578,8 +576,6 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
     @patch("scripts.data_provider.VnQuote")
     def test_real_vnstock_rate_limit_60s_english_message(self, mock_quote, mock_sleep):
         """Regression test verifying 60s English rate limit message using real RateLimitExceeded."""
-        from vnai.beam.quota import RateLimitExceeded
-
         exc = RateLimitExceeded(
             resource_type="quote.history",
             limit_type="min",
