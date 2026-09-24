@@ -34,20 +34,7 @@ jobs:
         run: uv sync
 
       - name: Run production pipeline
-        run: |
-          set +e
-          uv run python scripts/generate_report.py --update
-          EXIT_CODE=$?
-          set -e
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "Production pipeline completed successfully."
-          elif [ $EXIT_CODE -eq 2 ]; then
-            echo "Vnstock provider rate limit reached (exit code 2). Preserving existing generated artifacts and skipping today's data update."
-            exit 0
-          else
-            echo "Production pipeline failed with unexpected exit code $EXIT_CODE."
-            exit $EXIT_CODE
-          fi
+        run: uv run python scripts/generate_report.py --update
 
       - name: Commit and push generated artifacts
         run: |

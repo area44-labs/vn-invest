@@ -30,6 +30,7 @@ from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommenda
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
+    DEFAULT_UPDATE_THROTTLE_DELAY,
     UniverseProvider,
     get_clean_ohlcv_data,
     get_historical_data,
@@ -94,12 +95,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     candidate_stocks = provider.candidates
     universe_info = provider.get_info()
 
+    throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
+
     logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
     df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
-        "VNINDEX", max_retries=2 if update_data else 1, use_cache_only=use_cache
+        "VNINDEX",
+        max_retries=2 if update_data else 1,
+        use_cache_only=use_cache,
+        throttle_delay=throttle,
     )
     df_vn30_raw, _, _ = get_historical_data(
-        "VN30", max_retries=2 if update_data else 1, use_cache_only=use_cache
+        "VN30",
+        max_retries=2 if update_data else 1,
+        use_cache_only=use_cache,
+        throttle_delay=throttle,
     )
 
     # All quantitative consumers must receive clean OHLCV data.
@@ -108,11 +117,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     stock_data_map = {}
     bullish_count = 0
+    invalid_symbols = []
+
+    if update_data and (df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT"):
+        invalid_symbols.append("VNINDEX")
+    if update_data and (df_vn30_clean.empty or vn30_val.get("status") == "INSUFFICIENT"):
+        invalid_symbols.append("VN30")
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
         df_stock, tag, warns = get_historical_data(
-            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=1.0 if update_data else 0.0
+            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=throttle
         )
         stock_data_map[sym] = (df_stock, tag, warns)
 
@@ -123,6 +138,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             ma20 = df_clean_stock["close"].tail(20).mean()
             if c > ma20:
                 bullish_count += 1
+
+        if update_data and (
+            df_stock is None or df_stock.empty or tag == "INSUFFICIENT_HISTORICAL_DATA"
+        ):
+            invalid_symbols.append(sym)
+
+    if update_data and invalid_symbols:
+        raise RuntimeError(
+            f"Incomplete universe scan in update mode: missing or invalid EOD data for symbols {sorted(invalid_symbols)}. "
+            "Final report generation aborted to preserve artifact integrity."
+        )
 
     # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
     data_as_of = vnindex_val.get("latest_date")
@@ -729,10 +755,10 @@ def main():
         logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
         try:
             pipeline_res = run_pipeline(update_data=args.update)
-        except ProviderRateLimitError as exc:
-            logger.error("Data pipeline halted due to provider rate limit: %s", exc)
+        except (ProviderRateLimitError, RuntimeError) as exc:
+            logger.error("Data pipeline halted: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
-            raise SystemExit(2) from exc
+            raise SystemExit(1) from exc
 
         recs_data, market_data, history_data = pipeline_res
         df_vnindex_clean = pipeline_res.df_vnindex

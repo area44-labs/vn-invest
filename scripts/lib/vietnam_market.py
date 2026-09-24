@@ -7,11 +7,18 @@ Explicitly tags data sources: REAL_DATA or INSUFFICIENT_HISTORICAL_DATA.
 
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from scripts.data_provider import ProviderRateLimitError, VnstockDataProvider
+from scripts.data_provider import (
+    ProviderRateLimitError,
+    VnstockDataProvider,
+    can_recover_rate_limit,
+    increment_rate_limit_recovery_count,
+    reset_circuit_breaker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +27,8 @@ PRICE_UNIT = "VND/share"
 VOLUME_UNIT = "shares"
 TRADING_VALUE_UNIT = "VND"
 AVG_TRADING_VALUE_UNIT = "billion_VND"
+
+DEFAULT_UPDATE_THROTTLE_DELAY = 3.5
 
 # Source unit contracts for upstream data providers:
 # - Stock data (via vnstock KBS/MSN quotes): Prices (open, high, low, close) are in `thousand_VND/share` (e.g. 128.40 = 128,400 VND/share). Volume is in `shares` (e.g. 3,172,800 shares).
@@ -604,6 +613,7 @@ def get_historical_data(
     use_cache_only: bool = False,
     allow_synthetic: bool = False,
     throttle_delay: float = 0.0,
+    max_rate_limit_retries: int = 3,
 ):
     """Fetch real historical EOD OHLCV data for a given symbol via provider boundary."""
     sym = normalize_symbol(symbol)
@@ -612,30 +622,44 @@ def get_historical_data(
         end_date = now_dt.strftime("%Y-%m-%d")
         start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
-    if throttle_delay > 0:
-        import time
+    for rate_limit_attempt in range(max_rate_limit_retries + 1):
+        if throttle_delay > 0:
+            time.sleep(throttle_delay)
 
-        time.sleep(throttle_delay)
+        try:
+            provider = VnstockDataProvider()
+            df_out = provider.fetch_ohlcv(
+                symbol=sym,
+                start_date=start_date,
+                end_date=end_date,
+                max_retries=max_retries,
+            )
+            val_res = validate_ohlcv_data(df_out, sym)
+            return df_out, "REAL_DATA", val_res["issues"]
+        except ProviderRateLimitError as exc:
+            if can_recover_rate_limit() and rate_limit_attempt < max_rate_limit_retries:
+                cooldown = exc.cooldown_seconds if exc.cooldown_seconds is not None else 30
+                increment_rate_limit_recovery_count()
+                logger.warning(
+                    "Provider rate limit encountered for '%s'. Waiting %d seconds (attempt %d/%d) before retrying...",
+                    sym,
+                    cooldown,
+                    rate_limit_attempt + 1,
+                    max_rate_limit_retries,
+                )
+                time.sleep(cooldown)
+                reset_circuit_breaker()
+                continue
 
-    try:
-        provider = VnstockDataProvider()
-        df_out = provider.fetch_ohlcv(
-            symbol=sym,
-            start_date=start_date,
-            end_date=end_date,
-            max_retries=max_retries,
-        )
-        val_res = validate_ohlcv_data(df_out, sym)
-        return df_out, "REAL_DATA", val_res["issues"]
-    except ProviderRateLimitError:
-        logger.error(
-            "Provider rate-limit error encountered while fetching '%s'. Re-raising loudly.", sym
-        )
-        raise
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
-        return (
-            pd.DataFrame(),
-            "INSUFFICIENT_HISTORICAL_DATA",
-            [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock."],
-        )
+            logger.error(
+                "Provider rate-limit error encountered while fetching '%s' and recovery budget/attempts exhausted. Re-raising loudly.",
+                sym,
+            )
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
+            return (
+                pd.DataFrame(),
+                "INSUFFICIENT_HISTORICAL_DATA",
+                [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock."],
+            )
