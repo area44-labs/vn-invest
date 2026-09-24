@@ -4,7 +4,10 @@ Deterministic tests without network access covering all 13 canonical validator r
 and provider boundary conversion/validation.
 """
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -595,9 +598,6 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
 
     def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
         """Regression test verifying generate_report.py halts cleanly (exit 1) and preserves generated files."""
-        import json
-        import tempfile
-        from pathlib import Path
         from scripts.generate_report import main as generate_report_main
 
         with tempfile.TemporaryDirectory() as tmpdir:
