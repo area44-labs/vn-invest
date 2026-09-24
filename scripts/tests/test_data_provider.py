@@ -344,7 +344,11 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.VnQuote")
     def test_408_fails_fast(self, mock_quote, mock_sleep):
         """HTTP 408 Request Timeout is treated as a client error and fails fast."""
-        err = Exception("HTTP 408 Request Timeout")
+
+        class HTTP408Error(Exception):
+            pass
+
+        err = HTTP408Error("HTTP 408 Request Timeout")
         res_mock = MagicMock()
         res_mock.status_code = 408
         err.response = res_mock
@@ -354,7 +358,7 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(Exception):
+        with self.assertRaises(HTTP408Error):
             provider.fetch_ohlcv("FPT", max_retries=3)
 
         self.assertEqual(mock_inst.history.call_count, 1)
