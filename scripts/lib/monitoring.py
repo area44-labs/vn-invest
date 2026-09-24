@@ -1333,9 +1333,9 @@ def evaluate_data_and_model_drift(
         # Filter baseline candidates strictly < data_as_of
         baseline_candidate_dates = [d for d in dates if d < data_as_of]
 
-        selected_dates = baseline_candidate_dates[:lookback_reports]
-
-        for d in selected_dates:
+        for d in baseline_candidate_dates:
+            if len(loaded_baseline_reports) >= lookback_reports:
+                break
             fpath = os.path.join(g_dir, "history", f"{d}.json")
             if not os.path.exists(fpath):
                 obs = DriftObservation(

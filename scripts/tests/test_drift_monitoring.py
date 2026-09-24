@@ -1351,6 +1351,248 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=float("nan")
             )
 
+    def test_scanning_continues_past_20_candidates_until_enough_qualified_reports(self):
+        """Verify historical candidate scan continues beyond the first 20 raw dates until enough qualified reports are found."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(
+            data_as_of="2026-09-30", total_scanned=20, data_quality="SUFFICIENT"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            # 26 dates total: 2026-09-30 (current T) plus 25 historical candidates
+            # Candidates 1-20: 4 qualified, 16 incomplete
+            # Candidates 21-25: 5 qualified
+            from datetime import timedelta
+
+            base_dt = datetime(2026, 9, 29, tzinfo=UTC)
+            candidate_dates = [
+                (base_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(25)
+            ]
+            all_dates = ["2026-09-30"] + candidate_dates
+
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": all_dates}, f)
+
+            with open(os.path.join(history_dir, "2026-09-30.json"), "w", encoding="utf-8") as f:
+                json.dump(curr, f)
+
+            # Candidate dates 1..4 (2026-09-29..26): qualified
+            # Candidate dates 5..20 (2026-09-25..10): incomplete
+            # Candidate dates 21..25 (2026-09-09..05): qualified
+            for idx, d in enumerate(candidate_dates):
+                if idx < 4 or idx >= 20:
+                    p = make_mock_payload(data_as_of=d, total_scanned=20, data_quality="SUFFICIENT")
+                else:
+                    p = make_mock_payload(
+                        data_as_of=d,
+                        total_scanned=20,
+                        buy_count=0,
+                        watch_count=0,
+                        hold_count=0,
+                        sell_count=0,
+                        avoid_count=20,
+                        data_quality="INSUFFICIENT",
+                    )
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(p, f)
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-30",
+                current_payload=curr,
+                generated_dir=tmpdir,
+                lookback_reports=5,
+                min_baseline_reports=5,
+            )
+
+            self.assertEqual(res.overall_status, "PASS")
+            self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
+            # First 20 candidates yielded only 4 qualified reports; candidate 21 yielded the 5th qualified report
+            self.assertEqual(res.baseline_summary["considered_reports_count"], 21)
+            self.assertEqual(res.baseline_summary["excluded_reports_count"], 16)
+            self.assertEqual(res.baseline_summary["qualified_reports_count"], 5)
+
+    def test_scanning_stops_when_lookback_reports_qualified_reports_collected(self):
+        """Verify scanning stops as soon as lookback_reports qualified reports are collected."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(
+            data_as_of="2026-09-30", total_scanned=20, data_quality="SUFFICIENT"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            from datetime import timedelta
+
+            base_dt = datetime(2026, 9, 29, tzinfo=UTC)
+            candidate_dates = [
+                (base_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(10)
+            ]
+            all_dates = ["2026-09-30"] + candidate_dates
+
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": all_dates}, f)
+
+            with open(os.path.join(history_dir, "2026-09-30.json"), "w", encoding="utf-8") as f:
+                json.dump(curr, f)
+
+            for d in candidate_dates:
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(
+                        make_mock_payload(
+                            data_as_of=d, total_scanned=20, data_quality="SUFFICIENT"
+                        ),
+                        f,
+                    )
+
+            # Cap lookback_reports at 3
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-30",
+                current_payload=curr,
+                generated_dir=tmpdir,
+                lookback_reports=3,
+                min_baseline_reports=3,
+            )
+
+            self.assertEqual(res.overall_status, "PASS")
+            self.assertEqual(res.baseline_summary["qualified_reports_count"], 3)
+            self.assertEqual(res.baseline_summary["considered_reports_count"], 3)
+
+    def test_diagnostics_accurately_describe_expanded_scan(self):
+        """Verify considered, excluded, and qualified dates accurately describe an expanded candidate scan."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(
+            data_as_of="2026-09-30", total_scanned=20, data_quality="SUFFICIENT"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            from datetime import timedelta
+
+            base_dt = datetime(2026, 9, 29, tzinfo=UTC)
+            candidate_dates = [
+                (base_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(10)
+            ]
+            from datetime import timedelta
+
+            base_dt = datetime(2026, 9, 29, tzinfo=UTC)
+            candidate_dates = [
+                (base_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(10)
+            ]
+            all_dates = ["2026-09-30"] + candidate_dates
+
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": all_dates}, f)
+
+            with open(os.path.join(history_dir, "2026-09-30.json"), "w", encoding="utf-8") as f:
+                json.dump(curr, f)
+
+            # First 6 candidates incomplete, remaining 4 candidates qualified
+            for idx, d in enumerate(candidate_dates):
+                if idx < 6:
+                    p = make_mock_payload(
+                        data_as_of=d,
+                        total_scanned=20,
+                        buy_count=0,
+                        watch_count=0,
+                        hold_count=0,
+                        sell_count=0,
+                        avoid_count=20,
+                        data_quality="INSUFFICIENT",
+                    )
+                else:
+                    p = make_mock_payload(data_as_of=d, total_scanned=20, data_quality="SUFFICIENT")
+
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(p, f)
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-30",
+                current_payload=curr,
+                generated_dir=tmpdir,
+                lookback_reports=20,
+                min_baseline_reports=5,
+            )
+
+            self.assertEqual(res.overall_status, "WARNING")
+            self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
+            self.assertEqual(res.baseline_summary["considered_reports_count"], 10)
+            self.assertEqual(res.baseline_summary["excluded_reports_count"], 6)
+            self.assertEqual(res.baseline_summary["qualified_reports_count"], 4)
+            self.assertEqual(len(res.baseline_summary["considered_dates"]), 10)
+            self.assertEqual(len(res.baseline_summary["excluded_dates"]), 6)
+            self.assertEqual(len(res.baseline_summary["baseline_dates"]), 4)
+
+    def test_temporal_integrity_failure_during_extended_scan_fails_closed(self):
+        """Verify corrupt artifact encountered during extended scan causes FAIL status."""
+        import json
+        import os
+        import tempfile
+
+        curr = make_mock_payload(
+            data_as_of="2026-09-30", total_scanned=20, data_quality="SUFFICIENT"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
+
+            candidate_dates = [f"2026-09-{29 - i:02d}" for i in range(10)]
+            all_dates = ["2026-09-30"] + candidate_dates
+
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": all_dates}, f)
+
+            with open(os.path.join(history_dir, "2026-09-30.json"), "w", encoding="utf-8") as f:
+                json.dump(curr, f)
+
+            for idx, d in enumerate(candidate_dates):
+                fpath = os.path.join(history_dir, f"{d}.json")
+                if idx == 5:
+                    # Candidate 5 is corrupted
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write("{invalid json content")
+                elif idx < 5:
+                    p = make_mock_payload(
+                        data_as_of=d,
+                        total_scanned=20,
+                        buy_count=0,
+                        watch_count=0,
+                        hold_count=0,
+                        sell_count=0,
+                        avoid_count=20,
+                        data_quality="INSUFFICIENT",
+                    )
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        json.dump(p, f)
+                else:
+                    p = make_mock_payload(data_as_of=d, total_scanned=20, data_quality="SUFFICIENT")
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        json.dump(p, f)
+
+            res = evaluate_data_and_model_drift(
+                data_as_of="2026-09-30",
+                current_payload=curr,
+                generated_dir=tmpdir,
+            )
+
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_corrupted")
+
 
 if __name__ == "__main__":
     unittest.main()
