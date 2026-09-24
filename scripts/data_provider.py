@@ -25,13 +25,11 @@ except ImportError:
 try:
     import requests
 
-    REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (requests.exceptions.RequestException,)
     TRANSIENT_REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (
         requests.exceptions.ConnectionError,
         requests.exceptions.Timeout,
     )
 except ImportError:
-    REQUESTS_EXCEPTIONS = ()
     TRANSIENT_REQUESTS_EXCEPTIONS = ()
 
 # Provider unit constants
