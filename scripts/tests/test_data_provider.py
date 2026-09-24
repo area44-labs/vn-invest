@@ -786,11 +786,15 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
 
         # FPT succeeds, HPG rate limited on 1st call then succeeds on retry, VCB succeeds
-        rate_limit_exc = ProviderRateLimitError("Quota exceeded. Chờ 30 giây", cooldown_seconds=32, symbol="HPG")
+        rate_limit_exc = ProviderRateLimitError(
+            "Quota exceeded. Chờ 30 giây", cooldown_seconds=32, symbol="HPG"
+        )
 
         def side_effect(symbol, start_date=None, end_date=None, max_retries=2):
             if is_circuit_breaker_active():
-                raise ProviderRateLimitError("Circuit breaker active", cooldown_seconds=32, symbol=symbol)
+                raise ProviderRateLimitError(
+                    "Circuit breaker active", cooldown_seconds=32, symbol=symbol
+                )
             if symbol == "HPG" and mock_fetch.call_count == 2:
                 # First call for HPG raises rate limit
                 raise rate_limit_exc
@@ -824,7 +828,12 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
     def test_unrecoverable_rate_limit_exhausts_budget_and_fails(self, mock_quote, mock_sleep):
         """2. Unrecoverable rate limit -> budget exhausted -> raises ProviderRateLimitError loudly."""
         rate_limit_exc = RateLimitExceeded(
-            resource_type="quote.history", limit_type="min", current_usage=20, limit_value=20, retry_after=30.0, tier="guest"
+            resource_type="quote.history",
+            limit_type="min",
+            current_usage=20,
+            limit_value=20,
+            retry_after=30.0,
+            tier="guest",
         )
         mock_inst = MagicMock()
         mock_inst.history.side_effect = rate_limit_exc
