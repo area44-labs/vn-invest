@@ -815,7 +815,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
 
         pipeline_res = run_pipeline(update_data=True)
 
-        recs_data, market_data, _ = pipeline_res
+        recs_data, _market_data, _ = pipeline_res
 
         # Complete universe processed
         self.assertEqual(recs_data["summary"]["total_scanned"], len(candidates))
