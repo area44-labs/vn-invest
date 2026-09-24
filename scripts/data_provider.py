@@ -135,7 +135,7 @@ def is_rate_limit_exception(exc: BaseException) -> bool:
         try:
             if int(response.status_code) == 429:
                 return True
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
 
     err_msg = get_exception_message(exc).lower()
@@ -149,7 +149,7 @@ def is_client_auth_exception(exc: BaseException) -> bool:
         try:
             status_code = int(response.status_code)
             return 400 <= status_code < 500 and status_code != 429
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
     return False
 
@@ -168,7 +168,7 @@ def is_transient_exception(exc: BaseException) -> bool:
             status_code = int(response.status_code)
             if status_code in TRANSIENT_HTTP_STATUS_CODES:
                 return True
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
 
     return False
@@ -200,7 +200,7 @@ def parse_wait_seconds(err_str: str, exc: BaseException | None = None) -> int:
                 val = float(retry_after)
                 if val > 0:
                     return round(val) + 2
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
     match = re.search(r"(?:chờ|wait)?\s*(\d+)\s*(?:giây|seconds?|sec|s)\b", err_str, re.IGNORECASE)
