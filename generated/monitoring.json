@@ -88,7 +88,9 @@
       "status": "FAIL",
       "measured_value": {
         "status": "INSUFFICIENT",
-        "issues": ["empty_dataframe"]
+        "issues": [
+          "empty_dataframe"
+        ]
       },
       "expected_condition": "OHLCV data for VNINDEX is SUFFICIENT or PARTIAL",
       "message": "OHLCV data quality for 'VNINDEX' is INSUFFICIENT: empty_dataframe"

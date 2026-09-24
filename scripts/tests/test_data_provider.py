@@ -324,6 +324,56 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
+    def test_generic_request_exception_fails_fast(self, mock_quote, mock_sleep):
+        """A generic requests.exceptions.RequestException is NOT treated as transient and fails fast."""
+        import requests
+
+        generic_err = requests.exceptions.RequestException("Generic request error")
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = generic_err
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(requests.exceptions.RequestException):
+            provider.fetch_ohlcv("FPT", max_retries=3)
+
+        # Fails fast immediately on 1st call without retrying or trying 2nd source
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_408_fails_fast(self, mock_quote, mock_sleep):
+        """HTTP 408 Request Timeout is treated as a client error and fails fast."""
+        err = Exception("HTTP 408 Request Timeout")
+        res_mock = MagicMock()
+        res_mock.status_code = 408
+        err.response = res_mock
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = err
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(Exception):
+            provider.fetch_ohlcv("FPT", max_retries=3)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_parse_wait_seconds_formats(self, mock_quote, mock_sleep):
+        """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', and fallback."""
+        from scripts.data_provider import parse_wait_seconds
+
+        self.assertEqual(parse_wait_seconds("Rate limit. wait 10 seconds"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. wait 10 sec"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 10 giây"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. 10s"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. 10 sec"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. No numbers here"), 15)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
     def test_generic_wait_message_does_not_trip_circuit_breaker(self, mock_quote, mock_sleep):
         """A generic exception containing the word 'wait' is NOT classified as a rate limit and does NOT trip the circuit breaker."""
         mock_inst = MagicMock()

@@ -26,8 +26,13 @@ try:
     import requests
 
     REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (requests.exceptions.RequestException,)
+    TRANSIENT_REQUESTS_EXCEPTIONS: tuple[type[BaseException], ...] = (
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+    )
 except ImportError:
     REQUESTS_EXCEPTIONS = ()
+    TRANSIENT_REQUESTS_EXCEPTIONS = ()
 
 # Provider unit constants
 SOURCE_PRICE_UNIT_VNSTOCK = "thousand_VND/share"
@@ -98,7 +103,7 @@ TRANSIENT_EXCEPTION_TYPES = (
 )
 
 TRANSIENT_HTTP_STATUS_CODES = {500, 502, 503, 504}
-CLIENT_AUTH_HTTP_STATUS_CODES = {400, 401, 403, 404}
+CLIENT_AUTH_HTTP_STATUS_CODES = {400, 401, 403, 404, 408}
 
 PROVIDER_RATE_LIMIT_PATTERNS = [
     "ratelimitederror",
@@ -141,12 +146,14 @@ def is_rate_limit_exception(exc: BaseException) -> bool:
 
 
 def is_client_auth_exception(exc: BaseException) -> bool:
-    """Determine whether an exception represents a client/auth/permission error (400, 401, 403, 404)."""
+    """Determine whether an exception represents a client/auth/permission error (400, 401, 403, 404, 408)."""
     response = getattr(exc, "response", None)
     if response is not None and hasattr(response, "status_code"):
         try:
             status_code = int(response.status_code)
-            return status_code in CLIENT_AUTH_HTTP_STATUS_CODES
+            return status_code in CLIENT_AUTH_HTTP_STATUS_CODES or (
+                400 <= status_code < 500 and status_code != 429
+            )
         except ValueError, TypeError:
             pass
     return False
@@ -155,6 +162,9 @@ def is_client_auth_exception(exc: BaseException) -> bool:
 def is_transient_exception(exc: BaseException) -> bool:
     """Determine whether an exception represents a transient network/server error (500, 502, 503, 504, ConnectionError, TimeoutError)."""
     if isinstance(exc, TRANSIENT_EXCEPTION_TYPES):
+        return True
+
+    if TRANSIENT_REQUESTS_EXCEPTIONS and isinstance(exc, TRANSIENT_REQUESTS_EXCEPTIONS):
         return True
 
     response = getattr(exc, "response", None)
@@ -166,7 +176,7 @@ def is_transient_exception(exc: BaseException) -> bool:
         except ValueError, TypeError:
             pass
 
-    return bool(REQUESTS_EXCEPTIONS) and isinstance(exc, REQUESTS_EXCEPTIONS)
+    return False
 
 
 def is_vnstock_rate_limit_exit(exc: BaseException) -> bool:
@@ -188,15 +198,9 @@ def is_retryable_exception(exc: Exception) -> bool:
 
 def parse_wait_seconds(err_str: str) -> int:
     """Extract wait seconds from vnstock rate limit notice."""
-    match = re.search(r"chờ\s+(\d+)\s+giây", err_str, re.IGNORECASE)
+    match = re.search(r"(?:chờ|wait)?\s*(\d+)\s*(?:giây|seconds?|sec|s)\b", err_str, re.IGNORECASE)
     if match:
         return int(match.group(1)) + 2
-    match_sec = re.search(r"wait\s+(\d+)\s+sec", err_str, re.IGNORECASE)
-    if match_sec:
-        return int(match_sec.group(1)) + 2
-    match_sec2 = re.search(r"(\d+)\s+second", err_str, re.IGNORECASE)
-    if match_sec2:
-        return int(match_sec2.group(1)) + 2
     return 15
 
 
