@@ -1121,11 +1121,15 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
 
     def test_incomplete_historical_reports_excluded_from_baseline(self):
         """Verify historical reports with processed_ratio < min_processed_ratio (0.80) are excluded."""
-        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT")
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
 
         # 5 qualified baseline reports (processed_ratio = 1.0)
         qualified_baselines = [
-            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT")
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
             for i in range(5)
         ]
         # 3 incomplete baseline reports (processed_ratio = 0.0)
@@ -1165,11 +1169,15 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
 
     def test_full_universe_report_does_not_fail_due_to_low_coverage_historical_reports(self):
         """Verify full-universe current report passes drift check when older reports had low coverage."""
-        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=42, data_quality="SUFFICIENT")
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=42, data_quality="SUFFICIENT"
+        )
 
         # 6 qualified reports with processed_ratio = 1.0
         qualified = [
-            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=42, data_quality="SUFFICIENT")
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=42, data_quality="SUFFICIENT"
+            )
             for i in range(6)
         ]
         # 4 low-coverage reports with processed_ratio = 0.0
@@ -1200,11 +1208,15 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
 
     def test_insufficient_quality_qualified_baseline_returns_warning_not_false_fail(self):
         """Verify when qualified reports < min_baseline_reports, status is WARNING and INSUFFICIENT baseline."""
-        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT")
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
 
         # Only 2 qualified reports
         qualified = [
-            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT")
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
             for i in range(2)
         ]
         # 5 incomplete reports
@@ -1235,8 +1247,12 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
         self.assertEqual(res.baseline_summary["qualified_reports_count"], 2)
         self.assertEqual(len(res.drift_checks), 1)
         self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
-        self.assertIn("INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message)
-        self.assertIn("excluded 5 for insufficient coverage", res.drift_checks[0].observation.message)
+        self.assertIn(
+            "INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message
+        )
+        self.assertIn(
+            "excluded 5 for insufficient coverage", res.drift_checks[0].observation.message
+        )
 
     def test_comparable_full_coverage_reports_still_detect_genuine_drift(self):
         """Verify genuine drift between comparable full-coverage reports triggers FAIL status."""
@@ -1245,7 +1261,8 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             signal_score=95.0,  # +30 shift from baseline 65.0 (> 25.0 fail threshold)
         )
         qualified_baselines = [
-            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", signal_score=65.0) for i in range(5)
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", signal_score=65.0)
+            for i in range(5)
         ]
 
         res = evaluate_data_and_model_drift(
@@ -1288,7 +1305,9 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
         )
 
         self.assertEqual(res.overall_status, "FAIL")
-        action_chk = next(c for c in res.drift_checks if c.check_name == "drift_action_distribution")
+        action_chk = next(
+            c for c in res.drift_checks if c.check_name == "drift_action_distribution"
+        )
         self.assertEqual(action_chk.status, "FAIL")
 
     def test_invalid_min_processed_ratio_fails_closed(self):

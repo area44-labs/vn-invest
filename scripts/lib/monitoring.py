@@ -587,18 +587,14 @@ def evaluate_data_and_model_drift(
             f"min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})"
         )
 
-    if isinstance(min_processed_ratio, bool) or not isinstance(
-        min_processed_ratio, (int, float)
-    ):
+    if isinstance(min_processed_ratio, bool) or not isinstance(min_processed_ratio, (int, float)):
         raise TypeError(
             f"min_processed_ratio must be a numeric float, got {type(min_processed_ratio).__name__}"
         )
     if math.isnan(min_processed_ratio) or math.isinf(min_processed_ratio):
         raise ValueError(f"min_processed_ratio must be finite, got {min_processed_ratio}")
     if not (0.0 < min_processed_ratio <= 1.0):
-        raise ValueError(
-            f"min_processed_ratio must be in (0.0, 1.0], got {min_processed_ratio}"
-        )
+        raise ValueError(f"min_processed_ratio must be in (0.0, 1.0], got {min_processed_ratio}")
 
     # Validate drift threshold configurations dynamically from module globals
     thresh_configs = [
@@ -873,10 +869,9 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
         else:
-            is_inner_market = (
-                isinstance(current_payload, dict)
-                and market_payload is current_payload.get("market")
-            )
+            is_inner_market = isinstance(
+                current_payload, dict
+            ) and market_payload is current_payload.get("market")
             if not is_inner_market:
                 obs = DriftObservation(
                     check_name="drift_market_payload_temporal_safety",
@@ -1508,7 +1503,8 @@ def evaluate_data_and_model_drift(
 
             try:
                 b_metrics = extract_recommendation_metrics(
-                    b_payload, market_payload=b_payload.get("market") if isinstance(b_payload, dict) else None
+                    b_payload,
+                    market_payload=b_payload.get("market") if isinstance(b_payload, dict) else None,
                 )
             except (ValueError, TypeError) as err:
                 obs = DriftObservation(
