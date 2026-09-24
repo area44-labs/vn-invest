@@ -191,8 +191,18 @@ def is_retryable_exception(exc: Exception) -> bool:
     return is_transient_exception(exc)
 
 
-def parse_wait_seconds(err_str: str) -> int:
-    """Extract wait seconds from vnstock rate limit notice."""
+def parse_wait_seconds(err_str: str, exc: BaseException | None = None) -> int:
+    """Extract wait seconds from vnstock rate limit notice or exception retry_after attribute."""
+    if exc is not None:
+        retry_after = getattr(exc, "retry_after", None)
+        if retry_after is not None:
+            try:
+                val = float(retry_after)
+                if val > 0:
+                    return round(val) + 2
+            except ValueError, TypeError:
+                pass
+
     match = re.search(r"(?:chờ|wait)?\s*(\d+)\s*(?:giây|seconds?|sec|s)\b", err_str, re.IGNORECASE)
     if match:
         return int(match.group(1)) + 2
@@ -363,7 +373,7 @@ class VnstockDataProvider:
                 except (Exception, SystemExit) as exc:
                     if is_rate_limit_exception(exc):
                         err_msg = get_exception_message(exc)
-                        cooldown_sec = parse_wait_seconds(err_msg)
+                        cooldown_sec = parse_wait_seconds(err_msg, exc=exc)
                         trip_circuit_breaker(
                             reason=f"Rate limit encountered on symbol '{sym}' (source={source}): {err_msg}",
                             cooldown_seconds=cooldown_sec,

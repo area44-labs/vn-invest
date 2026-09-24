@@ -7,7 +7,6 @@ Explicitly tags data sources: REAL_DATA or INSUFFICIENT_HISTORICAL_DATA.
 
 import logging
 import os
-import re
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
@@ -357,20 +356,6 @@ def normalize_symbol(symbol: str) -> str:
     if not symbol:
         return ""
     return str(symbol).strip().upper()
-
-
-def parse_wait_seconds(err_str: str) -> int:
-    """Extract wait seconds from vnstock rate limit notice."""
-    match = re.search(r"chờ\s+(\d+)\s+giây", err_str, re.IGNORECASE)
-    if match:
-        return int(match.group(1)) + 2
-    match_sec = re.search(r"wait\s+(\d+)\s+sec", err_str, re.IGNORECASE)
-    if match_sec:
-        return int(match_sec.group(1)) + 2
-    match_sec2 = re.search(r"(\d+)\s+second", err_str, re.IGNORECASE)
-    if match_sec2:
-        return int(match_sec2.group(1)) + 2
-    return 15
 
 
 def normalize_ohlcv_units(
