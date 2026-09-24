@@ -97,58 +97,123 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
 
-    logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
-    df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
-        "VNINDEX",
-        max_retries=2 if update_data else 1,
-        use_cache_only=use_cache,
-        throttle_delay=throttle,
-    )
-    df_vn30_raw, _, _ = get_historical_data(
-        "VN30",
-        max_retries=2 if update_data else 1,
-        use_cache_only=use_cache,
-        throttle_delay=throttle,
-    )
+    expected_symbols = {"VNINDEX", "VN30"} | {
+        item["symbol"].upper()
+        for item in candidate_stocks
+        if isinstance(item, dict) and item.get("symbol")
+    }
+    processed_symbols = set()
+    invalid_symbols = set()
+    failed_symbols = set()
 
-    # All quantitative consumers must receive clean OHLCV data.
-    df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
-    df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
+    logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
+
+    try:
+        df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
+            "VNINDEX",
+            max_retries=2 if update_data else 1,
+            use_cache_only=use_cache,
+            throttle_delay=throttle,
+        )
+        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+
+        if vn_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
+            failed_symbols.add("VNINDEX")
+        elif vn_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
+            invalid_symbols.add("VNINDEX")
+        elif df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT":
+            invalid_symbols.add("VNINDEX")
+        else:
+            processed_symbols.add("VNINDEX")
+    except ProviderRateLimitError:
+        raise
+    except Exception as exc:
+        logger.error("Exception fetching VNINDEX: %s", exc)
+        failed_symbols.add("VNINDEX")
+        df_vnindex_raw = pd.DataFrame()
+        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+
+    try:
+        df_vn30_raw, vn30_source, _ = get_historical_data(
+            "VN30",
+            max_retries=2 if update_data else 1,
+            use_cache_only=use_cache,
+            throttle_delay=throttle,
+        )
+        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
+
+        if vn30_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
+            failed_symbols.add("VN30")
+        elif vn30_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
+            invalid_symbols.add("VN30")
+        elif df_vn30_clean.empty or vn30_val.get("status") == "INSUFFICIENT":
+            invalid_symbols.add("VN30")
+        else:
+            processed_symbols.add("VN30")
+    except ProviderRateLimitError:
+        raise
+    except Exception as exc:
+        logger.error("Exception fetching VN30: %s", exc)
+        failed_symbols.add("VN30")
+        df_vn30_raw = pd.DataFrame()
+        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
 
     stock_data_map = {}
     bullish_count = 0
-    invalid_symbols = []
-
-    if update_data and (df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT"):
-        invalid_symbols.append("VNINDEX")
-    if update_data and (df_vn30_clean.empty or vn30_val.get("status") == "INSUFFICIENT"):
-        invalid_symbols.append("VN30")
 
     for idx, item in enumerate(candidate_stocks):
-        sym = item["symbol"]
-        df_stock, tag, warns = get_historical_data(
-            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=throttle
-        )
-        stock_data_map[sym] = (df_stock, tag, warns)
+        sym = item["symbol"].upper()
+        try:
+            df_stock, tag, warns = get_historical_data(
+                sym, max_retries=1, use_cache_only=use_cache, throttle_delay=throttle
+            )
+            stock_data_map[sym] = (df_stock, tag, warns)
 
-        # Pre-breadth check: price above MA20 using clean OHLCV data
-        df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
-        if not df_clean_stock.empty and len(df_clean_stock) >= 20:
-            c = df_clean_stock["close"].iloc[-1]
-            ma20 = df_clean_stock["close"].tail(20).mean()
-            if c > ma20:
-                bullish_count += 1
+            df_clean_stock, val_res = get_clean_ohlcv_data(df_stock, sym)
 
-        if update_data and (
-            df_stock is None or df_stock.empty or tag == "INSUFFICIENT_HISTORICAL_DATA"
+            if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
+                failed_symbols.add(sym)
+            elif tag in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
+                invalid_symbols.add(sym)
+            elif df_stock is None or df_stock.empty:
+                if tag == "INSUFFICIENT_HISTORICAL_DATA":
+                    invalid_symbols.add(sym)
+                else:
+                    failed_symbols.add(sym)
+            elif df_clean_stock.empty or val_res.get("status") == "INSUFFICIENT":
+                invalid_symbols.add(sym)
+            else:
+                processed_symbols.add(sym)
+
+            # Pre-breadth check: price above MA20 using clean OHLCV data
+            if not df_clean_stock.empty and len(df_clean_stock) >= 20:
+                c = df_clean_stock["close"].iloc[-1]
+                ma20 = df_clean_stock["close"].tail(20).mean()
+                if c > ma20:
+                    bullish_count += 1
+        except ProviderRateLimitError:
+            raise
+        except Exception as exc:
+            logger.error("Exception fetching %s: %s", sym, exc)
+            failed_symbols.add(sym)
+            stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
+
+    missing_symbols = expected_symbols - (processed_symbols | invalid_symbols | failed_symbols)
+
+    if update_data:
+        if (
+            expected_symbols != (processed_symbols | invalid_symbols)
+            or failed_symbols
+            or missing_symbols
         ):
-            invalid_symbols.append(sym)
-
-    if update_data and invalid_symbols:
-        raise RuntimeError(
-            f"Incomplete universe scan in update mode: missing or invalid EOD data for symbols {sorted(invalid_symbols)}. "
-            "Final report generation aborted to preserve artifact integrity."
-        )
+            raise RuntimeError(
+                f"Incomplete universe scan in update mode: validation failed. "
+                f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
+                f"Invalid: {len(invalid_symbols)}, Failed: {len(failed_symbols)}, "
+                f"Missing: {len(missing_symbols)}. "
+                f"Failed symbols: {sorted(failed_symbols)}. "
+                f"Missing symbols: {sorted(missing_symbols)}."
+            )
 
     # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
     data_as_of = vnindex_val.get("latest_date")
