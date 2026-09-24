@@ -119,15 +119,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
         if vn_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
             failed_symbols.add("VNINDEX")
-        elif vn_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
-            invalid_symbols.add("VNINDEX")
-        elif df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT":
+        elif (
+            vn_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL")
+            or df_vnindex_clean.empty
+            or vnindex_val.get("status") == "INSUFFICIENT"
+        ):
             invalid_symbols.add("VNINDEX")
         else:
             processed_symbols.add("VNINDEX")
     except ProviderRateLimitError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Exception fetching VNINDEX: %s", exc)
         failed_symbols.add("VNINDEX")
         df_vnindex_raw = pd.DataFrame()
@@ -144,15 +146,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
         if vn30_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
             failed_symbols.add("VN30")
-        elif vn30_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
-            invalid_symbols.add("VN30")
-        elif df_vn30_clean.empty or vn30_val.get("status") == "INSUFFICIENT":
+        elif (
+            vn30_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL")
+            or df_vn30_clean.empty
+            or vn30_val.get("status") == "INSUFFICIENT"
+        ):
             invalid_symbols.add("VN30")
         else:
             processed_symbols.add("VN30")
     except ProviderRateLimitError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Exception fetching VN30: %s", exc)
         failed_symbols.add("VN30")
         df_vn30_raw = pd.DataFrame()
@@ -193,27 +197,26 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                     bullish_count += 1
         except ProviderRateLimitError:
             raise
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.error("Exception fetching %s: %s", sym, exc)
             failed_symbols.add(sym)
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
 
     missing_symbols = expected_symbols - (processed_symbols | invalid_symbols | failed_symbols)
 
-    if update_data:
-        if (
-            expected_symbols != (processed_symbols | invalid_symbols)
-            or failed_symbols
-            or missing_symbols
-        ):
-            raise RuntimeError(
-                f"Incomplete universe scan in update mode: validation failed. "
-                f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
-                f"Invalid: {len(invalid_symbols)}, Failed: {len(failed_symbols)}, "
-                f"Missing: {len(missing_symbols)}. "
-                f"Failed symbols: {sorted(failed_symbols)}. "
-                f"Missing symbols: {sorted(missing_symbols)}."
-            )
+    if update_data and (
+        expected_symbols != (processed_symbols | invalid_symbols)
+        or failed_symbols
+        or missing_symbols
+    ):
+        raise RuntimeError(
+            f"Incomplete universe scan in update mode: validation failed. "
+            f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
+            f"Invalid: {len(invalid_symbols)}, Failed: {len(failed_symbols)}, "
+            f"Missing: {len(missing_symbols)}. "
+            f"Failed symbols: {sorted(failed_symbols)}. "
+            f"Missing symbols: {sorted(missing_symbols)}."
+        )
 
     # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
     data_as_of = vnindex_val.get("latest_date")

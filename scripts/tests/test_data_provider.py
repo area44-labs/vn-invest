@@ -1105,7 +1105,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
             pipeline_res = run_pipeline(update_data=True)
-            recs_data, market_data, _ = pipeline_res
+            recs_data, _market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
             # The invalid symbol is present in recommendations with action AVOID
             invalid_recs = [
@@ -1194,7 +1194,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         # Simulate exception raised for the last candidate so it's not processed successfully
         def mock_get_hist(sym, **kwargs):
             if sym == unprocessed_candidate:
-                raise Exception(f"Processing error on {sym}")
+                raise RuntimeError(f"Processing error on {sym}")
             return valid_df, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
