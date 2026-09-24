@@ -799,12 +799,12 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         mock_fetch.side_effect = side_effect
 
         # Call get_historical_data for FPT
-        res_fpt, tag_fpt, _ = get_historical_data("FPT")
+        _, tag_fpt, _ = get_historical_data("FPT")
         self.assertEqual(tag_fpt, "REAL_DATA")
         self.assertEqual(mock_fetch.call_count, 1)
 
         # Call get_historical_data for HPG - will hit rate limit on 1st try, wait 32s, reset circuit breaker, retry & succeed
-        res_hpg, tag_hpg, _ = get_historical_data("HPG")
+        _, tag_hpg, _ = get_historical_data("HPG")
         self.assertEqual(tag_hpg, "REAL_DATA")
         # Total fetch_ohlcv calls: 1 (FPT) + 1 (HPG fail) + 1 (HPG retry) = 3 calls
         self.assertEqual(mock_fetch.call_count, 3)
@@ -812,7 +812,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         self.assertFalse(is_circuit_breaker_active())
 
         # Call get_historical_data for VCB - succeeds directly without re-fetching FPT or HPG
-        res_vcb, tag_vcb, _ = get_historical_data("VCB")
+        _, tag_vcb, _ = get_historical_data("VCB")
         self.assertEqual(tag_vcb, "REAL_DATA")
         self.assertEqual(mock_fetch.call_count, 4)
 
