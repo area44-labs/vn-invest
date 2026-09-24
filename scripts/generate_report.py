@@ -117,6 +117,10 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     stock_data_map = {}
     bullish_count = 0
+    invalid_symbols = []
+
+    if update_data and (df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT"):
+        invalid_symbols.append("VNINDEX")
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
@@ -132,6 +136,17 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             ma20 = df_clean_stock["close"].tail(20).mean()
             if c > ma20:
                 bullish_count += 1
+
+        if update_data and (
+            df_stock is None or df_stock.empty or tag == "INSUFFICIENT_HISTORICAL_DATA"
+        ):
+            invalid_symbols.append(sym)
+
+    if update_data and invalid_symbols:
+        raise RuntimeError(
+            f"Incomplete universe scan in update mode: missing or invalid EOD data for symbols {sorted(invalid_symbols)}. "
+            "Final report generation aborted to preserve artifact integrity."
+        )
 
     # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
     data_as_of = vnindex_val.get("latest_date")
@@ -738,8 +753,8 @@ def main():
         logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
         try:
             pipeline_res = run_pipeline(update_data=args.update)
-        except ProviderRateLimitError as exc:
-            logger.error("Data pipeline halted due to unrecoverable provider rate limit: %s", exc)
+        except (ProviderRateLimitError, RuntimeError) as exc:
+            logger.error("Data pipeline halted: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
 
