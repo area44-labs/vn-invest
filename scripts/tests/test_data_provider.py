@@ -369,15 +369,26 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_parse_wait_seconds_formats(self, mock_quote, mock_sleep):
-        """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', and fallback."""
+        """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', 40s/60s, retry_after attr, and fallback."""
+        from vnai.beam.quota import RateLimitExceeded
         from scripts.data_provider import parse_wait_seconds
 
         self.assertEqual(parse_wait_seconds("Rate limit. wait 10 seconds"), 12)
         self.assertEqual(parse_wait_seconds("Rate limit. wait 10 sec"), 12)
         self.assertEqual(parse_wait_seconds("Rate limit. Chờ 10 giây"), 12)
-        self.assertEqual(parse_wait_seconds("Rate limit. 10s"), 12)
+        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 40 giây"), 42)
+        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 60 giây"), 62)
+        self.assertEqual(parse_wait_seconds("Rate limit. 40s"), 42)
+        self.assertEqual(parse_wait_seconds("Rate limit. 60s"), 62)
         self.assertEqual(parse_wait_seconds("Rate limit. 10 sec"), 12)
         self.assertEqual(parse_wait_seconds("Rate limit. No numbers here"), 15)
+
+        # Test with real RateLimitExceeded instance having retry_after attribute
+        exc_40 = RateLimitExceeded("quote.history", "min", 20, 20, retry_after=40.0, tier="guest")
+        self.assertEqual(parse_wait_seconds(str(exc_40), exc=exc_40), 42)
+
+        exc_60 = RateLimitExceeded("quote.history", "min", 60, 60, retry_after=60.0, tier="free")
+        self.assertEqual(parse_wait_seconds(str(exc_60), exc=exc_60), 62)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -522,27 +533,16 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
     @patch("scripts.data_provider.VnQuote")
     def test_real_vnai_rate_limit_exceeded_exception_40s_cooldown(self, mock_quote, mock_sleep):
         """Regression test verifying real Vnai RateLimitExceeded exception format with 40s wait."""
-        # Realistic Vnai RateLimitExceeded exception message format
-        vnai_msg = (
-            "\n"
-            "============================================================\n"
-            "⚠️  GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded)\n"
-            "============================================================\n\n"
-            "📌 Bạn đã đạt giới hạn tối đa số lượt yêu cầu API trong 1 phút (minute).\n"
-            "   (You have reached the maximum API request limit for this period)\n\n"
-            "📊 Chi tiết (Details):\n"
-            "   • Gói hiện tại: Khách (Guest)\n"
-            "   • Giới hạn: 20 requests/phút\n"
-            "   • Đã sử dụng: 20/20\n"
-            "   • Chờ 40 giây để tiếp tục (Wait to retry)\n\n"
-            "💡 Giải pháp (Solutions):\n"
-            "   1️⃣ Chờ 40 giây rồi thử lại\n"
+        from vnai.beam.quota import RateLimitExceeded
+
+        exc = RateLimitExceeded(
+            resource_type="quote.history",
+            limit_type="min",
+            current_usage=20,
+            limit_value=20,
+            retry_after=40.0,
+            tier="guest",
         )
-
-        class RateLimitExceeded(Exception):
-            pass
-
-        exc = RateLimitExceeded(vnai_msg)
 
         mock_inst = MagicMock()
         mock_inst.history.side_effect = exc
@@ -577,14 +577,20 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_real_vnstock_rate_limit_60s_english_message(self, mock_quote, mock_sleep):
-        """Regression test verifying 60s English rate limit message."""
-        msg = "Rate limit exceeded. Wait 60 seconds."
+        """Regression test verifying 60s English rate limit message using real RateLimitExceeded."""
+        from vnai.beam.quota import RateLimitExceeded
 
-        class RateLimitExceeded(Exception):
-            pass
+        exc = RateLimitExceeded(
+            resource_type="quote.history",
+            limit_type="min",
+            current_usage=60,
+            limit_value=60,
+            retry_after=60.0,
+            tier="free",
+        )
 
         mock_inst = MagicMock()
-        mock_inst.history.side_effect = RateLimitExceeded(msg)
+        mock_inst.history.side_effect = exc
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
