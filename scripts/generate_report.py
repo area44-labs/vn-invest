@@ -23,6 +23,7 @@ from typing import Any
 import jsonschema
 import pandas as pd
 
+from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
@@ -726,7 +727,13 @@ def main():
         logger.info("  - history/index.json")
     else:
         logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
-        pipeline_res = run_pipeline(update_data=args.update)
+        try:
+            pipeline_res = run_pipeline(update_data=args.update)
+        except ProviderRateLimitError as exc:
+            logger.error("Data pipeline halted due to provider rate limit: %s", exc)
+            logger.error("Existing generated report files have been preserved and not overwritten.")
+            raise SystemExit(1) from exc
+
         recs_data, market_data, history_data = pipeline_res
         df_vnindex_clean = pipeline_res.df_vnindex
         df_vn30_clean = pipeline_res.df_vn30
