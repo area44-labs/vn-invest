@@ -889,6 +889,41 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
             self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
             self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
 
+    def test_run_pipeline_invalid_vn30_fails_without_generating_report(self):
+        """Regression test verifying that when VN30 benchmark data is invalid/empty,
+
+        run_pipeline(update_data=True) fails closed with RuntimeError and includes VN30 in invalid_symbols.
+        """
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_historical_data(
+            sym,
+            start_date=None,
+            end_date=None,
+            max_retries=2,
+            use_cache_only=False,
+            allow_synthetic=False,
+            throttle_delay=0.0,
+        ):
+            if sym == "VN30":
+                return (
+                    pd.DataFrame(),
+                    "INSUFFICIENT_HISTORICAL_DATA",
+                    ["[VN30] Failed to fetch data"],
+                )
+            return valid_df, "REAL_DATA", []
+
+        with patch(
+            "scripts.generate_report.get_historical_data",
+            side_effect=mock_get_historical_data,
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("VN30", str(ctx.exception))
+
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_unrecoverable_rate_limit_exhausts_budget_and_fails(self, mock_quote, mock_sleep):

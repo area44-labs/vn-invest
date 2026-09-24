@@ -121,6 +121,8 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     if update_data and (df_vnindex_clean.empty or vnindex_val.get("status") == "INSUFFICIENT"):
         invalid_symbols.append("VNINDEX")
+    if update_data and (df_vn30_clean.empty or vn30_val.get("status") == "INSUFFICIENT"):
+        invalid_symbols.append("VN30")
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
