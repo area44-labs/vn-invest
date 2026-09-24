@@ -732,7 +732,7 @@ def main():
         except ProviderRateLimitError as exc:
             logger.error("Data pipeline halted due to provider rate limit: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
-            raise SystemExit(1) from exc
+            raise SystemExit(2) from exc
 
         recs_data, market_data, history_data = pipeline_res
         df_vnindex_clean = pipeline_res.df_vnindex
