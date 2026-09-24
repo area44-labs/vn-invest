@@ -927,10 +927,13 @@ def evaluate_data_and_model_drift(
     baseline_dates_used: list[str] = []
     considered_dates: list[str] = []
     excluded_dates: list[str] = []
+    exclusions: list[dict[str, Any]] = []
 
     if baseline_reports is not None:
         # Injected baseline reports (e.g., unit test fixtures)
         for idx, r in enumerate(baseline_reports):
+            if len(loaded_baseline_reports) >= lookback_reports:
+                break
             if not isinstance(r, dict):
                 obs = DriftObservation(
                     check_name="drift_baseline_reports_injected",
@@ -1069,6 +1072,14 @@ def evaluate_data_and_model_drift(
                 loaded_baseline_reports.append(r)
             else:
                 excluded_dates.append(r_date)
+                exclusions.append(
+                    {
+                        "date": r_date,
+                        "reason": "processed_ratio_below_threshold",
+                        "processed_ratio": b_metrics["processed_ratio"],
+                        "min_processed_ratio": min_processed_ratio,
+                    }
+                )
 
         # Check for duplicate dates in injected baseline reports
         if len(considered_dates) != len(set(considered_dates)):
@@ -1536,6 +1547,14 @@ def evaluate_data_and_model_drift(
                 baseline_dates_used.append(d)
             else:
                 excluded_dates.append(d)
+                exclusions.append(
+                    {
+                        "date": d,
+                        "reason": "processed_ratio_below_threshold",
+                        "processed_ratio": b_metrics["processed_ratio"],
+                        "min_processed_ratio": min_processed_ratio,
+                    }
+                )
 
     num_baseline_reports = len(loaded_baseline_reports)
 
@@ -1572,15 +1591,22 @@ def evaluate_data_and_model_drift(
         obs = DriftObservation(
             check_name="drift_baseline_sufficiency",
             baseline_period={
+                "status": "INSUFFICIENT",
+                "baseline_status": "INSUFFICIENT",
                 "available_reports": num_baseline_reports,
                 "required_reports": min_baseline_reports,
+                "lookback_reports": lookback_reports,
+                "min_baseline_reports": min_baseline_reports,
+                "min_processed_ratio": min_processed_ratio,
+                "min_processed_ratio_threshold": min_processed_ratio,
                 "considered_reports_count": len(considered_dates),
                 "excluded_reports_count": len(excluded_dates),
                 "qualified_reports_count": num_baseline_reports,
-                "min_processed_ratio_threshold": min_processed_ratio,
-                "baseline_dates": baseline_dates_used,
-                "excluded_dates": excluded_dates,
                 "considered_dates": considered_dates,
+                "excluded_dates": excluded_dates,
+                "qualified_dates": baseline_dates_used,
+                "baseline_dates": baseline_dates_used,
+                "exclusions": exclusions,
             },
             current_period=data_as_of,
             baseline_value=num_baseline_reports,
@@ -1603,16 +1629,22 @@ def evaluate_data_and_model_drift(
             data_as_of=data_as_of,
             baseline_summary={
                 "status": "INSUFFICIENT",
+                "baseline_status": "INSUFFICIENT",
                 "report_count": num_baseline_reports,
                 "available_reports": num_baseline_reports,
+                "lookback_reports": lookback_reports,
+                "min_baseline_reports": min_baseline_reports,
+                "min_processed_ratio": min_processed_ratio,
+                "min_processed_ratio_threshold": min_processed_ratio,
+                "required_reports": min_baseline_reports,
                 "considered_reports_count": len(considered_dates),
                 "excluded_reports_count": len(excluded_dates),
                 "qualified_reports_count": num_baseline_reports,
-                "required_reports": min_baseline_reports,
-                "min_processed_ratio_threshold": min_processed_ratio,
-                "baseline_dates": baseline_dates_used,
-                "excluded_dates": excluded_dates,
                 "considered_dates": considered_dates,
+                "excluded_dates": excluded_dates,
+                "qualified_dates": baseline_dates_used,
+                "baseline_dates": baseline_dates_used,
+                "exclusions": exclusions,
             },
             drift_checks=[chk],
         )
@@ -1716,16 +1748,22 @@ def evaluate_data_and_model_drift(
 
     baseline_period_info = {
         "status": "SUFFICIENT",
+        "baseline_status": "SUFFICIENT",
         "report_count": num_baseline_reports,
+        "lookback_reports": lookback_reports,
+        "min_baseline_reports": min_baseline_reports,
+        "min_processed_ratio": min_processed_ratio,
+        "min_processed_ratio_threshold": min_processed_ratio,
         "considered_reports_count": len(considered_dates),
         "excluded_reports_count": len(excluded_dates),
         "qualified_reports_count": num_baseline_reports,
-        "min_processed_ratio_threshold": min_processed_ratio,
         "start_date": baseline_dates_used[-1] if baseline_dates_used else None,
         "end_date": baseline_dates_used[0] if baseline_dates_used else None,
-        "baseline_dates": baseline_dates_used,
-        "excluded_dates": excluded_dates,
         "considered_dates": considered_dates,
+        "excluded_dates": excluded_dates,
+        "qualified_dates": baseline_dates_used,
+        "baseline_dates": baseline_dates_used,
+        "exclusions": exclusions,
     }
 
     drift_checks: list[DriftCheckResult] = []
@@ -2016,11 +2054,20 @@ def evaluate_data_and_model_drift(
 
     baseline_summary_dict = {
         "status": "SUFFICIENT",
+        "baseline_status": "SUFFICIENT",
         "report_count": num_baseline_reports,
+        "lookback_reports": lookback_reports,
+        "min_baseline_reports": min_baseline_reports,
+        "min_processed_ratio": min_processed_ratio,
+        "min_processed_ratio_threshold": min_processed_ratio,
         "considered_reports_count": len(considered_dates),
         "excluded_reports_count": len(excluded_dates),
         "qualified_reports_count": num_baseline_reports,
-        "min_processed_ratio_threshold": min_processed_ratio,
+        "considered_dates": considered_dates,
+        "excluded_dates": excluded_dates,
+        "qualified_dates": baseline_dates_used,
+        "baseline_dates": baseline_dates_used,
+        "exclusions": exclusions,
         "baseline_period": baseline_period_info,
         "baseline_metrics": {
             "processed_ratio": baseline_processed_ratio,

@@ -1594,5 +1594,226 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_corrupted")
 
 
+class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
+    """Test suite for production drift monitoring observability, auditability, and diagnostics."""
+
+    def test_complete_baseline_diagnostics_counters_and_dates(self):
+        """Verify all selection counters and dates are exposed in baseline_summary and baseline_period."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
+
+        qualified = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
+            for i in range(5)
+        ]
+        low_coverage = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{11 - i:02d}",
+                total_scanned=20,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=20,
+                data_quality="INSUFFICIENT",
+            )
+            for i in range(2)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified + low_coverage,
+            lookback_reports=20,
+            min_baseline_reports=5,
+            min_processed_ratio=0.80,
+        )
+
+        self.assertEqual(res.overall_status, "PASS")
+        bs = res.baseline_summary
+        self.assertEqual(bs["status"], "SUFFICIENT")
+        self.assertEqual(bs["baseline_status"], "SUFFICIENT")
+        self.assertEqual(bs["lookback_reports"], 20)
+        self.assertEqual(bs["min_baseline_reports"], 5)
+        self.assertEqual(bs["min_processed_ratio"], 0.80)
+        self.assertEqual(bs["considered_reports_count"], 7)
+        self.assertEqual(bs["excluded_reports_count"], 2)
+        self.assertEqual(bs["qualified_reports_count"], 5)
+        self.assertEqual(
+            bs["considered_dates"],
+            [
+                "2026-09-16",
+                "2026-09-15",
+                "2026-09-14",
+                "2026-09-13",
+                "2026-09-12",
+                "2026-09-11",
+                "2026-09-10",
+            ],
+        )
+        self.assertEqual(bs["excluded_dates"], ["2026-09-11", "2026-09-10"])
+        self.assertEqual(
+            bs["qualified_dates"],
+            ["2026-09-16", "2026-09-15", "2026-09-14", "2026-09-13", "2026-09-12"],
+        )
+        self.assertEqual(bs["baseline_dates"], bs["qualified_dates"])
+
+        bp = res.drift_checks[0].observation.baseline_period
+        self.assertEqual(bp["lookback_reports"], 20)
+        self.assertEqual(bp["min_baseline_reports"], 5)
+        self.assertEqual(bp["min_processed_ratio"], 0.80)
+        self.assertEqual(bp["considered_reports_count"], 7)
+        self.assertEqual(bp["excluded_reports_count"], 2)
+        self.assertEqual(bp["qualified_reports_count"], 5)
+        self.assertEqual(bp["considered_dates"], bs["considered_dates"])
+        self.assertEqual(bp["excluded_dates"], bs["excluded_dates"])
+        self.assertEqual(bp["qualified_dates"], bs["qualified_dates"])
+
+    def test_low_coverage_exclusion_reason_explicit(self):
+        """Verify low-coverage historical reports have explicit exclusion reason details."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
+        qualified = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
+            for i in range(5)
+        ]
+        low_coverage = [
+            make_mock_payload(
+                data_as_of="2026-09-10",
+                total_scanned=20,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=20,
+                data_quality="INSUFFICIENT",
+            )
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified + low_coverage,
+            min_processed_ratio=0.80,
+        )
+
+        exclusions = res.baseline_summary["exclusions"]
+        self.assertEqual(len(exclusions), 1)
+        ex = exclusions[0]
+        self.assertEqual(ex["date"], "2026-09-10")
+        self.assertEqual(ex["reason"], "processed_ratio_below_threshold")
+        self.assertEqual(ex["processed_ratio"], 0.0)
+        self.assertEqual(ex["min_processed_ratio"], 0.80)
+
+    def test_insufficient_baseline_diagnostics_and_status(self):
+        """Verify insufficient baseline produces baseline_status INSUFFICIENT, overall WARNING, and diagnostic message."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
+        qualified = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
+            for i in range(3)
+        ]
+        low_coverage = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{13 - i:02d}",
+                total_scanned=20,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=20,
+                data_quality="INSUFFICIENT",
+            )
+            for i in range(2)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified + low_coverage,
+            lookback_reports=20,
+            min_baseline_reports=5,
+            min_processed_ratio=0.80,
+        )
+
+        self.assertEqual(res.overall_status, "WARNING")
+        bs = res.baseline_summary
+        self.assertEqual(bs["status"], "INSUFFICIENT")
+        self.assertEqual(bs["baseline_status"], "INSUFFICIENT")
+        self.assertEqual(bs["considered_reports_count"], 5)
+        self.assertEqual(bs["excluded_reports_count"], 2)
+        self.assertEqual(bs["qualified_reports_count"], 3)
+        self.assertEqual(bs["min_baseline_reports"], 5)
+        self.assertEqual(bs["min_processed_ratio"], 0.80)
+
+        msg = res.drift_checks[0].observation.message
+        self.assertIn("considered 5 historical reports", msg)
+        self.assertIn("excluded 2 for insufficient coverage", msg)
+        self.assertIn("80.0%", msg)
+        self.assertIn("leaving 3 qualified reports", msg)
+        self.assertIn("minimum required is 5", msg)
+
+    def test_qualified_reports_capped_at_lookback_reports(self):
+        """Verify baseline contains exactly qualified reports capped at lookback_reports."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT"
+        )
+        qualified = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT"
+            )
+            for i in range(10)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified,
+            lookback_reports=5,
+            min_baseline_reports=3,
+        )
+
+        self.assertEqual(res.overall_status, "PASS")
+        bs = res.baseline_summary
+        self.assertEqual(bs["qualified_reports_count"], 5)
+        self.assertEqual(bs["considered_reports_count"], 5)
+        self.assertEqual(
+            bs["qualified_dates"],
+            ["2026-09-16", "2026-09-15", "2026-09-14", "2026-09-13", "2026-09-12"],
+        )
+
+    def test_genuine_drift_not_converted_to_insufficient(self):
+        """Verify a genuine quantitative drift condition triggers FAIL status and is not converted to INSUFFICIENT."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17",
+            signal_score=95.0,  # +30 shift from baseline 65.0 (> 25.0 fail threshold)
+        )
+        qualified = [
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", signal_score=65.0)
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
+        self.assertEqual(res.baseline_summary["baseline_status"], "SUFFICIENT")
+        sig_chk = next(c for c in res.drift_checks if c.check_name == "drift_signal_score")
+        self.assertEqual(sig_chk.status, "FAIL")
+
+
 if __name__ == "__main__":
     unittest.main()
