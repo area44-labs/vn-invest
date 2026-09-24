@@ -30,6 +30,7 @@ from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommenda
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
+    DEFAULT_UPDATE_THROTTLE_DELAY,
     UniverseProvider,
     get_clean_ohlcv_data,
     get_historical_data,
@@ -94,12 +95,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     candidate_stocks = provider.candidates
     universe_info = provider.get_info()
 
+    throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
+
     logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
     df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
-        "VNINDEX", max_retries=2 if update_data else 1, use_cache_only=use_cache
+        "VNINDEX",
+        max_retries=2 if update_data else 1,
+        use_cache_only=use_cache,
+        throttle_delay=throttle,
     )
     df_vn30_raw, _, _ = get_historical_data(
-        "VN30", max_retries=2 if update_data else 1, use_cache_only=use_cache
+        "VN30",
+        max_retries=2 if update_data else 1,
+        use_cache_only=use_cache,
+        throttle_delay=throttle,
     )
 
     # All quantitative consumers must receive clean OHLCV data.
@@ -112,7 +121,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"]
         df_stock, tag, warns = get_historical_data(
-            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=1.0 if update_data else 0.0
+            sym, max_retries=1, use_cache_only=use_cache, throttle_delay=throttle
         )
         stock_data_map[sym] = (df_stock, tag, warns)
 
@@ -730,9 +739,9 @@ def main():
         try:
             pipeline_res = run_pipeline(update_data=args.update)
         except ProviderRateLimitError as exc:
-            logger.error("Data pipeline halted due to provider rate limit: %s", exc)
+            logger.error("Data pipeline halted due to unrecoverable provider rate limit: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
-            raise SystemExit(2) from exc
+            raise SystemExit(1) from exc
 
         recs_data, market_data, history_data = pipeline_res
         df_vnindex_clean = pipeline_res.df_vnindex

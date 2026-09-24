@@ -59,6 +59,32 @@ _CIRCUIT_BREAKER_ACTIVE = False
 _CIRCUIT_BREAKER_REASON = ""
 _CIRCUIT_BREAKER_COOLDOWN = None
 
+MAX_PIPELINE_RATE_LIMIT_RECOVERIES = 10
+_RATE_LIMIT_RECOVERY_COUNT = 0
+
+
+def get_rate_limit_recovery_count() -> int:
+    """Return total number of rate-limit recoveries performed during the current process run."""
+    return _RATE_LIMIT_RECOVERY_COUNT
+
+
+def can_recover_rate_limit() -> bool:
+    """Return True if total rate-limit recoveries are within the maximum allowed budget."""
+    return _RATE_LIMIT_RECOVERY_COUNT < MAX_PIPELINE_RATE_LIMIT_RECOVERIES
+
+
+def reset_rate_limit_recovery_count() -> None:
+    """Reset the pipeline rate-limit recovery counter and circuit breaker state."""
+    global _RATE_LIMIT_RECOVERY_COUNT
+    _RATE_LIMIT_RECOVERY_COUNT = 0
+    reset_circuit_breaker()
+
+
+def increment_rate_limit_recovery_count() -> None:
+    """Increment the pipeline rate-limit recovery counter."""
+    global _RATE_LIMIT_RECOVERY_COUNT
+    _RATE_LIMIT_RECOVERY_COUNT += 1
+
 
 def is_circuit_breaker_active() -> bool:
     """Return True if the process-wide rate-limit circuit breaker is active."""

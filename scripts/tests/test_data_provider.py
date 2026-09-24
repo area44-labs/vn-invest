@@ -18,10 +18,13 @@ from scripts.data_provider import (
     CanonicalOHLCVError,
     ProviderRateLimitError,
     VnstockDataProvider,
+    get_rate_limit_recovery_count,
     is_circuit_breaker_active,
     reset_circuit_breaker,
+    reset_rate_limit_recovery_count,
     validate_canonical_ohlcv,
 )
+from scripts.lib.vietnam_market import get_historical_data
 
 
 def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -203,9 +206,11 @@ class TestVnstockProviderBoundary(unittest.TestCase):
 class TestDataProviderExceptionHandling(unittest.TestCase):
     def setUp(self):
         reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
 
     def tearDown(self):
         reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -623,7 +628,7 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
         self.assertTrue(is_circuit_breaker_active())
 
     def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
-        """Regression test verifying generate_report.py halts cleanly (exit code 2) and preserves generated files."""
+        """Regression test verifying generate_report.py fails cleanly (exit code 1) and preserves generated files."""
         from scripts.generate_report import main as generate_report_main
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -645,8 +650,8 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 with self.assertRaises(SystemExit) as ctx:
                     generate_report_main()
 
-                # Pipeline exits with status code 2 for provider rate limits
-                self.assertEqual(ctx.exception.code, 2)
+                # Pipeline exits with status code 1 for provider rate limits
+                self.assertEqual(ctx.exception.code, 1)
 
             # Generated output file was NOT modified or overwritten
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
@@ -656,7 +661,7 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
         """Regression test covering the 3 exit paths of generate_report.py:
 
         Path 1: Success pipeline completes cleanly without raising SystemExit (code 0).
-        Path 2: ProviderRateLimitError raises SystemExit(2) and preserves generated files.
+        Path 2: ProviderRateLimitError raises SystemExit(1) and preserves generated files.
         Path 3: Unexpected exceptions propagate uncaught (producing exit 1 / error).
         """
         from scripts.generate_report import PipelineResult
@@ -734,7 +739,7 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 # Does NOT raise SystemExit on success
                 generate_report_main()
 
-            # Path 2: Rate limit error raises SystemExit(2)
+            # Path 2: Rate limit error raises SystemExit(1)
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
@@ -746,7 +751,7 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 with self.assertRaises(SystemExit) as ctx2:
                     generate_report_main()
 
-                self.assertEqual(ctx2.exception.code, 2)
+                self.assertEqual(ctx2.exception.code, 1)
 
             # Path 3: Unexpected error propagates uncaught
             with (
@@ -761,6 +766,111 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                     generate_report_main()
 
                 self.assertIn("Unexpected pipeline exception", str(ctx3.exception))
+
+
+class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
+    """Focused tests for rate-limit recovery, universe scan continuity, and fail-closed report generation."""
+
+    def setUp(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+
+    def tearDown(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+
+    @patch("scripts.lib.vietnam_market.time.sleep")
+    @patch("scripts.data_provider.VnstockDataProvider.fetch_ohlcv")
+    def test_rate_limit_wait_recovery_resumes_remaining_symbols(self, mock_fetch, mock_sleep):
+        """1. Rate limit -> wait/recovery -> circuit breaker reset -> resume remaining symbols without re-fetching completed symbols."""
+        valid_df = make_valid_canonical_df(25)
+
+        # FPT succeeds, HPG rate limited on 1st call then succeeds on retry, VCB succeeds
+        rate_limit_exc = ProviderRateLimitError("Quota exceeded. Chờ 30 giây", cooldown_seconds=32, symbol="HPG")
+
+        def side_effect(symbol, start_date=None, end_date=None, max_retries=2):
+            if is_circuit_breaker_active():
+                raise ProviderRateLimitError("Circuit breaker active", cooldown_seconds=32, symbol=symbol)
+            if symbol == "HPG" and mock_fetch.call_count == 2:
+                # First call for HPG raises rate limit
+                raise rate_limit_exc
+            return valid_df
+
+        mock_fetch.side_effect = side_effect
+
+        # Call get_historical_data for FPT
+        res_fpt, tag_fpt, _ = get_historical_data("FPT")
+        self.assertEqual(tag_fpt, "REAL_DATA")
+        self.assertEqual(mock_fetch.call_count, 1)
+
+        # Call get_historical_data for HPG - will hit rate limit on 1st try, wait 32s, reset circuit breaker, retry & succeed
+        res_hpg, tag_hpg, _ = get_historical_data("HPG")
+        self.assertEqual(tag_hpg, "REAL_DATA")
+        # Total fetch_ohlcv calls: 1 (FPT) + 1 (HPG fail) + 1 (HPG retry) = 3 calls
+        self.assertEqual(mock_fetch.call_count, 3)
+        self.assertEqual(get_rate_limit_recovery_count(), 1)
+        self.assertFalse(is_circuit_breaker_active())
+
+        # Call get_historical_data for VCB - succeeds directly without re-fetching FPT or HPG
+        res_vcb, tag_vcb, _ = get_historical_data("VCB")
+        self.assertEqual(tag_vcb, "REAL_DATA")
+        self.assertEqual(mock_fetch.call_count, 4)
+
+        # Verify sleep was called with parsed cooldown (32 seconds)
+        mock_sleep.assert_any_call(32)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_unrecoverable_rate_limit_exhausts_budget_and_fails(self, mock_quote, mock_sleep):
+        """2. Unrecoverable rate limit -> budget exhausted -> raises ProviderRateLimitError loudly."""
+        rate_limit_exc = RateLimitExceeded(
+            resource_type="quote.history", limit_type="min", current_usage=20, limit_value=20, retry_after=30.0, tier="guest"
+        )
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = rate_limit_exc
+        mock_quote.return_value = mock_inst
+
+        with self.assertRaises(ProviderRateLimitError) as ctx:
+            # max_rate_limit_retries = 2
+            get_historical_data("FPT", max_rate_limit_retries=2)
+
+        # Fails after exhausting retries (attempts 0, 1, 2)
+        self.assertEqual(ctx.exception.symbol, "FPT")
+        self.assertEqual(get_rate_limit_recovery_count(), 2)
+
+    def test_no_partial_report_committed_on_pipeline_failure(self):
+        """3. Complete universe requirement: Pipeline failure prevents writing/overwriting report artifacts."""
+        from scripts.generate_report import main as generate_report_main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+
+            recs_file = generated_dir / "recommendations.json"
+            market_file = generated_dir / "market.json"
+
+            initial_recs = {"schema_version": "2.0", "recommendations": [{"symbol": "INITIAL"}]}
+            initial_market = {"regime": "NEUTRAL"}
+
+            recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
+            market_file.write_text(json.dumps(initial_market), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline",
+                    side_effect=ProviderRateLimitError("Rate limit exhausted across universe scan"),
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Neither recommendations.json nor market.json was modified
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
+            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
 
 
 if __name__ == "__main__":
