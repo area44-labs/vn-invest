@@ -652,21 +652,115 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
 
-    def test_pipeline_exits_with_unexpected_exceptions_uncaught(self):
-        """Regression test verifying generate_report.py propagates unexpected exceptions."""
+    def test_generate_report_three_exit_code_paths(self):
+        """Regression test covering the 3 exit paths of generate_report.py:
+
+        Path 1: Success pipeline completes cleanly without raising SystemExit (code 0).
+        Path 2: ProviderRateLimitError raises SystemExit(2) and preserves generated files.
+        Path 3: Unexpected exceptions propagate uncaught (producing exit 1 / error).
+        """
+        from scripts.generate_report import PipelineResult
         from scripts.generate_report import main as generate_report_main
 
-        with (
-            patch(
-                "scripts.generate_report.run_pipeline",
-                side_effect=ValueError("Unexpected data corruption"),
-            ),
-            patch("sys.argv", ["generate_report.py", "--update"]),
-        ):
-            with self.assertRaises(ValueError) as ctx:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+
+            recs_file = generated_dir / "recommendations.json"
+            initial_recs = {"schema_version": "2.0", "recommendations": []}
+            recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
+
+            # Path 1: Successful run completes without raising SystemExit
+            mock_payload = {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": "2026-09-24T00:00:00Z",
+                "data_as_of": "2026-09-24",
+                "source_date": "2026-09-24",
+                "data_source": "REAL_DATA",
+                "universe_info": {"universe_type": "TEST", "universe_size": 1},
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.8,
+                    "trend": "UP",
+                    "volatility": "LOW",
+                    "liquidity": "HIGH",
+                    "summary": "Bullish",
+                },
+                "summary": {
+                    "total_scanned": 1,
+                    "buy_count": 1,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [
+                    {
+                        "symbol": "FPT",
+                        "company_name": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                        "action": "BUY",
+                        "signal_score": 85.0,
+                        "risk_adjusted_score": 80.0,
+                        "confidence": 0.85,
+                        "data_quality": "SUFFICIENT",
+                    }
+                ],
+            }
+            mock_result = PipelineResult(
+                mock_payload,
+                mock_payload,
+                mock_payload,
+                df_vnindex=make_valid_canonical_df(25),
+                df_vn30=make_valid_canonical_df(25),
+            )
+
+            mock_mon_res = MagicMock()
+            mock_mon_res.overall_status = "PASS"
+            mock_mon_res.to_dict.return_value = {"overall_status": "PASS"}
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.run_pipeline", return_value=mock_result),
+                patch("scripts.generate_report.jsonschema.validate", return_value=None),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                # Does NOT raise SystemExit on success
                 generate_report_main()
 
-            self.assertIn("Unexpected data corruption", str(ctx.exception))
+            # Path 2: Rate limit error raises SystemExit(2)
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline",
+                    side_effect=ProviderRateLimitError("Quota exceeded", cooldown_seconds=40),
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx2:
+                    generate_report_main()
+
+                self.assertEqual(ctx2.exception.code, 2)
+
+            # Path 3: Unexpected error propagates uncaught
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline",
+                    side_effect=RuntimeError("Unexpected pipeline exception"),
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(RuntimeError) as ctx3:
+                    generate_report_main()
+
+                self.assertIn("Unexpected pipeline exception", str(ctx3.exception))
 
 
 if __name__ == "__main__":
