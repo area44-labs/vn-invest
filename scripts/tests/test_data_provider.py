@@ -623,7 +623,7 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
         self.assertTrue(is_circuit_breaker_active())
 
     def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
-        """Regression test verifying generate_report.py halts cleanly (exit 1) and preserves generated files."""
+        """Regression test verifying generate_report.py halts cleanly (exit code 2) and preserves generated files."""
         from scripts.generate_report import main as generate_report_main
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -645,12 +645,28 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 with self.assertRaises(SystemExit) as ctx:
                     generate_report_main()
 
-                # Pipeline exits with status code 1
-                self.assertEqual(ctx.exception.code, 1)
+                # Pipeline exits with status code 2 for provider rate limits
+                self.assertEqual(ctx.exception.code, 2)
 
             # Generated output file was NOT modified or overwritten
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
+
+    def test_pipeline_exits_with_unexpected_exceptions_uncaught(self):
+        """Regression test verifying generate_report.py propagates unexpected exceptions."""
+        from scripts.generate_report import main as generate_report_main
+
+        with (
+            patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=ValueError("Unexpected data corruption"),
+            ),
+            patch("sys.argv", ["generate_report.py", "--update"]),
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                generate_report_main()
+
+            self.assertIn("Unexpected data corruption", str(ctx.exception))
 
 
 if __name__ == "__main__":
