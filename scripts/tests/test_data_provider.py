@@ -390,6 +390,30 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         exc_60 = RateLimitExceeded("quote.history", "min", 60, 60, retry_after=60.0, tier="free")
         self.assertEqual(parse_wait_seconds(str(exc_60), exc=exc_60), 62)
 
+        # Test fallback edge cases: invalid/zero/None retry_after attributes
+        exc_invalid_retry = RateLimitExceeded(
+            "quote.history", "min", 20, 20, retry_after=None, tier="guest"
+        )
+        exc_invalid_retry.retry_after = "invalid"
+        self.assertEqual(
+            parse_wait_seconds("Rate limit reached. Wait 40 seconds", exc=exc_invalid_retry), 42
+        )
+
+        exc_zero_retry = RateLimitExceeded(
+            "quote.history", "min", 20, 20, retry_after=None, tier="guest"
+        )
+        exc_zero_retry.retry_after = 0
+        self.assertEqual(
+            parse_wait_seconds("Rate limit reached. Wait 60 seconds", exc=exc_zero_retry), 62
+        )
+
+        exc_none_retry = RateLimitExceeded(
+            "quote.history", "min", 20, 20, retry_after=None, tier="guest"
+        )
+        self.assertEqual(
+            parse_wait_seconds("Rate limit reached. Chờ 50 giây", exc=exc_none_retry), 52
+        )
+
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
     def test_generic_wait_message_does_not_trip_circuit_breaker(self, mock_quote, mock_sleep):
