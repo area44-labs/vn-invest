@@ -1274,6 +1274,74 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             self.assertIn("Failed symbols:", err_msg)
             self.assertIn("Missing symbols:", err_msg)
 
+    def test_vnindex_empty_or_invalid_fails(self):
+        """Required benchmark VNINDEX empty/invalid -> fails closed."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "VNINDEX":
+                return pd.DataFrame(), "INSUFFICIENT_HISTORICAL_DATA", ["VNINDEX data empty"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("VNINDEX", str(ctx.exception))
+
+    def test_vn30_empty_or_invalid_fails(self):
+        """Required benchmark VN30 empty/invalid -> fails closed."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "VN30":
+                return pd.DataFrame(), "INSUFFICIENT_HISTORICAL_DATA", ["VN30 data empty"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("VN30", str(ctx.exception))
+
+    def test_vnindex_provider_failure_fails(self):
+        """Required benchmark VNINDEX provider failure -> fails closed."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "VNINDEX":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["VNINDEX connection timeout"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("VNINDEX", str(ctx.exception))
+
+    def test_vn30_provider_failure_fails(self):
+        """Required benchmark VN30 provider failure -> fails closed."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "VN30":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["VN30 connection timeout"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("VN30", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -117,14 +117,19 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         )
         df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
 
-        if vn_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
-            failed_symbols.add("VNINDEX")
-        elif (
-            vn_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL")
+        if (
+            vn_source
+            in (
+                "PROVIDER_FAILURE",
+                "PROVIDER_ERROR",
+                "EXPLICITLY_INVALID",
+                "INVALID_SYMBOL",
+                "INSUFFICIENT_HISTORICAL_DATA",
+            )
             or df_vnindex_clean.empty
             or vnindex_val.get("status") == "INSUFFICIENT"
         ):
-            invalid_symbols.add("VNINDEX")
+            failed_symbols.add("VNINDEX")
         else:
             processed_symbols.add("VNINDEX")
     except ProviderRateLimitError:
@@ -144,14 +149,19 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         )
         df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
 
-        if vn30_source in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
-            failed_symbols.add("VN30")
-        elif (
-            vn30_source in ("EXPLICITLY_INVALID", "INVALID_SYMBOL")
+        if (
+            vn30_source
+            in (
+                "PROVIDER_FAILURE",
+                "PROVIDER_ERROR",
+                "EXPLICITLY_INVALID",
+                "INVALID_SYMBOL",
+                "INSUFFICIENT_HISTORICAL_DATA",
+            )
             or df_vn30_clean.empty
             or vn30_val.get("status") == "INSUFFICIENT"
         ):
-            invalid_symbols.add("VN30")
+            failed_symbols.add("VN30")
         else:
             processed_symbols.add("VN30")
     except ProviderRateLimitError:
