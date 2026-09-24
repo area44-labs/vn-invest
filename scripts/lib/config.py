@@ -251,6 +251,7 @@ REGIME_CONFIDENCE_HISTORY_THRESHOLD = 50
 # Lookback and minimum baseline rules
 DRIFT_LOOKBACK_REPORTS = 20
 DRIFT_MIN_BASELINE_REPORTS = 5
+DRIFT_MIN_PROCESSED_RATIO = 0.80
 
 # Fixed threshold bounds: (warning_threshold, fail_threshold)
 # Ratios & Distributions (Absolute differences in proportions or ratios)

@@ -23,6 +23,7 @@ import jsonschema
 from scripts.lib.config import (
     DRIFT_LOOKBACK_REPORTS,
     DRIFT_MIN_BASELINE_REPORTS,
+    DRIFT_MIN_PROCESSED_RATIO,
     DRIFT_THRESHOLD_ACTION_DISTRIBUTION,
     DRIFT_THRESHOLD_BREADTH_RATIO,
     DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION,
@@ -554,6 +555,7 @@ def evaluate_data_and_model_drift(
     baseline_reports: list[dict] | None = None,
     lookback_reports: int = DRIFT_LOOKBACK_REPORTS,
     min_baseline_reports: int = DRIFT_MIN_BASELINE_REPORTS,
+    min_processed_ratio: float = DRIFT_MIN_PROCESSED_RATIO,
 ) -> DriftMonitoringResult:
     """Evaluate operational data drift and model-output drift against historical baseline.
 
@@ -583,6 +585,19 @@ def evaluate_data_and_model_drift(
     if min_baseline_reports > lookback_reports:
         raise ValueError(
             f"min_baseline_reports ({min_baseline_reports}) cannot exceed lookback_reports ({lookback_reports})"
+        )
+
+    if isinstance(min_processed_ratio, bool) or not isinstance(
+        min_processed_ratio, (int, float)
+    ):
+        raise TypeError(
+            f"min_processed_ratio must be a numeric float, got {type(min_processed_ratio).__name__}"
+        )
+    if math.isnan(min_processed_ratio) or math.isinf(min_processed_ratio):
+        raise ValueError(f"min_processed_ratio must be finite, got {min_processed_ratio}")
+    if not (0.0 < min_processed_ratio <= 1.0):
+        raise ValueError(
+            f"min_processed_ratio must be in (0.0, 1.0], got {min_processed_ratio}"
         )
 
     # Validate drift threshold configurations dynamically from module globals
@@ -858,9 +873,9 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
         else:
-            is_inner_market = isinstance(current_payload, dict) and (
-                market_payload is current_payload.get("market")
-                or market_payload == current_payload.get("market")
+            is_inner_market = (
+                isinstance(current_payload, dict)
+                and market_payload is current_payload.get("market")
             )
             if not is_inner_market:
                 obs = DriftObservation(
@@ -912,9 +927,11 @@ def evaluate_data_and_model_drift(
             drift_checks=[chk],
         )
 
-    # Resolve baseline historical reports with strict temporal safety
+    # Resolve baseline historical reports with strict temporal safety and quality filtering
     loaded_baseline_reports: list[dict] = []
     baseline_dates_used: list[str] = []
+    considered_dates: list[str] = []
+    excluded_dates: list[str] = []
 
     if baseline_reports is not None:
         # Injected baseline reports (e.g., unit test fixtures)
@@ -1021,21 +1038,55 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
 
-            baseline_dates_used.append(r_date)
-            loaded_baseline_reports.append(r)
+            considered_dates.append(r_date)
+
+            try:
+                b_metrics = extract_recommendation_metrics(
+                    r, market_payload=r.get("market") if isinstance(r, dict) else None
+                )
+            except (ValueError, TypeError) as err:
+                obs = DriftObservation(
+                    check_name="drift_baseline_report_malformed",
+                    baseline_period={"index": idx, "report_date": r_date},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline historical report '{r_date}' metrics extraction failed: {err}",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_baseline_report_malformed", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Malformed baseline report {r_date}: {err}",
+                    },
+                    drift_checks=[chk],
+                )
+
+            if b_metrics["processed_ratio"] >= min_processed_ratio:
+                baseline_dates_used.append(r_date)
+                loaded_baseline_reports.append(r)
+            else:
+                excluded_dates.append(r_date)
 
         # Check for duplicate dates in injected baseline reports
-        if len(baseline_dates_used) != len(set(baseline_dates_used)):
+        if len(considered_dates) != len(set(considered_dates)):
             obs = DriftObservation(
                 check_name="drift_baseline_reports_duplicates",
                 baseline_period={
-                    "total_reports": len(baseline_dates_used),
-                    "unique_dates": len(set(baseline_dates_used)),
+                    "total_reports": len(considered_dates),
+                    "unique_dates": len(set(considered_dates)),
                 },
                 current_period=data_as_of,
-                baseline_value=len(baseline_dates_used),
-                current_value=len(set(baseline_dates_used)),
-                absolute_difference=len(baseline_dates_used) - len(set(baseline_dates_used)),
+                baseline_value=len(considered_dates),
+                current_value=len(set(considered_dates)),
+                absolute_difference=len(considered_dates) - len(set(considered_dates)),
                 threshold=0,
                 status="FAIL",
                 message="Injected baseline reports contain duplicate data_as_of dates",
@@ -1056,10 +1107,10 @@ def evaluate_data_and_model_drift(
             )
 
         # Check descending order in injected baseline reports
-        if baseline_dates_used != sorted(baseline_dates_used, reverse=True):
+        if considered_dates != sorted(considered_dates, reverse=True):
             obs = DriftObservation(
                 check_name="drift_baseline_reports_order",
-                baseline_period={"dates_sample": baseline_dates_used[:5]},
+                baseline_period={"dates_sample": considered_dates[:5]},
                 current_period=data_as_of,
                 baseline_value=None,
                 current_value=None,
@@ -1453,8 +1504,42 @@ def evaluate_data_and_model_drift(
                     drift_checks=[chk],
                 )
 
-            loaded_baseline_reports.append(b_payload)
-            baseline_dates_used.append(d)
+            considered_dates.append(d)
+
+            try:
+                b_metrics = extract_recommendation_metrics(
+                    b_payload, market_payload=b_payload.get("market") if isinstance(b_payload, dict) else None
+                )
+            except (ValueError, TypeError) as err:
+                obs = DriftObservation(
+                    check_name="drift_baseline_report_malformed",
+                    baseline_period={"report_date": d},
+                    current_period=data_as_of,
+                    baseline_value=None,
+                    current_value=None,
+                    absolute_difference=None,
+                    threshold=None,
+                    status="FAIL",
+                    message=f"Baseline historical report '{d}' metrics extraction failed: {err}",
+                )
+                chk = DriftCheckResult(
+                    check_name="drift_baseline_report_malformed", status="FAIL", observation=obs
+                )
+                return DriftMonitoringResult(
+                    overall_status="FAIL",
+                    data_as_of=data_as_of,
+                    baseline_summary={
+                        "status": "FAIL",
+                        "reason": f"Malformed baseline report {d}: {err}",
+                    },
+                    drift_checks=[chk],
+                )
+
+            if b_metrics["processed_ratio"] >= min_processed_ratio:
+                loaded_baseline_reports.append(b_payload)
+                baseline_dates_used.append(d)
+            else:
+                excluded_dates.append(d)
 
     num_baseline_reports = len(loaded_baseline_reports)
 
@@ -1493,7 +1578,13 @@ def evaluate_data_and_model_drift(
             baseline_period={
                 "available_reports": num_baseline_reports,
                 "required_reports": min_baseline_reports,
+                "considered_reports_count": len(considered_dates),
+                "excluded_reports_count": len(excluded_dates),
+                "qualified_reports_count": num_baseline_reports,
+                "min_processed_ratio_threshold": min_processed_ratio,
                 "baseline_dates": baseline_dates_used,
+                "excluded_dates": excluded_dates,
+                "considered_dates": considered_dates,
             },
             current_period=data_as_of,
             baseline_value=num_baseline_reports,
@@ -1501,7 +1592,12 @@ def evaluate_data_and_model_drift(
             absolute_difference=min_baseline_reports - num_baseline_reports,
             threshold=min_baseline_reports,
             status="WARNING",
-            message=f"INSUFFICIENT baseline historical data: found {num_baseline_reports} valid historical reports < {data_as_of}, minimum required is {min_baseline_reports}",
+            message=(
+                f"INSUFFICIENT baseline historical data: considered {len(considered_dates)} "
+                f"historical reports < {data_as_of}, excluded {len(excluded_dates)} for insufficient "
+                f"coverage (< {min_processed_ratio:.1%}), leaving {num_baseline_reports} qualified reports "
+                f"(minimum required is {min_baseline_reports})"
+            ),
         )
         chk = DriftCheckResult(
             check_name="drift_baseline_sufficiency", status="WARNING", observation=obs
@@ -1511,48 +1607,27 @@ def evaluate_data_and_model_drift(
             data_as_of=data_as_of,
             baseline_summary={
                 "status": "INSUFFICIENT",
+                "report_count": num_baseline_reports,
                 "available_reports": num_baseline_reports,
+                "considered_reports_count": len(considered_dates),
+                "excluded_reports_count": len(excluded_dates),
+                "qualified_reports_count": num_baseline_reports,
                 "required_reports": min_baseline_reports,
+                "min_processed_ratio_threshold": min_processed_ratio,
                 "baseline_dates": baseline_dates_used,
+                "excluded_dates": excluded_dates,
+                "considered_dates": considered_dates,
             },
             drift_checks=[chk],
         )
 
-    # Extract baseline metrics for all loaded baseline reports fail-closed
-    all_baseline_metrics = []
-    for idx, b_p in enumerate(loaded_baseline_reports):
-        try:
-            m = extract_recommendation_metrics(
-                b_p, market_payload=b_p.get("market") if isinstance(b_p, dict) else None
-            )
-            all_baseline_metrics.append(m)
-        except (ValueError, TypeError) as err:
-            b_date_lbl = (
-                baseline_dates_used[idx] if idx < len(baseline_dates_used) else f"index_{idx}"
-            )
-            obs = DriftObservation(
-                check_name="drift_baseline_report_malformed",
-                baseline_period={"index": idx, "report_date": b_date_lbl},
-                current_period=data_as_of,
-                baseline_value=None,
-                current_value=None,
-                absolute_difference=None,
-                threshold=None,
-                status="FAIL",
-                message=f"Baseline historical report '{b_date_lbl}' metrics extraction failed: {err}",
-            )
-            chk = DriftCheckResult(
-                check_name="drift_baseline_report_malformed", status="FAIL", observation=obs
-            )
-            return DriftMonitoringResult(
-                overall_status="FAIL",
-                data_as_of=data_as_of,
-                baseline_summary={
-                    "status": "FAIL",
-                    "reason": f"Malformed baseline report {b_date_lbl}: {err}",
-                },
-                drift_checks=[chk],
-            )
+    # Extract baseline metrics for all qualified baseline reports
+    all_baseline_metrics = [
+        extract_recommendation_metrics(
+            b_p, market_payload=b_p.get("market") if isinstance(b_p, dict) else None
+        )
+        for b_p in loaded_baseline_reports
+    ]
 
     # Compute baseline aggregated metric values using pooled recommendation observations
     # for recommendation metrics, and report/day-level mean for market metrics.
@@ -1646,9 +1721,15 @@ def evaluate_data_and_model_drift(
     baseline_period_info = {
         "status": "SUFFICIENT",
         "report_count": num_baseline_reports,
+        "considered_reports_count": len(considered_dates),
+        "excluded_reports_count": len(excluded_dates),
+        "qualified_reports_count": num_baseline_reports,
+        "min_processed_ratio_threshold": min_processed_ratio,
         "start_date": baseline_dates_used[-1] if baseline_dates_used else None,
         "end_date": baseline_dates_used[0] if baseline_dates_used else None,
         "baseline_dates": baseline_dates_used,
+        "excluded_dates": excluded_dates,
+        "considered_dates": considered_dates,
     }
 
     drift_checks: list[DriftCheckResult] = []
@@ -1940,6 +2021,10 @@ def evaluate_data_and_model_drift(
     baseline_summary_dict = {
         "status": "SUFFICIENT",
         "report_count": num_baseline_reports,
+        "considered_reports_count": len(considered_dates),
+        "excluded_reports_count": len(excluded_dates),
+        "qualified_reports_count": num_baseline_reports,
+        "min_processed_ratio_threshold": min_processed_ratio,
         "baseline_period": baseline_period_info,
         "baseline_metrics": {
             "processed_ratio": baseline_processed_ratio,

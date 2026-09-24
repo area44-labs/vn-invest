@@ -914,22 +914,50 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
 
     def test_monitoring_runs_drift_checks_and_validates_payload(self):
         """Verify evaluate_production_monitoring includes drift checks and produces a valid payload."""
+        import json
+        import os
+        import tempfile
+
         curr = make_mock_payload(data_as_of="2026-09-17")
 
-        res = evaluate_production_monitoring(
-            recommendations_payload=curr,
-            reference_date="2026-09-17",
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            history_dir = os.path.join(tmpdir, "history")
+            os.makedirs(history_dir, exist_ok=True)
 
-        payload_dict = res.to_dict()
-        self.assertTrue(validate_monitoring_payload(payload_dict))
-        self.assertIn("drift_monitoring", res.metrics)
+            dates = [
+                "2026-09-17",
+                "2026-09-16",
+                "2026-09-15",
+                "2026-09-14",
+                "2026-09-13",
+                "2026-09-12",
+            ]
+            with open(os.path.join(tmpdir, "recommendations.json"), "w", encoding="utf-8") as f:
+                json.dump(curr, f)
+            with open(os.path.join(tmpdir, "market.json"), "w", encoding="utf-8") as f:
+                json.dump(curr["market"], f)
+            with open(os.path.join(history_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": dates}, f)
 
-        # Check that drift check results are present in checks array
-        check_names = [c.check_name for c in res.checks]
-        self.assertIn("drift_processed_ratio", check_names)
-        self.assertIn("drift_action_distribution", check_names)
-        self.assertIn("drift_signal_score", check_names)
+            for d in dates:
+                with open(os.path.join(history_dir, f"{d}.json"), "w", encoding="utf-8") as f:
+                    json.dump(make_mock_payload(data_as_of=d), f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=curr,
+                reference_date="2026-09-17",
+            )
+
+            payload_dict = res.to_dict()
+            self.assertTrue(validate_monitoring_payload(payload_dict))
+            self.assertIn("drift_monitoring", res.metrics)
+
+            # Check that drift check results are present in checks array
+            check_names = [c.check_name for c in res.checks]
+            self.assertIn("drift_processed_ratio", check_names)
+            self.assertIn("drift_action_distribution", check_names)
+            self.assertIn("drift_signal_score", check_names)
 
     def test_drift_fail_causes_overall_monitoring_fail(self):
         """Verify drift FAIL result forces evaluate_production_monitoring overall_status to FAIL.
@@ -1086,6 +1114,223 @@ class TestBaselineAggregationSemantics(unittest.TestCase):
         # Market metrics remain daily/report-level mean across 5 reports
         self.assertEqual(b_metrics["market_breadth_ratio"], 0.600000)
         self.assertEqual(b_metrics["vnindex_change_pct"], 2.0000)
+
+
+class TestQualityAwareDriftMonitoring(unittest.TestCase):
+    """Test suite for quality-aware drift monitoring, coverage filtering, and diagnostics."""
+
+    def test_incomplete_historical_reports_excluded_from_baseline(self):
+        """Verify historical reports with processed_ratio < min_processed_ratio (0.80) are excluded."""
+        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT")
+
+        # 5 qualified baseline reports (processed_ratio = 1.0)
+        qualified_baselines = [
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT")
+            for i in range(5)
+        ]
+        # 3 incomplete baseline reports (processed_ratio = 0.0)
+        incomplete_baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{11 - i:02d}",
+                total_scanned=20,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=20,
+                data_quality="INSUFFICIENT",
+            )
+            for i in range(3)
+        ]
+
+        all_baselines = qualified_baselines + incomplete_baselines
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=all_baselines,
+            min_processed_ratio=0.80,
+        )
+
+        self.assertEqual(res.overall_status, "PASS")
+        self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
+        self.assertEqual(res.baseline_summary["considered_reports_count"], 8)
+        self.assertEqual(res.baseline_summary["excluded_reports_count"], 3)
+        self.assertEqual(res.baseline_summary["qualified_reports_count"], 5)
+        self.assertEqual(res.baseline_summary["baseline_metrics"]["processed_ratio"], 1.0)
+        self.assertEqual(
+            res.baseline_summary["baseline_period"]["excluded_dates"],
+            ["2026-09-11", "2026-09-10", "2026-09-09"],
+        )
+
+    def test_full_universe_report_does_not_fail_due_to_low_coverage_historical_reports(self):
+        """Verify full-universe current report passes drift check when older reports had low coverage."""
+        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=42, data_quality="SUFFICIENT")
+
+        # 6 qualified reports with processed_ratio = 1.0
+        qualified = [
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=42, data_quality="SUFFICIENT")
+            for i in range(6)
+        ]
+        # 4 low-coverage reports with processed_ratio = 0.0
+        low_coverage = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{10 - i:02d}",
+                total_scanned=42,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=42,
+                data_quality="INSUFFICIENT",
+            )
+            for i in range(4)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified + low_coverage,
+        )
+
+        self.assertEqual(res.overall_status, "PASS")
+        proc_chk = next(c for c in res.drift_checks if c.check_name == "drift_processed_ratio")
+        self.assertEqual(proc_chk.status, "PASS")
+        self.assertEqual(proc_chk.observation.baseline_value, 1.0)
+
+    def test_insufficient_quality_qualified_baseline_returns_warning_not_false_fail(self):
+        """Verify when qualified reports < min_baseline_reports, status is WARNING and INSUFFICIENT baseline."""
+        curr = make_mock_payload(data_as_of="2026-09-17", total_scanned=20, data_quality="SUFFICIENT")
+
+        # Only 2 qualified reports
+        qualified = [
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", total_scanned=20, data_quality="SUFFICIENT")
+            for i in range(2)
+        ]
+        # 5 incomplete reports
+        incomplete = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{14 - i:02d}",
+                total_scanned=20,
+                buy_count=0,
+                watch_count=0,
+                hold_count=0,
+                sell_count=0,
+                avoid_count=20,
+                data_quality="INSUFFICIENT",
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=qualified + incomplete,
+        )
+
+        self.assertEqual(res.overall_status, "WARNING")
+        self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
+        self.assertEqual(res.baseline_summary["considered_reports_count"], 7)
+        self.assertEqual(res.baseline_summary["excluded_reports_count"], 5)
+        self.assertEqual(res.baseline_summary["qualified_reports_count"], 2)
+        self.assertEqual(len(res.drift_checks), 1)
+        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
+        self.assertIn("INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message)
+        self.assertIn("excluded 5 for insufficient coverage", res.drift_checks[0].observation.message)
+
+    def test_comparable_full_coverage_reports_still_detect_genuine_drift(self):
+        """Verify genuine drift between comparable full-coverage reports triggers FAIL status."""
+        curr_drifted = make_mock_payload(
+            data_as_of="2026-09-17",
+            signal_score=95.0,  # +30 shift from baseline 65.0 (> 25.0 fail threshold)
+        )
+        qualified_baselines = [
+            make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}", signal_score=65.0) for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_drifted,
+            baseline_reports=qualified_baselines,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        sig_chk = next(c for c in res.drift_checks if c.check_name == "drift_signal_score")
+        self.assertEqual(sig_chk.status, "FAIL")
+        self.assertEqual(sig_chk.observation.absolute_difference, 30.0)
+
+    def test_action_distribution_drift_detected_on_comparable_baseline(self):
+        """Verify action distribution drift is detected when baseline is comparable."""
+        curr_action_shift = make_mock_payload(
+            data_as_of="2026-09-17",
+            buy_count=18,  # 90% BUY
+            watch_count=1,
+            hold_count=1,
+            sell_count=0,
+            avoid_count=0,
+        )
+        qualified_baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                buy_count=5,  # 25% BUY
+                watch_count=5,
+                hold_count=5,
+                sell_count=5,
+                avoid_count=0,
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_action_shift,
+            baseline_reports=qualified_baselines,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        action_chk = next(c for c in res.drift_checks if c.check_name == "drift_action_distribution")
+        self.assertEqual(action_chk.status, "FAIL")
+
+    def test_invalid_min_processed_ratio_fails_closed(self):
+        """Verify invalid min_processed_ratio parameter types/values raise TypeError or ValueError."""
+        curr = make_mock_payload(data_as_of="2026-09-17")
+        baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
+
+        # Boolean
+        with self.assertRaises(TypeError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio=True
+            )
+
+        # Non-numeric string
+        with self.assertRaises(TypeError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio="0.80"
+            )
+
+        # Non-positive
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio=0.0
+            )
+
+        # Negative
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio=-0.5
+            )
+
+        # > 1.0
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio=1.5
+            )
+
+        # Non-finite NaN
+        with self.assertRaises(ValueError):
+            evaluate_data_and_model_drift(
+                current_payload=curr, baseline_reports=baselines, min_processed_ratio=float("nan")
+            )
 
 
 if __name__ == "__main__":
