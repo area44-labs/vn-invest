@@ -146,14 +146,12 @@ def is_rate_limit_exception(exc: BaseException) -> bool:
 
 
 def is_client_auth_exception(exc: BaseException) -> bool:
-    """Determine whether an exception represents a client/auth/permission error (400, 401, 403, 404, 408)."""
+    """Determine whether an exception represents a client/auth/permission error (all HTTP 4xx status codes except 429 Rate Limit)."""
     response = getattr(exc, "response", None)
     if response is not None and hasattr(response, "status_code"):
         try:
             status_code = int(response.status_code)
-            return status_code in CLIENT_AUTH_HTTP_STATUS_CODES or (
-                400 <= status_code < 500 and status_code != 429
-            )
+            return 400 <= status_code < 500 and status_code != 429
         except ValueError, TypeError:
             pass
     return False
