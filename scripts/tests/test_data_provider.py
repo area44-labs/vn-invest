@@ -506,5 +506,126 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         self.assertEqual(mock_inst.history.call_count, 1)
 
 
+class TestVnstockRealRateLimitRegression(unittest.TestCase):
+    """Focused regression tests using real Vnstock / Vnai rate-limit exception shapes."""
+
+    def setUp(self):
+        reset_circuit_breaker()
+
+    def tearDown(self):
+        reset_circuit_breaker()
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_real_vnai_rate_limit_exceeded_exception_40s_cooldown(self, mock_quote, mock_sleep):
+        """Regression test verifying real Vnai RateLimitExceeded exception format with 40s wait."""
+        # Realistic Vnai RateLimitExceeded exception message format
+        vnai_msg = (
+            "\n"
+            "============================================================\n"
+            "⚠️  GIỚI HẠN API ĐÃ ĐẠT TỐI ĐA (Rate Limit Exceeded)\n"
+            "============================================================\n\n"
+            "📌 Bạn đã đạt giới hạn tối đa số lượt yêu cầu API trong 1 phút (minute).\n"
+            "   (You have reached the maximum API request limit for this period)\n\n"
+            "📊 Chi tiết (Details):\n"
+            "   • Gói hiện tại: Khách (Guest)\n"
+            "   • Giới hạn: 20 requests/phút\n"
+            "   • Đã sử dụng: 20/20\n"
+            "   • Chờ 40 giây để tiếp tục (Wait to retry)\n\n"
+            "💡 Giải pháp (Solutions):\n"
+            "   1️⃣ Chờ 40 giây rồi thử lại\n"
+        )
+
+        class RateLimitExceeded(Exception):
+            pass
+
+        exc = RateLimitExceeded(vnai_msg)
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = exc
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+
+        with self.assertRaises(ProviderRateLimitError) as ctx:
+            provider.fetch_ohlcv("FPT", max_retries=3)
+
+        # 1. No retries occur (call_count == 1)
+        self.assertEqual(mock_inst.history.call_count, 1)
+
+        # 2. Transformed to ProviderRateLimitError
+        self.assertIsInstance(ctx.exception, ProviderRateLimitError)
+        self.assertEqual(ctx.exception.symbol, "FPT")
+
+        # 3. Parsed cooldown is preserved (40 + 2 = 42 seconds)
+        self.assertEqual(ctx.exception.cooldown_seconds, 42)
+
+        # 4. Circuit breaker is activated
+        self.assertTrue(is_circuit_breaker_active())
+
+        # 5. Subsequent provider requests are blocked fast without making network calls
+        mock_inst.reset_mock()
+        with self.assertRaises(ProviderRateLimitError) as ctx2:
+            provider.fetch_ohlcv("VCB")
+
+        self.assertEqual(mock_inst.history.call_count, 0)
+        self.assertIn("circuit breaker is active", str(ctx2.exception))
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_real_vnstock_rate_limit_60s_english_message(self, mock_quote, mock_sleep):
+        """Regression test verifying 60s English rate limit message."""
+        msg = "Rate limit exceeded. Wait 60 seconds."
+
+        class RateLimitExceeded(Exception):
+            pass
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = RateLimitExceeded(msg)
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+
+        with self.assertRaises(ProviderRateLimitError) as ctx:
+            provider.fetch_ohlcv("HPG", max_retries=3)
+
+        self.assertEqual(mock_inst.history.call_count, 1)
+        self.assertEqual(ctx.exception.cooldown_seconds, 62)
+        self.assertTrue(is_circuit_breaker_active())
+
+    def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
+        """Regression test verifying generate_report.py halts cleanly (exit 1) and preserves generated files."""
+        import json
+        import tempfile
+        from pathlib import Path
+        from scripts.generate_report import main as generate_report_main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+
+            recs_file = generated_dir / "recommendations.json"
+            initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+            recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline",
+                    side_effect=ProviderRateLimitError("Rate limit reached", cooldown_seconds=42),
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                # Pipeline exits with status code 1
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Generated output file was NOT modified or overwritten
+            saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
+            self.assertEqual(saved_content, initial_content)
+
+
 if __name__ == "__main__":
     unittest.main()
