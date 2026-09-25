@@ -6,6 +6,7 @@ Covers Tests A through M without live API dependencies.
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 
 from scripts.generate_report import run_pipeline
@@ -319,7 +320,6 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
     def test_5_inf_in_volume_fails(self):
         """5. Inf in volume -> failure."""
-        import numpy as np
         from scripts.lib.vietnam_market import get_historical_data
 
         df = make_valid_df(25)
