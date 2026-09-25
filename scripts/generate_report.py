@@ -184,7 +184,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             )
             stock_data_map[sym] = (df_stock, tag, warns)
 
-            df_clean_stock, val_res = get_clean_ohlcv_data(df_stock, sym)
+            df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
 
             if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
                 failed_symbols.add(sym)
