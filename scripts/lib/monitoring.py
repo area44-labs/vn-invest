@@ -3071,13 +3071,10 @@ def evaluate_production_monitoring(
         ]
         benchmarks = ["VNINDEX", "VN30"]
         exp_list = sorted(
-            list(
-                set(benchmarks)
-                | {r["symbol"] for r in recs if isinstance(r, dict) and r.get("symbol")}
-            )
+            set(benchmarks) | {r["symbol"] for r in recs if isinstance(r, dict) and r.get("symbol")}
         )
-        proc_list = sorted(list(set(benchmarks) | set(cand_proc)))
-        insuf_list = sorted(list(set(cand_insuf)))
+        proc_list = sorted(set(benchmarks) | set(cand_proc))
+        insuf_list = sorted(set(cand_insuf))
 
         ex_list = [
             {

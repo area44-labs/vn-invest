@@ -684,12 +684,12 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     exclusions_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
 
     universe_audit = {
-        "expected_symbols": sorted(list(expected_symbols)),
-        "processed_symbols": sorted(list(processed_symbols)),
-        "invalid_symbols": sorted(list(invalid_symbols)),
-        "insufficient_history_symbols": sorted(list(insufficient_history_symbols)),
-        "failed_symbols": sorted(list(failed_symbols)),
-        "missing_symbols": sorted(list(missing_symbols)),
+        "expected_symbols": sorted(expected_symbols),
+        "processed_symbols": sorted(processed_symbols),
+        "invalid_symbols": sorted(invalid_symbols),
+        "insufficient_history_symbols": sorted(insufficient_history_symbols),
+        "failed_symbols": sorted(failed_symbols),
+        "missing_symbols": sorted(missing_symbols),
         "counts": {
             "expected_count": len(expected_symbols),
             "processed_count": len(processed_symbols),
@@ -935,12 +935,12 @@ def generate_historical_report(
         }
 
     universe_audit = {
-        "expected_symbols": sorted(list(expected_symbols)),
-        "processed_symbols": sorted(list(processed_symbols)),
-        "invalid_symbols": sorted(list(invalid_symbols)),
-        "insufficient_history_symbols": sorted(list(insufficient_history_symbols)),
-        "failed_symbols": sorted(list(failed_symbols)),
-        "missing_symbols": sorted(list(missing_symbols)),
+        "expected_symbols": sorted(expected_symbols),
+        "processed_symbols": sorted(processed_symbols),
+        "invalid_symbols": sorted(invalid_symbols),
+        "insufficient_history_symbols": sorted(insufficient_history_symbols),
+        "failed_symbols": sorted(failed_symbols),
+        "missing_symbols": sorted(missing_symbols),
         "counts": {
             "expected_count": len(expected_symbols),
             "processed_count": len(processed_symbols),
