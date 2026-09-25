@@ -10,6 +10,7 @@ import os
 import time
 from datetime import UTC, datetime, timedelta
 
+import numpy as np
 import pandas as pd
 
 from scripts.data_provider import (
@@ -456,6 +457,19 @@ def clamp_price_limits(price: float, ref_price: float = 0.0, exchange: str = "HO
     return round_tick_size(max(floor_p, min(ceiling_p, p)), ex_upper)
 
 
+DATA_CORRUPTION_ISSUES = {
+    "invalid_dates",
+    "duplicate_dates",
+    "non_monotonic_dates",
+    "non_numeric_values",
+    "nan_values",
+    "infinite_values",
+    "non_positive_prices",
+    "negative_volume",
+    "invalid_ohlc_relationship",
+}
+
+
 def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
     """Validate data quality for an OHLCV DataFrame without modifying raw data.
 
@@ -498,7 +512,7 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
             issues.append("missing_date_column")
         return {
             "status": "INSUFFICIENT",
-            "issues": issues,
+            "issues": sorted(set(issues)),
             "row_count": row_count,
             "valid_row_count": 0,
             "latest_date": None,
@@ -520,9 +534,13 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
             issues.append("duplicate_dates")
             dup_date_mask = parsed_dates.isin(duplicated_date_values)
 
+        if not valid_parsed_dates.is_monotonic_increasing:
+            issues.append("non_monotonic_dates")
+
     numeric_df = pd.DataFrame(index=df.index)
     has_non_numeric = False
     has_nans = False
+    has_inf = False
 
     for field in required_fields:
         orig_col = col_map[field]
@@ -533,15 +551,20 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
             non_null_orig = df[orig_col].dropna()
             if not non_null_orig.empty and converted.loc[non_null_orig.index].isna().any():
                 has_non_numeric = True
+        arr = converted.to_numpy()
+        if np.isinf(arr).any():
+            has_inf = True
 
     if has_non_numeric:
         issues.append("non_numeric_values")
     if has_nans:
         issues.append("nan_values")
+    if has_inf:
+        issues.append("infinite_values")
 
     row_invalid_mask = invalid_date_mask | dup_date_mask
     for field in required_fields:
-        row_invalid_mask |= numeric_df[field].isna()
+        row_invalid_mask |= numeric_df[field].isna() | np.isinf(numeric_df[field].to_numpy())
 
     price_cols = ["open", "high", "low", "close"]
     non_pos_price_mask = (numeric_df[price_cols] <= 0).any(axis=1)
@@ -560,34 +583,34 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
         issues.append("invalid_ohlc_relationship")
         row_invalid_mask |= ohlc_conflict_mask
 
-    valid_mask = ~row_invalid_mask
-    valid_row_count = int(valid_mask.sum())
+    has_corruption = any(iss in DATA_CORRUPTION_ISSUES for iss in issues)
 
-    if valid_row_count < 20:
-        issues.append("insufficient_history")
-
-    # Build clean DataFrame without mutating raw df
-    if valid_row_count > 0:
-        clean_df = pd.DataFrame(index=df.index[valid_mask])
-        clean_df["time"] = parsed_dates[valid_mask].dt.strftime("%Y-%m-%d")
-        for field in required_fields:
-            clean_df[field] = numeric_df.loc[valid_mask, field]
-        clean_df = clean_df.sort_values("time").reset_index(drop=True)
-        latest_date = clean_df["time"].max()
-    else:
+    if has_corruption:
+        # Corrupted market data cannot be silently repaired; fail closed
+        valid_row_count = 0
         clean_df = pd.DataFrame()
         latest_date = None
-
-    if (
-        valid_row_count < 20
-        or "missing_required_columns" in issues
-        or "missing_date_column" in issues
-    ):
         status = "INSUFFICIENT"
-    elif len(issues) > 0:
-        status = "PARTIAL"
     else:
-        status = "SUFFICIENT"
+        valid_mask = ~row_invalid_mask
+        valid_row_count = int(valid_mask.sum())
+
+        if valid_row_count > 0:
+            clean_df = pd.DataFrame(index=df.index[valid_mask])
+            clean_df["time"] = parsed_dates[valid_mask].dt.strftime("%Y-%m-%d")
+            for field in required_fields:
+                clean_df[field] = numeric_df.loc[valid_mask, field]
+            clean_df = clean_df.sort_values("time").reset_index(drop=True)
+            latest_date = clean_df["time"].max()
+        else:
+            clean_df = pd.DataFrame()
+            latest_date = None
+
+        if valid_row_count < 20:
+            issues.append("insufficient_history")
+            status = "INSUFFICIENT"
+        else:
+            status = "SUFFICIENT"
 
     return {
         "status": status,
@@ -641,6 +664,8 @@ def get_historical_data(
                 for iss in ["empty_dataframe", "missing_required_columns", "missing_date_column"]
             ):
                 source_tag = "PROVIDER_FAILURE"
+            elif any(iss in DATA_CORRUPTION_ISSUES for iss in issues):
+                source_tag = "EXPLICITLY_INVALID"
             elif "insufficient_history" in issues or val_res.get("valid_row_count", 0) < 20:
                 source_tag = "INSUFFICIENT_HISTORICAL_DATA"
             else:
@@ -668,8 +693,26 @@ def get_historical_data(
             raise
         except Exception as e:  # noqa: BLE001
             logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
+            from scripts.data_provider import CanonicalOHLCVError
+
+            err_msg = str(e)
+            if isinstance(e, CanonicalOHLCVError) or any(
+                p in err_msg.lower()
+                for p in [
+                    "ohlc",
+                    "nan",
+                    "infinite",
+                    "non-positive",
+                    "negative volume",
+                    "duplicate date",
+                    "unsorted date",
+                ]
+            ):
+                source_tag = "EXPLICITLY_INVALID"
+            else:
+                source_tag = "PROVIDER_FAILURE"
             return (
                 pd.DataFrame(),
-                "PROVIDER_FAILURE",
+                source_tag,
                 [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock: {e}"],
             )

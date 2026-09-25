@@ -203,9 +203,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
             df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
 
-            if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
+            if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
                 failed_symbols.add(sym)
-            elif tag in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
+            elif tag == "INVALID_SYMBOL":
                 invalid_symbols.add(sym)
             elif tag == "INSUFFICIENT_HISTORICAL_DATA":
                 insufficient_history_symbols.add(sym)

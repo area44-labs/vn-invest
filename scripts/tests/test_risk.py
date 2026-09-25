@@ -170,20 +170,12 @@ class TestRiskModel(unittest.TestCase):
             }
         )
 
-        clean_df, _ = get_clean_ohlcv_data(df_raw, "TEST")
+        clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
 
-        # Raw calculation (if clean boundary were bypassed)
-        raw_returns = df_raw["close"].pct_change(periods=3).dropna()
-        # Clean calculation (production pipeline)
-        clean_returns = calculate_t25_returns(clean_df["close"])
-
-        # Both occurrences of duplicate date '2026-01-03' are excluded by get_clean_ohlcv_data
-        # Clean dates remaining: '2026-01-01' (100.0), '2026-01-02' (102.0), '2026-01-04' (106.0), '2026-01-05' (108.0)
-        # Expected first clean T+2.5 return: (108.0 - 100.0) / 100.0 = 0.08
-        self.assertAlmostEqual(clean_returns.iloc[0], 0.08, places=4)
-
-        # Confirm that bypassing clean data boundary produces a completely different (corrupted) return
-        self.assertNotEqual(clean_returns.iloc[0], raw_returns.iloc[0])
+        # Under hardened validation, duplicate dates trigger a data corruption failure and return clean_df empty
+        self.assertIn("duplicate_dates", val_res["issues"])
+        self.assertEqual(val_res["status"], "INSUFFICIENT")
+        self.assertTrue(clean_df.empty)
 
     def test_i_other_risk_metrics_unchanged(self):
         """Test I — Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
@@ -298,41 +290,15 @@ class TestRiskModel(unittest.TestCase):
             }
         )
 
-        # 1. Verify clean data boundary detects NaN issues and excludes invalid rows
+        # 1. Verify clean data boundary detects NaN issues and fails closed
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
         self.assertIn("nan_values", val_res["issues"])
-        self.assertEqual(len(clean_df), 22)
-
-        # 2. Verify calculate_t25_risk_metrics on clean DataFrame produces exact VaR and ES
-        returns_clean = clean_df["close"].pct_change(3).dropna()
-        expected_var = round(float(np.percentile(returns_clean, 5)), 4)
-        expected_es = round(
-            float(returns_clean[returns_clean <= np.percentile(returns_clean, 5)].mean()), 4
-        )
+        self.assertEqual(val_res["status"], "INSUFFICIENT")
+        self.assertTrue(clean_df.empty)
 
         metrics = calculate_t25_risk_metrics(clean_df)
-        self.assertEqual(metrics["var_t25"], expected_var)
-        self.assertEqual(metrics["es_t25"], expected_es)
-
-        # 3. Verify that when NaNs reduce clean rows below minimum history (< 20), risk metrics return nulls
-        raw_prices_short = [100.0 + i for i in range(15)] + [np.nan] * 10
-        df_raw_short = pd.DataFrame(
-            {
-                "time": pd.date_range("2026-01-01", periods=25, freq="D"),
-                "open": [p - 1.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
-                "high": [p + 2.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
-                "low": [p - 2.0 if not np.isnan(p) else np.nan for p in raw_prices_short],
-                "close": raw_prices_short,
-                "volume": [1000.0] * 25,
-            }
-        )
-        clean_short_df, val_short_res = get_clean_ohlcv_data(df_raw_short, "TEST")
-        self.assertEqual(len(clean_short_df), 15)
-        self.assertIn("insufficient_history", val_short_res["issues"])
-
-        metrics_null = calculate_t25_risk_metrics(clean_short_df)
-        self.assertIsNone(metrics_null["var_t25"])
-        self.assertIsNone(metrics_null["es_t25"])
+        self.assertIsNone(metrics["var_t25"])
+        self.assertIsNone(metrics["es_t25"])
 
     def test_var_and_es_repeatability_determinism(self):
         """Verify that identical historical inputs produce identical VaR and ES risk outputs."""
