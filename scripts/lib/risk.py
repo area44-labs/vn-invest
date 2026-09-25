@@ -109,7 +109,7 @@ def calculate_t25_risk_metrics(
     if len(returns_1d) >= 10:
         std_1d = _safe_float(returns_1d.std())
         if std_1d is not None:
-            volatility_60d = round(std_1d * np.sqrt(252), 4)
+            volatility_60d = _safe_float(round(std_1d * float(np.sqrt(252)), 4))
 
     # Max Drawdown
     cummax = df_calc[price_col].cummax()
