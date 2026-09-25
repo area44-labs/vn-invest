@@ -1683,12 +1683,16 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        for bench in ["VNINDEX", "VN30"]:
-
+        def make_mock_get_hist(bench_target):
             def mock_get_hist(sym, **kwargs):
-                if sym == bench:
-                    return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{bench}] Fetch failed"]
+                if sym == bench_target:
+                    return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{bench_target}] Fetch failed"]
                 return valid_df, "REAL_DATA", []
+
+            return mock_get_hist
+
+        for bench in ["VNINDEX", "VN30"]:
+            mock_get_hist = make_mock_get_hist(bench)
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 generated_dir = Path(tmpdir) / "generated"
