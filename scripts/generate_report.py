@@ -104,6 +104,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     }
     processed_symbols = set()
     invalid_symbols = set()
+    insufficient_history_symbols = set()
     failed_symbols = set()
 
     logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
@@ -183,19 +184,16 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             )
             stock_data_map[sym] = (df_stock, tag, warns)
 
-            df_clean_stock, val_res = get_clean_ohlcv_data(df_stock, sym)
+            df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
 
             if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR"):
                 failed_symbols.add(sym)
             elif tag in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
                 invalid_symbols.add(sym)
-            elif df_stock is None or df_stock.empty:
-                if tag == "INSUFFICIENT_HISTORICAL_DATA":
-                    invalid_symbols.add(sym)
-                else:
-                    failed_symbols.add(sym)
-            elif df_clean_stock.empty or val_res.get("status") == "INSUFFICIENT":
-                invalid_symbols.add(sym)
+            elif tag == "INSUFFICIENT_HISTORICAL_DATA":
+                insufficient_history_symbols.add(sym)
+            elif df_stock is None or df_stock.empty or df_clean_stock.empty:
+                failed_symbols.add(sym)
             else:
                 processed_symbols.add(sym)
 
@@ -212,18 +210,24 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             failed_symbols.add(sym)
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
 
-    missing_symbols = expected_symbols - (processed_symbols | invalid_symbols | failed_symbols)
+    missing_symbols = expected_symbols - (
+        processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
+    )
 
     if update_data and (
         expected_symbols != (processed_symbols | invalid_symbols)
         or failed_symbols
+        or insufficient_history_symbols
         or missing_symbols
     ):
         raise RuntimeError(
             f"Incomplete universe scan in update mode: validation failed. "
             f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
-            f"Invalid: {len(invalid_symbols)}, Failed: {len(failed_symbols)}, "
-            f"Missing: {len(missing_symbols)}. "
+            f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
+            f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
+            f"Processed symbols: {sorted(processed_symbols)}. "
+            f"Invalid symbols: {sorted(invalid_symbols)}. "
+            f"Insufficient history symbols: {sorted(insufficient_history_symbols)}. "
             f"Failed symbols: {sorted(failed_symbols)}. "
             f"Missing symbols: {sorted(missing_symbols)}."
         )
