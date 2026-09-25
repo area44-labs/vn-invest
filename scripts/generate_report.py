@@ -245,8 +245,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             | temporal_res["missing_date_symbols"]
         )
         for sym in temporal_invalid_syms:
-            if sym in processed_symbols:
-                processed_symbols.remove(sym)
+            processed_symbols.discard(sym)
             failed_symbols.add(sym)
             # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
             stock_data_map[sym] = (
