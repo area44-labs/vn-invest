@@ -63,6 +63,7 @@ def validate_temporal_integrity(
     stock_dates_map: dict[str, str | None],
     reference_date: str | None = None,
     max_staleness_days: int = MAX_STOCK_STALENESS_DAYS,
+    strict_date_match: bool = False,
 ) -> dict:
     """Validate temporal consistency across VNINDEX benchmark data_as_of and processed stock dates.
 
@@ -144,7 +145,10 @@ def validate_temporal_integrity(
             future_symbols.add(sym)
         else:
             lag_days = (benchmark_date_only - stock_date_only).days
-            if lag_days > max_staleness_days:
+            if strict_date_match:
+                if lag_days > 0:
+                    stale_symbols.add(sym)
+            elif lag_days > max_staleness_days:
                 stale_symbols.add(sym)
 
     if future_symbols:
@@ -152,9 +156,14 @@ def validate_temporal_integrity(
             f"Detected stock symbols dated after VNINDEX data_as_of ({data_as_of}): {sorted(future_symbols)}"
         )
     if stale_symbols:
-        issues.append(
-            f"Detected stock symbols excessively stale relative to VNINDEX data_as_of ({data_as_of}, >{max_staleness_days} days lag): {sorted(stale_symbols)}"
-        )
+        if strict_date_match:
+            issues.append(
+                f"Detected stock symbols whose latest trading date does not match VNINDEX data_as_of ({data_as_of}): {sorted(stale_symbols)}"
+            )
+        else:
+            issues.append(
+                f"Detected stock symbols excessively stale relative to VNINDEX data_as_of ({data_as_of}, >{max_staleness_days} days lag): {sorted(stale_symbols)}"
+            )
     if missing_date_symbols:
         issues.append(
             f"Detected processed stock symbols with missing or invalid latest dates: {sorted(missing_date_symbols)}"
@@ -754,6 +763,7 @@ def get_historical_data(
     allow_synthetic: bool = False,
     throttle_delay: float = 0.0,
     max_rate_limit_retries: int = 3,
+    target_date: str | None = None,
 ):
     """Fetch real historical EOD OHLCV data for a given symbol via provider boundary."""
     sym = normalize_symbol(symbol)
@@ -773,6 +783,7 @@ def get_historical_data(
                 start_date=start_date,
                 end_date=end_date,
                 max_retries=max_retries,
+                target_date=target_date,
             )
             val_res = validate_ohlcv_data(df_out, sym)
             issues = val_res["issues"]

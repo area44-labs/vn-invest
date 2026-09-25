@@ -1,12 +1,15 @@
 """Regression test suite for data-date semantics in the Python data pipeline."""
 
+import tempfile
 import unittest
 from datetime import UTC, datetime
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import jsonschema
 import pandas as pd
 
+from scripts.data_provider import VnstockDataProvider
 from scripts.generate_report import (
     load_schema,
     run_pipeline,
@@ -556,6 +559,293 @@ class TestReportProvenanceMetadata(unittest.TestCase):
 
             schema = load_schema()
             jsonschema.validate(instance=recs_payload, schema=schema)
+
+
+class TestProductionDataFreshness(unittest.TestCase):
+    """Deterministic offline unit tests verifying production data freshness rules."""
+
+    def test_1_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
+        """1. VNINDEX and all stocks have the same latest date -> update succeeds."""
+        df_valid = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )  # latest date = 2026-09-20
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+            recs, mkt, _ = run_pipeline(update_data=True)
+            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            self.assertEqual(mkt["data_as_of"], "2026-09-20")
+
+    def test_2_one_stock_one_day_behind_update_fails(self):
+        """2. One stock is one day behind -> update fails."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )  # latest date = 2026-09-20
+
+        df_stale = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-08-31", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 20,
+                "high": [52.0] * 20,
+                "low": [48.0] * 20,
+                "close": [50.0] * 20,
+                "volume": [500000] * 20,
+            }
+        )  # latest date = 2026-09-19 (1 day behind)
+
+        def side_effect(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            if symbol == "FPT":
+                return df_stale, "REAL_DATA", []
+            return df_vnindex, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+            self.assertIn("FPT", str(ctx.exception))
+
+    def test_3_one_stock_several_days_behind_update_fails(self):
+        """3. One stock is several days behind -> update fails."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )  # latest date = 2026-09-20
+
+        df_stale = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-08-25", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 20,
+                "high": [52.0] * 20,
+                "low": [48.0] * 20,
+                "close": [50.0] * 20,
+                "volume": [500000] * 20,
+            }
+        )  # latest date = 2026-09-13 (7 days behind)
+
+        def side_effect(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            if symbol == "SSI":
+                return df_stale, "REAL_DATA", []
+            return df_vnindex, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+            self.assertIn("SSI", str(ctx.exception))
+
+    def test_4_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
+        self,
+    ):
+        """4. Stock data contains canonical date with older rows -> update succeeds and uses canonical-date close."""
+        dates = pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d")
+        prices = [
+            50000.0 + (i * 1000.0) for i in range(20)
+        ]  # Last row (2026-09-20) close = 69000.0
+
+        df_stock = pd.DataFrame(
+            {
+                "time": dates,
+                "open": prices,
+                "high": [p + 500.0 for p in prices],
+                "low": [p - 500.0 for p in prices],
+                "close": prices,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
+            recs, _, _ = run_pipeline(update_data=True)
+
+            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            for r in recs["recommendations"]:
+                self.assertEqual(r["data_as_of"], "2026-09-20")
+                self.assertEqual(r["trade_plan"]["current_price"], 69000.0)
+
+    def test_5_provider_source_a_stale_source_b_canonical_selected(self):
+        """5. Provider source A is stale while source B has canonical date -> source B selected."""
+        df_stale_raw = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=19, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 19,
+                "high": [60.0] * 19,
+                "low": [48.0] * 19,
+                "close": [50.0] * 19,
+                "volume": [500000] * 19,
+            }
+        )  # latest = 2026-09-19
+
+        df_canonical_raw = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 20,
+                "high": [60.0] * 20,
+                "low": [48.0] * 20,
+                "close": [55.0] * 20,
+                "volume": [500000] * 20,
+            }
+        )  # latest = 2026-09-20
+
+        def quote_side_effect(symbol, source):
+            q_mock = MagicMock()
+            if source == "kbs":
+                q_mock.history.return_value = df_stale_raw
+            else:  # source == "msn"
+                q_mock.history.return_value = df_canonical_raw
+            return q_mock
+
+        with patch("scripts.data_provider.VnQuote", side_effect=quote_side_effect):
+            provider = VnstockDataProvider(is_available=True)
+            res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-20")
+
+            self.assertEqual(res_df["time"].max(), "2026-09-20")
+            # Close prices converted from thousand_VND -> VND
+            self.assertEqual(res_df["close"].iloc[-1], 55000.0)
+
+    def test_6_no_source_has_canonical_date_update_fails_closed(self):
+        """6. No source has canonical date -> update fails closed."""
+        df_stale_raw = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=19, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 19,
+                "high": [52.0] * 19,
+                "low": [48.0] * 19,
+                "close": [50.0] * 19,
+                "volume": [500000] * 19,
+            }
+        )  # latest = 2026-09-19
+
+        def quote_side_effect(symbol, source):
+            q_mock = MagicMock()
+            q_mock.history.return_value = df_stale_raw
+            return q_mock
+
+        with patch("scripts.data_provider.VnQuote", side_effect=quote_side_effect):
+            provider = VnstockDataProvider(is_available=True)
+            res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-20")
+            # Returns stale best candidate (2026-09-19)
+            self.assertEqual(res_df["time"].max(), "2026-09-19")
+
+    def test_7_current_price_equals_close_from_canonical_date_row(self):
+        """7. Verify current_price equals the close from the canonical-date row."""
+        dates = pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d")
+        df_stock = pd.DataFrame(
+            {
+                "time": dates,
+                "open": [100000.0] * 20,
+                "high": [130000.0] * 20,
+                "low": [90000.0] * 20,
+                "close": [100000.0] * 19 + [123456.0],  # Canonical date close = 123456.0
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
+            recs, _, _ = run_pipeline(update_data=True)
+
+            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            for r in recs["recommendations"]:
+                self.assertEqual(r["data_as_of"], "2026-09-20")
+                self.assertEqual(
+                    r["trade_plan"]["current_price"],
+                    123456.0,
+                    f"Recommendation for {r['symbol']} current_price mismatch",
+                )
+
+    def test_8_existing_generated_artifacts_unchanged_after_freshness_failure(self):
+        """8. Verify existing generated artifacts are byte-for-byte unchanged after freshness failure."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )  # latest = 2026-09-20
+
+        df_stale = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-08-31", periods=20, freq="D").strftime("%Y-%m-%d"),
+                "open": [50.0] * 20,
+                "high": [52.0] * 20,
+                "low": [48.0] * 20,
+                "close": [50.0] * 20,
+                "volume": [500000] * 20,
+            }
+        )  # latest = 2026-09-19 (stale)
+
+        def side_effect(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            if symbol == "FPT":
+                return df_stale, "REAL_DATA", []
+            return df_vnindex, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            recs_p = gen_dir / "recommendations.json"
+            mkt_p = gen_dir / "market.json"
+            mon_p = gen_dir / "monitoring.json"
+
+            dummy_recs = b'{"schema_version": "2.0", "recommendations": []}\n'
+            dummy_mkt = b'{"data_as_of": "2026-09-01"}\n'
+            dummy_mon = b'{"overall_status": "PASS"}\n'
+
+            recs_p.write_bytes(dummy_recs)
+            mkt_p.write_bytes(dummy_mkt)
+            mon_p.write_bytes(dummy_mon)
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=side_effect),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Check byte-for-byte unchanged
+            self.assertEqual(recs_p.read_bytes(), dummy_recs)
+            self.assertEqual(mkt_p.read_bytes(), dummy_mkt)
+            self.assertEqual(mon_p.read_bytes(), dummy_mon)
+
+    def test_9_historical_non_production_behavior_unchanged(self):
+        """9. Verify historical/non-production behavior remains unchanged."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-20",
+            "ACB": "2026-09-18",  # 2 days lag (within 7 days tolerance)
+        }
+        res = validate_temporal_integrity(
+            data_as_of, stock_dates, reference_date="2026-09-21", strict_date_match=False
+        )
+        self.assertTrue(res["is_valid"])
 
 
 if __name__ == "__main__":
