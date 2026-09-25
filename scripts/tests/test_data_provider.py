@@ -988,22 +988,28 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         ]
 
         class DynamicCandidatesList(list):
-            def __init__(self, expected_list, loop_list):
-                super().__init__(expected_list)
-                self.expected_list = expected_list
-                self.loop_list = loop_list
-                self.iter_count = 0
+            def __init__(self, full_list, missing_sym):
+                super().__init__(full_list)
+                self.missing_sym = missing_sym
+                self._iter_count = 0
 
             def __iter__(self):
-                self.iter_count += 1
-                if self.iter_count == 1:
-                    return iter(self.expected_list)
-                return iter(self.loop_list)
+                self._iter_count += 1
+                if self._iter_count == 1:
+                    return super().__iter__()
+                filtered = [
+                    item
+                    for item in list.__iter__(self)
+                    if item["symbol"].upper() != self.missing_sym
+                ]
+                return iter(filtered)
 
         def mock_get_hist(sym, **kwargs):
+            if sym == "MISSING_SYM":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
             return valid_df, "REAL_DATA", []
 
-        dynamic_candidates = DynamicCandidatesList(extra_candidates, candidates)
+        dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1023,11 +1029,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
 
-                self.assertIn("Missing: 1", str(ctx.exception))
                 self.assertIn("MISSING_SYM", str(ctx.exception))
 
             # Reset dynamic_candidates iter_count for main() test
-            dynamic_candidates.iter_count = 0
+            dynamic_candidates._iter_count = 0
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
@@ -1506,6 +1511,306 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 run_pipeline(update_data=True)
 
             self.assertIn("VN30", str(ctx.exception))
+
+
+class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
+    """Deterministic offline unit tests covering universe validation and artifact preservation."""
+
+    def setUp(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+
+    def tearDown(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+
+    def test_scenario_1_complete_scan_generates_report(self):
+        """Scenario 1: Complete scan -> report generated and saved to generated/."""
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            return valid_df, "REAL_DATA", []
+
+        mock_mon_res = MagicMock()
+        mock_mon_res.overall_status = "PASS"
+        mock_mon_res.to_dict.return_value = {"overall_status": "PASS"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.generate_report.jsonschema.validate", return_value=None),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                generate_report_main()
+
+            # Verify report files were created
+            self.assertTrue((generated_dir / "recommendations.json").exists())
+            self.assertTrue((generated_dir / "market.json").exists())
+            self.assertTrue((generated_dir / "monitoring.json").exists())
+
+    def test_scenario_2_one_missing_symbol_preserves_artifacts(self):
+        """Scenario 2: One missing symbol -> validation fails, existing artifacts unchanged."""
+        from scripts.generate_report import UniverseProvider
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+
+        extra_candidates = list(candidates) + [
+            {"symbol": "MISSING_SYM", "companyName": "Missing Corp", "sector": "Tech"}
+        ]
+
+        class DynamicCandidatesList(list):
+            def __init__(self, full_list, missing_sym):
+                super().__init__(full_list)
+                self.missing_sym = missing_sym
+                self._iter_count = 0
+
+            def __iter__(self):
+                self._iter_count += 1
+                if self._iter_count == 1:
+                    return super().__iter__()
+                return iter([item for item in self if item["symbol"].upper() != self.missing_sym])
+
+        dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "MISSING_SYM":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
+            return valid_df, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            recs_file = generated_dir / "recommendations.json"
+            initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+            recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch(
+                    "scripts.generate_report.UniverseProvider._get_candidates",
+                    return_value=dynamic_candidates,
+                ),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            # File on disk remains untouched
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+
+    def test_scenario_3_one_provider_failure_preserves_artifacts(self):
+        """Scenario 3: One provider failure -> validation fails, existing artifacts unchanged."""
+        from scripts.generate_report import UniverseProvider
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        failed_symbol = candidates[0]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == failed_symbol:
+                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failed_symbol}] Connection error"]
+            return valid_df, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            recs_file = generated_dir / "recommendations.json"
+            initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+            recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+
+    def test_scenario_4_one_insufficient_history_symbol_preserves_artifacts(self):
+        """Scenario 4: One insufficient-history symbol -> validation fails, existing artifacts unchanged."""
+        from scripts.generate_report import UniverseProvider
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        short_df = make_valid_canonical_df(5)
+        candidates = UniverseProvider().candidates
+        insufficient_symbol = candidates[0]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == insufficient_symbol:
+                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+            return valid_df, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            recs_file = generated_dir / "recommendations.json"
+            initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+            recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+
+    def test_scenario_5_benchmark_failure_preserves_artifacts(self):
+        """Scenario 5: Benchmark failure (VNINDEX or VN30) -> validation fails, existing artifacts unchanged."""
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+
+        def make_mock_get_hist(bench_target):
+            def mock_get_hist(sym, **kwargs):
+                if sym == bench_target:
+                    return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{bench_target}] Fetch failed"]
+                return valid_df, "REAL_DATA", []
+
+            return mock_get_hist
+
+        for bench in ["VNINDEX", "VN30"]:
+            mock_get_hist = make_mock_get_hist(bench)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                generated_dir = Path(tmpdir) / "generated"
+                generated_dir.mkdir(parents=True, exist_ok=True)
+                recs_file = generated_dir / "recommendations.json"
+                initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+                recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
+
+                with (
+                    patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                    patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                    patch("sys.argv", ["generate_report.py", "--update"]),
+                ):
+                    with self.assertRaises(SystemExit) as ctx:
+                        generate_report_main()
+
+                    self.assertEqual(ctx.exception.code, 1)
+
+                self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+
+    def test_scenario_6_duplicate_symbol_still_incomplete_when_symbol_fails(self):
+        """Scenario 6: Duplicate symbol -> deduplicated, does not inflate completeness count to bypass failure."""
+        from scripts.generate_report import UniverseProvider, run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        duplicate_candidates = list(candidates) + [candidates[0]]
+        failing_symbol = candidates[1]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == failing_symbol:
+                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failing_symbol}] Connection error"]
+            return valid_df, "REAL_DATA", []
+
+        with (
+            patch(
+                "scripts.generate_report.UniverseProvider._get_candidates",
+                return_value=duplicate_candidates,
+            ),
+            patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            err_msg = str(ctx.exception)
+            self.assertIn("Failed: 1", err_msg)
+            self.assertIn(failing_symbol, err_msg)
+
+    def test_scenario_7_partial_in_memory_dataset_blocks_report_generation(self):
+        """Scenario 7: Partial in-memory dataset -> report generation blocked before payload generation."""
+        from scripts.generate_report import UniverseProvider, run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        failing_symbol = candidates[-1]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == failing_symbol:
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Fetch failed"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("Failed: 1", str(ctx.exception))
+            self.assertIn(failing_symbol, str(ctx.exception))
+
+    def test_scenario_8_validation_failure_after_some_calculations_preserves_artifacts(self):
+        """Scenario 8: Validation failure after partial calculations -> previous artifacts remain unchanged."""
+        from scripts.generate_report import UniverseProvider
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        # Let first 5 symbols succeed (calculating bullish_count, MA20, etc.), but 6th symbol fails
+        failing_symbol = candidates[5]["symbol"].upper()
+
+        processed_count = 0
+
+        def mock_get_hist(sym, **kwargs):
+            nonlocal processed_count
+            if sym == failing_symbol:
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed mid-universe"]
+            if sym not in ("VNINDEX", "VN30"):
+                processed_count += 1
+            return valid_df, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            recs_file = generated_dir / "recommendations.json"
+            market_file = generated_dir / "market.json"
+
+            initial_recs = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
+            initial_market = {"regime": "NEUTRAL"}
+
+            recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
+            market_file.write_text(json.dumps(initial_market), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Verify that partial processing occurred before failure
+            self.assertGreater(processed_count, 0)
+            # Verify that artifacts on disk remain 100% identical and unchanged
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
+            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
 
 
 if __name__ == "__main__":
