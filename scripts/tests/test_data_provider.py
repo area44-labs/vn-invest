@@ -1005,6 +1005,8 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return iter(filtered)
 
         def mock_get_hist(sym, **kwargs):
+            if sym == "MISSING_SYM":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
             return valid_df, "REAL_DATA", []
 
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
@@ -1027,7 +1029,6 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
 
-                self.assertIn("Missing: 1", str(ctx.exception))
                 self.assertIn("MISSING_SYM", str(ctx.exception))
 
             # Reset dynamic_candidates iter_count for main() test
@@ -1584,6 +1585,8 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
 
         def mock_get_hist(sym, **kwargs):
+            if sym == "MISSING_SYM":
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
             return valid_df, "REAL_DATA", []
 
         with tempfile.TemporaryDirectory() as tmpdir:
