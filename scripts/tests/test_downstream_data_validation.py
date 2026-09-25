@@ -13,13 +13,14 @@ Verifies:
 
 import math
 import unittest
+
 import numpy as np
 import pandas as pd
 
+from scripts.generate_report import generate_historical_report
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import calculate_t25_risk_metrics, normalize_universe_liquidity_scores
-from scripts.generate_report import generate_historical_report
 
 
 def create_mock_ohlcv(

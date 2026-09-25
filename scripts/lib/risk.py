@@ -10,6 +10,7 @@ Returns null values if data is insufficient.
 """
 
 import math
+
 import numpy as np
 import pandas as pd
 
