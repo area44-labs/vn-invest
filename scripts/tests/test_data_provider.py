@@ -1114,6 +1114,47 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             self.assertEqual(len(invalid_recs), 1)
             self.assertEqual(invalid_recs[0]["action"], "AVOID")
 
+    def test_get_historical_data_status_tag_distinctions(self):
+        """Verify get_historical_data tags status strictly by issue type."""
+        valid_df = make_valid_canonical_df(25)
+        short_df = make_valid_canonical_df(5)
+        empty_df = pd.DataFrame()
+        missing_col_df = valid_df.drop(columns=["close"])
+        missing_date_df = valid_df.drop(columns=["time"])
+
+        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+            mock_prov = mock_prov_cls.return_value
+
+            # 1. Valid data -> REAL_DATA
+            mock_prov.fetch_ohlcv.return_value = valid_df
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "REAL_DATA")
+
+            # 2. Fewer than required valid rows -> INSUFFICIENT_HISTORICAL_DATA
+            mock_prov.fetch_ohlcv.return_value = short_df
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "INSUFFICIENT_HISTORICAL_DATA")
+
+            # 3. Empty DataFrame -> PROVIDER_FAILURE
+            mock_prov.fetch_ohlcv.return_value = empty_df
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "PROVIDER_FAILURE")
+
+            # 4. Missing required OHLCV column -> PROVIDER_FAILURE
+            mock_prov.fetch_ohlcv.return_value = missing_col_df
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "PROVIDER_FAILURE")
+
+            # 5. Missing date column -> PROVIDER_FAILURE
+            mock_prov.fetch_ohlcv.return_value = missing_date_df
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "PROVIDER_FAILURE")
+
+            # 6. Provider exception -> PROVIDER_FAILURE
+            mock_prov.fetch_ohlcv.side_effect = RuntimeError("API connection timeout")
+            _df, tag, _ = get_historical_data("FPT")
+            self.assertEqual(tag, "PROVIDER_FAILURE")
+
     def test_valid_symbol_with_insufficient_history_fails(self):
         """Valid symbol with insufficient history -> tagged insufficient_history and fails update mode."""
         from scripts.generate_report import UniverseProvider, run_pipeline

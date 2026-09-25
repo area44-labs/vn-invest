@@ -635,11 +635,16 @@ def get_historical_data(
                 max_retries=max_retries,
             )
             val_res = validate_ohlcv_data(df_out, sym)
-            source_tag = (
-                "INSUFFICIENT_HISTORICAL_DATA"
-                if val_res["status"] == "INSUFFICIENT"
-                else "REAL_DATA"
-            )
+            issues = val_res["issues"]
+            if any(
+                iss in issues
+                for iss in ["empty_dataframe", "missing_required_columns", "missing_date_column"]
+            ):
+                source_tag = "PROVIDER_FAILURE"
+            elif "insufficient_history" in issues or val_res.get("valid_row_count", 0) < 20:
+                source_tag = "INSUFFICIENT_HISTORICAL_DATA"
+            else:
+                source_tag = "REAL_DATA"
             return df_out, source_tag, val_res["issues"]
         except ProviderRateLimitError as exc:
             if can_recover_rate_limit() and rate_limit_attempt < max_rate_limit_retries:
