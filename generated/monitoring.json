@@ -1,6 +1,6 @@
 {
   "overall_status": "FAIL",
-  "generated_at": "2026-09-25T17:23:40.742241+00:00",
+  "generated_at": "2026-09-25T18:02:38.249884+00:00",
   "data_as_of": "2026-09-25",
   "checks": [
     {
@@ -59,6 +59,17 @@
       },
       "expected_condition": "processed_ratio >= 0.80",
       "message": "Successfully processed 42/42 (100.0%) candidate universe symbols"
+    },
+    {
+      "check_name": "universe_audit_invariants",
+      "status": "PASS",
+      "measured_value": {
+        "expected_count": 44,
+        "processed_count": 44,
+        "excluded_count": 0
+      },
+      "expected_condition": "All audit counts, set disjointness, exclusion reasons, and pipeline state cross-checks pass",
+      "message": "Universe audit trail verified: 44/44 processed, 0 excluded with full invariant cross-checks passing"
     },
     {
       "check_name": "market_regime_status",
@@ -185,6 +196,113 @@
     "sell_count": 6,
     "avoid_count": 20,
     "market_regime": "BEAR",
+    "universe_audit": {
+      "expected_symbols": [
+        "ACB",
+        "BCM",
+        "BID",
+        "BVH",
+        "CTG",
+        "DGC",
+        "DIG",
+        "DXG",
+        "FPT",
+        "FRT",
+        "GAS",
+        "GMD",
+        "GVR",
+        "HCM",
+        "HDB",
+        "HPG",
+        "HSG",
+        "MBB",
+        "MSN",
+        "MWG",
+        "NKG",
+        "PDR",
+        "PLX",
+        "POW",
+        "PVD",
+        "SAB",
+        "SHB",
+        "SSB",
+        "SSI",
+        "STB",
+        "TCB",
+        "TPB",
+        "VCB",
+        "VCI",
+        "VHM",
+        "VIB",
+        "VIC",
+        "VJC",
+        "VN30",
+        "VND",
+        "VNINDEX",
+        "VNM",
+        "VPB",
+        "VRE"
+      ],
+      "processed_symbols": [
+        "ACB",
+        "BCM",
+        "BID",
+        "BVH",
+        "CTG",
+        "DGC",
+        "DIG",
+        "DXG",
+        "FPT",
+        "FRT",
+        "GAS",
+        "GMD",
+        "GVR",
+        "HCM",
+        "HDB",
+        "HPG",
+        "HSG",
+        "MBB",
+        "MSN",
+        "MWG",
+        "NKG",
+        "PDR",
+        "PLX",
+        "POW",
+        "PVD",
+        "SAB",
+        "SHB",
+        "SSB",
+        "SSI",
+        "STB",
+        "TCB",
+        "TPB",
+        "VCB",
+        "VCI",
+        "VHM",
+        "VIB",
+        "VIC",
+        "VJC",
+        "VN30",
+        "VND",
+        "VNINDEX",
+        "VNM",
+        "VPB",
+        "VRE"
+      ],
+      "invalid_symbols": [],
+      "insufficient_history_symbols": [],
+      "failed_symbols": [],
+      "missing_symbols": [],
+      "counts": {
+        "expected_count": 44,
+        "processed_count": 44,
+        "invalid_count": 0,
+        "insufficient_history_count": 0,
+        "failed_count": 0,
+        "missing_count": 0
+      },
+      "exclusions": []
+    },
     "drift_monitoring": {
       "overall_status": "FAIL",
       "data_as_of": "2026-09-25",
@@ -212,7 +330,12 @@
           "2026-08-31",
           "2026-08-30"
         ],
-        "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+        "excluded_dates": [
+          "2026-09-03",
+          "2026-09-01",
+          "2026-08-31",
+          "2026-08-30"
+        ],
         "qualified_dates": [
           "2026-09-24",
           "2026-09-22",
@@ -283,7 +406,12 @@
             "2026-08-31",
             "2026-08-30"
           ],
-          "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+          "excluded_dates": [
+            "2026-09-03",
+            "2026-09-01",
+            "2026-08-31",
+            "2026-08-30"
+          ],
           "qualified_dates": [
             "2026-09-24",
             "2026-09-22",
@@ -389,7 +517,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -478,7 +611,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -567,7 +705,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -656,7 +799,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -766,7 +914,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -891,7 +1044,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -980,7 +1138,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -1069,7 +1232,12 @@
                 "2026-08-31",
                 "2026-08-30"
               ],
-              "excluded_dates": ["2026-09-03", "2026-09-01", "2026-08-31", "2026-08-30"],
+              "excluded_dates": [
+                "2026-09-03",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30"
+              ],
               "qualified_dates": [
                 "2026-09-24",
                 "2026-09-22",
@@ -1130,8 +1298,8 @@
       ]
     },
     "check_counts": {
-      "total_checks": 17,
-      "pass_count": 16,
+      "total_checks": 18,
+      "pass_count": 17,
       "warning_count": 0,
       "fail_count": 1
     }
