@@ -111,7 +111,7 @@ class TestDataFlowConsistency(unittest.TestCase):
             self.assertIn("AAA", str(ctx.exception))
 
             # In non-update mode, run_pipeline completes, tagging AAA as INSUFFICIENT and AVOID
-            recs_data, market_data, _ = run_pipeline(update_data=False)
+            recs_data, _market_data, _ = run_pipeline(update_data=False)
             self.assertEqual(recs_data["summary"]["total_scanned"], 1)
             self.assertEqual(recs_data["summary"]["avoid_count"], 1)
             self.assertEqual(recs_data["recommendations"][0]["data_quality"], "INSUFFICIENT")
