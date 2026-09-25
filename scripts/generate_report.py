@@ -251,7 +251,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             stock_data_map[sym] = (
                 pd.DataFrame(),
                 "EXPLICITLY_INVALID",
-                [f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"],
+                [
+                    f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"
+                ],
             )
 
     missing_symbols = expected_symbols - (
