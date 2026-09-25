@@ -660,6 +660,6 @@ def get_historical_data(
             logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
             return (
                 pd.DataFrame(),
-                "INSUFFICIENT_HISTORICAL_DATA",
-                [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock."],
+                "PROVIDER_FAILURE",
+                [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock: {e}"],
             )
