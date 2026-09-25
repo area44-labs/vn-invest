@@ -10,7 +10,9 @@ Raw provider data may be retained for diagnostics only.
 """
 
 import logging
+import math
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,20 @@ __all__ = [
 ]
 
 
+def _safe_breadth_ratio(val: float | None) -> float | None:
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        if 0.0 <= f <= 1.0:
+            return f
+        return None
+    except ValueError, TypeError:
+        return None
+
+
 def detect_market_regime(
     df_vnindex: pd.DataFrame | None = None,
     df_vn30: pd.DataFrame | None = None,
@@ -27,25 +43,43 @@ def detect_market_regime(
 ) -> dict:
     """Evaluate multi-factor Vietnam market regime.
 
-    Expects clean benchmark DataFrames (df_vnindex, df_vn30).
+    Validates benchmark DataFrames and breadth_ratio safely.
     Returns dict containing regime, regime_score, confidence, and metrics.
     """
-    if df_vnindex is None or df_vnindex.empty or len(df_vnindex) < 20:
-        return {
-            "regime": "DEFENSIVE",
-            "regime_score": 50.0,
-            "confidence": 0.40,
-            "metrics": {
-                "vnindex_value": None,
-                "vnindex_change_pct": None,
-                "vn30_change_pct": None,
-                "market_breadth_ratio": breadth_ratio,
-                "volatility": None,
-                "volume_20d_ratio": None,
-            },
-        }
+    safe_breadth = _safe_breadth_ratio(breadth_ratio)
 
-    close_vn = df_vnindex["close"]
+    default_defensive = {
+        "regime": "DEFENSIVE",
+        "regime_score": 50.0,
+        "confidence": 0.40,
+        "metrics": {
+            "vnindex_value": None,
+            "vnindex_change_pct": None,
+            "vn30_change_pct": None,
+            "market_breadth_ratio": safe_breadth,
+            "volatility": None,
+            "volume_20d_ratio": None,
+        },
+    }
+
+    if (
+        df_vnindex is None
+        or df_vnindex.empty
+        or len(df_vnindex) < 20
+        or "close" not in df_vnindex.columns
+    ):
+        return default_defensive
+
+    # Clean check: ensure no NaN/Inf/non-positive values in close
+    close_series = pd.to_numeric(df_vnindex["close"], errors="coerce")
+    if (
+        close_series.isna().any()
+        or np.isinf(close_series.to_numpy()).any()
+        or (close_series <= 0).any()
+    ):
+        return default_defensive
+
+    close_vn = close_series
     latest_vn = float(close_vn.iloc[-1])
     prev_vn = float(close_vn.iloc[-2]) if len(close_vn) >= 2 else latest_vn
     vn_change_pct = float((latest_vn - prev_vn) / prev_vn * 100) if prev_vn > 0 else 0.0
@@ -71,9 +105,21 @@ def detect_market_regime(
 
     # VN30 metrics
     vn30_change_pct = None
-    if df_vn30 is not None and not df_vn30.empty and len(df_vn30) >= 2:
-        c30 = df_vn30["close"]
-        vn30_change_pct = float((c30.iloc[-1] - c30.iloc[-2]) / c30.iloc[-2] * 100)
+    if (
+        df_vn30 is not None
+        and not df_vn30.empty
+        and len(df_vn30) >= 2
+        and "close" in df_vn30.columns
+    ):
+        c30_series = pd.to_numeric(df_vn30["close"], errors="coerce")
+        if (
+            not c30_series.isna().any()
+            and not np.isinf(c30_series.to_numpy()).any()
+            and (c30_series > 0).all()
+        ):
+            vn30_change_pct = float(
+                (c30_series.iloc[-1] - c30_series.iloc[-2]) / c30_series.iloc[-2] * 100
+            )
 
     # Multi-factor score calculation (0 - 100)
     score = 50.0
@@ -100,12 +146,12 @@ def detect_market_regime(
         score -= 8.0
 
     # Market breadth (+/- 10)
-    if breadth_ratio is not None:
-        if breadth_ratio >= 0.65:
+    if safe_breadth is not None:
+        if safe_breadth >= 0.65:
             score += 10.0
-        elif breadth_ratio >= 0.50:
+        elif safe_breadth >= 0.50:
             score += 5.0
-        elif breadth_ratio <= 0.35:
+        elif safe_breadth <= 0.35:
             score -= 10.0
 
     # Volatility / Panic penalty (-15)
@@ -136,9 +182,7 @@ def detect_market_regime(
             "vnindex_value": round(latest_vn, 2),
             "vnindex_change_pct": round(vn_change_pct, 2),
             "vn30_change_pct": (round(vn30_change_pct, 2) if vn30_change_pct is not None else None),
-            "market_breadth_ratio": (
-                round(breadth_ratio, 2) if breadth_ratio is not None else None
-            ),
+            "market_breadth_ratio": (round(safe_breadth, 2) if safe_breadth is not None else None),
             "volatility": round(vn_volatility, 4),
             "volume_20d_ratio": round(vol_ratio, 2),
         },

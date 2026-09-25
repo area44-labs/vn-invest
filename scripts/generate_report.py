@@ -282,18 +282,22 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     logger.info("Step 2: Calculating Market Breadth...")
     bullish_count = 0
+    valid_breadth_denom = 0
     for sym in candidate_stocks:
         s_name = sym["symbol"]
         if s_name in processed_symbols:
             df_st, _, _ = stock_data_map[s_name]
-            df_c_st, _ = get_clean_ohlcv_data(df_st, s_name)
-            if not df_c_st.empty and len(df_c_st) >= 20:
+            df_c_st, st_val = get_clean_ohlcv_data(df_st, s_name)
+            if st_val["status"] == "SUFFICIENT" and not df_c_st.empty and len(df_c_st) >= 20:
+                valid_breadth_denom += 1
                 c = df_c_st["close"].iloc[-1]
                 ma20 = df_c_st["close"].tail(20).mean()
                 if c > ma20:
                     bullish_count += 1
 
-    breadth_ratio = round(bullish_count / len(candidate_stocks), 2) if candidate_stocks else 0.50
+    breadth_ratio = (
+        round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
+    )
 
     logger.info("Step 3: Calculating Final Market Regime...")
     final_market_regime = detect_market_regime(
@@ -311,16 +315,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         ex = item.get("exchange", "HOSE")
 
         df_stock, tag, _ = stock_data_map[sym]
+        if sym in processed_symbols:
+            df_stock_input = df_stock
+        else:
+            df_stock_input = pd.DataFrame()
 
         rec = generate_recommendation(
             symbol=sym,
             company_name=comp,
             sector=sec,
             exchange=ex,
-            df_stock=df_stock,
+            df_stock=df_stock_input,
             market_regime_info=final_market_regime,
             df_vnindex=df_vnindex_clean,
-            data_source=tag if not df_stock.empty else None,
+            data_source=tag if not df_stock_input.empty else None,
         )
         scanned_recs.append(rec)
 
@@ -423,6 +431,7 @@ def generate_historical_report(
         df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
 
     bullish_count = 0
+    valid_breadth_denom = 0
     clean_stock_as_of_map = {}
 
     for idx, item in enumerate(candidate_metadata):
@@ -439,19 +448,28 @@ def generate_historical_report(
             )
 
         df_stock_raw = universe_stock_map[sym_upper]
-        df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
-        df_stock_clean, _ = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
+        if df_stock_raw is not None and not df_stock_raw.empty:
+            df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
+            df_stock_clean, stock_val = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
+        else:
+            df_stock_clean = pd.DataFrame()
+            stock_val = {"status": "INSUFFICIENT"}
 
         clean_stock_as_of_map[sym_upper] = df_stock_clean
 
-        if not df_stock_clean.empty and len(df_stock_clean) >= 20:
+        if (
+            stock_val["status"] == "SUFFICIENT"
+            and not df_stock_clean.empty
+            and len(df_stock_clean) >= 20
+        ):
+            valid_breadth_denom += 1
             c = df_stock_clean["close"].iloc[-1]
             ma20 = df_stock_clean["close"].tail(20).mean()
             if c > ma20:
                 bullish_count += 1
 
     breadth_ratio = (
-        round(bullish_count / len(candidate_metadata), 2) if candidate_metadata else 0.50
+        round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
     )
 
     final_market_regime = detect_market_regime(
