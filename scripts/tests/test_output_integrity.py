@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -295,6 +295,86 @@ class TestOutputIntegritySuite(unittest.TestCase):
             with open(recs_file, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertEqual(content, original_content)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_all_artifacts_preserved_when_monitoring_validation_fails(self):
+        """Regression test for PR #143: Ensure no files are written/modified if monitoring validation fails."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            gen_dir = os.path.join(temp_dir, "generated")
+            hist_dir = os.path.join(gen_dir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            recs_file = os.path.join(gen_dir, "recommendations.json")
+            mkt_file = os.path.join(gen_dir, "market.json")
+            mon_file = os.path.join(gen_dir, "monitoring.json")
+            hist_file = os.path.join(hist_dir, "2026-09-25.json")
+            idx_file = os.path.join(hist_dir, "index.json")
+
+            original_contents = {
+                recs_file: '{"existing_recs": true}\n',
+                mkt_file: '{"existing_mkt": true}\n',
+                mon_file: '{"existing_mon": true}\n',
+                hist_file: '{"existing_hist": true}\n',
+                idx_file: '{"existing_idx": true}\n',
+            }
+
+            for filepath, content in original_contents.items():
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+            valid_p = copy.deepcopy(self.valid_payload)
+
+            class MockPipelineRes(tuple):
+                def __new__(cls, r, m, h):
+                    obj = super().__new__(cls, (r, m, h))
+                    obj.df_vnindex = None
+                    obj.df_vn30 = None
+                    return obj
+
+            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
+
+            # Mock monitoring to return invalid dict containing NaN
+            mock_mon_res = MagicMock()
+            mock_mon_res.overall_status = "FAIL"
+            mock_mon_res.to_dict.return_value = {
+                "overall_status": "FAIL",
+                "nan_metric": float("nan"),
+            }
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
+                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                with self.assertRaises(SystemExit) as cm:
+                    main()
+                self.assertEqual(cm.exception.code, 1)
+
+            # Verify every pre-existing artifact remains byte-for-byte unchanged
+            for filepath, expected_content in original_contents.items():
+                with open(filepath, "r", encoding="utf-8") as f:
+                    actual_content = f.read()
+                self.assertEqual(
+                    actual_content,
+                    expected_content,
+                    f"File '{filepath}' was modified when monitoring validation failed!",
+                )
+
+            # Verify no partial or temporary files exist in gen_dir or hist_dir
+            for root, _, files in os.walk(gen_dir):
+                for file in files:
+                    full_p = os.path.join(root, file)
+                    self.assertIn(
+                        full_p,
+                        original_contents,
+                        f"Unexpected file created during failed validation: '{full_p}'",
+                    )
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

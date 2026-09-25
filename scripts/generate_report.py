@@ -1161,23 +1161,35 @@ def main():
         df_vnindex_clean = pipeline_res.df_vnindex
         df_vn30_clean = pipeline_res.df_vn30
 
-        logger.info("Validating recommendations and market payloads & output integrity...")
+        logger.info("Executing production pipeline monitoring...")
+        monitoring_result = evaluate_production_monitoring(
+            generated_dir=GENERATED_DIR,
+            recommendations_payload=recs_data,
+            market_payload=market_data,
+            df_vnindex=df_vnindex_clean,
+            df_vn30=df_vn30_clean,
+        )
+        monitoring_dict = monitoring_result.to_dict()
+
+        logger.info("Validating ALL report payloads & output integrity...")
         try:
             validate_final_payload_integrity(recs_data, schema=schema)
             validate_final_payload_integrity(market_data, schema=None)
             if history_data is not recs_data:
                 validate_final_payload_integrity(history_data, schema=schema)
+            validate_final_payload_integrity(monitoring_dict, schema=None)
         except ValueError as exc:
             logger.error("Report payload integrity validation failed: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
 
-        logger.info("JSON Schema & output integrity validation passed successfully!")
+        logger.info("JSON Schema & output integrity validation passed for all payloads!")
 
         data_as_of = recs_data.get("data_as_of")
 
         save_json_files("recommendations.json", recs_data)
         save_json_files("market.json", market_data)
+        save_json_files("monitoring.json", monitoring_dict)
 
         if data_as_of:
             save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
@@ -1191,30 +1203,10 @@ def main():
         logger.info("Outputs written to generated/:")
         logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
         logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
+        logger.info("  - monitoring.json (Status: %s)", monitoring_result.overall_status)
         if data_as_of:
             logger.info("  - history/%s.json", data_as_of)
             logger.info("  - history/index.json")
-
-        logger.info("Executing production pipeline monitoring...")
-        monitoring_result = evaluate_production_monitoring(
-            generated_dir=GENERATED_DIR,
-            recommendations_payload=recs_data,
-            market_payload=market_data,
-            df_vnindex=df_vnindex_clean,
-            df_vn30=df_vn30_clean,
-        )
-        monitoring_dict = monitoring_result.to_dict()
-        try:
-            validate_final_payload_integrity(monitoring_dict, schema=None)
-        except ValueError as exc:
-            logger.error("Monitoring payload integrity validation failed: %s", exc)
-            raise SystemExit(1) from exc
-
-        save_json_files("monitoring.json", monitoring_dict)
-        logger.info(
-            "Production monitoring complete! Overall status: %s", monitoring_result.overall_status
-        )
-        logger.info("  - monitoring.json")
 
 
 if __name__ == "__main__":
