@@ -90,7 +90,8 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         self.assertEqual(recs_data["data_as_of"], self.as_of_date)
         self.assertEqual(recs_data["source_date"], self.as_of_date)
         self.assertEqual(len(recs_data["recommendations"]), 2)
-        self.assertEqual(recs_data["universe_info"]["historical_report"], True)
+        self.assertEqual(recs_data["universe_info"]["universe_type"], "HISTORICAL_SNAPSHOT")
+        self.assertEqual(recs_data["universe_info"]["universe_size"], 2)
         self.assertEqual(market_data["data_as_of"], self.as_of_date)
         self.assertEqual(history_data["data_as_of"], self.as_of_date)
 

@@ -209,10 +209,10 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 failed_symbols.add(sym)
             elif tag == "INVALID_SYMBOL":
                 invalid_symbols.add(sym)
-            elif tag == "INSUFFICIENT_HISTORICAL_DATA":
-                insufficient_history_symbols.add(sym)
             elif df_stock is None or df_stock.empty or df_clean_stock.empty:
                 failed_symbols.add(sym)
+            elif tag == "INSUFFICIENT_HISTORICAL_DATA" or stock_val.get("status") == "INSUFFICIENT":
+                insufficient_history_symbols.add(sym)
             else:
                 processed_symbols.add(sym)
         except ProviderRateLimitError:
@@ -316,7 +316,8 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
         df_stock, tag, _ = stock_data_map[sym]
         if sym in processed_symbols:
-            df_stock_input = df_stock
+            df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
+            df_stock_input = df_clean_stock
         else:
             df_stock_input = pd.DataFrame()
 
@@ -434,6 +435,7 @@ def generate_historical_report(
     valid_breadth_denom = 0
     clean_stock_as_of_map = {}
 
+    seen_candidate_symbols = set()
     for idx, item in enumerate(candidate_metadata):
         if not isinstance(item, dict):
             raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
@@ -442,6 +444,12 @@ def generate_historical_report(
             raise ValueError(f"Candidate metadata item at index {idx} missing valid symbol string")
 
         sym_upper = sym.upper()
+        if sym_upper in seen_candidate_symbols:
+            raise ValueError(
+                f"Duplicate candidate stock symbol '{sym_upper}' in candidate_metadata"
+            )
+        seen_candidate_symbols.add(sym_upper)
+
         if sym_upper not in universe_stock_map:
             raise ValueError(
                 f"Candidate stock symbol '{sym_upper}' is missing from universe_stock_map"
@@ -519,9 +527,8 @@ def generate_historical_report(
     }
 
     universe_info = {
-        "total_candidates": len(candidate_metadata),
-        "scanned_at": generated_at,
-        "historical_report": True,
+        "universe_type": "HISTORICAL_SNAPSHOT",
+        "universe_size": len(candidate_metadata),
     }
 
     recommendations_payload = {
