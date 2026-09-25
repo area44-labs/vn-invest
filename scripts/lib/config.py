@@ -247,6 +247,12 @@ REGIME_CONFIDENCE_SUFFICIENT = 0.85
 REGIME_CONFIDENCE_PARTIAL = 0.60
 REGIME_CONFIDENCE_HISTORY_THRESHOLD = 50
 
+# Temporal Data Consistency & Staleness Threshold Parameters
+# MAX_STOCK_STALENESS_DAYS: Maximum allowed calendar day lag between a stock's latest date
+# and VNINDEX data_as_of (7 calendar days allows up to 5 trading days / weekend gaps).
+MAX_STOCK_STALENESS_DAYS = 7
+MAX_BENCHMARK_FUTURE_DAYS = 0
+
 # Data / Model Drift Monitoring Configuration & Threshold Parameters
 # Lookback and minimum baseline rules
 DRIFT_LOOKBACK_REPORTS = 20

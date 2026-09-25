@@ -10,7 +10,10 @@ import pandas as pd
 from scripts.generate_report import load_schema, run_pipeline
 from scripts.generate_report import main as generate_report_main
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
-from scripts.lib.vietnam_market import extract_latest_trading_date
+from scripts.lib.vietnam_market import (
+    extract_latest_trading_date,
+    validate_temporal_integrity,
+)
 
 
 class TestDataDateSemantics(unittest.TestCase):
@@ -44,21 +47,21 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )  # latest date = 2026-09-11
 
-        df_stock_later = pd.DataFrame(
+        df_stock_earlier = pd.DataFrame(
             {
-                "time": pd.date_range("2026-09-01", periods=12, freq="D"),
-                "open": [10.0] * 12,
-                "high": [11.0] * 12,
-                "low": [9.5] * 12,
-                "close": [10.5] * 12,
-                "volume": [100000] * 12,
+                "time": pd.date_range("2026-09-01", periods=10, freq="D"),
+                "open": [10.0] * 10,
+                "high": [11.0] * 10,
+                "low": [9.5] * 10,
+                "close": [10.5] * 10,
+                "volume": [100000] * 10,
             }
-        )  # latest date = 2026-09-12
+        )  # latest date = 2026-09-10 (1 day behind VNINDEX)
 
         def side_effect(symbol, **kwargs):
             if symbol == "VNINDEX":
                 return df_vnindex, "REAL_DATA", []
-            return df_stock_later, "REAL_DATA", []
+            return df_stock_earlier, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
@@ -67,7 +70,7 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertEqual(recs_payload["data_as_of"], "2026-09-11")
 
             fpt_rec = next(r for r in recs_payload["recommendations"] if r["symbol"] == "FPT")
-            self.assertEqual(fpt_rec["data_as_of"], "2026-09-12")
+            self.assertEqual(fpt_rec["data_as_of"], "2026-09-10")
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
         """Test B: When data_as_of is None, no history JSON artifact is created and index is not updated."""
@@ -160,6 +163,179 @@ class TestDataDateSemantics(unittest.TestCase):
 
         days_diff = (current_date - data_date).days
         self.assertGreater(days_diff, 100)  # Clearly stale
+
+
+class TestTemporalIntegrityValidation(unittest.TestCase):
+    """Dedicated test suite for validate_temporal_integrity & pipeline temporal contracts."""
+
+    def test_valid_synchronized_vnindex_and_stocks_success(self):
+        """Test 1: valid synchronized VNINDEX + stocks -> success."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-20",
+            "ACB": "2026-09-20",
+            "VNM": "2026-09-20",
+        }
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
+        self.assertTrue(res["is_valid"])
+        self.assertEqual(res["issues"], [])
+        self.assertEqual(res["future_symbols"], set())
+        self.assertEqual(res["stale_symbols"], set())
+
+    def test_stock_one_trading_day_behind_expected_behavior(self):
+        """Test 2: stock one trading day behind -> expected behavior (success, within tolerance)."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-20",
+            "ACB": "2026-09-19",  # 1 day behind (within 7 calendar day tolerance)
+        }
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
+        self.assertTrue(res["is_valid"])
+        self.assertEqual(res["issues"], [])
+        self.assertEqual(res["stale_symbols"], set())
+
+    def test_stock_excessively_stale_fail_closed(self):
+        """Test 3: stock excessively stale (> 7 calendar days lag) -> fails closed."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-20",
+            "ACB": "2026-09-10",  # 10 days lag (> 7 days)
+        }
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
+        self.assertFalse(res["is_valid"])
+        self.assertIn("ACB", res["stale_symbols"])
+
+        # Also test in update_data=True pipeline mode
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-08-01", periods=30, freq="D"),
+                "open": [1000.0] * 30,
+                "high": [1010.0] * 30,
+                "low": [990.0] * 30,
+                "close": [1000.0] * 30,
+                "volume": [1000000] * 30,
+            }
+        )  # latest = 2026-08-30
+
+        df_stale_stock = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-07-01", periods=25, freq="D"),
+                "open": [10.0] * 25,
+                "high": [11.0] * 25,
+                "low": [9.5] * 25,
+                "close": [10.5] * 25,
+                "volume": [100000] * 25,
+            }
+        )  # latest = 2026-07-25 (stale relative to 2026-08-30)
+
+        def mock_get_hist(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            return df_stale_stock, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+            self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
+
+    def test_stock_dated_after_vnindex_fail_closed(self):
+        """Test 4: stock dated after VNINDEX (latest_date > data_as_of) -> fails closed."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-21",  # Future-dated relative to benchmark
+            "ACB": "2026-09-20",
+        }
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-22")
+        self.assertFalse(res["is_valid"])
+        self.assertIn("FPT", res["future_symbols"])
+
+    def test_future_dated_vnindex_fail_closed(self):
+        """Test 5: future-dated VNINDEX relative to execution/reference date -> fails closed."""
+        data_as_of = "2030-01-01"  # Far in the future
+        stock_dates = {"FPT": "2030-01-01"}
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-25")
+        self.assertFalse(res["is_valid"])
+        self.assertTrue(any("in the future" in iss for iss in res["issues"]))
+
+    def test_invalid_or_missing_benchmark_date_fail_closed(self):
+        """Test 6: invalid/missing benchmark date -> fails closed."""
+        res_none = validate_temporal_integrity(None, {"FPT": "2026-09-20"})
+        self.assertFalse(res_none["is_valid"])
+
+        res_malformed = validate_temporal_integrity("not-a-date", {"FPT": "2026-09-20"})
+        self.assertFalse(res_malformed["is_valid"])
+
+    def test_mixed_symbol_dates_deterministic_result(self):
+        """Test 7: mixed symbol dates within tolerance -> deterministic result."""
+        data_as_of = "2026-09-20"
+        stock_dates = {
+            "FPT": "2026-09-20",
+            "ACB": "2026-09-18",  # 2 days lag
+            "HPG": "2026-09-15",  # 5 days lag (within 7 days tolerance)
+        }
+        res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
+        self.assertTrue(res["is_valid"])
+
+    def test_temporal_failure_after_partial_calculations_artifacts_unchanged(self):
+        """Test 8: temporal failure in update mode preserves existing artifacts on disk."""
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )  # latest = 2026-09-20
+
+        # Future-dated stock
+        df_future_stock = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=25, freq="D"),
+                "open": [10.0] * 25,
+                "high": [11.0] * 25,
+                "low": [9.5] * 25,
+                "close": [10.5] * 25,
+                "volume": [100000] * 25,
+            }
+        )  # latest = 2026-09-25 (> 2026-09-20)
+
+        def mock_get_hist(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            return df_future_stock, "REAL_DATA", []
+
+        with (
+            patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+            patch("scripts.generate_report.save_json_files") as mock_save,
+        ):
+            with patch("sys.argv", ["generate_report.py", "--update"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Ensure save_json_files was NEVER called
+            mock_save.assert_not_called()
+
+    def test_complete_valid_universe_with_same_data_as_of_report_generated(self):
+        """Test 9: complete valid universe with same data_as_of -> report generated."""
+        df_valid = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=20, freq="D"),
+                "open": [1000.0] * 20,
+                "high": [1010.0] * 20,
+                "low": [990.0] * 20,
+                "close": [1000.0] * 20,
+                "volume": [1000000] * 20,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+            recs, mkt, _ = run_pipeline(update_data=True)
+            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            self.assertEqual(mkt["data_as_of"], "2026-09-20")
 
 
 class TestReportProvenanceMetadata(unittest.TestCase):

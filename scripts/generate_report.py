@@ -34,6 +34,7 @@ from scripts.lib.vietnam_market import (
     UniverseProvider,
     get_clean_ohlcv_data,
     get_historical_data,
+    validate_temporal_integrity,
 )
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -191,7 +192,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
 
     stock_data_map = {}
-    bullish_count = 0
+    stock_dates_map = {}
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"].upper()
@@ -201,7 +202,8 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             )
             stock_data_map[sym] = (df_stock, tag, warns)
 
-            df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
+            df_clean_stock, stock_val = get_clean_ohlcv_data(df_stock, sym)
+            stock_dates_map[sym] = stock_val.get("latest_date")
 
             if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
                 failed_symbols.add(sym)
@@ -213,19 +215,46 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 failed_symbols.add(sym)
             else:
                 processed_symbols.add(sym)
-
-            # Pre-breadth check: price above MA20 using clean OHLCV data
-            if not df_clean_stock.empty and len(df_clean_stock) >= 20:
-                c = df_clean_stock["close"].iloc[-1]
-                ma20 = df_clean_stock["close"].tail(20).mean()
-                if c > ma20:
-                    bullish_count += 1
         except ProviderRateLimitError:
             raise
         except Exception as exc:  # noqa: BLE001
             logger.error("Exception fetching %s: %s", sym, exc)
             failed_symbols.add(sym)
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
+            stock_dates_map[sym] = None
+
+    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
+    data_as_of = vnindex_val.get("latest_date")
+    source_date = data_as_of  # Backward compatibility alias
+    data_source = vn_source if not df_vnindex_clean.empty else None
+
+    # Temporal integrity validation across benchmark data_as_of and processed stock dates
+    temporal_res = validate_temporal_integrity(
+        data_as_of=data_as_of,
+        stock_dates_map={
+            s: stock_dates_map[s] for s in processed_symbols if s not in ("VNINDEX", "VN30")
+        },
+        reference_date=generated_at,
+    )
+
+    if not temporal_res["is_valid"]:
+        logger.warning("Temporal integrity validation failure: %s", temporal_res["issues"])
+        temporal_invalid_syms = (
+            temporal_res["future_symbols"]
+            | temporal_res["stale_symbols"]
+            | temporal_res["missing_date_symbols"]
+        )
+        for sym in temporal_invalid_syms:
+            processed_symbols.discard(sym)
+            failed_symbols.add(sym)
+            # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
+            stock_data_map[sym] = (
+                pd.DataFrame(),
+                "EXPLICITLY_INVALID",
+                [
+                    f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"
+                ],
+            )
 
     missing_symbols = expected_symbols - (
         processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
@@ -236,12 +265,14 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         or failed_symbols
         or insufficient_history_symbols
         or missing_symbols
+        or not temporal_res["is_valid"]
     ):
         raise RuntimeError(
             f"Incomplete universe scan in update mode: validation failed. "
             f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
             f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
             f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
+            f"Temporal issues: {temporal_res['issues']}. "
             f"Processed symbols: {sorted(processed_symbols)}. "
             f"Invalid symbols: {sorted(invalid_symbols)}. "
             f"Insufficient history symbols: {sorted(insufficient_history_symbols)}. "
@@ -249,12 +280,19 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             f"Missing symbols: {sorted(missing_symbols)}."
         )
 
-    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
-    data_as_of = vnindex_val.get("latest_date")
-    source_date = data_as_of  # Backward compatibility alias
-    data_source = vn_source if not df_vnindex_clean.empty else None
-
     logger.info("Step 2: Calculating Market Breadth...")
+    bullish_count = 0
+    for sym in candidate_stocks:
+        s_name = sym["symbol"]
+        if s_name in processed_symbols:
+            df_st, _, _ = stock_data_map[s_name]
+            df_c_st, _ = get_clean_ohlcv_data(df_st, s_name)
+            if not df_c_st.empty and len(df_c_st) >= 20:
+                c = df_c_st["close"].iloc[-1]
+                ma20 = df_c_st["close"].tail(20).mean()
+                if c > ma20:
+                    bullish_count += 1
+
     breadth_ratio = round(bullish_count / len(candidate_stocks), 2) if candidate_stocks else 0.50
 
     logger.info("Step 3: Calculating Final Market Regime...")
