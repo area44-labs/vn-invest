@@ -95,13 +95,29 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     candidate_stocks = provider.candidates
     universe_info = provider.get_info()
 
-    throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
+    if not candidate_stocks:
+        raise RuntimeError("Candidate universe is empty. Cannot generate report on empty universe.")
 
     expected_symbols = {"VNINDEX", "VN30"} | {
         item["symbol"].upper()
         for item in candidate_stocks
         if isinstance(item, dict) and item.get("symbol")
     }
+
+    unique_candidate_stocks = []
+    seen_candidate_syms = set()
+    for item in candidate_stocks:
+        if isinstance(item, dict) and item.get("symbol"):
+            sym_u = item["symbol"].strip().upper()
+            if sym_u not in seen_candidate_syms:
+                seen_candidate_syms.add(sym_u)
+                unique_candidate_stocks.append(item)
+    candidate_stocks = unique_candidate_stocks
+
+    if not candidate_stocks:
+        raise RuntimeError("Candidate universe contains no valid symbols.")
+
+    throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
     processed_symbols = set()
     invalid_symbols = set()
     insufficient_history_symbols = set()
