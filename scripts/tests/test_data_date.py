@@ -47,21 +47,21 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )  # latest date = 2026-09-11
 
-        df_stock_later = pd.DataFrame(
+        df_stock_earlier = pd.DataFrame(
             {
-                "time": pd.date_range("2026-09-01", periods=12, freq="D"),
-                "open": [10.0] * 12,
-                "high": [11.0] * 12,
-                "low": [9.5] * 12,
-                "close": [10.5] * 12,
-                "volume": [100000] * 12,
+                "time": pd.date_range("2026-09-01", periods=10, freq="D"),
+                "open": [10.0] * 10,
+                "high": [11.0] * 10,
+                "low": [9.5] * 10,
+                "close": [10.5] * 10,
+                "volume": [100000] * 10,
             }
-        )  # latest date = 2026-09-12
+        )  # latest date = 2026-09-10 (1 day behind VNINDEX)
 
         def side_effect(symbol, **kwargs):
             if symbol == "VNINDEX":
                 return df_vnindex, "REAL_DATA", []
-            return df_stock_later, "REAL_DATA", []
+            return df_stock_earlier, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
@@ -70,7 +70,7 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertEqual(recs_payload["data_as_of"], "2026-09-11")
 
             fpt_rec = next(r for r in recs_payload["recommendations"] if r["symbol"] == "FPT")
-            self.assertEqual(fpt_rec["data_as_of"], "2026-09-12")
+            self.assertEqual(fpt_rec["data_as_of"], "2026-09-10")
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
         """Test B: When data_as_of is None, no history JSON artifact is created and index is not updated."""

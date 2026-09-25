@@ -193,7 +193,6 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     stock_data_map = {}
     stock_dates_map = {}
-    bullish_count = 0
 
     for idx, item in enumerate(candidate_stocks):
         sym = item["symbol"].upper()
@@ -216,13 +215,6 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 failed_symbols.add(sym)
             else:
                 processed_symbols.add(sym)
-
-            # Pre-breadth check: price above MA20 using clean OHLCV data
-            if not df_clean_stock.empty and len(df_clean_stock) >= 20:
-                c = df_clean_stock["close"].iloc[-1]
-                ma20 = df_clean_stock["close"].tail(20).mean()
-                if c > ma20:
-                    bullish_count += 1
         except ProviderRateLimitError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -247,10 +239,21 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     if not temporal_res["is_valid"]:
         logger.warning("Temporal integrity validation failure: %s", temporal_res["issues"])
-        for sym in temporal_res["future_symbols"] | temporal_res["stale_symbols"]:
+        temporal_invalid_syms = (
+            temporal_res["future_symbols"]
+            | temporal_res["stale_symbols"]
+            | temporal_res["missing_date_symbols"]
+        )
+        for sym in temporal_invalid_syms:
             if sym in processed_symbols:
                 processed_symbols.remove(sym)
-                failed_symbols.add(sym)
+            failed_symbols.add(sym)
+            # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
+            stock_data_map[sym] = (
+                pd.DataFrame(),
+                "EXPLICITLY_INVALID",
+                [f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"],
+            )
 
     missing_symbols = expected_symbols - (
         processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
@@ -277,6 +280,18 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         )
 
     logger.info("Step 2: Calculating Market Breadth...")
+    bullish_count = 0
+    for sym in candidate_stocks:
+        s_name = sym["symbol"]
+        if s_name in processed_symbols:
+            df_st, _, _ = stock_data_map[s_name]
+            df_c_st, _ = get_clean_ohlcv_data(df_st, s_name)
+            if not df_c_st.empty and len(df_c_st) >= 20:
+                c = df_c_st["close"].iloc[-1]
+                ma20 = df_c_st["close"].tail(20).mean()
+                if c > ma20:
+                    bullish_count += 1
+
     breadth_ratio = round(bullish_count / len(candidate_stocks), 2) if candidate_stocks else 0.50
 
     logger.info("Step 3: Calculating Final Market Regime...")
