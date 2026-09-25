@@ -49,14 +49,14 @@ class TestDataDateSemantics(unittest.TestCase):
 
         df_stock_earlier = pd.DataFrame(
             {
-                "time": pd.date_range("2026-09-01", periods=10, freq="D"),
-                "open": [10.0] * 10,
-                "high": [11.0] * 10,
-                "low": [9.5] * 10,
-                "close": [10.5] * 10,
-                "volume": [100000] * 10,
+                "time": pd.date_range("2026-08-17", periods=25, freq="D"),
+                "open": [10.0] * 25,
+                "high": [11.0] * 25,
+                "low": [9.5] * 25,
+                "close": [10.5] * 25,
+                "volume": [100000] * 25,
             }
-        )  # latest date = 2026-09-10 (1 day behind VNINDEX)
+        )  # latest date = 2026-09-10 (1 day behind VNINDEX, 25 rows >= 20)
 
         def side_effect(symbol, **kwargs):
             if symbol == "VNINDEX":
