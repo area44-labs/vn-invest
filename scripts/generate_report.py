@@ -556,6 +556,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             df_stock=df_stock_input,
             market_regime_info=final_market_regime,
             df_vnindex=df_vnindex_clean,
+            data_as_of=data_as_of,
             data_source=tag if not df_stock_input.empty else None,
         )
         scanned_recs.append(rec)
@@ -730,6 +731,7 @@ def generate_historical_report(
             df_stock=df_stock_clean,
             market_regime_info=final_market_regime,
             df_vnindex=df_vnindex_clean,
+            data_as_of=canonical_as_of,
             data_source=data_source,
         )
         scanned_recs.append(rec)
