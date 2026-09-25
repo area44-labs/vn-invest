@@ -1095,11 +1095,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         def mock_get_hist(sym, **kwargs):
             if sym == invalid_candidate:
-                # Return empty DataFrame with tag INSUFFICIENT_HISTORICAL_DATA (explicitly invalid)
+                # Return empty DataFrame with tag INVALID_SYMBOL (genuinely invalid symbol)
                 return (
                     pd.DataFrame(),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    [f"[{sym}] Insufficient history"],
+                    "INVALID_SYMBOL",
+                    [f"[{sym}] Invalid symbol"],
                 )
             return valid_df, "REAL_DATA", []
 
@@ -1113,6 +1113,29 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             ]
             self.assertEqual(len(invalid_recs), 1)
             self.assertEqual(invalid_recs[0]["action"], "AVOID")
+
+    def test_valid_symbol_with_insufficient_history_fails(self):
+        """Valid symbol with insufficient history -> tagged insufficient_history and fails update mode."""
+        from scripts.generate_report import UniverseProvider, run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        insufficient_candidate = candidates[0]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == insufficient_candidate:
+                # Valid symbol but insufficient historical rows (< 20 rows)
+                short_df = make_valid_canonical_df(5)
+                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            err_msg = str(ctx.exception)
+            self.assertIn("Insufficient History: 1", err_msg)
+            self.assertIn(insufficient_candidate, err_msg)
 
     def test_5_duplicate_symbol_does_not_inflate_processed_count(self):
         """5. Duplicate symbols in candidate list -> deduplicated, does not inflate processed count."""
@@ -1224,28 +1247,38 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             self.assertEqual(ctx.exception.symbol, rate_limit_candidate)
 
     def test_9_mixed_successful_invalid_failed_symbols_fails(self):
-        """9. Mixed successful + invalid + failed symbols -> fails closed due to failed symbols."""
+        """9. Mixed successful + invalid + insufficient history + failed symbols -> fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
         candidates = UniverseProvider().candidates
         invalid_candidate = candidates[0]["symbol"].upper()
         failed_candidate = candidates[1]["symbol"].upper()
+        insufficient_candidate = candidates[2]["symbol"].upper()
 
         def mock_get_hist(sym, **kwargs):
             if sym == invalid_candidate:
-                return pd.DataFrame(), "INSUFFICIENT_HISTORICAL_DATA", ["Insufficient"]
+                return pd.DataFrame(), "INVALID_SYMBOL", ["Invalid symbol"]
             if sym == failed_candidate:
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["Timeout error"]
+            if sym == insufficient_candidate:
+                return (
+                    make_valid_canonical_df(5),
+                    "INSUFFICIENT_HISTORICAL_DATA",
+                    ["insufficient_history"],
+                )
             return valid_df, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Invalid: 1", str(ctx.exception))
-            self.assertIn("Failed: 1", str(ctx.exception))
-            self.assertIn(failed_candidate, str(ctx.exception))
+            err_msg = str(ctx.exception)
+            self.assertIn("Invalid: 1", err_msg)
+            self.assertIn("Failed: 1", err_msg)
+            self.assertIn("Insufficient History: 1", err_msg)
+            self.assertIn(failed_candidate, err_msg)
+            self.assertIn(insufficient_candidate, err_msg)
 
     def test_10_completeness_validation_reports_useful_diagnostics(self):
         """10. Completeness validation error message reports all required diagnostic metrics."""
@@ -1274,15 +1307,65 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             self.assertIn("Failed symbols:", err_msg)
             self.assertIn("Missing symbols:", err_msg)
 
-    def test_vnindex_empty_or_invalid_fails(self):
-        """Required benchmark VNINDEX empty/invalid -> fails closed."""
+    def test_insufficient_history_symbol_cannot_make_scan_appear_complete(self):
+        """Insufficient-history candidate cannot satisfy processed_symbols ∪ invalid_symbols."""
+        from scripts.generate_report import UniverseProvider, run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        insufficient_candidate = candidates[0]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == insufficient_candidate:
+                return (
+                    make_valid_canonical_df(5),
+                    "INSUFFICIENT_HISTORICAL_DATA",
+                    ["insufficient_history"],
+                )
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            err_msg = str(ctx.exception)
+            self.assertIn("Incomplete universe scan in update mode", err_msg)
+            self.assertIn("Insufficient History: 1", err_msg)
+            self.assertIn(insufficient_candidate, err_msg)
+
+    def test_provider_failure_cannot_be_masked_as_invalid_or_insufficient_history(self):
+        """Provider failure is tracked strictly as failed_symbols and cannot be masked as invalid or insufficient history."""
+        from scripts.generate_report import UniverseProvider, run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        candidates = UniverseProvider().candidates
+        failed_candidate = candidates[0]["symbol"].upper()
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == failed_candidate:
+                return pd.DataFrame(), "PROVIDER_FAILURE", ["API network error"]
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            err_msg = str(ctx.exception)
+            self.assertIn("Failed: 1", err_msg)
+            self.assertIn(f"Failed symbols: ['{failed_candidate}']", err_msg)
+            self.assertIn("Invalid symbols: []", err_msg)
+            self.assertIn("Insufficient history symbols: []", err_msg)
+
+    def test_vnindex_insufficient_history_fails_closed(self):
+        """Required benchmark VNINDEX with insufficient history -> fails closed."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25)
+        short_df = make_valid_canonical_df(5)
 
         def mock_get_hist(sym, **kwargs):
             if sym == "VNINDEX":
-                return pd.DataFrame(), "INSUFFICIENT_HISTORICAL_DATA", ["VNINDEX data empty"]
+                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
@@ -1291,15 +1374,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             self.assertIn("VNINDEX", str(ctx.exception))
 
-    def test_vn30_empty_or_invalid_fails(self):
-        """Required benchmark VN30 empty/invalid -> fails closed."""
+    def test_vn30_insufficient_history_fails_closed(self):
+        """Required benchmark VN30 with insufficient history -> fails closed."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25)
+        short_df = make_valid_canonical_df(5)
 
         def mock_get_hist(sym, **kwargs):
             if sym == "VN30":
-                return pd.DataFrame(), "INSUFFICIENT_HISTORICAL_DATA", ["VN30 data empty"]
+                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
@@ -1307,6 +1391,46 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 run_pipeline(update_data=True)
 
             self.assertIn("VN30", str(ctx.exception))
+
+    def test_generated_artifacts_remain_unchanged_when_validation_fails(self):
+        """Generated report files remain untouched when update validation fails due to insufficient history or failed symbols."""
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+
+        def mock_get_hist(sym, **kwargs):
+            if sym == "ACB":
+                return (
+                    make_valid_canonical_df(5),
+                    "INSUFFICIENT_HISTORICAL_DATA",
+                    ["insufficient_history"],
+                )
+            return valid_df, "REAL_DATA", []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generated_dir = Path(tmpdir) / "generated"
+            generated_dir.mkdir(parents=True, exist_ok=True)
+            recs_file = generated_dir / "recommendations.json"
+            market_file = generated_dir / "market.json"
+
+            initial_recs = {"schema_version": "2.0", "recommendations": [{"symbol": "INITIAL"}]}
+            initial_market = {"regime": "NEUTRAL"}
+
+            recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
+            market_file.write_text(json.dumps(initial_market), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
+            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
 
     def test_vnindex_provider_failure_fails(self):
         """Required benchmark VNINDEX provider failure -> fails closed."""

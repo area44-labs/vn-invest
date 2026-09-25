@@ -635,7 +635,12 @@ def get_historical_data(
                 max_retries=max_retries,
             )
             val_res = validate_ohlcv_data(df_out, sym)
-            return df_out, "REAL_DATA", val_res["issues"]
+            source_tag = (
+                "INSUFFICIENT_HISTORICAL_DATA"
+                if val_res["status"] == "INSUFFICIENT"
+                else "REAL_DATA"
+            )
+            return df_out, source_tag, val_res["issues"]
         except ProviderRateLimitError as exc:
             if can_recover_rate_limit() and rate_limit_attempt < max_rate_limit_retries:
                 cooldown = exc.cooldown_seconds if exc.cooldown_seconds is not None else 30
