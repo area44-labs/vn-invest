@@ -190,7 +190,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 failed_symbols.add(sym)
             elif tag in ("EXPLICITLY_INVALID", "INVALID_SYMBOL"):
                 invalid_symbols.add(sym)
-            elif tag == "INSUFFICIENT_HISTORICAL_DATA" or val_res.get("status") == "INSUFFICIENT":
+            elif tag == "INSUFFICIENT_HISTORICAL_DATA":
                 insufficient_history_symbols.add(sym)
             elif df_stock is None or df_stock.empty or df_clean_stock.empty:
                 failed_symbols.add(sym)
