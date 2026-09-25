@@ -7,7 +7,11 @@ from unittest.mock import patch
 import jsonschema
 import pandas as pd
 
-from scripts.generate_report import load_schema, run_pipeline
+from scripts.generate_report import (
+    load_schema,
+    run_pipeline,
+    validate_final_payload_integrity,
+)
 from scripts.generate_report import main as generate_report_main
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.vietnam_market import (
@@ -35,42 +39,131 @@ class TestDataDateSemantics(unittest.TestCase):
         self.assertIsNone(extract_latest_trading_date(None))
 
     def test_market_date_independent_from_stock_date(self):
-        """Test A: market.data_as_of is derived from VNINDEX and independent from stock-level dates."""
+        """Case A: Stock data one day behind VNINDEX gets canonical report date in recommendation."""
         df_vnindex = pd.DataFrame(
             {
-                "time": pd.date_range("2026-09-01", periods=11, freq="D"),
-                "open": [1000.0] * 11,
-                "high": [1010.0] * 11,
-                "low": [990.0] * 11,
-                "close": [1000.0] * 11,
-                "volume": [1000000] * 11,
+                "time": pd.date_range("2026-09-01", periods=25, freq="D"),
+                "open": [1000.0] * 25,
+                "high": [1010.0] * 25,
+                "low": [990.0] * 25,
+                "close": [1000.0] * 25,
+                "volume": [1000000] * 25,
             }
-        )  # latest date = 2026-09-11
+        )  # latest date = 2026-09-25
 
         df_stock_earlier = pd.DataFrame(
             {
-                "time": pd.date_range("2026-08-17", periods=25, freq="D"),
+                "time": pd.date_range("2026-08-31", periods=25, freq="D"),
                 "open": [10.0] * 25,
                 "high": [11.0] * 25,
                 "low": [9.5] * 25,
                 "close": [10.5] * 25,
                 "volume": [100000] * 25,
             }
-        )  # latest date = 2026-09-10 (1 day behind VNINDEX, 25 rows >= 20)
+        )  # latest date = 2026-09-24 (1 day behind VNINDEX, 25 rows >= 20)
 
         def side_effect(symbol, **kwargs):
-            if symbol == "VNINDEX":
+            if symbol in ("VNINDEX", "VN30"):
                 return df_vnindex, "REAL_DATA", []
             return df_stock_earlier, "REAL_DATA", []
 
         with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(mkt_payload["data_as_of"], "2026-09-11")
-            self.assertEqual(recs_payload["data_as_of"], "2026-09-11")
+            self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
+            self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
 
             fpt_rec = next(r for r in recs_payload["recommendations"] if r["symbol"] == "FPT")
-            self.assertEqual(fpt_rec["data_as_of"], "2026-09-10")
+            self.assertEqual(fpt_rec["data_as_of"], "2026-09-25")
+
+    def test_all_recommendations_match_canonical_date(self):
+        """Case B: All recommendations match top-level canonical date for a complete valid pipeline."""
+        df_valid = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=25, freq="D"),
+                "open": [1000.0] * 25,
+                "high": [1010.0] * 25,
+                "low": [990.0] * 25,
+                "close": [1000.0] * 25,
+                "volume": [1000000] * 25,
+            }
+        )
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+            payload, _, _ = run_pipeline(update_data=False)
+
+            self.assertEqual(payload["data_as_of"], payload["source_date"])
+            self.assertTrue(len(payload["recommendations"]) > 0)
+            for rec in payload["recommendations"]:
+                self.assertEqual(rec["data_as_of"], payload["data_as_of"])
+
+    def test_exact_production_ci_failure_regression(self):
+        """Case C: Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
+
+        Pipeline completes successfully within temporal staleness window,
+        final payload integrity validation passes, and every recommendation uses '2026-09-25'.
+        """
+        df_vnindex = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=25, freq="D"),
+                "open": [1000.0] * 25,
+                "high": [1010.0] * 25,
+                "low": [990.0] * 25,
+                "close": [1000.0] * 25,
+                "volume": [1000000] * 25,
+            }
+        )  # latest date = 2026-09-25
+
+        df_stock_sync = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-09-01", periods=25, freq="D"),
+                "open": [50.0] * 25,
+                "high": [52.0] * 25,
+                "low": [49.0] * 25,
+                "close": [51.0] * 25,
+                "volume": [500000] * 25,
+            }
+        )  # latest date = 2026-09-25
+
+        df_stock_lagging = pd.DataFrame(
+            {
+                "time": pd.date_range("2026-08-31", periods=25, freq="D"),
+                "open": [100.0] * 25,
+                "high": [102.0] * 25,
+                "low": [98.0] * 25,
+                "close": [101.0] * 25,
+                "volume": [300000] * 25,
+            }
+        )  # latest date = 2026-09-24 (1 day behind VNINDEX)
+
+        # Varying stock dates: half on 2026-09-25, half on 2026-09-24
+        def side_effect(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return df_vnindex, "REAL_DATA", []
+            if hash(symbol) % 2 == 0:
+                return df_stock_sync, "REAL_DATA", []
+            return df_stock_lagging, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+            recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
+
+            self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
+            self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
+
+            # Final payload integrity validation must pass without raising ValueError
+            schema = load_schema()
+            validate_final_payload_integrity(recs_payload, schema=schema)
+            validate_final_payload_integrity(mkt_payload, schema=None)
+
+            # Every recommendation must use canonical '2026-09-25'
+            self.assertTrue(len(recs_payload["recommendations"]) > 0)
+            for rec in recs_payload["recommendations"]:
+                self.assertEqual(
+                    rec["data_as_of"],
+                    "2026-09-25",
+                    f"Stock {rec['symbol']} data_as_of is {rec['data_as_of']}, expected 2026-09-25",
+                )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
         """Test B: When data_as_of is None, no history JSON artifact is created and index is not updated."""
