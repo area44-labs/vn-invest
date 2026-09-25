@@ -9,8 +9,23 @@ Implements Vietnam-specific T+2.5 settlement horizon risk calculations:
 Returns null values if data is insufficient.
 """
 
+import math
+
 import numpy as np
 import pandas as pd
+
+
+def _safe_float(val) -> float | None:
+    """Safely convert value to float, returning None if None, NaN, or Inf."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    except ValueError, TypeError:
+        return None
 
 
 def calculate_t25_returns(price_series: pd.Series) -> pd.Series:
@@ -77,45 +92,48 @@ def calculate_t25_risk_metrics(
         return default_nulls
 
     # Historical VaR 95% T+2.5
-    var_95_t25 = float(np.percentile(returns_3d, 5))
+    raw_var = _safe_float(np.percentile(returns_3d, 5))
+    var_95_t25 = round(raw_var, 4) if raw_var is not None else None
 
     # Expected Shortfall (ES T+2.5): average return below 5th percentile
-    tail_losses = returns_3d[returns_3d <= var_95_t25]
-    if not tail_losses.empty:
-        es_95_t25 = float(tail_losses.mean())
+    if raw_var is not None:
+        tail_losses = returns_3d[returns_3d <= raw_var]
+        raw_es = _safe_float(tail_losses.mean()) if not tail_losses.empty else raw_var
+        es_95_t25 = round(raw_es, 4) if raw_es is not None else var_95_t25
     else:
-        es_95_t25 = var_95_t25
+        es_95_t25 = None
 
     # 60d Annualized Volatility
     returns_1d = df_calc[price_col].pct_change().dropna().tail(60)
+    volatility_60d = None
     if len(returns_1d) >= 10:
-        std_1d = float(returns_1d.std())
-        volatility_60d = float(std_1d * np.sqrt(252))
-    else:
-        volatility_60d = None
+        std_1d = _safe_float(returns_1d.std())
+        if std_1d is not None:
+            volatility_60d = round(std_1d * np.sqrt(252), 4)
 
     # Max Drawdown
     cummax = df_calc[price_col].cummax()
     dd = (df_calc[price_col] - cummax) / cummax
-    max_dd = float(dd.min()) if not dd.empty else None
+    raw_mdd = _safe_float(dd.min()) if not dd.empty else None
+    max_dd = round(raw_mdd, 4) if raw_mdd is not None else None
 
     # Average 20d trading value in billion VND
     # Formula: trading_value_vnd = price (VND/share) * volume (shares)
     # avg_value_20d_bn = mean(last 20 trading_value_vnd) / 1_000_000_000
+    avg_val_20d_bn = None
     if "volume" in df_calc.columns:
         df_calc["trading_value"] = df_calc[price_col] * df_calc["volume"]
-        avg_val_vnd = float(df_calc["trading_value"].tail(20).mean())
-        avg_val_20d_bn = avg_val_vnd / 1e9
-    else:
-        avg_val_20d_bn = None
+        raw_avg_val = _safe_float(df_calc["trading_value"].tail(20).mean())
+        if raw_avg_val is not None and raw_avg_val > 0:
+            avg_val_20d_bn = round(raw_avg_val / 1e9, 2)
 
     return {
-        "var_t25": round(var_95_t25, 4) if var_95_t25 is not None else None,
-        "es_t25": round(es_95_t25, 4) if es_95_t25 is not None else None,
-        "volatility_60d": round(volatility_60d, 4) if volatility_60d is not None else None,
-        "max_drawdown": round(max_dd, 4) if max_dd is not None else None,
+        "var_t25": var_95_t25,
+        "es_t25": es_95_t25,
+        "volatility_60d": volatility_60d,
+        "max_drawdown": max_dd,
         "liquidity_score": None,  # Computed via universe percentile
-        "avg_value_20d": round(avg_val_20d_bn, 2) if avg_val_20d_bn is not None else None,
+        "avg_value_20d": avg_val_20d_bn,
     }
 
 
@@ -140,39 +158,52 @@ def normalize_universe_liquidity_scores(
             f"Invalid or missing market regime: '{market_regime}'. Must be one of {VALID_MARKET_REGIMES}"
         )
 
+    # Only include non-None, positive avg_value_20d from valid symbols in denominator
+    valid_recs_indices = []
     values = []
-    for r in scanned_recommendations:
-        val = r.get("risk_metrics", {}).get("avg_value_20d")
-        if val is not None:
+    for idx, r in enumerate(scanned_recommendations):
+        # Exclude failed/insufficient symbols from liquidity denominator
+        if r.get("data_quality") == "INSUFFICIENT":
+            if r.get("risk_metrics"):
+                r["risk_metrics"]["liquidity_score"] = None
+            r["risk_adjusted_score"] = None
+            continue
+
+        val = _safe_float(r.get("risk_metrics", {}).get("avg_value_20d"))
+        if val is not None and val > 0:
             values.append(val)
+            valid_recs_indices.append(idx)
+        else:
+            r.get("risk_metrics", {})["liquidity_score"] = None
+            r["risk_adjusted_score"] = None
 
     if not values:
+        for r in scanned_recommendations:
+            if r.get("risk_metrics"):
+                r["risk_metrics"]["liquidity_score"] = None
+            r["risk_adjusted_score"] = None
         return scanned_recommendations
 
     s_values = pd.Series(values)
     # Compute percentile rank (0 to 100)
     ranks = (s_values.rank(pct=True) * 100.0).round(1)
 
-    idx_map = 0
-    for r in scanned_recommendations:
-        if r.get("risk_metrics", {}).get("avg_value_20d") is not None:
-            liq_score = float(ranks.iloc[idx_map])
-            r["risk_metrics"]["liquidity_score"] = liq_score
-            idx_map += 1
+    for list_pos, rec_idx in enumerate(valid_recs_indices):
+        r = scanned_recommendations[rec_idx]
+        liq_score = float(ranks.iloc[list_pos])
+        r["risk_metrics"]["liquidity_score"] = liq_score
 
-            # Re-calculate risk_adjusted_score with populated liquidity_score using explicit market_regime
-            if r.get("signal_score") is not None:
-                final_adj = calculate_risk_adjusted_score(
-                    signal_score=r["signal_score"],
-                    regime=regime_str,
-                    volatility_60d=r["risk_metrics"].get("volatility_60d"),
-                    max_drawdown=r["risk_metrics"].get("max_drawdown"),
-                    liquidity_score=liq_score,
-                )
-                r["risk_adjusted_score"] = final_adj
-            else:
-                r["risk_adjusted_score"] = None
+        # Re-calculate risk_adjusted_score with populated liquidity_score using explicit market_regime
+        if r.get("signal_score") is not None:
+            final_adj = calculate_risk_adjusted_score(
+                signal_score=r["signal_score"],
+                regime=regime_str,
+                volatility_60d=r["risk_metrics"].get("volatility_60d"),
+                max_drawdown=r["risk_metrics"].get("max_drawdown"),
+                liquidity_score=liq_score,
+            )
+            r["risk_adjusted_score"] = final_adj
         else:
-            r["risk_metrics"]["liquidity_score"] = None
+            r["risk_adjusted_score"] = None
 
     return scanned_recommendations
