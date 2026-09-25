@@ -1,4 +1,4 @@
-name: Daily Automated Production Data Update
+name: Daily Data Update
 
 on:
   schedule:
