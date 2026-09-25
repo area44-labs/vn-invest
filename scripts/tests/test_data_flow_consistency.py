@@ -202,7 +202,7 @@ class TestDataFlowConsistency(unittest.TestCase):
             candidate_metadata=candidate_metadata,
         )
 
-        recs_data, market_data, _ = res
+        recs_data, _market_data, _ = res
 
         # Validate schema compliance
         jsonschema.validate(instance=recs_data, schema=self.schema)
