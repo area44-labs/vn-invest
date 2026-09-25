@@ -279,10 +279,7 @@ def calculate_signal_score(
     weighted_sum = sum(components[k] * (SIGNAL_WEIGHTS[k] / total_weight) for k in available_keys)
     signal_score = max(0.0, min(100.0, round(weighted_sum, 1)))
 
-    if num_available >= 5:
-        data_quality = "SUFFICIENT"
-    else:
-        data_quality = "PARTIAL"
+    data_quality = "SUFFICIENT" if num_available >= 5 else "PARTIAL"
 
     return signal_score, components, data_quality
 
