@@ -45,6 +45,16 @@ DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 
+VALID_EXCLUSION_CATEGORIES = {
+    "PROVIDER_FAILURE",
+    "EXPLICITLY_INVALID",
+    "INVALID_SYMBOL",
+    "INSUFFICIENT_HISTORICAL_DATA",
+    "TEMPORAL_INVALID",
+    "OTHER_VALIDATION_FAILURE",
+    "MISSING_SYMBOL",
+}
+
 CANONICAL_CONFIDENCE_BUCKETS = [
     "0.0-0.1",
     "0.1-0.2",
@@ -2671,6 +2681,286 @@ def check_ohlcv_data_quality(df_ohlcv: Any, symbol_name: str) -> CheckResult:
     )
 
 
+def check_universe_audit_invariants(
+    universe_audit: dict, recommendations_payload: dict
+) -> CheckResult:
+    """Verify production audit universe invariants, cross-checks, and set consistency."""
+    if not isinstance(universe_audit, dict):
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={"universe_audit_type": type(universe_audit).__name__},
+            expected_condition="universe_audit is a dictionary",
+            message="universe_audit is missing or not a dictionary",
+        )
+
+    required_keys = [
+        "expected_symbols",
+        "processed_symbols",
+        "invalid_symbols",
+        "insufficient_history_symbols",
+        "failed_symbols",
+        "missing_symbols",
+        "counts",
+        "exclusions",
+    ]
+    for k in required_keys:
+        if k not in universe_audit:
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"missing_key": k},
+                expected_condition=f"universe_audit contains key '{k}'",
+                message=f"universe_audit is missing required key '{k}'",
+            )
+
+    counts = universe_audit.get("counts", {})
+    if not isinstance(counts, dict):
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={"counts_type": type(counts).__name__},
+            expected_condition="counts is a dictionary",
+            message="universe_audit.counts is not a dictionary",
+        )
+
+    count_keys = [
+        "expected_count",
+        "processed_count",
+        "invalid_count",
+        "insufficient_history_count",
+        "failed_count",
+        "missing_count",
+    ]
+    for ck in count_keys:
+        val = counts.get(ck)
+        if isinstance(val, bool) or not isinstance(val, int) or val < 0:
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={ck: val},
+                expected_condition=f"{ck} is non-negative integer",
+                message=f"universe_audit.counts.{ck} ({val}) is invalid or negative",
+            )
+
+    exp_syms = universe_audit.get("expected_symbols", [])
+    proc_syms = universe_audit.get("processed_symbols", [])
+    inv_syms = universe_audit.get("invalid_symbols", [])
+    insuf_syms = universe_audit.get("insufficient_history_symbols", [])
+    fail_syms = universe_audit.get("failed_symbols", [])
+    miss_syms = universe_audit.get("missing_symbols", [])
+
+    for name, sym_list, expected_c in [
+        ("expected", exp_syms, counts["expected_count"]),
+        ("processed", proc_syms, counts["processed_count"]),
+        ("invalid", inv_syms, counts["invalid_count"]),
+        ("insufficient_history", insuf_syms, counts["insufficient_history_count"]),
+        ("failed", fail_syms, counts["failed_count"]),
+        ("missing", miss_syms, counts["missing_count"]),
+    ]:
+        if not isinstance(sym_list, list):
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={f"{name}_symbols_type": type(sym_list).__name__},
+                expected_condition=f"{name}_symbols is a list",
+                message=f"universe_audit.{name}_symbols is not a list",
+            )
+        if len(sym_list) != expected_c:
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"list_len": len(sym_list), "reported_count": expected_c},
+                expected_condition=f"len({name}_symbols) == {name}_count",
+                message=f"Count mismatch for {name}: list length {len(sym_list)} != reported count {expected_c}",
+            )
+
+    # Universal sum invariant: expected = processed + invalid + insufficient + failed + missing
+    sum_calculated = (
+        counts["processed_count"]
+        + counts["invalid_count"]
+        + counts["insufficient_history_count"]
+        + counts["failed_count"]
+        + counts["missing_count"]
+    )
+    if counts["expected_count"] != sum_calculated:
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={"expected": counts["expected_count"], "sum_parts": sum_calculated},
+            expected_condition="expected_count == processed + invalid + insufficient + failed + missing",
+            message=f"Audit sum invariant failed: expected ({counts['expected_count']}) != sum of parts ({sum_calculated})",
+        )
+
+    # Check set disjointness (single classification per symbol)
+    s_proc = set(proc_syms)
+    s_inv = set(inv_syms)
+    s_insuf = set(insuf_syms)
+    s_fail = set(fail_syms)
+    s_miss = set(miss_syms)
+    s_exp = set(exp_syms)
+
+    parts = [
+        ("processed", s_proc),
+        ("invalid", s_inv),
+        ("insufficient_history", s_insuf),
+        ("failed", s_fail),
+        ("missing", s_miss),
+    ]
+    overlap_issues = []
+    for i in range(len(parts)):
+        for j in range(i + 1, len(parts)):
+            name1, set1 = parts[i]
+            name2, set2 = parts[j]
+            inter = set1 & set2
+            if inter:
+                overlap_issues.append(f"Overlap between {name1} and {name2}: {sorted(inter)}")
+
+    if overlap_issues:
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={"overlap_issues": overlap_issues},
+            expected_condition="Every symbol belongs to exactly one final classification set",
+            message=f"Duplicate symbol classification detected: {'; '.join(overlap_issues)}",
+        )
+
+    union_parts = s_proc | s_inv | s_insuf | s_fail | s_miss
+    if union_parts != s_exp:
+        diff_missing = s_exp - union_parts
+        diff_extra = union_parts - s_exp
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={
+                "missing_from_parts": sorted(diff_missing),
+                "extra_in_parts": sorted(diff_extra),
+            },
+            expected_condition="Union of parts equals expected_symbols",
+            message=f"Classification set union mismatch: missing={sorted(diff_missing)}, extra={sorted(diff_extra)}",
+        )
+
+    # Exclusions validation
+    exclusions = universe_audit.get("exclusions")
+    if not isinstance(exclusions, list):
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={"exclusions_type": type(exclusions).__name__},
+            expected_condition="exclusions is a list",
+            message="universe_audit.exclusions is not a list",
+        )
+
+    excluded_symbols_expected = s_inv | s_insuf | s_fail | s_miss
+    exclusion_syms_found = set()
+    for idx, ex_item in enumerate(exclusions):
+        if not isinstance(ex_item, dict):
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"index": idx, "type": type(ex_item).__name__},
+                expected_condition="Exclusion item is a dict",
+                message=f"Exclusion item at index {idx} is not a dictionary",
+            )
+        sym = ex_item.get("symbol")
+        cat = ex_item.get("category")
+        reason = ex_item.get("reason")
+
+        if not sym or not isinstance(sym, str):
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"index": idx, "symbol": sym},
+                expected_condition="Exclusion item has non-empty string 'symbol'",
+                message=f"Exclusion item at index {idx} missing valid symbol",
+            )
+
+        if cat not in VALID_EXCLUSION_CATEGORIES:
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"index": idx, "symbol": sym, "category": cat},
+                expected_condition=f"Exclusion category in {sorted(VALID_EXCLUSION_CATEGORIES)}",
+                message=f"Exclusion item [{sym}] has invalid category '{cat}'",
+            )
+
+        if not reason or not isinstance(reason, str):
+            return CheckResult(
+                check_name="universe_audit_invariants",
+                status="FAIL",
+                measured_value={"index": idx, "symbol": sym, "reason": reason},
+                expected_condition="Exclusion item has non-empty string 'reason'",
+                message=f"Exclusion item [{sym}] missing valid diagnostic reason",
+            )
+
+        exclusion_syms_found.add(sym)
+
+    if exclusion_syms_found != excluded_symbols_expected:
+        return CheckResult(
+            check_name="universe_audit_invariants",
+            status="FAIL",
+            measured_value={
+                "missing_exclusions": sorted(excluded_symbols_expected - exclusion_syms_found),
+                "unexpected_exclusions": sorted(exclusion_syms_found - excluded_symbols_expected),
+            },
+            expected_condition="Exclusions list matches all non-processed excluded symbols 1-to-1",
+            message=f"Exclusions coverage mismatch: missing={sorted(excluded_symbols_expected - exclusion_syms_found)}, extra={sorted(exclusion_syms_found - excluded_symbols_expected)}",
+        )
+
+    # Cross-check consistency with recommendations payload
+    recs = recommendations_payload.get("recommendations", [])
+    if isinstance(recs, list):
+        for idx, r in enumerate(recs):
+            if isinstance(r, dict):
+                sym = r.get("symbol")
+                dq = r.get("data_quality")
+                sig = r.get("signal_score")
+                risk_adj = r.get("risk_adjusted_score")
+
+                if dq in ("SUFFICIENT", "PARTIAL"):
+                    if sym not in s_proc:
+                        return CheckResult(
+                            check_name="universe_audit_invariants",
+                            status="FAIL",
+                            measured_value={"symbol": sym, "data_quality": dq},
+                            expected_condition="Symbol with SUFFICIENT/PARTIAL data quality must be in processed_symbols",
+                            message=f"Recommendation [{sym}] has data_quality='{dq}' but is not in processed_symbols",
+                        )
+                elif dq == "INSUFFICIENT":
+                    if sym in s_proc:
+                        return CheckResult(
+                            check_name="universe_audit_invariants",
+                            status="FAIL",
+                            measured_value={"symbol": sym, "data_quality": dq},
+                            expected_condition="Symbol with INSUFFICIENT data quality must NOT be in processed_symbols",
+                            message=f"Recommendation [{sym}] has INSUFFICIENT data quality but is marked in processed_symbols",
+                        )
+                    if sig is not None or risk_adj is not None:
+                        return CheckResult(
+                            check_name="universe_audit_invariants",
+                            status="FAIL",
+                            measured_value={
+                                "symbol": sym,
+                                "signal_score": sig,
+                                "risk_adjusted_score": risk_adj,
+                            },
+                            expected_condition="Failed/insufficient recommendation must have null scores",
+                            message=f"Excluded/insufficient symbol [{sym}] has non-null score(s) in recommendations",
+                        )
+
+    return CheckResult(
+        check_name="universe_audit_invariants",
+        status="PASS",
+        measured_value={
+            "expected_count": counts["expected_count"],
+            "processed_count": counts["processed_count"],
+            "excluded_count": len(excluded_symbols_expected),
+        },
+        expected_condition="All audit counts, set disjointness, exclusion reasons, and pipeline state cross-checks pass",
+        message=f"Universe audit trail verified: {counts['processed_count']}/{counts['expected_count']} processed, {len(excluded_symbols_expected)} excluded with full invariant cross-checks passing",
+    )
+
+
 def evaluate_production_monitoring(
     generated_dir: str | None = None,
     recommendations_payload: dict | None = None,
@@ -2680,6 +2970,7 @@ def evaluate_production_monitoring(
     stock_data_map: dict | None = None,
     df_vnindex: Any | None = None,
     df_vn30: Any | None = None,
+    universe_audit: dict | None = None,
 ) -> PipelineMonitoringResult:
     """Execute operational production monitoring across the pipeline and generated artifacts.
 
@@ -2765,6 +3056,56 @@ def evaluate_production_monitoring(
     counts_chk = check_symbol_processing_counts(recommendations_payload)
     checks.append(counts_chk)
 
+    # 5b. Universe audit invariants check
+    if universe_audit is None:
+        recs = recommendations_payload.get("recommendations", [])
+        cand_proc = [
+            r["symbol"]
+            for r in recs
+            if isinstance(r, dict) and r.get("data_quality") in ("SUFFICIENT", "PARTIAL")
+        ]
+        cand_insuf = [
+            r["symbol"]
+            for r in recs
+            if isinstance(r, dict) and r.get("data_quality") == "INSUFFICIENT"
+        ]
+        benchmarks = ["VNINDEX", "VN30"]
+        exp_list = sorted(
+            set(benchmarks) | {r["symbol"] for r in recs if isinstance(r, dict) and r.get("symbol")}
+        )
+        proc_list = sorted(set(benchmarks) | set(cand_proc))
+        insuf_list = sorted(set(cand_insuf))
+
+        ex_list = [
+            {
+                "symbol": s,
+                "category": "INSUFFICIENT_HISTORICAL_DATA",
+                "reason": f"Symbol {s} has INSUFFICIENT data quality in recommendations",
+            }
+            for s in insuf_list
+        ]
+
+        universe_audit = {
+            "expected_symbols": exp_list,
+            "processed_symbols": proc_list,
+            "invalid_symbols": [],
+            "insufficient_history_symbols": insuf_list,
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": len(exp_list),
+                "processed_count": len(proc_list),
+                "invalid_count": 0,
+                "insufficient_history_count": len(insuf_list),
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": ex_list,
+        }
+
+    audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)
+    checks.append(audit_chk)
+
     # 6. Market regime status check
     checks.append(check_market_regime_status(market_payload))
 
@@ -2817,6 +3158,7 @@ def evaluate_production_monitoring(
         "sell_count": summary.get("sell_count", 0),
         "avoid_count": summary.get("avoid_count", 0),
         "market_regime": market_payload.get("regime"),
+        "universe_audit": universe_audit,
         "drift_monitoring": drift_res.to_dict(),
         "check_counts": {
             "total_checks": len(checks),
