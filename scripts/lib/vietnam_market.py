@@ -20,6 +20,10 @@ from scripts.data_provider import (
     increment_rate_limit_recovery_count,
     reset_circuit_breaker,
 )
+from scripts.lib.config import (
+    MAX_BENCHMARK_FUTURE_DAYS,
+    MAX_STOCK_STALENESS_DAYS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,119 @@ Timezone and Date Semantics Policy:
 3. Market-data date (`data_as_of`) must NEVER be substituted with current system date (`datetime.now()`).
    If OHLCV data is empty or unavailable, `data_as_of` must remain `None`.
 """
+
+
+def validate_temporal_integrity(
+    data_as_of: str | None,
+    stock_dates_map: dict[str, str | None],
+    reference_date: str | None = None,
+    max_staleness_days: int = MAX_STOCK_STALENESS_DAYS,
+) -> dict:
+    """Validate temporal consistency across VNINDEX benchmark data_as_of and processed stock dates.
+
+    Checks:
+    1. VNINDEX data_as_of must be a valid, non-empty 'YYYY-MM-DD' string.
+    2. VNINDEX data_as_of must NOT be in the future relative to execution/reference date.
+    3. Each stock's latest date must exist, must NOT be future-dated relative to data_as_of,
+       and must NOT be excessively stale relative to data_as_of.
+
+    Returns a structured dict containing:
+      - is_valid: bool
+      - issues: sorted list of issue descriptions
+      - future_symbols: set of symbols dated after VNINDEX data_as_of
+      - stale_symbols: set of symbols excessively stale relative to VNINDEX data_as_of
+      - missing_date_symbols: set of symbols with None or invalid latest_date
+    """
+    issues = []
+    future_symbols = set()
+    stale_symbols = set()
+    missing_date_symbols = set()
+
+    if not data_as_of or not isinstance(data_as_of, str):
+        return {
+            "is_valid": False,
+            "issues": ["Missing or invalid VNINDEX benchmark data_as_of date"],
+            "future_symbols": future_symbols,
+            "stale_symbols": stale_symbols,
+            "missing_date_symbols": missing_date_symbols,
+        }
+
+    try:
+        benchmark_dt = datetime.strptime(data_as_of.strip(), "%Y-%m-%d").replace(tzinfo=UTC)
+    except ValueError:
+        return {
+            "is_valid": False,
+            "issues": [f"Malformed VNINDEX data_as_of date string: '{data_as_of}'"],
+            "future_symbols": future_symbols,
+            "stale_symbols": stale_symbols,
+            "missing_date_symbols": missing_date_symbols,
+        }
+
+    # Anti-future benchmark check against reference date (if provided) or current UTC date
+    if reference_date:
+        try:
+            if "T" in reference_date or "+" in reference_date or "Z" in reference_date:
+                ref_dt = datetime.fromisoformat(reference_date)
+                if ref_dt.tzinfo is None:
+                    ref_dt = ref_dt.replace(tzinfo=UTC)
+            else:
+                ref_dt = datetime.strptime(reference_date.strip(), "%Y-%m-%d").replace(tzinfo=UTC)
+        except ValueError:
+            ref_dt = datetime.now(UTC)
+    else:
+        ref_dt = datetime.now(UTC)
+
+    # Convert ref_dt to calendar date at midnight UTC for date comparison
+    ref_date_only = ref_dt.date()
+    benchmark_date_only = benchmark_dt.date()
+
+    if benchmark_date_only > ref_date_only + timedelta(days=MAX_BENCHMARK_FUTURE_DAYS):
+        issues.append(
+            f"VNINDEX benchmark data_as_of '{data_as_of}' is in the future relative to reference/execution date '{ref_date_only.strftime('%Y-%m-%d')}'"
+        )
+
+    for sym, stock_date_str in stock_dates_map.items():
+        if not stock_date_str or not isinstance(stock_date_str, str):
+            missing_date_symbols.add(sym)
+            continue
+
+        try:
+            stock_dt = datetime.strptime(stock_date_str.strip(), "%Y-%m-%d").replace(tzinfo=UTC)
+        except ValueError:
+            missing_date_symbols.add(sym)
+            continue
+
+        stock_date_only = stock_dt.date()
+
+        if stock_date_only > benchmark_date_only:
+            future_symbols.add(sym)
+        else:
+            lag_days = (benchmark_date_only - stock_date_only).days
+            if lag_days > max_staleness_days:
+                stale_symbols.add(sym)
+
+    if future_symbols:
+        issues.append(
+            f"Detected stock symbols dated after VNINDEX data_as_of ({data_as_of}): {sorted(future_symbols)}"
+        )
+    if stale_symbols:
+        issues.append(
+            f"Detected stock symbols excessively stale relative to VNINDEX data_as_of ({data_as_of}, >{max_staleness_days} days lag): {sorted(stale_symbols)}"
+        )
+    if missing_date_symbols:
+        issues.append(
+            f"Detected processed stock symbols with missing or invalid latest dates: {sorted(missing_date_symbols)}"
+        )
+
+    is_valid = len(issues) == 0
+
+    return {
+        "is_valid": is_valid,
+        "issues": sorted(issues),
+        "future_symbols": future_symbols,
+        "stale_symbols": stale_symbols,
+        "missing_date_symbols": missing_date_symbols,
+    }
 
 
 def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
