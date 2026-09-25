@@ -306,6 +306,11 @@ def validate_canonical_ohlcv(df: pd.DataFrame) -> bool:
     close_s = pd.to_numeric(df[col_map["close"]])
     vol_s = pd.to_numeric(df[col_map["volume"]])
 
+    # Non-positive prices check
+    non_pos_prices = (open_s <= 0) | (high_s <= 0) | (low_s <= 0) | (close_s <= 0)
+    if non_pos_prices.any():
+        raise CanonicalOHLCVError("Non-positive prices detected in OHLCV price columns.")
+
     # Negative volume check
     if (vol_s < 0).any():
         raise CanonicalOHLCVError("Negative volume detected in OHLCV volume column.")

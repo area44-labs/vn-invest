@@ -30,7 +30,6 @@ from scripts.lib.vietnam_market import (
     VOLUME_UNIT,
     get_clean_ohlcv_data,
     normalize_ohlcv_units,
-    validate_ohlcv_data,
 )
 
 
@@ -205,15 +204,12 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         )
 
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
-        # Ensure invalid rows were excluded from clean DataFrame
-        self.assertEqual(len(clean_df), 3)
-        self.assertEqual(val_res["latest_date"], "2026-09-04")
+        # Ensure invalid dates fail closed
+        self.assertTrue(clean_df.empty)
+        self.assertEqual(val_res["status"], "INSUFFICIENT")
+        self.assertIn("invalid_dates", val_res["issues"])
         # Ensure raw DataFrame was not mutated
         self.assertEqual(len(df_raw), 4)
-
-        # Raw dataframe validation status
-        val = validate_ohlcv_data(df_raw)
-        self.assertIn("invalid_dates", val["issues"])
 
 
 if __name__ == "__main__":
