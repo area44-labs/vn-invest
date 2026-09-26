@@ -799,7 +799,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
 
         hpg_calls = 0
 
-        def side_effect(symbol, start_date=None, end_date=None, max_retries=2):
+        def side_effect(symbol, start_date=None, end_date=None, max_retries=2, **kwargs):
             nonlocal hpg_calls
             if is_circuit_breaker_active():
                 raise ProviderRateLimitError(

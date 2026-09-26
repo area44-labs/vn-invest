@@ -344,6 +344,7 @@ class VnstockDataProvider:
         start_date: str | None = None,
         end_date: str | None = None,
         max_retries: int = 2,
+        target_date: str | None = None,
     ) -> pd.DataFrame:
         """Fetch real historical EOD OHLCV data for a given symbol from vnstock.
 
@@ -369,6 +370,7 @@ class VnstockDataProvider:
 
         sources = ["kbs", "msn"]
         last_exception = None
+        best_candidate_df = None
 
         for attempt in range(max_retries):
             for source in sources:
@@ -400,7 +402,23 @@ class VnstockDataProvider:
 
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
-                        return df_norm
+
+                        if target_date:
+                            date_col = "time" if "time" in df_norm.columns else "date"
+                            parsed_dates = pd.to_datetime(
+                                df_norm[date_col], errors="coerce"
+                            ).dropna()
+                            latest_dt = (
+                                parsed_dates.max().strftime("%Y-%m-%d")
+                                if not parsed_dates.empty
+                                else None
+                            )
+                            if latest_dt == target_date:
+                                return df_norm
+                            elif best_candidate_df is None:
+                                best_candidate_df = df_norm
+                        else:
+                            return df_norm
                 except (Exception, SystemExit) as exc:
                     if is_rate_limit_exception(exc):
                         err_msg = get_exception_message(exc)
@@ -439,6 +457,9 @@ class VnstockDataProvider:
 
             if attempt < max_retries - 1:
                 time.sleep(0.2)
+
+        if best_candidate_df is not None:
+            return best_candidate_df
 
         if last_exception:
             raise RuntimeError(

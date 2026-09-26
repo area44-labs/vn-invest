@@ -407,6 +407,11 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         df_vnindex_raw = pd.DataFrame()
         df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
 
+    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
+    data_as_of = vnindex_val.get("latest_date")
+    source_date = data_as_of  # Backward compatibility alias
+    data_source = vn_source if not df_vnindex_clean.empty else None
+
     try:
         df_vn30_raw, vn30_source, _ = get_historical_data(
             "VN30",
@@ -464,7 +469,11 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         sym = item["symbol"].upper()
         try:
             df_stock, tag, warns = get_historical_data(
-                sym, max_retries=1, use_cache_only=use_cache, throttle_delay=throttle
+                sym,
+                max_retries=1,
+                use_cache_only=use_cache,
+                throttle_delay=throttle,
+                target_date=data_as_of if update_data else None,
             )
             stock_data_map[sym] = (df_stock, tag, warns)
 
@@ -515,11 +524,6 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
             stock_dates_map[sym] = None
 
-    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
-    data_as_of = vnindex_val.get("latest_date")
-    source_date = data_as_of  # Backward compatibility alias
-    data_source = vn_source if not df_vnindex_clean.empty else None
-
     # Temporal integrity validation across benchmark data_as_of and processed stock dates
     temporal_res = validate_temporal_integrity(
         data_as_of=data_as_of,
@@ -527,6 +531,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             s: stock_dates_map[s] for s in processed_symbols if s not in ("VNINDEX", "VN30")
         },
         reference_date=generated_at,
+        strict_date_match=update_data,
     )
 
     if not temporal_res["is_valid"]:
