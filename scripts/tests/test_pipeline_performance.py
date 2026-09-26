@@ -497,17 +497,38 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
 
+    @patch("scripts.generate_report.evaluate_production_monitoring")
     @patch("scripts.generate_report.time.perf_counter")
     @patch("scripts.generate_report.get_historical_data")
     def test_16_monitoring_elapsed_time_corresponds_to_mocked_execution(
-        self, mock_get_hist, mock_perf
+        self, mock_get_hist, mock_perf, mock_eval_mon
     ):
         """16. Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
+        from unittest.mock import MagicMock
+
         from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25)
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
-        mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
+
+        mock_mon_result = MagicMock()
+        mock_mon_result.overall_status = "PASS"
+        mock_mon_result.to_dict.return_value = {
+            "overall_status": "PASS",
+            "metrics": {},
+        }
+
+        counter_state = {"current": 10.0}
+
+        def perf_side_effect():
+            return counter_state["current"]
+
+        def eval_mon_side_effect(*args, **kwargs):
+            counter_state["current"] += 2.5000
+            return mock_mon_result
+
+        mock_perf.side_effect = perf_side_effect
+        mock_eval_mon.side_effect = eval_mon_side_effect
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
@@ -516,17 +537,14 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                generate_report_main()
-            except SystemExit:
-                pass
+            generate_report_main()
 
             mon_file = gen_dir / "monitoring.json"
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
             stages = mon_data["metrics"]["performance"]["stages"]
             mon_stage = next(s for s in stages if s["stage"] == "monitoring")
             self.assertEqual(mon_stage["status"], "SUCCESS")
-            self.assertGreaterEqual(mon_stage["elapsed_seconds"], 0.0)
+            self.assertEqual(mon_stage["elapsed_seconds"], 2.5000)
 
     def test_17_monitoring_failure_produces_failed_stage_status(self):
         """17. Exception during monitoring stage records status 'FAILED' in performance tracker."""
