@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [tool.uv]
+environments = ["sys_platform == 'linux'", "sys_platform == 'darwin'"]
 override-dependencies = ["pandas>=3.0.0", "numpy>=2.5.0"]
 
 [tool.setuptools.packages.find]
