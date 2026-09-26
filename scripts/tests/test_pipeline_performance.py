@@ -549,9 +549,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     def test_17_monitoring_failure_produces_failed_stage_status(self):
         """17. Exception during monitoring stage records status 'FAILED' in performance tracker."""
         tracker = PerformanceTracker()
-        with self.assertRaises(RuntimeError):
-            with tracker.measure_stage("monitoring"):
-                raise RuntimeError("Monitoring system crash")
+        with self.assertRaises(RuntimeError), tracker.measure_stage("monitoring"):
+            raise RuntimeError("Monitoring system crash")
 
         payload = tracker.get_performance_payload()
         mon_stage = next(s for s in payload["stages"] if s["stage"] == "monitoring")
@@ -564,9 +563,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         tracker = PerformanceTracker()
         invalid_payload = {"data_as_of": "INVALID_DATE"}
 
-        with self.assertRaises(ValueError):
-            with tracker.measure_stage("payload_validation"):
-                validate_final_payload_integrity(invalid_payload, schema=None)
+        with self.assertRaises(ValueError), tracker.measure_stage("payload_validation"):
+            validate_final_payload_integrity(invalid_payload, schema=None)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
