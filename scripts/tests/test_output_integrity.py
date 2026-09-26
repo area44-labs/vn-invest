@@ -1,6 +1,7 @@
 """Deterministic offline unit and regression tests for final payload & output integrity."""
 
 import copy
+import json
 import os
 import shutil
 import tempfile
@@ -375,6 +376,236 @@ class TestOutputIntegritySuite(unittest.TestCase):
                         original_contents,
                         f"Unexpected file created during failed validation: '{full_p}'",
                     )
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_atomic_publish_success_publishes_all_artifacts_together(self):
+        """Verify that a successful pipeline run atomically publishes all expected output artifacts together."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            gen_dir = os.path.join(temp_dir, "generated")
+            os.makedirs(gen_dir, exist_ok=True)
+
+            valid_p = copy.deepcopy(self.valid_payload)
+
+            class MockPipelineRes(tuple):
+                def __new__(cls, r, m, h):
+                    obj = super().__new__(cls, (r, m, h))
+                    obj.df_vnindex = None
+                    obj.df_vn30 = None
+                    return obj
+
+            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
+
+            mock_mon_res = MagicMock()
+            mock_mon_res.overall_status = "PASS"
+            mock_mon_res.to_dict.return_value = {
+                "overall_status": "PASS",
+                "generated_at": "2026-09-25T14:00:00Z",
+                "data_as_of": "2026-09-25",
+                "checks": [],
+                "metrics": {},
+            }
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
+                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                main()
+
+            # Verify all expected production artifacts exist
+            expected_artifacts = [
+                os.path.join(gen_dir, "recommendations.json"),
+                os.path.join(gen_dir, "market.json"),
+                os.path.join(gen_dir, "monitoring.json"),
+                os.path.join(gen_dir, "history", "2026-09-25.json"),
+                os.path.join(gen_dir, "history", "index.json"),
+            ]
+            for p in expected_artifacts:
+                self.assertTrue(os.path.exists(p), f"Expected published artifact missing: '{p}'")
+
+            # Verify no leftover .tmp files
+            for root, _, files in os.walk(gen_dir):
+                for f in files:
+                    self.assertFalse(f.endswith(".tmp"), f"Leftover temporary file found: {f}")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_failure_during_publish_preserves_existing_artifacts_and_cleans_up_tmp(self):
+        """Verify failure during commit phase AFTER at least one artifact replacement succeeds triggers rollback, leaving ALL existing artifacts byte-for-byte unchanged."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            gen_dir = os.path.join(temp_dir, "generated")
+            hist_dir = os.path.join(gen_dir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            recs_file = os.path.join(gen_dir, "recommendations.json")
+            mkt_file = os.path.join(gen_dir, "market.json")
+            mon_file = os.path.join(gen_dir, "monitoring.json")
+            hist_file = os.path.join(hist_dir, "2026-09-25.json")
+            idx_file = os.path.join(hist_dir, "index.json")
+
+            original_contents = {
+                recs_file: '{"existing_recs": "v1"}\n',
+                mkt_file: '{"existing_mkt": "v1"}\n',
+                mon_file: '{"existing_mon": "v1"}\n',
+                hist_file: '{"existing_hist": "v1"}\n',
+                idx_file: json.dumps({"dates": ["2026-09-24"], "total_reports": 1}) + "\n",
+            }
+            for path, content in original_contents.items():
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+            valid_p = copy.deepcopy(self.valid_payload)
+
+            class MockPipelineRes(tuple):
+                def __new__(cls, r, m, h):
+                    obj = super().__new__(cls, (r, m, h))
+                    obj.df_vnindex = None
+                    obj.df_vn30 = None
+                    return obj
+
+            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
+
+            mock_mon_res = MagicMock()
+            mock_mon_res.overall_status = "PASS"
+            mock_mon_res.to_dict.return_value = {
+                "overall_status": "PASS",
+                "generated_at": "2026-09-25T14:00:00Z",
+                "data_as_of": "2026-09-25",
+                "checks": [],
+                "metrics": {},
+            }
+
+            real_os_replace = os.replace
+            replace_count = 0
+
+            def failing_os_replace(src, dst):
+                nonlocal replace_count
+                replace_count += 1
+                if replace_count == 2:  # Fail on second replace call AFTER first replace succeeded
+                    raise OSError("Disk failure on second artifact replacement")
+                return real_os_replace(src, dst)
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
+                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("os.replace", side_effect=failing_os_replace),
+                patch("sys.argv", ["generate_report.py"]),
+                self.assertRaises(OSError),
+            ):
+                main()
+
+            # Prove that replace #1 succeeded before replace #2 failed
+            self.assertGreaterEqual(replace_count, 2)
+
+            # Verify ALL existing files are restored byte-for-byte unchanged (no mixed old/new artifacts)
+            for path, expected in original_contents.items():
+                with open(path, "r", encoding="utf-8") as f:
+                    self.assertEqual(
+                        f.read(),
+                        expected,
+                        f"Artifact '{path}' was modified after mid-commit rollback failure!",
+                    )
+
+            # Verify no temporary or backup files remain in gen_dir
+            for root, _, files in os.walk(gen_dir):
+                for f in files:
+                    self.assertFalse(f.endswith(".tmp"), f"Leftover temp file: {f}")
+                    self.assertFalse(f.endswith(".bak"), f"Leftover backup file: {f}")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_successful_retry_after_previous_failure(self):
+        """Verify that after a failure leaves artifacts unchanged, a subsequent valid run completes and publishes all new artifacts."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            gen_dir = os.path.join(temp_dir, "generated")
+            hist_dir = os.path.join(gen_dir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            recs_file = os.path.join(gen_dir, "recommendations.json")
+            mkt_file = os.path.join(gen_dir, "market.json")
+            mon_file = os.path.join(gen_dir, "monitoring.json")
+            hist_file = os.path.join(hist_dir, "2026-09-25.json")
+            idx_file = os.path.join(hist_dir, "index.json")
+
+            original_contents = {
+                recs_file: '{"v": 1}\n',
+                mkt_file: '{"v": 1}\n',
+                mon_file: '{"v": 1}\n',
+                hist_file: '{"v": 1}\n',
+                idx_file: json.dumps({"dates": ["2026-09-24"], "total_reports": 1}) + "\n",
+            }
+            for path, content in original_contents.items():
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+            # 1. Attempt run that fails in pipeline
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
+                patch(
+                    "scripts.generate_report.run_pipeline",
+                    side_effect=RuntimeError("Pipeline failed"),
+                ),
+                patch("sys.argv", ["generate_report.py"]),
+                self.assertRaises(SystemExit) as cm,
+            ):
+                main()
+            self.assertEqual(cm.exception.code, 1)
+
+            # Verify artifacts remain unchanged after failure
+            for path, expected in original_contents.items():
+                with open(path, "r", encoding="utf-8") as f:
+                    self.assertEqual(f.read(), expected)
+
+            # 2. Retry with valid pipeline output
+            valid_p = copy.deepcopy(self.valid_payload)
+
+            class MockPipelineRes(tuple):
+                def __new__(cls, r, m, h):
+                    obj = super().__new__(cls, (r, m, h))
+                    obj.df_vnindex = None
+                    obj.df_vn30 = None
+                    return obj
+
+            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
+
+            mock_mon_res = MagicMock()
+            mock_mon_res.overall_status = "PASS"
+            mock_mon_res.to_dict.return_value = {
+                "overall_status": "PASS",
+                "generated_at": "2026-09-25T14:00:00Z",
+                "data_as_of": "2026-09-25",
+                "checks": [],
+                "metrics": {},
+            }
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
+                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.generate_report.evaluate_production_monitoring",
+                    return_value=mock_mon_res,
+                ),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                main()
+
+            # Verify all artifacts updated to v2 payload
+            with open(recs_file, "r", encoding="utf-8") as f:
+                recs_data = json.load(f)
+            self.assertEqual(recs_data["schema_version"], "2.0")
+            self.assertEqual(recs_data["data_as_of"], "2026-09-25")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

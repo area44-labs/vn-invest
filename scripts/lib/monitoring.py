@@ -2108,29 +2108,42 @@ def evaluate_data_and_model_drift(
     )
 
 
-def check_required_artifacts(generated_dir: str, data_as_of: str | None = None) -> CheckResult:
-    """Verify presence and accessibility of required generated JSON artifacts."""
-    required_files = [
-        os.path.join(generated_dir, "recommendations.json"),
-        os.path.join(generated_dir, "market.json"),
-        os.path.join(generated_dir, "history", "index.json"),
+def check_required_artifacts(
+    generated_dir: str,
+    data_as_of: str | None = None,
+    in_memory_artifacts: dict[str, Any] | None = None,
+) -> CheckResult:
+    """Verify presence and accessibility of required generated JSON artifacts (either in-memory or on disk)."""
+    req_rel_paths = [
+        "recommendations.json",
+        "market.json",
+        os.path.join("history", "index.json"),
     ]
     if data_as_of:
-        required_files.append(os.path.join(generated_dir, "history", f"{data_as_of}.json"))
+        req_rel_paths.append(os.path.join("history", f"{data_as_of}.json"))
 
+    in_mem = in_memory_artifacts or {}
     missing = []
     unreadable = []
-    for fpath in required_files:
-        if not os.path.exists(fpath):
-            missing.append(os.path.basename(fpath))
+
+    for rel_p in req_rel_paths:
+        file_name = os.path.basename(rel_p)
+        if rel_p in in_mem or file_name in in_mem:
+            data = in_mem.get(rel_p) if rel_p in in_mem else in_mem.get(file_name)
+            if not isinstance(data, dict):
+                unreadable.append(f"{file_name} (in-memory root is not object)")
         else:
-            try:
-                with open(fpath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                if not isinstance(data, dict):
-                    unreadable.append(f"{os.path.basename(fpath)} (root is not object)")
-            except Exception as e:  # noqa: BLE001
-                unreadable.append(f"{os.path.basename(fpath)} ({e})")
+            fpath = os.path.join(generated_dir, rel_p)
+            if not os.path.exists(fpath):
+                missing.append(file_name)
+            else:
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if not isinstance(data, dict):
+                        unreadable.append(f"{file_name} (root is not object)")
+                except Exception as e:  # noqa: BLE001
+                    unreadable.append(f"{file_name} ({e})")
 
     if missing or unreadable:
         msgs = []
@@ -2146,12 +2159,13 @@ def check_required_artifacts(generated_dir: str, data_as_of: str | None = None) 
             message="; ".join(msgs),
         )
 
+    found_count = len(req_rel_paths) - len(missing)
     return CheckResult(
         check_name="artifact_existence",
         status="PASS",
-        measured_value={"required_count": len(required_files), "found_count": len(required_files)},
+        measured_value={"required_count": len(req_rel_paths), "found_count": found_count},
         expected_condition="All required generated JSON artifacts exist and are valid JSON",
-        message=f"All {len(required_files)} required artifacts exist and are readable",
+        message=f"All {len(req_rel_paths)} required artifacts exist and are readable",
     )
 
 
@@ -2639,14 +2653,19 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             message="History index dates are not sorted in descending chronological order",
         )
 
-    if data_as_of and data_as_of not in dates:
-        return CheckResult(
-            check_name="history_index_status",
-            status="FAIL",
-            measured_value={"data_as_of": data_as_of, "dates_count": len(dates)},
-            expected_condition=f"data_as_of '{data_as_of}' present in history index dates",
-            message=f"data_as_of '{data_as_of}' is missing from history/index.json dates list",
-        )
+    if data_as_of and dates:
+        latest_history_date = dates[0]
+        if data_as_of < latest_history_date:
+            return CheckResult(
+                check_name="history_index_status",
+                status="FAIL",
+                measured_value={
+                    "data_as_of": data_as_of,
+                    "latest_history_date": latest_history_date,
+                },
+                expected_condition=f"data_as_of '{data_as_of}' >= latest index date '{latest_history_date}'",
+                message=f"data_as_of '{data_as_of}' is older than latest history/index.json date '{latest_history_date}'",
+            )
 
     return CheckResult(
         check_name="history_index_status",
@@ -2980,6 +2999,7 @@ def evaluate_production_monitoring(
     df_vnindex: Any | None = None,
     df_vn30: Any | None = None,
     universe_audit: dict | None = None,
+    in_memory_artifacts: dict | None = None,
 ) -> PipelineMonitoringResult:
     """Execute operational production monitoring across the pipeline and generated artifacts.
 
@@ -3010,8 +3030,10 @@ def evaluate_production_monitoring(
             except Exception:  # noqa: BLE001
                 data_as_of_peek = None
 
-    # 1. Artifact existence check (ALWAYS executed on disk)
-    artifact_chk = check_required_artifacts(g_dir, data_as_of=data_as_of_peek)
+    # 1. Artifact existence check (executed in-memory or on disk)
+    artifact_chk = check_required_artifacts(
+        g_dir, data_as_of=data_as_of_peek, in_memory_artifacts=in_memory_artifacts
+    )
     checks.append(artifact_chk)
 
     # Load payloads if not provided in memory

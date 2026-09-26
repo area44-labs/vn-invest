@@ -205,7 +205,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertEqual(mon_data["overall_status"], "WARN")
 
     def test_c_monitoring_fail_exits_nonzero(self):
-        """Test C: Monitoring FAIL -> process exits non-zero (SystemExit(1)), monitoring status FAIL is recorded."""
+        """Test C: Monitoring FAIL -> process exits non-zero (SystemExit(1)), no artifacts written."""
         mock_mon = MagicMock()
         mock_mon.overall_status = "FAIL"
         mock_mon.to_dict.return_value = {
@@ -229,12 +229,9 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
                 main()
             self.assertEqual(cm.exception.code, 1)
 
-        # monitoring.json is generated and written with status FAIL before exiting
+        # No artifacts (including monitoring.json) are created or modified on monitoring failure
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
-        self.assertTrue(os.path.exists(mon_path))
-        with open(mon_path, "r", encoding="utf-8") as f:
-            mon_data = json.load(f)
-        self.assertEqual(mon_data["overall_status"], "FAIL")
+        self.assertFalse(os.path.exists(mon_path))
 
     def test_d_existing_drift_scenario_evaluates_to_fail(self):
         """Test D: Reproduce realistic distribution shift scenario and verify monitoring result evaluates to FAIL."""

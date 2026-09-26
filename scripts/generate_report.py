@@ -90,6 +90,92 @@ def save_json_files(relative_path: str, data: dict):
     os.replace(tmp_p, p)
 
 
+def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
+    """Publish multiple JSON artifacts atomically to target_dir.
+
+    `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
+    to dictionary payload data.
+
+    All payloads are written to temporary files (.tmp) first.
+    Existing files are backed up to (.bak) before replacement.
+    If replacement fails midway, all replaced files are restored from backup (.bak).
+    """
+    if target_dir is None:
+        target_dir = GENERATED_DIR
+
+    tmp_map: list[tuple[str, str]] = []  # (tmp_path, target_path)
+    bak_map: list[tuple[str, str]] = []  # (bak_path, target_path)
+    completed_replaces: list[tuple[str, str, str | None]] = []  # (tmp_path, target_path, bak_path)
+
+    try:
+        # Step 1: Write all new data to .tmp files
+        for rel_path, data in artifacts.items():
+            target_path = os.path.join(target_dir, rel_path)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            tmp_path = f"{target_path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+            tmp_map.append((tmp_path, target_path))
+
+        # Step 2: Backup any existing target files
+        for tmp_path, target_path in tmp_map:
+            if os.path.exists(target_path):
+                bak_path = f"{target_path}.bak"
+                os.replace(target_path, bak_path)
+                bak_map.append((bak_path, target_path))
+
+        # Step 3: Atomic replacement of target files from .tmp files
+        for tmp_path, target_path in tmp_map:
+            bak_path = f"{target_path}.bak" if os.path.exists(f"{target_path}.bak") else None
+            os.replace(tmp_path, target_path)
+            completed_replaces.append((tmp_path, target_path, bak_path))
+
+        # Step 4: Cleanup backup (.bak) files on successful commit
+        for bak_path, _ in bak_map:
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(bak_path)
+                except OSError:
+                    pass
+
+    except Exception as exc:
+        logger.error(
+            "Atomic artifact publishing failed during write/commit: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
+            exc,
+        )
+        # Rollback: restore backed-up files for completed replaces
+        for _tmp_path, target_path, bak_path in completed_replaces:
+            if bak_path and os.path.exists(bak_path):
+                try:
+                    os.replace(bak_path, target_path)
+                except OSError:
+                    pass
+            elif os.path.exists(target_path) and not bak_path:
+                # File was newly created during this run, remove it
+                try:
+                    os.remove(target_path)
+                except OSError:
+                    pass
+
+        # Cleanup remaining .bak files
+        for bak_path, target_path in bak_map:
+            if os.path.exists(bak_path):
+                try:
+                    os.replace(bak_path, target_path)
+                except OSError:
+                    pass
+
+        # Cleanup temporary files
+        for tmp_path, _ in tmp_map:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+        raise
+
+
 def load_schema():
     """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
@@ -1727,8 +1813,24 @@ def main():
 
         logger.info("JSON Schema & output integrity validation passed successfully!")
 
-        save_json_files(os.path.join("history", f"{target_date}.json"), history_data)
-        update_history_index(target_date)
+        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+        index_data = load_history_index(index_path)
+        history_dates = index_data.get("dates", [])
+        if target_date not in history_dates:
+            history_dates = list(history_dates)
+            history_dates.append(target_date)
+            history_dates.sort(reverse=True)
+        index_payload = {
+            "last_updated": datetime.now(UTC).isoformat(),
+            "total_reports": len(history_dates),
+            "dates": history_dates,
+        }
+
+        historical_artifacts = {
+            os.path.join("history", f"{target_date}.json"): history_data,
+            os.path.join("history", "index.json"): index_payload,
+        }
+        publish_artifacts_atomically(historical_artifacts)
 
         logger.info("Historical report generation complete!")
         logger.info("Outputs written to generated/history:")
@@ -1753,6 +1855,29 @@ def main():
         logger.info("Executing production pipeline monitoring...")
         try:
             with tracker.measure_stage("monitoring"):
+                in_mem_artifacts = {
+                    "recommendations.json": recs_data,
+                    "market.json": market_data,
+                }
+                data_as_of_peek = recs_data.get("data_as_of")
+                if data_as_of_peek:
+                    in_mem_artifacts[f"history/{data_as_of_peek}.json"] = history_data
+                    # Peek history index in memory
+                    index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+                    try:
+                        idx_data = load_history_index(index_path)
+                        dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
+                    except Exception:  # noqa: BLE001
+                        dates = []
+                    if data_as_of_peek not in dates:
+                        dates = list(dates) + [data_as_of_peek]
+                        dates.sort(reverse=True)
+                    in_mem_artifacts["history/index.json"] = {
+                        "last_updated": datetime.now(UTC).isoformat(),
+                        "total_reports": len(dates),
+                        "dates": dates,
+                    }
+
                 monitoring_result = evaluate_production_monitoring(
                     generated_dir=GENERATED_DIR,
                     recommendations_payload=recs_data,
@@ -1760,6 +1885,7 @@ def main():
                     df_vnindex=df_vnindex_clean,
                     df_vn30=df_vn30_clean,
                     universe_audit=getattr(pipeline_res, "universe_audit", None),
+                    in_memory_artifacts=in_mem_artifacts,
                 )
         except Exception:
             perf_payload = tracker.get_performance_payload(
@@ -1806,17 +1932,43 @@ def main():
 
         data_as_of = recs_data.get("data_as_of")
 
-        save_json_files("recommendations.json", recs_data)
-        save_json_files("market.json", market_data)
-        save_json_files("monitoring.json", monitoring_dict)
+        # Evaluate monitoring status BEFORE publishing any artifacts
+        logger.info("Production monitoring status: %s", monitoring_result.overall_status)
+        if monitoring_result.overall_status == "FAIL":
+            logger.error(
+                "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
+            )
+            raise SystemExit(1)
+
+        # Build full payload dictionary for atomic publication
+        artifacts_to_publish = {
+            "recommendations.json": recs_data,
+            "market.json": market_data,
+            "monitoring.json": monitoring_dict,
+        }
 
         if data_as_of:
-            save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
-            update_history_index(data_as_of)
+            artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = history_data
+            # Calculate updated history index payload in memory
+            index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+            index_data = load_history_index(index_path)
+            history_dates = index_data.get("dates", [])
+            if data_as_of not in history_dates:
+                history_dates = list(history_dates)
+                history_dates.append(data_as_of)
+                history_dates.sort(reverse=True)
+            index_payload = {
+                "last_updated": datetime.now(UTC).isoformat(),
+                "total_reports": len(history_dates),
+                "dates": history_dates,
+            }
+            artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
         else:
             logger.warning(
                 "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
             )
+
+        publish_artifacts_atomically(artifacts_to_publish)
 
         logger.info("Report generation complete!")
         logger.info("Outputs written to generated/:")
