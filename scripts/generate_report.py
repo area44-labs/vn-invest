@@ -96,15 +96,19 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
     `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
     to dictionary payload data.
 
-    All payloads are written to temporary files (.tmp) first. Once all temporary files are written
-    and flushed successfully, they are moved to their target destinations via atomic `os.replace`.
-    If writing any temporary file fails, all staging temp files are cleaned up and no target files are overwritten.
+    All payloads are written to temporary files (.tmp) first.
+    Existing files are backed up to (.bak) before replacement.
+    If replacement fails midway, all replaced files are restored from backup (.bak).
     """
     if target_dir is None:
         target_dir = GENERATED_DIR
 
     tmp_map: list[tuple[str, str]] = []  # (tmp_path, target_path)
+    bak_map: list[tuple[str, str]] = []  # (bak_path, target_path)
+    completed_replaces: list[tuple[str, str, str | None]] = []  # (tmp_path, target_path, bak_path)
+
     try:
+        # Step 1: Write all new data to .tmp files
         for rel_path, data in artifacts.items():
             target_path = os.path.join(target_dir, rel_path)
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
@@ -114,14 +118,54 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
                 f.write("\n")
             tmp_map.append((tmp_path, target_path))
 
-        # Atomic commit stage: replace all target files
+        # Step 2: Backup any existing target files
         for tmp_path, target_path in tmp_map:
+            if os.path.exists(target_path):
+                bak_path = f"{target_path}.bak"
+                os.replace(target_path, bak_path)
+                bak_map.append((bak_path, target_path))
+
+        # Step 3: Atomic replacement of target files from .tmp files
+        for tmp_path, target_path in tmp_map:
+            bak_path = f"{target_path}.bak" if os.path.exists(f"{target_path}.bak") else None
             os.replace(tmp_path, target_path)
+            completed_replaces.append((tmp_path, target_path, bak_path))
+
+        # Step 4: Cleanup backup (.bak) files on successful commit
+        for bak_path, _ in bak_map:
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(bak_path)
+                except OSError:
+                    pass
+
     except Exception as exc:
         logger.error(
             "Atomic artifact publishing failed during write/commit: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
             exc,
         )
+        # Rollback: restore backed-up files for completed replaces
+        for _tmp_path, target_path, bak_path in completed_replaces:
+            if bak_path and os.path.exists(bak_path):
+                try:
+                    os.replace(bak_path, target_path)
+                except OSError:
+                    pass
+            elif os.path.exists(target_path) and not bak_path:
+                # File was newly created during this run, remove it
+                try:
+                    os.remove(target_path)
+                except OSError:
+                    pass
+
+        # Cleanup remaining .bak files
+        for bak_path, target_path in bak_map:
+            if os.path.exists(bak_path):
+                try:
+                    os.replace(bak_path, target_path)
+                except OSError:
+                    pass
+
         # Cleanup temporary files
         for tmp_path, _ in tmp_map:
             if os.path.exists(tmp_path):
@@ -1811,6 +1855,29 @@ def main():
         logger.info("Executing production pipeline monitoring...")
         try:
             with tracker.measure_stage("monitoring"):
+                in_mem_artifacts = {
+                    "recommendations.json": recs_data,
+                    "market.json": market_data,
+                }
+                data_as_of_peek = recs_data.get("data_as_of")
+                if data_as_of_peek:
+                    in_mem_artifacts[f"history/{data_as_of_peek}.json"] = history_data
+                    # Peek history index in memory
+                    index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+                    try:
+                        idx_data = load_history_index(index_path)
+                        dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
+                    except Exception:  # noqa: BLE001
+                        dates = []
+                    if data_as_of_peek not in dates:
+                        dates = list(dates) + [data_as_of_peek]
+                        dates.sort(reverse=True)
+                    in_mem_artifacts["history/index.json"] = {
+                        "last_updated": datetime.now(UTC).isoformat(),
+                        "total_reports": len(dates),
+                        "dates": dates,
+                    }
+
                 monitoring_result = evaluate_production_monitoring(
                     generated_dir=GENERATED_DIR,
                     recommendations_payload=recs_data,
@@ -1818,6 +1885,7 @@ def main():
                     df_vnindex=df_vnindex_clean,
                     df_vn30=df_vn30_clean,
                     universe_audit=getattr(pipeline_res, "universe_audit", None),
+                    in_memory_artifacts=in_mem_artifacts,
                 )
         except Exception:
             perf_payload = tracker.get_performance_payload(

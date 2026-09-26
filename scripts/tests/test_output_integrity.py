@@ -437,7 +437,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_failure_during_publish_preserves_existing_artifacts_and_cleans_up_tmp(self):
-        """Verify failure during publish stage cleans up temp files and leaves existing artifacts byte-for-byte unchanged."""
+        """Verify failure during commit phase AFTER at least one artifact replacement succeeds triggers rollback, leaving ALL existing artifacts byte-for-byte unchanged."""
         temp_dir = tempfile.mkdtemp()
         try:
             gen_dir = os.path.join(temp_dir, "generated")
@@ -482,7 +482,16 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 "metrics": {},
             }
 
-            # Mock os.replace to fail during commit
+            real_os_replace = os.replace
+            replace_count = 0
+
+            def failing_os_replace(src, dst):
+                nonlocal replace_count
+                replace_count += 1
+                if replace_count == 2:  # Fail on second replace call AFTER first replace succeeded
+                    raise OSError("Disk failure on second artifact replacement")
+                return real_os_replace(src, dst)
+
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
                 patch("scripts.generate_report.run_pipeline", return_value=mock_res),
@@ -490,21 +499,29 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     "scripts.generate_report.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
-                patch("os.replace", side_effect=OSError("Disk write error")),
+                patch("os.replace", side_effect=failing_os_replace),
                 patch("sys.argv", ["generate_report.py"]),
                 self.assertRaises(OSError),
             ):
                 main()
 
-            # Verify existing files are byte-for-byte unchanged
+            # Prove that replace #1 succeeded before replace #2 failed
+            self.assertGreaterEqual(replace_count, 2)
+
+            # Verify ALL existing files are restored byte-for-byte unchanged (no mixed old/new artifacts)
             for path, expected in original_contents.items():
                 with open(path, "r", encoding="utf-8") as f:
-                    self.assertEqual(f.read(), expected)
+                    self.assertEqual(
+                        f.read(),
+                        expected,
+                        f"Artifact '{path}' was modified after mid-commit rollback failure!",
+                    )
 
-            # Verify no temporary files remain
+            # Verify no temporary or backup files remain in gen_dir
             for root, _, files in os.walk(gen_dir):
                 for f in files:
                     self.assertFalse(f.endswith(".tmp"), f"Leftover temp file: {f}")
+                    self.assertFalse(f.endswith(".bak"), f"Leftover backup file: {f}")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 

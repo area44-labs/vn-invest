@@ -299,11 +299,55 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(res_1.to_dict(), res_2.to_dict())
 
     def test_missing_required_artifact_fails(self):
-        """Verify missing required JSON artifact causes check failure ('FAIL')."""
+        """Verify missing required JSON artifacts cause check failure ('FAIL') for each artifact."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            chk = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk.status, "FAIL")
-            self.assertIn("Missing files", chk.message)
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            recs_p = os.path.join(tmpdir, "recommendations.json")
+            mkt_p = os.path.join(tmpdir, "market.json")
+            idx_p = os.path.join(hist_dir, "index.json")
+            as_of_p = os.path.join(hist_dir, "2026-09-17.json")
+
+            # Case 1: missing recommendations.json => FAIL
+            chk1 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
+            self.assertEqual(chk1.status, "FAIL")
+            self.assertIn("recommendations.json", chk1.measured_value["missing"])
+
+            # Create recommendations.json
+            with open(recs_p, "w") as f:
+                f.write("{}")
+
+            # Case 2: missing market.json => FAIL
+            chk2 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
+            self.assertEqual(chk2.status, "FAIL")
+            self.assertIn("market.json", chk2.measured_value["missing"])
+
+            # Create market.json
+            with open(mkt_p, "w") as f:
+                f.write("{}")
+
+            # Case 3: missing history/index.json => FAIL
+            chk3 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
+            self.assertEqual(chk3.status, "FAIL")
+            self.assertIn("index.json", chk3.measured_value["missing"])
+
+            # Create history/index.json
+            with open(idx_p, "w") as f:
+                f.write("{}")
+
+            # Case 4: missing history/{data_as_of}.json => FAIL
+            chk4 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
+            self.assertEqual(chk4.status, "FAIL")
+            self.assertIn("2026-09-17.json", chk4.measured_value["missing"])
+
+            # Create history/{data_as_of}.json
+            with open(as_of_p, "w") as f:
+                f.write("{}")
+
+            # Case 5: all required artifacts present => PASS
+            chk5 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
+            self.assertEqual(chk5.status, "PASS")
 
     def test_malformed_artifact_fails(self):
         """Verify malformed non-JSON artifact causes check failure ('FAIL')."""
