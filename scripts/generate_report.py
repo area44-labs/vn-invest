@@ -280,14 +280,29 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     return issues
 
 
-def validate_final_payload_integrity(payload: dict, schema: dict | None = None) -> None:
+def validate_final_payload_integrity(
+    payload: dict, schema: dict | None = None, payload_name: str = "payload"
+) -> list[dict]:
     """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
     issues = find_payload_integrity_issues(payload, schema)
     if issues:
-        err_msg = "\n".join(f"  - {iss}" for iss in issues)
-        raise ValueError(
-            f"Final payload integrity validation failed with {len(issues)} issue(s):\n{err_msg}"
+        diagnostics = [
+            {
+                "stage": "OUTPUT_VALIDATION",
+                "category": "OUTPUT_VALIDATION_FAILURE",
+                "payload": payload_name,
+                "status": "FAIL",
+                "reason": iss,
+            }
+            for iss in issues
+        ]
+        err_msg = "\n".join(f"  - [{diag['payload']}] {diag['reason']}" for diag in diagnostics)
+        exc = ValueError(
+            f"Final payload integrity validation failed with {len(issues)} issue(s) at stage OUTPUT_VALIDATION:\n{err_msg}"
         )
+        exc.diagnostics = diagnostics
+        raise exc
+    return []
 
 
 class PipelineResult(tuple):
@@ -389,20 +404,44 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             )
             exclusions_map["VNINDEX"] = {
                 "symbol": "VNINDEX",
+                "stage": "BENCHMARK_FETCH",
                 "category": cat,
+                "status": "FAILED",
                 "reason": f"Benchmark VNINDEX check failed (source={vn_source}, status={vnindex_val.get('status')})",
+                "latest_date": vnindex_val.get("latest_date"),
+                "expected_date": None,
+                "processed": False,
+                "recoverable": not update_data,
             }
         else:
             processed_symbols.add("VNINDEX")
     except ProviderRateLimitError:
+        failed_symbols.add("VNINDEX")
+        exclusions_map["VNINDEX"] = {
+            "symbol": "VNINDEX",
+            "stage": "BENCHMARK_FETCH",
+            "category": "RATE_LIMIT",
+            "status": "FAILED",
+            "reason": "Provider rate limit encountered fetching VNINDEX",
+            "latest_date": None,
+            "expected_date": None,
+            "processed": False,
+            "recoverable": not update_data,
+        }
         raise
     except Exception as exc:  # noqa: BLE001
         logger.error("Exception fetching VNINDEX: %s", exc)
         failed_symbols.add("VNINDEX")
         exclusions_map["VNINDEX"] = {
             "symbol": "VNINDEX",
+            "stage": "BENCHMARK_FETCH",
             "category": "PROVIDER_FAILURE",
+            "status": "FAILED",
             "reason": f"Exception fetching VNINDEX: {type(exc).__name__}",
+            "latest_date": None,
+            "expected_date": None,
+            "processed": False,
+            "recoverable": not update_data,
         }
         df_vnindex_raw = pd.DataFrame()
         df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
@@ -444,20 +483,44 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             )
             exclusions_map["VN30"] = {
                 "symbol": "VN30",
+                "stage": "BENCHMARK_FETCH",
                 "category": cat,
+                "status": "FAILED",
                 "reason": f"Benchmark VN30 check failed (source={vn30_source}, status={vn30_val.get('status')})",
+                "latest_date": vn30_val.get("latest_date"),
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": not update_data,
             }
         else:
             processed_symbols.add("VN30")
     except ProviderRateLimitError:
+        failed_symbols.add("VN30")
+        exclusions_map["VN30"] = {
+            "symbol": "VN30",
+            "stage": "BENCHMARK_FETCH",
+            "category": "RATE_LIMIT",
+            "status": "FAILED",
+            "reason": "Provider rate limit encountered fetching VN30",
+            "latest_date": None,
+            "expected_date": data_as_of,
+            "processed": False,
+            "recoverable": not update_data,
+        }
         raise
     except Exception as exc:  # noqa: BLE001
         logger.error("Exception fetching VN30: %s", exc)
         failed_symbols.add("VN30")
         exclusions_map["VN30"] = {
             "symbol": "VN30",
+            "stage": "BENCHMARK_FETCH",
             "category": "PROVIDER_FAILURE",
+            "status": "FAILED",
             "reason": f"Exception fetching VN30: {type(exc).__name__}",
+            "latest_date": None,
+            "expected_date": data_as_of,
+            "processed": False,
+            "recoverable": not update_data,
         }
         df_vn30_raw = pd.DataFrame()
         df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
@@ -485,41 +548,83 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 cat = "EXPLICITLY_INVALID" if tag == "EXPLICITLY_INVALID" else "PROVIDER_FAILURE"
                 exclusions_map[sym] = {
                     "symbol": sym,
+                    "stage": "STOCK_FETCH",
                     "category": cat,
+                    "status": "FAILED",
                     "reason": f"Provider tag {tag} for symbol {sym}",
+                    "latest_date": stock_dates_map.get(sym),
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": not update_data,
                 }
             elif tag == "INVALID_SYMBOL":
                 invalid_symbols.add(sym)
                 exclusions_map[sym] = {
                     "symbol": sym,
+                    "stage": "STOCK_FETCH",
                     "category": "INVALID_SYMBOL",
+                    "status": "INVALID",
                     "reason": f"Invalid stock symbol {sym}",
+                    "latest_date": stock_dates_map.get(sym),
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": not update_data,
                 }
             elif df_stock is None or df_stock.empty or df_clean_stock.empty:
                 failed_symbols.add(sym)
                 exclusions_map[sym] = {
                     "symbol": sym,
+                    "stage": "STOCK_FETCH",
                     "category": "OTHER_VALIDATION_FAILURE",
+                    "status": "FAILED",
                     "reason": f"Empty OHLCV dataset for {sym}",
+                    "latest_date": stock_dates_map.get(sym),
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": not update_data,
                 }
             elif tag == "INSUFFICIENT_HISTORICAL_DATA" or stock_val.get("status") == "INSUFFICIENT":
                 insufficient_history_symbols.add(sym)
                 exclusions_map[sym] = {
                     "symbol": sym,
+                    "stage": "STOCK_FETCH",
                     "category": "INSUFFICIENT_HISTORICAL_DATA",
+                    "status": "INSUFFICIENT",
                     "reason": f"Insufficient historical sessions for {sym}",
+                    "latest_date": stock_dates_map.get(sym),
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": not update_data,
                 }
             else:
                 processed_symbols.add(sym)
         except ProviderRateLimitError:
+            failed_symbols.add(sym)
+            exclusions_map[sym] = {
+                "symbol": sym,
+                "stage": "STOCK_FETCH",
+                "category": "RATE_LIMIT",
+                "status": "FAILED",
+                "reason": f"Provider rate limit encountered fetching {sym}",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": not update_data,
+            }
             raise
         except Exception as exc:  # noqa: BLE001
             logger.error("Exception fetching %s: %s", sym, exc)
             failed_symbols.add(sym)
             exclusions_map[sym] = {
                 "symbol": sym,
+                "stage": "STOCK_FETCH",
                 "category": "PROVIDER_FAILURE",
+                "status": "FAILED",
                 "reason": f"Exception fetching {sym}: {type(exc).__name__}",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": not update_data,
             }
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
             stock_dates_map[sym] = None
@@ -546,8 +651,14 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             failed_symbols.add(sym)
             exclusions_map[sym] = {
                 "symbol": sym,
+                "stage": "TEMPORAL_VALIDATION",
                 "category": "TEMPORAL_INVALID",
+                "status": "FAILED",
                 "reason": f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})",
+                "latest_date": stock_dates_map.get(sym),
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": not update_data,
             }
             # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
             stock_data_map[sym] = (
@@ -564,9 +675,58 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     for sym in missing_symbols:
         exclusions_map[sym] = {
             "symbol": sym,
-            "category": "MISSING_SYMBOL",
+            "stage": "UNIVERSE_DISCOVERY",
+            "category": "UNIVERSE_INCOMPLETE",
+            "status": "MISSING",
             "reason": f"Symbol {sym} missing from scan results",
+            "latest_date": None,
+            "expected_date": data_as_of,
+            "processed": False,
+            "recoverable": not update_data,
         }
+
+    failed_stage = None
+    if "VNINDEX" in failed_symbols or "VN30" in failed_symbols:
+        failed_stage = "BENCHMARK_FETCH"
+    elif any(e.get("stage") == "TEMPORAL_VALIDATION" for e in exclusions_map.values()):
+        failed_stage = "TEMPORAL_VALIDATION"
+    elif any(e.get("stage") == "STOCK_FETCH" for e in exclusions_map.values()):
+        failed_stage = "STOCK_FETCH"
+    elif missing_symbols:
+        failed_stage = "UNIVERSE_DISCOVERY"
+
+    pipeline_status = "SUCCESS"
+    if failed_stage is not None:
+        pipeline_status = "FAILED" if update_data else "DEGRADED"
+
+    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
+
+    universe_summary = {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
+        "expected_count": len(expected_symbols),
+        "processed_count": len(processed_symbols),
+        "invalid_count": len(invalid_symbols),
+        "insufficient_history_count": len(insufficient_history_symbols),
+        "failed_count": len(failed_symbols),
+        "missing_count": len(missing_symbols),
+        "diagnostic_count": len(diagnostics_list),
+    }
+
+    universe_audit = {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
+        "expected_symbols": sorted(expected_symbols),
+        "processed_symbols": sorted(processed_symbols),
+        "invalid_symbols": sorted(invalid_symbols),
+        "insufficient_history_symbols": sorted(insufficient_history_symbols),
+        "failed_symbols": sorted(failed_symbols),
+        "missing_symbols": sorted(missing_symbols),
+        "counts": universe_summary,
+        "summary": universe_summary,
+        "exclusions": diagnostics_list,
+        "diagnostics": diagnostics_list,
+    }
 
     if update_data and (
         expected_symbols != (processed_symbols | invalid_symbols)
@@ -575,8 +735,9 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
         or missing_symbols
         or not temporal_res["is_valid"]
     ):
-        raise RuntimeError(
-            f"Incomplete universe scan in update mode: validation failed. "
+        err_msg = (
+            f"Incomplete universe scan in update mode: stage={failed_stage}, "
+            f"status={pipeline_status}. "
             f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
             f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
             f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
@@ -587,6 +748,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             f"Failed symbols: {sorted(failed_symbols)}. "
             f"Missing symbols: {sorted(missing_symbols)}."
         )
+        logger.error(err_msg)
+        logger.error("Per-symbol failure diagnostics (%d):", len(diagnostics_list))
+        for diag in diagnostics_list:
+            logger.error(
+                "  - [%s] stage=%s category=%s status=%s reason=%s",
+                diag["symbol"],
+                diag["stage"],
+                diag["category"],
+                diag["status"],
+                diag["reason"],
+            )
+        exc = RuntimeError(err_msg)
+        exc.universe_audit = universe_audit
+        raise exc
 
     logger.info("Step 2: Calculating Market Breadth...")
     bullish_count = 0
@@ -687,25 +862,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
 
     history_payload = recommendations_payload
 
-    exclusions_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
-
-    universe_audit = {
-        "expected_symbols": sorted(expected_symbols),
-        "processed_symbols": sorted(processed_symbols),
-        "invalid_symbols": sorted(invalid_symbols),
-        "insufficient_history_symbols": sorted(insufficient_history_symbols),
-        "failed_symbols": sorted(failed_symbols),
-        "missing_symbols": sorted(missing_symbols),
-        "counts": {
-            "expected_count": len(expected_symbols),
-            "processed_count": len(processed_symbols),
-            "invalid_count": len(invalid_symbols),
-            "insufficient_history_count": len(insufficient_history_symbols),
-            "failed_count": len(failed_symbols),
-            "missing_count": len(missing_symbols),
-        },
-        "exclusions": exclusions_list,
-    }
+    # universe_audit already constructed earlier in run_pipeline
 
     return PipelineResult(
         recommendations_payload,
@@ -900,8 +1057,14 @@ def generate_historical_report(
         failed_symbols.add("VNINDEX")
         exclusions_map["VNINDEX"] = {
             "symbol": "VNINDEX",
+            "stage": "BENCHMARK_FETCH",
             "category": "INSUFFICIENT_HISTORICAL_DATA",
+            "status": "FAILED",
             "reason": f"Benchmark VNINDEX data missing for canonical_as_of {canonical_as_of}",
+            "latest_date": vnindex_val.get("latest_date"),
+            "expected_date": canonical_as_of,
+            "processed": False,
+            "recoverable": False,
         }
 
     if (
@@ -914,8 +1077,14 @@ def generate_historical_report(
         failed_symbols.add("VN30")
         exclusions_map["VN30"] = {
             "symbol": "VN30",
+            "stage": "BENCHMARK_FETCH",
             "category": "INSUFFICIENT_HISTORICAL_DATA",
+            "status": "FAILED",
             "reason": f"Benchmark VN30 data missing or insufficient for canonical_as_of {canonical_as_of}",
+            "latest_date": vn30_val.get("latest_date") if df_vn30 is not None else None,
+            "expected_date": canonical_as_of,
+            "processed": False,
+            "recoverable": False,
         }
 
     for item in candidate_metadata:
@@ -927,8 +1096,14 @@ def generate_historical_report(
             insufficient_history_symbols.add(sym_upper)
             exclusions_map[sym_upper] = {
                 "symbol": sym_upper,
+                "stage": "STOCK_FETCH",
                 "category": "INSUFFICIENT_HISTORICAL_DATA",
+                "status": "INSUFFICIENT",
                 "reason": f"Historical data missing or insufficient for candidate {sym_upper} at {canonical_as_of}",
+                "latest_date": None,
+                "expected_date": canonical_as_of,
+                "processed": False,
+                "recoverable": False,
             }
 
     missing_symbols = expected_symbols - (
@@ -937,26 +1112,52 @@ def generate_historical_report(
     for sym in missing_symbols:
         exclusions_map[sym] = {
             "symbol": sym,
-            "category": "MISSING_SYMBOL",
+            "stage": "UNIVERSE_DISCOVERY",
+            "category": "UNIVERSE_INCOMPLETE",
+            "status": "MISSING",
             "reason": f"Symbol {sym} missing from historical snapshot",
+            "latest_date": None,
+            "expected_date": canonical_as_of,
+            "processed": False,
+            "recoverable": False,
         }
 
+    failed_stage = None
+    if "VNINDEX" in failed_symbols or "VN30" in failed_symbols:
+        failed_stage = "BENCHMARK_FETCH"
+    elif insufficient_history_symbols or failed_symbols:
+        failed_stage = "STOCK_FETCH"
+    elif missing_symbols:
+        failed_stage = "UNIVERSE_DISCOVERY"
+
+    pipeline_status = "SUCCESS" if failed_stage is None else "FAILED"
+    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
+
+    universe_summary = {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
+        "expected_count": len(expected_symbols),
+        "processed_count": len(processed_symbols),
+        "invalid_count": len(invalid_symbols),
+        "insufficient_history_count": len(insufficient_history_symbols),
+        "failed_count": len(failed_symbols),
+        "missing_count": len(missing_symbols),
+        "diagnostic_count": len(diagnostics_list),
+    }
+
     universe_audit = {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
         "expected_symbols": sorted(expected_symbols),
         "processed_symbols": sorted(processed_symbols),
         "invalid_symbols": sorted(invalid_symbols),
         "insufficient_history_symbols": sorted(insufficient_history_symbols),
         "failed_symbols": sorted(failed_symbols),
         "missing_symbols": sorted(missing_symbols),
-        "counts": {
-            "expected_count": len(expected_symbols),
-            "processed_count": len(processed_symbols),
-            "invalid_count": len(invalid_symbols),
-            "insufficient_history_count": len(insufficient_history_symbols),
-            "failed_count": len(failed_symbols),
-            "missing_count": len(missing_symbols),
-        },
-        "exclusions": [exclusions_map[s] for s in sorted(exclusions_map.keys())],
+        "counts": universe_summary,
+        "summary": universe_summary,
+        "exclusions": diagnostics_list,
+        "diagnostics": diagnostics_list,
     }
 
     return PipelineResult(

@@ -48,12 +48,17 @@ VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 
 VALID_EXCLUSION_CATEGORIES = {
     "PROVIDER_FAILURE",
-    "EXPLICITLY_INVALID",
+    "RATE_LIMIT",
     "INVALID_SYMBOL",
+    "EXPLICITLY_INVALID",
     "INSUFFICIENT_HISTORICAL_DATA",
     "TEMPORAL_INVALID",
+    "OUTPUT_VALIDATION_FAILURE",
+    "MONITORING_FAILURE",
+    "UNIVERSE_INCOMPLETE",
     "OTHER_VALIDATION_FAILURE",
     "MISSING_SYMBOL",
+    "UNKNOWN",
 }
 
 CANONICAL_CONFIDENCE_BUCKETS = [
@@ -3158,6 +3163,20 @@ def evaluate_production_monitoring(
     else:
         overall_status = "PASS"
 
+    failed_monitoring_diagnostics = [
+        {
+            "stage": "MONITORING",
+            "category": "MONITORING_FAILURE",
+            "check": c.check_name,
+            "status": "FAIL",
+            "measured_value": _sanitize_value_for_json(c.measured_value),
+            "expected_condition": c.expected_condition,
+            "reason": c.message,
+        }
+        for c in checks
+        if c.status == "FAIL"
+    ]
+
     summary = recommendations_payload.get("summary", {})
     metrics = {
         "signal_model_version": recommendations_payload.get(
@@ -3174,6 +3193,8 @@ def evaluate_production_monitoring(
         "market_regime": market_payload.get("regime"),
         "universe_audit": universe_audit,
         "drift_monitoring": drift_res.to_dict(),
+        "monitoring_diagnostics": failed_monitoring_diagnostics,
+        "failed_checks": failed_monitoring_diagnostics,
         "check_counts": {
             "total_checks": len(checks),
             "pass_count": statuses.count("PASS"),
