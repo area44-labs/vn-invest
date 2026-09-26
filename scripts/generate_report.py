@@ -281,6 +281,68 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     return issues
 
 
+def build_universe_audit(
+    expected_symbols: set[str] | list[str],
+    processed_symbols: set[str] | list[str],
+    invalid_symbols: set[str] | list[str],
+    insufficient_history_symbols: set[str] | list[str],
+    failed_symbols: set[str] | list[str],
+    missing_symbols: set[str] | list[str],
+    exclusions_map: dict[str, dict[str, Any]],
+    update_data: bool = False,
+) -> dict[str, Any]:
+    """Build deterministic production universe_audit dictionary from pipeline sets and exclusions map."""
+    s_expected = set(expected_symbols)
+    s_processed = set(processed_symbols)
+    s_invalid = set(invalid_symbols)
+    s_insufficient = set(insufficient_history_symbols)
+    s_failed = set(failed_symbols)
+    s_missing = set(missing_symbols)
+
+    failed_stage = None
+    if "VNINDEX" in s_failed or "VN30" in s_failed:
+        failed_stage = "BENCHMARK_FETCH"
+    elif any(e.get("stage") == "TEMPORAL_VALIDATION" for e in exclusions_map.values()):
+        failed_stage = "TEMPORAL_VALIDATION"
+    elif any(e.get("stage") == "STOCK_FETCH" for e in exclusions_map.values()):
+        failed_stage = "STOCK_FETCH"
+    elif s_missing:
+        failed_stage = "UNIVERSE_DISCOVERY"
+
+    pipeline_status = "SUCCESS"
+    if failed_stage is not None:
+        pipeline_status = "FAILED" if update_data else "DEGRADED"
+
+    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
+
+    universe_summary = {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
+        "expected_count": len(s_expected),
+        "processed_count": len(s_processed),
+        "invalid_count": len(s_invalid),
+        "insufficient_history_count": len(s_insufficient),
+        "failed_count": len(s_failed),
+        "missing_count": len(s_missing),
+        "diagnostic_count": len(diagnostics_list),
+    }
+
+    return {
+        "status": pipeline_status,
+        "failed_stage": failed_stage,
+        "expected_symbols": sorted(s_expected),
+        "processed_symbols": sorted(s_processed),
+        "invalid_symbols": sorted(s_invalid),
+        "insufficient_history_symbols": sorted(s_insufficient),
+        "failed_symbols": sorted(s_failed),
+        "missing_symbols": sorted(s_missing),
+        "counts": universe_summary,
+        "summary": universe_summary,
+        "exclusions": diagnostics_list,
+        "diagnostics": diagnostics_list,
+    }
+
+
 def validate_final_payload_integrity(
     payload: dict, schema: dict | None = None, payload_name: str = "payload"
 ) -> list[dict]:
@@ -686,48 +748,20 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "recoverable": is_recoverable_category("UNIVERSE_INCOMPLETE"),
         }
 
-    failed_stage = None
-    if "VNINDEX" in failed_symbols or "VN30" in failed_symbols:
-        failed_stage = "BENCHMARK_FETCH"
-    elif any(e.get("stage") == "TEMPORAL_VALIDATION" for e in exclusions_map.values()):
-        failed_stage = "TEMPORAL_VALIDATION"
-    elif any(e.get("stage") == "STOCK_FETCH" for e in exclusions_map.values()):
-        failed_stage = "STOCK_FETCH"
-    elif missing_symbols:
-        failed_stage = "UNIVERSE_DISCOVERY"
+    universe_audit = build_universe_audit(
+        expected_symbols=expected_symbols,
+        processed_symbols=processed_symbols,
+        invalid_symbols=invalid_symbols,
+        insufficient_history_symbols=insufficient_history_symbols,
+        failed_symbols=failed_symbols,
+        missing_symbols=missing_symbols,
+        exclusions_map=exclusions_map,
+        update_data=update_data,
+    )
 
-    pipeline_status = "SUCCESS"
-    if failed_stage is not None:
-        pipeline_status = "FAILED" if update_data else "DEGRADED"
-
-    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
-
-    universe_summary = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_count": len(expected_symbols),
-        "processed_count": len(processed_symbols),
-        "invalid_count": len(invalid_symbols),
-        "insufficient_history_count": len(insufficient_history_symbols),
-        "failed_count": len(failed_symbols),
-        "missing_count": len(missing_symbols),
-        "diagnostic_count": len(diagnostics_list),
-    }
-
-    universe_audit = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_symbols": sorted(expected_symbols),
-        "processed_symbols": sorted(processed_symbols),
-        "invalid_symbols": sorted(invalid_symbols),
-        "insufficient_history_symbols": sorted(insufficient_history_symbols),
-        "failed_symbols": sorted(failed_symbols),
-        "missing_symbols": sorted(missing_symbols),
-        "counts": universe_summary,
-        "summary": universe_summary,
-        "exclusions": diagnostics_list,
-        "diagnostics": diagnostics_list,
-    }
+    failed_stage = universe_audit["failed_stage"]
+    pipeline_status = universe_audit["status"]
+    diagnostics_list = universe_audit["diagnostics"]
 
     if update_data and (
         expected_symbols != (processed_symbols | invalid_symbols)
@@ -1123,43 +1157,16 @@ def generate_historical_report(
             "recoverable": False,
         }
 
-    failed_stage = None
-    if "VNINDEX" in failed_symbols or "VN30" in failed_symbols:
-        failed_stage = "BENCHMARK_FETCH"
-    elif insufficient_history_symbols or failed_symbols:
-        failed_stage = "STOCK_FETCH"
-    elif missing_symbols:
-        failed_stage = "UNIVERSE_DISCOVERY"
-
-    pipeline_status = "SUCCESS" if failed_stage is None else "FAILED"
-    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
-
-    universe_summary = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_count": len(expected_symbols),
-        "processed_count": len(processed_symbols),
-        "invalid_count": len(invalid_symbols),
-        "insufficient_history_count": len(insufficient_history_symbols),
-        "failed_count": len(failed_symbols),
-        "missing_count": len(missing_symbols),
-        "diagnostic_count": len(diagnostics_list),
-    }
-
-    universe_audit = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_symbols": sorted(expected_symbols),
-        "processed_symbols": sorted(processed_symbols),
-        "invalid_symbols": sorted(invalid_symbols),
-        "insufficient_history_symbols": sorted(insufficient_history_symbols),
-        "failed_symbols": sorted(failed_symbols),
-        "missing_symbols": sorted(missing_symbols),
-        "counts": universe_summary,
-        "summary": universe_summary,
-        "exclusions": diagnostics_list,
-        "diagnostics": diagnostics_list,
-    }
+    universe_audit = build_universe_audit(
+        expected_symbols=expected_symbols,
+        processed_symbols=processed_symbols,
+        invalid_symbols=invalid_symbols,
+        insufficient_history_symbols=insufficient_history_symbols,
+        failed_symbols=failed_symbols,
+        missing_symbols=missing_symbols,
+        exclusions_map=exclusions_map,
+        update_data=False,
+    )
 
     return PipelineResult(
         recommendations_payload,

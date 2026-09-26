@@ -804,110 +804,102 @@ class TestAuditTrailObservability(unittest.TestCase):
             self.assertEqual(all_files_in_hist, {"index.json", "2026-09-25.json"})
 
     def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
-        """Scenario 15: Run diagnostic-generation twice on identical input state and assert exact equality and stable symbol ordering."""
+        """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
+        from scripts.generate_report import build_universe_audit
 
-        def _generate_audit_from_input(
-            candidate_list, missing_list, invalid_list, failed_list, data_as_of
-        ):
-            # Convert inputs to sets to simulate arbitrary set iteration order
-            expected_set = (
-                {"VNINDEX", "VN30"}
-                | set(candidate_list)
-                | set(missing_list)
-                | set(invalid_list)
-                | set(failed_list)
-            )
-            proc_set = {"VNINDEX", "VN30"} | set(candidate_list)
-            inv_set = set(invalid_list)
-            insuf_set = set()
-            fail_set = set(failed_list)
-            miss_set = set(missing_list)
+        data_as_of = "2026-09-25"
 
-            exclusions_map = {}
-            for s in inv_set:
-                exclusions_map[s] = {
-                    "symbol": s,
-                    "stage": "STOCK_FETCH",
-                    "category": "INVALID_SYMBOL",
-                    "status": "INVALID",
-                    "reason": f"Invalid stock symbol {s}",
-                    "latest_date": None,
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": False,
-                }
-            for s in fail_set:
-                exclusions_map[s] = {
-                    "symbol": s,
-                    "stage": "STOCK_FETCH",
-                    "category": "PROVIDER_FAILURE",
-                    "status": "FAILED",
-                    "reason": f"Provider timeout for {s}",
-                    "latest_date": None,
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": True,
-                }
-            for s in miss_set:
-                exclusions_map[s] = {
-                    "symbol": s,
-                    "stage": "UNIVERSE_DISCOVERY",
-                    "category": "UNIVERSE_INCOMPLETE",
-                    "status": "MISSING",
-                    "reason": f"Symbol {s} missing from scan results",
-                    "latest_date": None,
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": False,
-                }
+        exclusions = {
+            "XYZ": {
+                "symbol": "XYZ",
+                "stage": "STOCK_FETCH",
+                "category": "INVALID_SYMBOL",
+                "status": "INVALID",
+                "reason": "Invalid symbol XYZ",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+            "BID": {
+                "symbol": "BID",
+                "stage": "STOCK_FETCH",
+                "category": "PROVIDER_FAILURE",
+                "status": "FAILED",
+                "reason": "Provider timeout for BID",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": True,
+            },
+            "ZAL": {
+                "symbol": "ZAL",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": "Symbol ZAL missing from scan results",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+            "AAA": {
+                "symbol": "AAA",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": "Symbol AAA missing from scan results",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+        }
 
-            diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
-
-            summary = {
-                "status": "DEGRADED",
-                "failed_stage": "STOCK_FETCH",
-                "expected_count": len(expected_set),
-                "processed_count": len(proc_set),
-                "invalid_count": len(inv_set),
-                "insufficient_history_count": len(insuf_set),
-                "failed_count": len(fail_set),
-                "missing_count": len(miss_set),
-                "diagnostic_count": len(diagnostics_list),
-            }
-
-            return {
-                "status": "DEGRADED",
-                "failed_stage": "STOCK_FETCH",
-                "expected_symbols": sorted(expected_set),
-                "processed_symbols": sorted(proc_set),
-                "invalid_symbols": sorted(inv_set),
-                "insufficient_history_symbols": sorted(insuf_set),
-                "failed_symbols": sorted(fail_set),
-                "missing_symbols": sorted(miss_set),
-                "counts": summary,
-                "summary": summary,
-                "exclusions": diagnostics_list,
-                "diagnostics": diagnostics_list,
-            }
-
-        # Run 1: Input lists in order A
-        candidates_1 = ["MWG", "FPT", "VIC", "VNM"]
-        missing_1 = ["ZAL", "AAA"]
-        invalid_1 = ["XYZ"]
-        failed_1 = ["BID"]
-
-        audit_run_1 = _generate_audit_from_input(
-            candidates_1, missing_1, invalid_1, failed_1, "2026-09-25"
+        # Run 1: Input iterables in order A
+        audit_run_1 = build_universe_audit(
+            expected_symbols=[
+                "VNINDEX",
+                "VN30",
+                "MWG",
+                "FPT",
+                "VIC",
+                "VNM",
+                "ZAL",
+                "AAA",
+                "XYZ",
+                "BID",
+            ],
+            processed_symbols=["VNINDEX", "VN30", "MWG", "FPT", "VIC", "VNM"],
+            invalid_symbols=["XYZ"],
+            insufficient_history_symbols=[],
+            failed_symbols=["BID"],
+            missing_symbols=["ZAL", "AAA"],
+            exclusions_map=exclusions,
+            update_data=False,
         )
 
-        # Run 2: Input lists in different order B
-        candidates_2 = ["VNM", "VIC", "FPT", "MWG"]
-        missing_2 = ["AAA", "ZAL"]
-        invalid_2 = ["XYZ"]
-        failed_2 = ["BID"]
-
-        audit_run_2 = _generate_audit_from_input(
-            candidates_2, missing_2, invalid_2, failed_2, "2026-09-25"
+        # Run 2: Input iterables in different order B (using sets and reordered lists)
+        audit_run_2 = build_universe_audit(
+            expected_symbols={
+                "BID",
+                "XYZ",
+                "AAA",
+                "ZAL",
+                "VNM",
+                "VIC",
+                "FPT",
+                "MWG",
+                "VN30",
+                "VNINDEX",
+            },
+            processed_symbols=["VNM", "VIC", "FPT", "MWG", "VN30", "VNINDEX"],
+            invalid_symbols=["XYZ"],
+            insufficient_history_symbols=[],
+            failed_symbols=["BID"],
+            missing_symbols={"AAA", "ZAL"},
+            exclusions_map=exclusions,
+            update_data=False,
         )
 
         # Assert exact equality across runs
