@@ -33,8 +33,6 @@ VOLUME_UNIT = "shares"
 TRADING_VALUE_UNIT = "VND"
 AVG_TRADING_VALUE_UNIT = "billion_VND"
 
-DEFAULT_UPDATE_THROTTLE_DELAY = 3.5
-
 # Source unit contracts for upstream data providers:
 # - Stock data (via vnstock KBS/MSN quotes): Prices (open, high, low, close) are in `thousand_VND/share` (e.g. 128.40 = 128,400 VND/share). Volume is in `shares` (e.g. 3,172,800 shares).
 # - Index data (VNINDEX, VN30, etc.): Values represent composite market index points (e.g. 1269.71 points), not equity stock prices, and are already in canonical benchmark units.

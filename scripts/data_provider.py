@@ -9,6 +9,7 @@ import logging
 import re
 import time
 from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -102,6 +103,7 @@ def reset_circuit_breaker() -> None:
     _CIRCUIT_BREAKER_ACTIVE = False
     _CIRCUIT_BREAKER_REASON = ""
     _CIRCUIT_BREAKER_COOLDOWN = None
+    VnstockDataProvider.reset_global_call_history()
 
 
 def trip_circuit_breaker(reason: str, cooldown_seconds: int | None = None) -> None:
@@ -335,8 +337,72 @@ def validate_canonical_ohlcv(df: pd.DataFrame) -> bool:
 class VnstockDataProvider:
     """Adapter/boundary for external vnstock market-data provider."""
 
+    _last_call_timing: ClassVar[dict | None] = None
+    _global_call_history: ClassVar[list[dict]] = []
+
     def __init__(self, is_available: bool = VNSTOCK_AVAILABLE):
         self.is_available = is_available
+        self.call_history: list[dict] = []
+
+    @classmethod
+    def get_last_call_timing(cls) -> dict | None:
+        """Return structured timing record for the most recent provider call."""
+        return cls._last_call_timing
+
+    @classmethod
+    def get_global_call_history(cls) -> list[dict]:
+        """Return copy of global process-wide provider call timing history."""
+        return list(cls._global_call_history)
+
+    @classmethod
+    def reset_global_call_history(cls) -> None:
+        """Reset global process-wide provider call timing history."""
+        cls._global_call_history = []
+        cls._last_call_timing = None
+
+    def get_call_history(self) -> list[dict]:
+        """Return copy of provider call timing history recorded on this instance."""
+        return list(self.call_history)
+
+    def reset_call_history(self) -> None:
+        """Reset instance provider call timing history."""
+        self.call_history = []
+
+    def _record_timing(
+        self,
+        provider: str,
+        source: str,
+        operation: str,
+        symbol: str,
+        elapsed_seconds: float,
+        success: bool,
+        retry_count: int,
+        error: str | None = None,
+    ) -> dict:
+        record = {
+            "provider": provider,
+            "source": source,
+            "operation": operation,
+            "symbol": symbol,
+            "elapsed_seconds": round(elapsed_seconds, 4),
+            "success": success,
+            "retry_count": retry_count,
+            "error": error,
+        }
+        self.call_history.append(record)
+        VnstockDataProvider._global_call_history.append(record)
+        VnstockDataProvider._last_call_timing = record
+        logger.debug(
+            "Provider call timing: provider=%s source=%s op=%s sym=%s elapsed=%.4fs success=%s retry=%d",
+            provider,
+            source,
+            operation,
+            symbol,
+            record["elapsed_seconds"],
+            success,
+            retry_count,
+        )
+        return record
 
     def fetch_ohlcv(
         self,
@@ -382,9 +448,12 @@ class VnstockDataProvider:
                         symbol=sym,
                     )
 
+                t0 = time.perf_counter()
                 try:
                     q = VnQuote(symbol=sym, source=source)
                     raw_df = q.history(start=start_date, end=end_date)
+                    elapsed = time.perf_counter() - t0
+
                     if raw_df is not None and not raw_df.empty:
                         # Convert column names to lowercase
                         df_norm = raw_df.copy()
@@ -403,6 +472,16 @@ class VnstockDataProvider:
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
 
+                        self._record_timing(
+                            provider="vnstock",
+                            source=source,
+                            operation="history",
+                            symbol=sym,
+                            elapsed_seconds=elapsed,
+                            success=True,
+                            retry_count=attempt,
+                        )
+
                         if target_date:
                             date_col = "time" if "time" in df_norm.columns else "date"
                             parsed_dates = pd.to_datetime(
@@ -416,12 +495,42 @@ class VnstockDataProvider:
                             if latest_dt == target_date:
                                 return df_norm
                             elif best_candidate_df is None:
+                                logger.warning(
+                                    "Provider source '%s' returned data with latest date '%s' which does not match target date '%s' for '%s'. Holding candidate and checking remaining sources.",
+                                    source,
+                                    latest_dt,
+                                    target_date,
+                                    sym,
+                                )
                                 best_candidate_df = df_norm
                         else:
                             return df_norm
+                    else:
+                        self._record_timing(
+                            provider="vnstock",
+                            source=source,
+                            operation="history",
+                            symbol=sym,
+                            elapsed_seconds=elapsed,
+                            success=False,
+                            retry_count=attempt,
+                            error="Empty dataset returned by provider",
+                        )
                 except (Exception, SystemExit) as exc:
+                    elapsed = time.perf_counter() - t0
+                    err_msg = get_exception_message(exc)
+                    self._record_timing(
+                        provider="vnstock",
+                        source=source,
+                        operation="history",
+                        symbol=sym,
+                        elapsed_seconds=elapsed,
+                        success=False,
+                        retry_count=attempt,
+                        error=err_msg,
+                    )
+
                     if is_rate_limit_exception(exc):
-                        err_msg = get_exception_message(exc)
                         cooldown_sec = parse_wait_seconds(err_msg, exc=exc)
                         trip_circuit_breaker(
                             reason=f"Rate limit encountered on symbol '{sym}' (source={source}): {err_msg}",
@@ -440,7 +549,6 @@ class VnstockDataProvider:
                         ) from exc
 
                     if is_client_auth_exception(exc):
-                        err_msg = get_exception_message(exc)
                         logger.error(
                             "Client/Auth error encountered for symbol '%s' (source=%s): %s. Failing fast.",
                             sym,

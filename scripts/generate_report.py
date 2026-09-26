@@ -26,13 +26,12 @@ import pandas as pd
 
 from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
-from scripts.lib.config import is_recoverable_category
+from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
-    DEFAULT_UPDATE_THROTTLE_DELAY,
     UniverseProvider,
     get_clean_ohlcv_data,
     get_historical_data,
