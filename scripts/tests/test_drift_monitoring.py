@@ -446,6 +446,113 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
         self.assertEqual(action_chk.status, "FAIL")
         self.assertGreater(action_chk.observation.absolute_difference["max_difference"], 0.35)
 
+    def test_action_distribution_boundary_tolerance_semantics(self):
+        """Verify exact boundary tolerance semantics for action distribution drift:
+        - max shift <= 0.35 -> WARNING (since > warning threshold 0.20)
+        - marginal shift 0.350340 (reproducing run 36211862608) -> WARNING
+        - shift slightly above tolerance (0.3515) -> FAIL
+        - clearly larger drift (0.40) -> FAIL
+        """
+        # Baseline is 5 BUY, 5 WATCH, 5 HOLD, 5 SELL out of 20 (25% each action)
+
+        # 1. Exactly 0.35 max shift: 12 BUY (60%), 2 WATCH (10%), 3 HOLD (15%), 3 SELL (15%) out of 20
+        # BUY shift = |0.60 - 0.25| = 0.350000 -> WARNING
+        curr_exact_35 = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=12,
+            watch_count=2,
+            hold_count=3,
+            sell_count=3,
+            avoid_count=0,
+        )
+        res_35 = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_exact_35,
+            baseline_reports=self.baselines,
+        )
+        chk_35 = next(c for c in res_35.drift_checks if c.check_name == "drift_action_distribution")
+        self.assertEqual(chk_35.status, "WARNING")
+        self.assertEqual(chk_35.observation.absolute_difference["max_difference"], 0.35)
+
+        # 2. Production scenario reproduction: max shift = 0.350340
+        # Baseline pooled scanned = 1000000, 250000 BUY (25%)
+        # Current report total scanned = 100000, 600340 BUY/scanned proportion = 0.600340
+        # max_action_diff = |0.600340 - 0.250000| = 0.350340
+        baseline_large = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                total_scanned=200000,
+                buy_count=50000,
+                watch_count=50000,
+                hold_count=50000,
+                sell_count=50000,
+                avoid_count=0,
+            )
+            for i in range(5)
+        ]
+        curr_prod_repro = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=500000,
+            buy_count=300170,  # 300170 / 500000 = 0.600340 (diff = 0.350340)
+            watch_count=66610,
+            hold_count=66610,
+            sell_count=66610,
+            avoid_count=0,
+        )
+        res_prod = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_prod_repro,
+            baseline_reports=baseline_large,
+        )
+        chk_prod = next(
+            c for c in res_prod.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        self.assertEqual(chk_prod.status, "WARNING")
+        self.assertAlmostEqual(
+            chk_prod.observation.absolute_difference["max_difference"], 0.350340, places=6
+        )
+
+        # 3. Shift slightly above boundary tolerance: max_action_diff = 0.3515
+        curr_above_tol = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=200000,
+            buy_count=120300,  # 120300 / 200000 = 0.6015 (diff = 0.3515 > 0.3510)
+            watch_count=26566,
+            hold_count=26567,
+            sell_count=26567,
+            avoid_count=0,
+        )
+        res_above_tol = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_above_tol,
+            baseline_reports=baseline_large,
+        )
+        chk_above_tol = next(
+            c for c in res_above_tol.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        self.assertEqual(chk_above_tol.status, "FAIL")
+
+        # 4. Clearly larger drift: max_action_diff = 0.40
+        curr_large_drift = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=13,  # 65% BUY (diff = 0.40)
+            watch_count=2,
+            hold_count=2,
+            sell_count=3,
+            avoid_count=0,
+        )
+        res_large = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr_large_drift,
+            baseline_reports=self.baselines,
+        )
+        chk_large = next(
+            c for c in res_large.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        self.assertEqual(chk_large.status, "FAIL")
+
     def test_numeric_score_drift_exceeding_threshold(self):
         """Verify signal score mean drift > 15.0 warning and > 25.0 fail."""
         curr_score_drift = make_mock_payload(

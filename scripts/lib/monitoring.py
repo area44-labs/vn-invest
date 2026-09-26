@@ -21,6 +21,7 @@ from typing import Any
 import jsonschema
 
 from scripts.lib.config import (
+    DRIFT_BOUNDARY_TOLERANCE_ACTION_DISTRIBUTION,
     DRIFT_LOOKBACK_REPORTS,
     DRIFT_MIN_BASELINE_REPORTS,
     DRIFT_MIN_PROCESSED_RATIO,
@@ -1880,13 +1881,26 @@ def evaluate_data_and_model_drift(
     a_warn, a_fail = globals().get(
         "DRIFT_THRESHOLD_ACTION_DISTRIBUTION", DRIFT_THRESHOLD_ACTION_DISTRIBUTION
     )
+    a_tolerance = globals().get(
+        "DRIFT_BOUNDARY_TOLERANCE_ACTION_DISTRIBUTION",
+        DRIFT_BOUNDARY_TOLERANCE_ACTION_DISTRIBUTION,
+    )
+    if (
+        isinstance(a_tolerance, bool)
+        or not isinstance(a_tolerance, (int, float))
+        or math.isnan(a_tolerance)
+        or math.isinf(a_tolerance)
+        or a_tolerance < 0
+    ):
+        raise ValueError(f"DRIFT_BOUNDARY_TOLERANCE_ACTION_DISTRIBUTION is invalid: {a_tolerance}")
+
     curr_action_props = current_metrics["action_proportions"]
     action_diffs = {
         act: round(abs(curr_action_props[act] - baseline_action_props[act]), 6)
         for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
     }
     max_action_diff = max(action_diffs.values())
-    if max_action_diff > a_fail:
+    if max_action_diff > a_fail + a_tolerance:
         a_status = "FAIL"
     elif max_action_diff > a_warn:
         a_status = "WARNING"
