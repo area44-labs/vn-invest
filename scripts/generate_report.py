@@ -316,6 +316,7 @@ class PerformanceTracker:
     """Deterministic structured performance timer and diagnostics collector."""
 
     def __init__(self):
+        self.t_pipeline_start = time.perf_counter()
         self.stages: list[dict[str, Any]] = []
         self.symbol_requests: dict[str, int] = {}
 
@@ -1037,13 +1038,6 @@ def run_pipeline(
 
         history_payload = recommendations_payload
 
-        with tracker.measure_stage("monitoring"):
-            pass
-
-        with tracker.measure_stage("payload_validation"):
-            find_payload_integrity_issues(recommendations_payload)
-            find_payload_integrity_issues(market_payload)
-
         pipeline_elapsed = time.perf_counter() - t_pipeline_start
         performance_data = tracker.get_performance_payload(
             pipeline_elapsed=pipeline_elapsed,
@@ -1276,12 +1270,9 @@ def generate_historical_report(
 
     history_payload = recommendations_payload
 
-    with tracker.measure_stage("monitoring"):
-        pass
-
     with tracker.measure_stage("payload_validation"):
-        find_payload_integrity_issues(recommendations_payload)
-        find_payload_integrity_issues(market_payload)
+        validate_final_payload_integrity(recommendations_payload, schema=None)
+        validate_final_payload_integrity(market_payload, schema=None)
 
     expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"].upper() for item in candidate_metadata}
     processed_symbols = set()
@@ -1747,8 +1738,9 @@ def main():
         logger.info("  - history/index.json")
     else:
         logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
+        tracker = PerformanceTracker()
         try:
-            pipeline_res = run_pipeline(update_data=args.update)
+            pipeline_res = run_pipeline(update_data=args.update, tracker=tracker)
         except (ProviderRateLimitError, RuntimeError) as exc:
             logger.error("Data pipeline halted: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
@@ -1759,29 +1751,58 @@ def main():
         df_vn30_clean = pipeline_res.df_vn30
 
         logger.info("Executing production pipeline monitoring...")
-        monitoring_result = evaluate_production_monitoring(
-            generated_dir=GENERATED_DIR,
-            recommendations_payload=recs_data,
-            market_payload=market_data,
-            df_vnindex=df_vnindex_clean,
-            df_vn30=df_vn30_clean,
-            universe_audit=getattr(pipeline_res, "universe_audit", None),
-        )
+        try:
+            with tracker.measure_stage("monitoring"):
+                monitoring_result = evaluate_production_monitoring(
+                    generated_dir=GENERATED_DIR,
+                    recommendations_payload=recs_data,
+                    market_payload=market_data,
+                    df_vnindex=df_vnindex_clean,
+                    df_vn30=df_vn30_clean,
+                    universe_audit=getattr(pipeline_res, "universe_audit", None),
+                )
+        except Exception:
+            perf_payload = tracker.get_performance_payload(
+                pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
+                pipeline_status="FAILED",
+            )
+            if hasattr(pipeline_res, "universe_audit") and isinstance(
+                pipeline_res.universe_audit, dict
+            ):
+                pipeline_res.universe_audit["performance"] = perf_payload
+            raise
+
         monitoring_dict = monitoring_result.to_dict()
 
         logger.info("Validating ALL report payloads & output integrity...")
         try:
-            validate_final_payload_integrity(recs_data, schema=schema)
-            validate_final_payload_integrity(market_data, schema=None)
-            if history_data is not recs_data:
-                validate_final_payload_integrity(history_data, schema=schema)
-            validate_final_payload_integrity(monitoring_dict, schema=None)
+            with tracker.measure_stage("payload_validation"):
+                validate_final_payload_integrity(recs_data, schema=schema)
+                validate_final_payload_integrity(market_data, schema=None)
+                if history_data is not recs_data:
+                    validate_final_payload_integrity(history_data, schema=schema)
+                validate_final_payload_integrity(monitoring_dict, schema=None)
         except ValueError as exc:
             logger.error("Report payload integrity validation failed: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
 
         logger.info("JSON Schema & output integrity validation passed for all payloads!")
+
+        performance_data = tracker.get_performance_payload(
+            pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
+            pipeline_status="SUCCESS",
+        )
+        if "metrics" not in monitoring_dict or not isinstance(monitoring_dict["metrics"], dict):
+            monitoring_dict["metrics"] = {}
+
+        if hasattr(pipeline_res, "universe_audit") and isinstance(
+            pipeline_res.universe_audit, dict
+        ):
+            pipeline_res.universe_audit["performance"] = performance_data
+            monitoring_dict["metrics"]["universe_audit"] = pipeline_res.universe_audit
+
+        monitoring_dict["metrics"]["performance"] = performance_data
 
         data_as_of = recs_data.get("data_as_of")
 

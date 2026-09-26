@@ -98,61 +98,79 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     @patch("scripts.generate_report.time.perf_counter")
     @patch("scripts.generate_report.get_historical_data")
     def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_get_hist, mock_perf):
-        """1. Every required pipeline stage produces a timing record with stable fields."""
+        """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
+        from scripts.generate_report import main as generate_report_main
+
         valid_df = make_valid_canonical_df(25)
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
 
-        # Mock time.perf_counter to return increasing deterministic values
-        mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(100)]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                try:
+                    generate_report_main()
+                except SystemExit:
+                    pass
 
-        pipeline_res = run_pipeline(update_data=False)
-        audit = pipeline_res.universe_audit
-        self.assertIsNotNone(audit)
-        self.assertIn("performance", audit)
+            mon_file = gen_dir / "monitoring.json"
+            self.assertTrue(mon_file.exists())
+            mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
+            perf = mon_data["metrics"]["performance"]
 
-        perf = audit["performance"]
-        self.assertIn("stages", perf)
+            stage_names = [s["stage"] for s in perf["stages"]]
+            required_stages = [
+                "pipeline",
+                "benchmark_fetch",
+                "stock_fetch",
+                "temporal_validation",
+                "market_calculation",
+                "regime_calculation",
+                "risk_calculation",
+                "recommendation_calculation",
+                "monitoring",
+                "payload_validation",
+            ]
 
-        stage_names = [s["stage"] for s in perf["stages"]]
-        required_stages = [
-            "pipeline",
-            "benchmark_fetch",
-            "stock_fetch",
-            "temporal_validation",
-            "market_calculation",
-            "regime_calculation",
-            "risk_calculation",
-            "recommendation_calculation",
-            "monitoring",
-            "payload_validation",
-        ]
+            for req in required_stages:
+                self.assertIn(req, stage_names, f"Missing required stage timing record for '{req}'")
 
-        for req in required_stages:
-            self.assertIn(req, stage_names, f"Missing required stage timing record for '{req}'")
-
-        for record in perf["stages"]:
-            self.assertIn("stage", record)
-            self.assertIn("elapsed_seconds", record)
-            self.assertIn("status", record)
-            self.assertIsInstance(record["elapsed_seconds"], (int, float))
-            self.assertIn(record["status"], ("SUCCESS", "FAILED"))
+            for record in perf["stages"]:
+                self.assertIn("stage", record)
+                self.assertIn("elapsed_seconds", record)
+                self.assertIn("status", record)
+                self.assertIsInstance(record["elapsed_seconds"], (int, float))
+                self.assertIn(record["status"], ("SUCCESS", "FAILED"))
 
     @patch("scripts.generate_report.time.perf_counter")
     @patch("scripts.generate_report.get_historical_data")
     def test_2_stage_ordering_is_deterministic(self, mock_get_hist, mock_perf):
         """2. Stage ordering in performance payload is strictly deterministic."""
+        from scripts.generate_report import main as generate_report_main
+
         valid_df = make_valid_canonical_df(25)
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
-        mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(100)]
+        mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
-        res1 = run_pipeline(update_data=False)
-        stages1 = [s["stage"] for s in res1.universe_audit["performance"]["stages"]]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                try:
+                    generate_report_main()
+                except SystemExit:
+                    pass
 
-        mock_perf.side_effect = [100.0 + (i * 0.05) for i in range(100)]
-        res2 = run_pipeline(update_data=False)
-        stages2 = [s["stage"] for s in res2.universe_audit["performance"]["stages"]]
+            mon_data = json.loads((gen_dir / "monitoring.json").read_text(encoding="utf-8"))
+            stages1 = [s["stage"] for s in mon_data["metrics"]["performance"]["stages"]]
 
-        self.assertEqual(stages1, stages2)
         expected_order = [
             "pipeline",
             "benchmark_fetch",
@@ -478,6 +496,150 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             # Artifact file preserved on disk
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
+
+    @patch("scripts.generate_report.time.perf_counter")
+    @patch("scripts.generate_report.get_historical_data")
+    def test_16_monitoring_elapsed_time_corresponds_to_mocked_execution(
+        self, mock_get_hist, mock_perf
+    ):
+        """16. Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                try:
+                    generate_report_main()
+                except SystemExit:
+                    pass
+
+            mon_file = gen_dir / "monitoring.json"
+            mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
+            stages = mon_data["metrics"]["performance"]["stages"]
+            mon_stage = next(s for s in stages if s["stage"] == "monitoring")
+            self.assertEqual(mon_stage["status"], "SUCCESS")
+            self.assertGreaterEqual(mon_stage["elapsed_seconds"], 0.0)
+
+    def test_17_monitoring_failure_produces_failed_stage_status(self):
+        """17. Exception during monitoring stage records status 'FAILED' in performance tracker."""
+        tracker = PerformanceTracker()
+        with self.assertRaises(RuntimeError):
+            with tracker.measure_stage("monitoring"):
+                raise RuntimeError("Monitoring system crash")
+
+        payload = tracker.get_performance_payload()
+        mon_stage = next(s for s in payload["stages"] if s["stage"] == "monitoring")
+        self.assertEqual(mon_stage["status"], "FAILED")
+
+    def test_18_payload_validation_with_injected_failure_produces_failed(self):
+        """18. Injected integrity failure in payload_validation stage records status 'FAILED'."""
+        from scripts.generate_report import validate_final_payload_integrity
+
+        tracker = PerformanceTracker()
+        invalid_payload = {"data_as_of": "INVALID_DATE"}
+
+        with self.assertRaises(ValueError):
+            with tracker.measure_stage("payload_validation"):
+                validate_final_payload_integrity(invalid_payload, schema=None)
+
+        payload = tracker.get_performance_payload()
+        val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
+        self.assertEqual(val_stage["status"], "FAILED")
+
+    def test_19_successful_payload_validation_produces_success(self):
+        """19. Successful payload validation records stage status 'SUCCESS'."""
+        from scripts.generate_report import validate_final_payload_integrity
+
+        tracker = PerformanceTracker()
+        valid_payload = {
+            "schema_version": "2.0",
+            "generated_at": "2026-08-25T00:00:00Z",
+            "data_as_of": "2026-08-25",
+            "source_date": "2026-08-25",
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        with tracker.measure_stage("payload_validation"):
+            validate_final_payload_integrity(valid_payload, schema=None)
+
+        payload = tracker.get_performance_payload()
+        val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
+        self.assertEqual(val_stage["status"], "SUCCESS")
+
+    def test_20_historical_path_does_not_contain_monitoring_measurement(self):
+        """20. Historical report generation path does NOT contain a fake/pass monitoring stage."""
+        from scripts.generate_report import generate_historical_report
+
+        df_index = make_valid_canonical_df(25, start_date="2026-08-01")
+        canonical_as_of = df_index["time"].iloc[-1]
+        metadata = [{"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech"}]
+        stock_map = {"FPT": make_valid_canonical_df(25, start_date="2026-08-01")}
+
+        pipeline_res = generate_historical_report(
+            data_as_of=canonical_as_of,
+            universe_stock_map=stock_map,
+            df_vnindex=df_index,
+            candidate_metadata=metadata,
+        )
+
+        stages = [s["stage"] for s in pipeline_res.universe_audit["performance"]["stages"]]
+        self.assertNotIn("monitoring", stages)
+        self.assertIn("payload_validation", stages)
+
+    @patch("scripts.generate_report.time.perf_counter")
+    @patch("scripts.generate_report.get_historical_data")
+    def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_get_hist, mock_perf):
+        """21. Main pipeline stage ordering matches expected canonical order strictly."""
+        from scripts.generate_report import main as generate_report_main
+
+        valid_df = make_valid_canonical_df(25)
+        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("sys.argv", ["generate_report.py"]),
+            ):
+                try:
+                    generate_report_main()
+                except SystemExit:
+                    pass
+
+            mon_data = json.loads((gen_dir / "monitoring.json").read_text(encoding="utf-8"))
+            stages = [s["stage"] for s in mon_data["metrics"]["performance"]["stages"]]
+
+        expected_order = [
+            "pipeline",
+            "benchmark_fetch",
+            "stock_fetch",
+            "temporal_validation",
+            "market_calculation",
+            "regime_calculation",
+            "recommendation_calculation",
+            "risk_calculation",
+            "monitoring",
+            "payload_validation",
+        ]
+        self.assertEqual(stages, expected_order)
 
 
 class TestPerformanceSchemaValidation(unittest.TestCase):
