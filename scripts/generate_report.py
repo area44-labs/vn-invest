@@ -51,7 +51,33 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
+PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
 GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
+
+
+def load_performance_schema() -> dict:
+    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
+    if os.path.exists(PERFORMANCE_SCHEMA_PATH):
+        with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
+    """Validate canonical performance object structure and schema.
+
+    Raises jsonschema.ValidationError, TypeError, or ValueError on validation failure.
+    """
+    if not isinstance(performance_data, dict):
+        raise TypeError(
+            f"Performance payload must be a dict, got {type(performance_data).__name__}"
+        )
+
+    if schema is None:
+        schema = load_performance_schema()
+
+    if schema:
+        jsonschema.validate(instance=performance_data, schema=schema)
 
 
 def save_json_files(relative_path: str, data: dict):
@@ -347,11 +373,14 @@ class PerformanceTracker:
 
         stages_list.extend(self.stages)
 
-        return {
+        payload = {
             "stages": stages_list,
             "provider": provider_summary,
             "duplicate_operations": duplicates,
         }
+
+        validate_performance_payload(payload)
+        return payload
 
 
 def build_universe_audit(
@@ -417,6 +446,7 @@ def build_universe_audit(
     }
 
     if performance_data is not None:
+        validate_performance_payload(performance_data)
         audit["performance"] = performance_data
 
     return audit

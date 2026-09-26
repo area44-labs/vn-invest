@@ -20,7 +20,48 @@ from scripts.data_provider import (
     reset_circuit_breaker,
     reset_rate_limit_recovery_count,
 )
-from scripts.generate_report import PerformanceTracker, run_pipeline
+from scripts.generate_report import (
+    PerformanceTracker,
+    run_pipeline,
+    validate_performance_payload,
+)
+
+
+def make_valid_performance_payload():
+    """Construct a valid canonical performance payload for schema testing."""
+    return {
+        "stages": [
+            {
+                "stage": "pipeline",
+                "elapsed_seconds": 1.234,
+                "status": "SUCCESS",
+            },
+            {
+                "stage": "benchmark_fetch",
+                "elapsed_seconds": 0.5,
+                "status": "SUCCESS",
+            },
+        ],
+        "provider": {
+            "total_calls": 2,
+            "successful_calls": 2,
+            "failed_calls": 0,
+            "retry_count": 0,
+            "total_elapsed_seconds": 0.5,
+            "average_call_seconds": 0.25,
+            "calls_by_source": {"kbs": 2},
+        },
+        "duplicate_operations": [
+            {
+                "symbol": "FPT",
+                "provider_call_count": 2,
+                "request_count": 2,
+                "successful_calls": 1,
+                "failed_calls": 1,
+                "retry_count": 0,
+            }
+        ],
+    }
 
 
 def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -437,6 +478,121 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             # Artifact file preserved on disk
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
+
+
+class TestPerformanceSchemaValidation(unittest.TestCase):
+    def test_valid_performance_payload_passes_validation(self):
+        payload = make_valid_performance_payload()
+        validate_performance_payload(payload)
+
+    def test_missing_required_fields_fail_schema_validation(self):
+        import jsonschema
+
+        for req_field in ["stages", "provider", "duplicate_operations"]:
+            payload = make_valid_performance_payload()
+            del payload[req_field]
+            with self.assertRaises(jsonschema.ValidationError):
+                validate_performance_payload(payload)
+
+    def test_invalid_stage_name_fails_schema_validation(self):
+        import jsonschema
+
+        payload = make_valid_performance_payload()
+        payload["stages"][0]["stage"] = "invalid_stage_name"
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+    def test_invalid_stage_status_fails_schema_validation(self):
+        import jsonschema
+
+        payload = make_valid_performance_payload()
+        payload["stages"][0]["status"] = "PENDING"
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+    def test_invalid_numeric_values_fail_schema_validation(self):
+        import jsonschema
+
+        # Negative elapsed seconds
+        payload = make_valid_performance_payload()
+        payload["stages"][0]["elapsed_seconds"] = -1.0
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+        # Non-numeric string for elapsed seconds
+        payload = make_valid_performance_payload()
+        payload["stages"][0]["elapsed_seconds"] = "1.234"
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+    def test_malformed_provider_metrics_fail_schema_validation(self):
+        import jsonschema
+
+        payload = make_valid_performance_payload()
+        payload["provider"]["total_calls"] = -5
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+        payload = make_valid_performance_payload()
+        payload["provider"]["calls_by_source"]["kbs"] = "two"
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+    def test_malformed_duplicate_operations_fail_schema_validation(self):
+        import jsonschema
+
+        payload = make_valid_performance_payload()
+        payload["duplicate_operations"][0]["symbol"] = ""
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+        payload = make_valid_performance_payload()
+        payload["duplicate_operations"][0]["provider_call_count"] = -1
+        with self.assertRaises(jsonschema.ValidationError):
+            validate_performance_payload(payload)
+
+    @patch("scripts.generate_report.get_historical_data")
+    def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(
+        self, mock_get_hist
+    ):
+        from scripts.lib.monitoring import evaluate_production_monitoring
+
+        valid_df = make_valid_canonical_df(25)
+        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+
+        res = run_pipeline(update_data=False)
+        audit_perf = res.universe_audit.get("performance")
+        self.assertIsNotNone(audit_perf)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir)
+            history_dir = gen_dir / "history"
+            history_dir.mkdir(parents=True, exist_ok=True)
+            as_of = res[0]["data_as_of"]
+
+            (gen_dir / "recommendations.json").write_text(json.dumps(res[0]), encoding="utf-8")
+            (gen_dir / "market.json").write_text(json.dumps(res[1]), encoding="utf-8")
+
+            index_data = {
+                "last_updated": "2026-08-25T00:00:00Z",
+                "total_reports": 1,
+                "dates": [as_of],
+            }
+            (history_dir / "index.json").write_text(json.dumps(index_data), encoding="utf-8")
+            (history_dir / f"{as_of}.json").write_text(json.dumps(res[0]), encoding="utf-8")
+
+            mon_res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=res[0],
+                market_payload=res[1],
+                reference_date=as_of,
+                df_vnindex=res.df_vnindex,
+                df_vn30=res.df_vn30,
+                universe_audit=res.universe_audit,
+            )
+
+            mon_perf = mon_res.metrics.get("performance")
+            self.assertEqual(audit_perf, mon_perf)
 
 
 if __name__ == "__main__":
