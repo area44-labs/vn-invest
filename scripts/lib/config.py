@@ -306,3 +306,18 @@ FAILURE_CATEGORIES = (
     "MISSING_SYMBOL",
     "UNKNOWN",
 )
+
+RECOVERABLE_FAILURE_CATEGORIES = {
+    "PROVIDER_FAILURE",
+    "RATE_LIMIT",
+}
+
+
+def is_recoverable_category(category: str) -> bool:
+    """Return True if failure category is considered transient/recoverable, False otherwise.
+
+    - PROVIDER_FAILURE, RATE_LIMIT -> recoverable (transient network or rate limits)
+    - INVALID_SYMBOL, EXPLICITLY_INVALID, INSUFFICIENT_HISTORICAL_DATA, TEMPORAL_INVALID,
+      OUTPUT_VALIDATION_FAILURE, MONITORING_FAILURE, UNIVERSE_INCOMPLETE -> non-recoverable
+    """
+    return category in RECOVERABLE_FAILURE_CATEGORIES

@@ -26,6 +26,7 @@ import pandas as pd
 
 from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
+from scripts.lib.config import is_recoverable_category
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
@@ -411,7 +412,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 "latest_date": vnindex_val.get("latest_date"),
                 "expected_date": None,
                 "processed": False,
-                "recoverable": not update_data,
+                "recoverable": is_recoverable_category(cat),
             }
         else:
             processed_symbols.add("VNINDEX")
@@ -426,7 +427,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "latest_date": None,
             "expected_date": None,
             "processed": False,
-            "recoverable": not update_data,
+            "recoverable": is_recoverable_category("RATE_LIMIT"),
         }
         raise
     except Exception as exc:  # noqa: BLE001
@@ -441,7 +442,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "latest_date": None,
             "expected_date": None,
             "processed": False,
-            "recoverable": not update_data,
+            "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
         }
         df_vnindex_raw = pd.DataFrame()
         df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
@@ -490,7 +491,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 "latest_date": vn30_val.get("latest_date"),
                 "expected_date": data_as_of,
                 "processed": False,
-                "recoverable": not update_data,
+                "recoverable": is_recoverable_category(cat),
             }
         else:
             processed_symbols.add("VN30")
@@ -505,7 +506,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "latest_date": None,
             "expected_date": data_as_of,
             "processed": False,
-            "recoverable": not update_data,
+            "recoverable": is_recoverable_category("RATE_LIMIT"),
         }
         raise
     except Exception as exc:  # noqa: BLE001
@@ -520,7 +521,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "latest_date": None,
             "expected_date": data_as_of,
             "processed": False,
-            "recoverable": not update_data,
+            "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
         }
         df_vn30_raw = pd.DataFrame()
         df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
@@ -555,7 +556,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                     "latest_date": stock_dates_map.get(sym),
                     "expected_date": data_as_of,
                     "processed": False,
-                    "recoverable": not update_data,
+                    "recoverable": is_recoverable_category(cat),
                 }
             elif tag == "INVALID_SYMBOL":
                 invalid_symbols.add(sym)
@@ -568,7 +569,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                     "latest_date": stock_dates_map.get(sym),
                     "expected_date": data_as_of,
                     "processed": False,
-                    "recoverable": not update_data,
+                    "recoverable": is_recoverable_category("INVALID_SYMBOL"),
                 }
             elif df_stock is None or df_stock.empty or df_clean_stock.empty:
                 failed_symbols.add(sym)
@@ -581,7 +582,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                     "latest_date": stock_dates_map.get(sym),
                     "expected_date": data_as_of,
                     "processed": False,
-                    "recoverable": not update_data,
+                    "recoverable": is_recoverable_category("OTHER_VALIDATION_FAILURE"),
                 }
             elif tag == "INSUFFICIENT_HISTORICAL_DATA" or stock_val.get("status") == "INSUFFICIENT":
                 insufficient_history_symbols.add(sym)
@@ -594,7 +595,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                     "latest_date": stock_dates_map.get(sym),
                     "expected_date": data_as_of,
                     "processed": False,
-                    "recoverable": not update_data,
+                    "recoverable": is_recoverable_category("INSUFFICIENT_HISTORICAL_DATA"),
                 }
             else:
                 processed_symbols.add(sym)
@@ -609,7 +610,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 "latest_date": None,
                 "expected_date": data_as_of,
                 "processed": False,
-                "recoverable": not update_data,
+                "recoverable": is_recoverable_category("RATE_LIMIT"),
             }
             raise
         except Exception as exc:  # noqa: BLE001
@@ -624,7 +625,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 "latest_date": None,
                 "expected_date": data_as_of,
                 "processed": False,
-                "recoverable": not update_data,
+                "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
             }
             stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
             stock_dates_map[sym] = None
@@ -658,7 +659,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
                 "latest_date": stock_dates_map.get(sym),
                 "expected_date": data_as_of,
                 "processed": False,
-                "recoverable": not update_data,
+                "recoverable": is_recoverable_category("TEMPORAL_INVALID"),
             }
             # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
             stock_data_map[sym] = (
@@ -682,7 +683,7 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
             "latest_date": None,
             "expected_date": data_as_of,
             "processed": False,
-            "recoverable": not update_data,
+            "recoverable": is_recoverable_category("UNIVERSE_INCOMPLETE"),
         }
 
     failed_stage = None

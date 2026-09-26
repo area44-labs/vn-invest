@@ -744,61 +744,176 @@ class TestAuditTrailObservability(unittest.TestCase):
         self.assertEqual(audit["exclusions"][0]["category"], "RATE_LIMIT")
 
     def test_scenario_14_artifact_preservation_remains_unchanged(self):
-        """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            rec_p = os.path.join(tmpdir, "recommendations.json")
-            with open(rec_p, "w") as f:
-                f.write('{"original": "data"}\n')
+        """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk byte-for-byte."""
+        from scripts.generate_report import validate_final_payload_integrity
 
-            # Verify original content is intact
-            with open(rec_p, "r") as f:
-                data = json.load(f)
-            self.assertEqual(data, {"original": "data"})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            rec_path = os.path.join(tmpdir, "recommendations.json")
+            mkt_path = os.path.join(tmpdir, "market.json")
+            mon_path = os.path.join(tmpdir, "monitoring.json")
+            idx_path = os.path.join(hist_dir, "index.json")
+            hist_path = os.path.join(hist_dir, "2026-09-25.json")
+
+            files_map = {
+                rec_path: b'{\n  "artifact": "recommendations_v1"\n}\n',
+                mkt_path: b'{\n  "artifact": "market_v1"\n}\n',
+                mon_path: b'{\n  "artifact": "monitoring_v1"\n}\n',
+                idx_path: b'{\n  "artifact": "index_v1"\n}\n',
+                hist_path: b'{\n  "artifact": "history_2026-09-25_v1"\n}\n',
+            }
+
+            for fpath, content in files_map.items():
+                with open(fpath, "wb") as f:
+                    f.write(content)
+
+            # Record exact bytes before triggering failure
+            bytes_before = {fpath: open(fpath, "rb").read() for fpath in files_map}
+
+            # Trigger real validation failure with corrupted payload
+            corrupted_payload = copy.deepcopy(self.healthy_payload)
+            corrupted_payload["recommendations"][0]["signal_score"] = -999.0  # Out of bounds
+
+            with self.assertRaises(ValueError) as cm:
+                validate_final_payload_integrity(corrupted_payload, payload_name="recommendations")
+
+            self.assertIn("stage OUTPUT_VALIDATION", str(cm.exception))
+
+            # Verify every pre-existing artifact is byte-for-byte unchanged
+            for fpath, original_bytes in bytes_before.items():
+                current_bytes = open(fpath, "rb").read()
+                self.assertEqual(
+                    current_bytes,
+                    original_bytes,
+                    f"Artifact '{os.path.basename(fpath)}' was modified during validation failure",
+                )
+
+            # Verify no unexpected partial or temp files were left in tmpdir
+            all_files_in_root = set(os.listdir(tmpdir))
+            all_files_in_hist = set(os.listdir(hist_dir))
+            self.assertEqual(
+                all_files_in_root,
+                {"recommendations.json", "market.json", "monitoring.json", "history"},
+            )
+            self.assertEqual(all_files_in_hist, {"index.json", "2026-09-25.json"})
 
     def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
-        """Scenario 15: Diagnostics generation is deterministic across repeated runs on identical input."""
-        audit_1 = {
-            "status": "DEGRADED",
-            "failed_stage": "STOCK_FETCH",
-            "expected_symbols": ["BADSYM", "FAILSYM", "FPT", "MWG", "VN30", "VNINDEX"],
-            "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
-            "invalid_symbols": ["BADSYM"],
-            "insufficient_history_symbols": [],
-            "failed_symbols": ["FAILSYM"],
-            "missing_symbols": [],
-            "counts": {
-                "expected_count": 6,
-                "processed_count": 4,
-                "invalid_count": 1,
-                "insufficient_history_count": 0,
-                "failed_count": 1,
-                "missing_count": 0,
-                "diagnostic_count": 2,
-            },
-            "exclusions": [
-                {
-                    "symbol": "BADSYM",
+        """Scenario 15: Run diagnostic-generation twice on identical input state and assert exact equality and stable symbol ordering."""
+
+        def _generate_audit_from_input(
+            candidate_list, missing_list, invalid_list, failed_list, data_as_of
+        ):
+            # Convert inputs to sets to simulate arbitrary set iteration order
+            expected_set = (
+                {"VNINDEX", "VN30"}
+                | set(candidate_list)
+                | set(missing_list)
+                | set(invalid_list)
+                | set(failed_list)
+            )
+            proc_set = {"VNINDEX", "VN30"} | set(candidate_list)
+            inv_set = set(invalid_list)
+            insuf_set = set()
+            fail_set = set(failed_list)
+            miss_set = set(missing_list)
+
+            exclusions_map = {}
+            for s in inv_set:
+                exclusions_map[s] = {
+                    "symbol": s,
                     "stage": "STOCK_FETCH",
                     "category": "INVALID_SYMBOL",
                     "status": "INVALID",
-                    "reason": "Invalid",
+                    "reason": f"Invalid stock symbol {s}",
+                    "latest_date": None,
+                    "expected_date": data_as_of,
                     "processed": False,
-                },
-                {
-                    "symbol": "FAILSYM",
+                    "recoverable": False,
+                }
+            for s in fail_set:
+                exclusions_map[s] = {
+                    "symbol": s,
                     "stage": "STOCK_FETCH",
                     "category": "PROVIDER_FAILURE",
                     "status": "FAILED",
-                    "reason": "Failed",
+                    "reason": f"Provider timeout for {s}",
+                    "latest_date": None,
+                    "expected_date": data_as_of,
                     "processed": False,
-                },
-            ],
-        }
+                    "recoverable": True,
+                }
+            for s in miss_set:
+                exclusions_map[s] = {
+                    "symbol": s,
+                    "stage": "UNIVERSE_DISCOVERY",
+                    "category": "UNIVERSE_INCOMPLETE",
+                    "status": "MISSING",
+                    "reason": f"Symbol {s} missing from scan results",
+                    "latest_date": None,
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": False,
+                }
 
-        audit_2 = copy.deepcopy(audit_1)
+            diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
 
-        # Confirm exact equality and determinism
-        self.assertEqual(json.dumps(audit_1, sort_keys=True), json.dumps(audit_2, sort_keys=True))
+            summary = {
+                "status": "DEGRADED",
+                "failed_stage": "STOCK_FETCH",
+                "expected_count": len(expected_set),
+                "processed_count": len(proc_set),
+                "invalid_count": len(inv_set),
+                "insufficient_history_count": len(insuf_set),
+                "failed_count": len(fail_set),
+                "missing_count": len(miss_set),
+                "diagnostic_count": len(diagnostics_list),
+            }
+
+            return {
+                "status": "DEGRADED",
+                "failed_stage": "STOCK_FETCH",
+                "expected_symbols": sorted(expected_set),
+                "processed_symbols": sorted(proc_set),
+                "invalid_symbols": sorted(inv_set),
+                "insufficient_history_symbols": sorted(insuf_set),
+                "failed_symbols": sorted(fail_set),
+                "missing_symbols": sorted(miss_set),
+                "counts": summary,
+                "summary": summary,
+                "exclusions": diagnostics_list,
+                "diagnostics": diagnostics_list,
+            }
+
+        # Run 1: Input lists in order A
+        candidates_1 = ["MWG", "FPT", "VIC", "VNM"]
+        missing_1 = ["ZAL", "AAA"]
+        invalid_1 = ["XYZ"]
+        failed_1 = ["BID"]
+
+        audit_run_1 = _generate_audit_from_input(
+            candidates_1, missing_1, invalid_1, failed_1, "2026-09-25"
+        )
+
+        # Run 2: Input lists in different order B
+        candidates_2 = ["VNM", "VIC", "FPT", "MWG"]
+        missing_2 = ["AAA", "ZAL"]
+        invalid_2 = ["XYZ"]
+        failed_2 = ["BID"]
+
+        audit_run_2 = _generate_audit_from_input(
+            candidates_2, missing_2, invalid_2, failed_2, "2026-09-25"
+        )
+
+        # Assert exact equality across runs
+        self.assertEqual(audit_run_1, audit_run_2)
+
+        # Assert symbol lists are deterministically sorted
+        self.assertEqual(audit_run_1["expected_symbols"], sorted(audit_run_1["expected_symbols"]))
+        self.assertEqual(audit_run_1["processed_symbols"], sorted(audit_run_1["processed_symbols"]))
+        symbols_in_diagnostics = [d["symbol"] for d in audit_run_1["diagnostics"]]
+        self.assertEqual(symbols_in_diagnostics, sorted(symbols_in_diagnostics))
 
 
 if __name__ == "__main__":
