@@ -487,9 +487,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                     side_effect=RuntimeError("Pipeline benchmark failure"),
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
+                self.assertRaises(SystemExit) as ctx,
             ):
-                with self.assertRaises(SystemExit) as ctx:
-                    generate_report_main()
+                generate_report_main()
 
                 self.assertEqual(ctx.exception.code, 1)
 
