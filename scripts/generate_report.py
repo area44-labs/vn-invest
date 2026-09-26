@@ -57,16 +57,16 @@ GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 
 def load_performance_schema() -> dict:
     """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
-    if os.path.exists(PERFORMANCE_SCHEMA_PATH):
-        with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+    if not os.path.exists(PERFORMANCE_SCHEMA_PATH):
+        raise FileNotFoundError(f"Performance schema file not found at '{PERFORMANCE_SCHEMA_PATH}'")
+    with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
     """Validate canonical performance object structure and schema.
 
-    Raises jsonschema.ValidationError, TypeError, or ValueError on validation failure.
+    Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
     """
     if not isinstance(performance_data, dict):
         raise TypeError(
@@ -76,8 +76,7 @@ def validate_performance_payload(performance_data: dict, schema: dict | None = N
     if schema is None:
         schema = load_performance_schema()
 
-    if schema:
-        jsonschema.validate(instance=performance_data, schema=schema)
+    jsonschema.validate(instance=performance_data, schema=schema)
 
 
 def save_json_files(relative_path: str, data: dict):

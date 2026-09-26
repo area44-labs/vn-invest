@@ -485,6 +485,15 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         payload = make_valid_performance_payload()
         validate_performance_payload(payload)
 
+    @patch(
+        "scripts.generate_report.PERFORMANCE_SCHEMA_PATH",
+        "/non/existent/path/performance.schema.json",
+    )
+    def test_missing_performance_schema_file_fails_closed(self):
+        payload = make_valid_performance_payload()
+        with self.assertRaises(FileNotFoundError):
+            validate_performance_payload(payload)
+
     def test_missing_required_fields_fail_schema_validation(self):
         import jsonschema
 
