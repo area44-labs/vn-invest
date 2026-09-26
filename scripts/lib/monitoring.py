@@ -2651,7 +2651,10 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             return CheckResult(
                 check_name="history_index_status",
                 status="FAIL",
-                measured_value={"data_as_of": data_as_of, "latest_history_date": latest_history_date},
+                measured_value={
+                    "data_as_of": data_as_of,
+                    "latest_history_date": latest_history_date,
+                },
                 expected_condition=f"data_as_of '{data_as_of}' >= latest index date '{latest_history_date}'",
                 message=f"data_as_of '{data_as_of}' is older than latest history/index.json date '{latest_history_date}'",
             )

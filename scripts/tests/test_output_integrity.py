@@ -492,9 +492,9 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 ),
                 patch("os.replace", side_effect=OSError("Disk write error")),
                 patch("sys.argv", ["generate_report.py"]),
+                self.assertRaises(OSError),
             ):
-                with self.assertRaises(OSError):
-                    main()
+                main()
 
             # Verify existing files are byte-for-byte unchanged
             for path, expected in original_contents.items():
@@ -541,10 +541,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=RuntimeError("Pipeline failed"),
                 ),
                 patch("sys.argv", ["generate_report.py"]),
+                self.assertRaises(SystemExit) as cm,
             ):
-                with self.assertRaises(SystemExit) as cm:
-                    main()
-                self.assertEqual(cm.exception.code, 1)
+                main()
+            self.assertEqual(cm.exception.code, 1)
 
             # Verify artifacts remain unchanged after failure
             for path, expected in original_contents.items():
