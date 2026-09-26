@@ -1,5 +1,6 @@
 packages:
   - "."
+autoDedupe: true
 minimumReleaseAge: 0
 shellEmulator: true
 trustLockfile: true
