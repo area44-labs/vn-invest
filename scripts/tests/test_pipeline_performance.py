@@ -105,17 +105,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
+            patch("sys.argv", ["generate_report.py"]),
+        ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                try:
-                    generate_report_main()
-                except SystemExit:
-                    pass
+            try:
+                generate_report_main()
+            except SystemExit:
+                pass
 
             mon_file = gen_dir / "monitoring.json"
             self.assertTrue(mon_file.exists())
@@ -156,17 +156,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
+            patch("sys.argv", ["generate_report.py"]),
+        ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                try:
-                    generate_report_main()
-                except SystemExit:
-                    pass
+            try:
+                generate_report_main()
+            except SystemExit:
+                pass
 
             mon_data = json.loads((gen_dir / "monitoring.json").read_text(encoding="utf-8"))
             stages1 = [s["stage"] for s in mon_data["metrics"]["performance"]["stages"]]
@@ -509,17 +509,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
+            patch("sys.argv", ["generate_report.py"]),
+        ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                try:
-                    generate_report_main()
-                except SystemExit:
-                    pass
+            try:
+                generate_report_main()
+            except SystemExit:
+                pass
 
             mon_file = gen_dir / "monitoring.json"
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
@@ -612,17 +612,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
+            patch("sys.argv", ["generate_report.py"]),
+        ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                try:
-                    generate_report_main()
-                except SystemExit:
-                    pass
+            try:
+                generate_report_main()
+            except SystemExit:
+                pass
 
             mon_data = json.loads((gen_dir / "monitoring.json").read_text(encoding="utf-8"))
             stages = [s["stage"] for s in mon_data["metrics"]["performance"]["stages"]]
