@@ -3182,6 +3182,9 @@ def evaluate_production_monitoring(
         "avoid_count": summary.get("avoid_count", 0),
         "market_regime": market_payload.get("regime"),
         "universe_audit": universe_audit,
+        "performance": universe_audit.get("performance")
+        if isinstance(universe_audit, dict)
+        else None,
         "drift_monitoring": drift_res.to_dict(),
         "monitoring_diagnostics": failed_monitoring_diagnostics,
         "failed_checks": failed_monitoring_diagnostics,

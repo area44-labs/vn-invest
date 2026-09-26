@@ -295,6 +295,26 @@ PIPELINE_STAGES = (
     "ARTIFACT_WRITE",
 )
 
+# Authoritative Pipeline Stages & Statuses for Performance Profiling (PR #156)
+PERFORMANCE_PIPELINE_STAGES = (
+    "pipeline",
+    "benchmark_fetch",
+    "stock_fetch",
+    "temporal_validation",
+    "market_calculation",
+    "regime_calculation",
+    "risk_calculation",
+    "recommendation_calculation",
+    "monitoring",
+    "payload_validation",
+)
+
+VALID_STAGE_STATUSES = (
+    "SUCCESS",
+    "DEGRADED",
+    "FAILED",
+)
+
 # Stable Failure & Classification Categories for Operational Observability
 FAILURE_CATEGORIES = (
     "PROVIDER_FAILURE",

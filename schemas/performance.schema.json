@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VN Invest Production Performance Payload Schema",
+  "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload",
+  "type": "object",
+  "required": ["stages", "provider", "duplicate_operations"],
+  "additionalProperties": false,
+  "properties": {
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stage", "elapsed_seconds", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "pipeline",
+              "benchmark_fetch",
+              "stock_fetch",
+              "temporal_validation",
+              "market_calculation",
+              "regime_calculation",
+              "risk_calculation",
+              "recommendation_calculation",
+              "monitoring",
+              "payload_validation"
+            ]
+          },
+          "elapsed_seconds": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SUCCESS", "DEGRADED", "FAILED"]
+          }
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "required": [
+        "total_calls",
+        "successful_calls",
+        "failed_calls",
+        "retry_count",
+        "total_elapsed_seconds",
+        "average_call_seconds",
+        "calls_by_source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "successful_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_elapsed_seconds": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "average_call_seconds": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "calls_by_source": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "duplicate_operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "provider_call_count",
+          "request_count",
+          "successful_calls",
+          "failed_calls",
+          "retry_count"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_call_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "request_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "successful_calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed_calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}
