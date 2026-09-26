@@ -18,13 +18,20 @@ import json
 import logging
 import math
 import os
+import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
 import jsonschema
 import pandas as pd
 
-from scripts.data_provider import ProviderRateLimitError
+from scripts.data_provider import (
+    ProviderRateLimitError,
+    VnstockDataProvider,
+    aggregate_provider_performance,
+    detect_duplicate_operations,
+)
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.monitoring import evaluate_production_monitoring
@@ -280,6 +287,73 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     return issues
 
 
+class PerformanceTracker:
+    """Deterministic structured performance timer and diagnostics collector."""
+
+    def __init__(self):
+        self.stages: list[dict[str, Any]] = []
+        self.symbol_requests: dict[str, int] = {}
+
+    def record_request(self, symbol: str) -> None:
+        if symbol:
+            sym_u = str(symbol).strip().upper()
+            self.symbol_requests[sym_u] = self.symbol_requests.get(sym_u, 0) + 1
+
+    def record_stage(
+        self, stage: str, elapsed_seconds: float, status: str = "SUCCESS"
+    ) -> dict[str, Any]:
+        record = {
+            "stage": stage,
+            "elapsed_seconds": round(max(0.0, elapsed_seconds), 4),
+            "status": status,
+        }
+        self.stages.append(record)
+        return record
+
+    @contextmanager
+    def measure_stage(self, stage: str):
+        t0 = time.perf_counter()
+        status = "SUCCESS"
+        try:
+            yield
+        except Exception:
+            status = "FAILED"
+            raise
+        finally:
+            elapsed = time.perf_counter() - t0
+            self.record_stage(stage, elapsed, status)
+
+    def get_performance_payload(
+        self,
+        pipeline_elapsed: float | None = None,
+        pipeline_status: str = "SUCCESS",
+        call_history: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        if call_history is None:
+            call_history = VnstockDataProvider.get_global_call_history()
+
+        provider_summary = aggregate_provider_performance(call_history)
+        duplicates = detect_duplicate_operations(call_history, self.symbol_requests)
+
+        stages_list = []
+        if pipeline_elapsed is not None:
+            stages_list.append(
+                {
+                    "stage": "pipeline",
+                    "elapsed_seconds": round(max(0.0, pipeline_elapsed), 4),
+                    "status": pipeline_status,
+                }
+            )
+
+        stages_list.extend(self.stages)
+
+        return {
+            "stages": stages_list,
+            "provider": provider_summary,
+            "duplicate_operations": duplicates,
+        }
+
+
 def build_universe_audit(
     expected_symbols: set[str] | list[str],
     processed_symbols: set[str] | list[str],
@@ -289,6 +363,7 @@ def build_universe_audit(
     missing_symbols: set[str] | list[str],
     exclusions_map: dict[str, dict[str, Any]],
     update_data: bool = False,
+    performance_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build deterministic production universe_audit dictionary from pipeline sets and exclusions map."""
     s_expected = set(expected_symbols)
@@ -326,7 +401,7 @@ def build_universe_audit(
         "diagnostic_count": len(diagnostics_list),
     }
 
-    return {
+    audit = {
         "status": pipeline_status,
         "failed_stage": failed_stage,
         "expected_symbols": sorted(s_expected),
@@ -340,6 +415,11 @@ def build_universe_audit(
         "exclusions": diagnostics_list,
         "diagnostics": diagnostics_list,
     }
+
+    if performance_data is not None:
+        audit["performance"] = performance_data
+
+    return audit
 
 
 def validate_final_payload_integrity(
@@ -386,7 +466,9 @@ class PipelineResult(tuple):
         return obj
 
 
-def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
+def run_pipeline(
+    update_data: bool = False, tracker: PerformanceTracker | None = None
+) -> tuple[dict, dict, dict]:
     """Execute market data pipeline following strict dependency order:
 
     1. Fetch VN-Index benchmark & stock universe EOD history
@@ -395,517 +477,588 @@ def run_pipeline(update_data: bool = False) -> tuple[dict, dict, dict]:
     4. Generate Stock Recommendations using the Final Market Regime
     5. Compute Universe Percentile Liquidity Scores
     """
+    if tracker is None:
+        tracker = PerformanceTracker()
+
+    VnstockDataProvider.reset_global_call_history()
+    t_pipeline_start = time.perf_counter()
+    pipeline_status = "SUCCESS"
+
     generated_at = datetime.now(UTC).isoformat()
     use_cache = not update_data
 
-    provider = UniverseProvider()
-    raw_candidate_stocks = provider.candidates
-    universe_info = provider.get_info()
-
-    if not raw_candidate_stocks:
-        raise RuntimeError("Candidate universe is empty. Cannot generate report on empty universe.")
-
-    # 1. Normalize and deduplicate candidate stock symbols first
-    unique_candidate_stocks = []
-    seen_candidate_syms = set()
-    for item in raw_candidate_stocks:
-        if isinstance(item, dict) and item.get("symbol"):
-            sym_u = str(item["symbol"]).strip().upper()
-            if sym_u and sym_u not in seen_candidate_syms:
-                seen_candidate_syms.add(sym_u)
-                item_copy = dict(item)
-                item_copy["symbol"] = sym_u
-                unique_candidate_stocks.append(item_copy)
-
-    candidate_stocks = unique_candidate_stocks
-
-    if not candidate_stocks:
-        raise RuntimeError("Candidate universe contains no valid symbols.")
-
-    # 2. Derive expected_symbols strictly from the normalized/deduplicated candidate universe + mandatory benchmarks
-    expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"] for item in candidate_stocks}
-
-    throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
-    processed_symbols = set()
-    invalid_symbols = set()
-    insufficient_history_symbols = set()
-    failed_symbols = set()
-    exclusions_map = {}
-
-    logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
-
     try:
-        df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
-            "VNINDEX",
-            max_retries=2 if update_data else 1,
-            use_cache_only=use_cache,
-            throttle_delay=throttle,
-        )
-        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+        provider = UniverseProvider()
+        raw_candidate_stocks = provider.candidates
+        universe_info = provider.get_info()
 
-        if (
-            vn_source
-            in (
-                "PROVIDER_FAILURE",
-                "PROVIDER_ERROR",
-                "EXPLICITLY_INVALID",
-                "INVALID_SYMBOL",
-                "INSUFFICIENT_HISTORICAL_DATA",
+        if not raw_candidate_stocks:
+            raise RuntimeError(
+                "Candidate universe is empty. Cannot generate report on empty universe."
             )
-            or df_vnindex_clean.empty
-            or vnindex_val.get("status") == "INSUFFICIENT"
-        ):
-            failed_symbols.add("VNINDEX")
-            cat = (
-                "INSUFFICIENT_HISTORICAL_DATA"
+
+        # 1. Normalize and deduplicate candidate stock symbols first
+        unique_candidate_stocks = []
+        seen_candidate_syms = set()
+        for item in raw_candidate_stocks:
+            if isinstance(item, dict) and item.get("symbol"):
+                sym_u = str(item["symbol"]).strip().upper()
+                if sym_u and sym_u not in seen_candidate_syms:
+                    seen_candidate_syms.add(sym_u)
+                    item_copy = dict(item)
+                    item_copy["symbol"] = sym_u
+                    unique_candidate_stocks.append(item_copy)
+
+        candidate_stocks = unique_candidate_stocks
+
+        if not candidate_stocks:
+            raise RuntimeError("Candidate universe contains no valid symbols.")
+
+        # 2. Derive expected_symbols strictly from the normalized/deduplicated candidate universe + mandatory benchmarks
+        expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"] for item in candidate_stocks}
+
+        throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
+        processed_symbols = set()
+        invalid_symbols = set()
+        insufficient_history_symbols = set()
+        failed_symbols = set()
+        exclusions_map = {}
+
+        logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
+
+        with tracker.measure_stage("benchmark_fetch"):
+            tracker.record_request("VNINDEX")
+            try:
+                df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
+                    "VNINDEX",
+                    max_retries=2 if update_data else 1,
+                    use_cache_only=use_cache,
+                    throttle_delay=throttle,
+                )
+                df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+
                 if (
-                    vn_source == "INSUFFICIENT_HISTORICAL_DATA"
+                    vn_source
+                    in (
+                        "PROVIDER_FAILURE",
+                        "PROVIDER_ERROR",
+                        "EXPLICITLY_INVALID",
+                        "INVALID_SYMBOL",
+                        "INSUFFICIENT_HISTORICAL_DATA",
+                    )
+                    or df_vnindex_clean.empty
                     or vnindex_val.get("status") == "INSUFFICIENT"
+                ):
+                    failed_symbols.add("VNINDEX")
+                    cat = (
+                        "INSUFFICIENT_HISTORICAL_DATA"
+                        if (
+                            vn_source == "INSUFFICIENT_HISTORICAL_DATA"
+                            or vnindex_val.get("status") == "INSUFFICIENT"
+                        )
+                        else "PROVIDER_FAILURE"
+                    )
+                    exclusions_map["VNINDEX"] = {
+                        "symbol": "VNINDEX",
+                        "stage": "BENCHMARK_FETCH",
+                        "category": cat,
+                        "status": "FAILED",
+                        "reason": f"Benchmark VNINDEX check failed (source={vn_source}, status={vnindex_val.get('status')})",
+                        "latest_date": vnindex_val.get("latest_date"),
+                        "expected_date": None,
+                        "processed": False,
+                        "recoverable": is_recoverable_category(cat),
+                    }
+                else:
+                    processed_symbols.add("VNINDEX")
+            except ProviderRateLimitError:
+                failed_symbols.add("VNINDEX")
+                exclusions_map["VNINDEX"] = {
+                    "symbol": "VNINDEX",
+                    "stage": "BENCHMARK_FETCH",
+                    "category": "RATE_LIMIT",
+                    "status": "FAILED",
+                    "reason": "Provider rate limit encountered fetching VNINDEX",
+                    "latest_date": None,
+                    "expected_date": None,
+                    "processed": False,
+                    "recoverable": is_recoverable_category("RATE_LIMIT"),
+                }
+                raise
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Exception fetching VNINDEX: %s", exc)
+                failed_symbols.add("VNINDEX")
+                exclusions_map["VNINDEX"] = {
+                    "symbol": "VNINDEX",
+                    "stage": "BENCHMARK_FETCH",
+                    "category": "PROVIDER_FAILURE",
+                    "status": "FAILED",
+                    "reason": f"Exception fetching VNINDEX: {type(exc).__name__}",
+                    "latest_date": None,
+                    "expected_date": None,
+                    "processed": False,
+                    "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
+                }
+                df_vnindex_raw = pd.DataFrame()
+                df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+
+            # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
+            data_as_of = vnindex_val.get("latest_date")
+            source_date = data_as_of  # Backward compatibility alias
+            data_source = vn_source if not df_vnindex_clean.empty else None
+
+            tracker.record_request("VN30")
+            try:
+                df_vn30_raw, vn30_source, _ = get_historical_data(
+                    "VN30",
+                    max_retries=2 if update_data else 1,
+                    use_cache_only=use_cache,
+                    throttle_delay=throttle,
                 )
-                else "PROVIDER_FAILURE"
-            )
-            exclusions_map["VNINDEX"] = {
-                "symbol": "VNINDEX",
-                "stage": "BENCHMARK_FETCH",
-                "category": cat,
-                "status": "FAILED",
-                "reason": f"Benchmark VNINDEX check failed (source={vn_source}, status={vnindex_val.get('status')})",
-                "latest_date": vnindex_val.get("latest_date"),
-                "expected_date": None,
-                "processed": False,
-                "recoverable": is_recoverable_category(cat),
-            }
-        else:
-            processed_symbols.add("VNINDEX")
-    except ProviderRateLimitError:
-        failed_symbols.add("VNINDEX")
-        exclusions_map["VNINDEX"] = {
-            "symbol": "VNINDEX",
-            "stage": "BENCHMARK_FETCH",
-            "category": "RATE_LIMIT",
-            "status": "FAILED",
-            "reason": "Provider rate limit encountered fetching VNINDEX",
-            "latest_date": None,
-            "expected_date": None,
-            "processed": False,
-            "recoverable": is_recoverable_category("RATE_LIMIT"),
-        }
-        raise
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Exception fetching VNINDEX: %s", exc)
-        failed_symbols.add("VNINDEX")
-        exclusions_map["VNINDEX"] = {
-            "symbol": "VNINDEX",
-            "stage": "BENCHMARK_FETCH",
-            "category": "PROVIDER_FAILURE",
-            "status": "FAILED",
-            "reason": f"Exception fetching VNINDEX: {type(exc).__name__}",
-            "latest_date": None,
-            "expected_date": None,
-            "processed": False,
-            "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-        }
-        df_vnindex_raw = pd.DataFrame()
-        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
+                df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
 
-    # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
-    data_as_of = vnindex_val.get("latest_date")
-    source_date = data_as_of  # Backward compatibility alias
-    data_source = vn_source if not df_vnindex_clean.empty else None
-
-    try:
-        df_vn30_raw, vn30_source, _ = get_historical_data(
-            "VN30",
-            max_retries=2 if update_data else 1,
-            use_cache_only=use_cache,
-            throttle_delay=throttle,
-        )
-        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
-
-        if (
-            vn30_source
-            in (
-                "PROVIDER_FAILURE",
-                "PROVIDER_ERROR",
-                "EXPLICITLY_INVALID",
-                "INVALID_SYMBOL",
-                "INSUFFICIENT_HISTORICAL_DATA",
-            )
-            or df_vn30_clean.empty
-            or vn30_val.get("status") == "INSUFFICIENT"
-        ):
-            failed_symbols.add("VN30")
-            cat = (
-                "INSUFFICIENT_HISTORICAL_DATA"
                 if (
-                    vn30_source == "INSUFFICIENT_HISTORICAL_DATA"
+                    vn30_source
+                    in (
+                        "PROVIDER_FAILURE",
+                        "PROVIDER_ERROR",
+                        "EXPLICITLY_INVALID",
+                        "INVALID_SYMBOL",
+                        "INSUFFICIENT_HISTORICAL_DATA",
+                    )
+                    or df_vn30_clean.empty
                     or vn30_val.get("status") == "INSUFFICIENT"
+                ):
+                    failed_symbols.add("VN30")
+                    cat = (
+                        "INSUFFICIENT_HISTORICAL_DATA"
+                        if (
+                            vn30_source == "INSUFFICIENT_HISTORICAL_DATA"
+                            or vn30_val.get("status") == "INSUFFICIENT"
+                        )
+                        else "PROVIDER_FAILURE"
+                    )
+                    exclusions_map["VN30"] = {
+                        "symbol": "VN30",
+                        "stage": "BENCHMARK_FETCH",
+                        "category": cat,
+                        "status": "FAILED",
+                        "reason": f"Benchmark VN30 check failed (source={vn30_source}, status={vn30_val.get('status')})",
+                        "latest_date": vn30_val.get("latest_date"),
+                        "expected_date": data_as_of,
+                        "processed": False,
+                        "recoverable": is_recoverable_category(cat),
+                    }
+                else:
+                    processed_symbols.add("VN30")
+            except ProviderRateLimitError:
+                failed_symbols.add("VN30")
+                exclusions_map["VN30"] = {
+                    "symbol": "VN30",
+                    "stage": "BENCHMARK_FETCH",
+                    "category": "RATE_LIMIT",
+                    "status": "FAILED",
+                    "reason": "Provider rate limit encountered fetching VN30",
+                    "latest_date": None,
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": is_recoverable_category("RATE_LIMIT"),
+                }
+                raise
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Exception fetching VN30: %s", exc)
+                failed_symbols.add("VN30")
+                exclusions_map["VN30"] = {
+                    "symbol": "VN30",
+                    "stage": "BENCHMARK_FETCH",
+                    "category": "PROVIDER_FAILURE",
+                    "status": "FAILED",
+                    "reason": f"Exception fetching VN30: {type(exc).__name__}",
+                    "latest_date": None,
+                    "expected_date": data_as_of,
+                    "processed": False,
+                    "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
+                }
+                df_vn30_raw = pd.DataFrame()
+                df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
+
+        stock_data_map = {}
+        stock_dates_map = {}
+
+        with tracker.measure_stage("stock_fetch"):
+            for idx, item in enumerate(candidate_stocks):
+                sym = item["symbol"].upper()
+                tracker.record_request(sym)
+                try:
+                    df_stock, tag, warns = get_historical_data(
+                        sym,
+                        max_retries=1,
+                        use_cache_only=use_cache,
+                        throttle_delay=throttle,
+                        target_date=data_as_of if update_data else None,
+                    )
+                    stock_data_map[sym] = (df_stock, tag, warns)
+
+                    df_clean_stock, stock_val = get_clean_ohlcv_data(df_stock, sym)
+                    stock_dates_map[sym] = stock_val.get("latest_date")
+
+                    if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
+                        failed_symbols.add(sym)
+                        cat = (
+                            "EXPLICITLY_INVALID"
+                            if tag == "EXPLICITLY_INVALID"
+                            else "PROVIDER_FAILURE"
+                        )
+                        exclusions_map[sym] = {
+                            "symbol": sym,
+                            "stage": "STOCK_FETCH",
+                            "category": cat,
+                            "status": "FAILED",
+                            "reason": f"Provider tag {tag} for symbol {sym}",
+                            "latest_date": stock_dates_map.get(sym),
+                            "expected_date": data_as_of,
+                            "processed": False,
+                            "recoverable": is_recoverable_category(cat),
+                        }
+                    elif tag == "INVALID_SYMBOL":
+                        invalid_symbols.add(sym)
+                        exclusions_map[sym] = {
+                            "symbol": sym,
+                            "stage": "STOCK_FETCH",
+                            "category": "INVALID_SYMBOL",
+                            "status": "INVALID",
+                            "reason": f"Invalid stock symbol {sym}",
+                            "latest_date": stock_dates_map.get(sym),
+                            "expected_date": data_as_of,
+                            "processed": False,
+                            "recoverable": is_recoverable_category("INVALID_SYMBOL"),
+                        }
+                    elif df_stock is None or df_stock.empty or df_clean_stock.empty:
+                        failed_symbols.add(sym)
+                        exclusions_map[sym] = {
+                            "symbol": sym,
+                            "stage": "STOCK_FETCH",
+                            "category": "OTHER_VALIDATION_FAILURE",
+                            "status": "FAILED",
+                            "reason": f"Empty OHLCV dataset for {sym}",
+                            "latest_date": stock_dates_map.get(sym),
+                            "expected_date": data_as_of,
+                            "processed": False,
+                            "recoverable": is_recoverable_category("OTHER_VALIDATION_FAILURE"),
+                        }
+                    elif (
+                        tag == "INSUFFICIENT_HISTORICAL_DATA"
+                        or stock_val.get("status") == "INSUFFICIENT"
+                    ):
+                        insufficient_history_symbols.add(sym)
+                        exclusions_map[sym] = {
+                            "symbol": sym,
+                            "stage": "STOCK_FETCH",
+                            "category": "INSUFFICIENT_HISTORICAL_DATA",
+                            "status": "INSUFFICIENT",
+                            "reason": f"Insufficient historical sessions for {sym}",
+                            "latest_date": stock_dates_map.get(sym),
+                            "expected_date": data_as_of,
+                            "processed": False,
+                            "recoverable": is_recoverable_category("INSUFFICIENT_HISTORICAL_DATA"),
+                        }
+                    else:
+                        processed_symbols.add(sym)
+                except ProviderRateLimitError:
+                    failed_symbols.add(sym)
+                    exclusions_map[sym] = {
+                        "symbol": sym,
+                        "stage": "STOCK_FETCH",
+                        "category": "RATE_LIMIT",
+                        "status": "FAILED",
+                        "reason": f"Provider rate limit encountered fetching {sym}",
+                        "latest_date": None,
+                        "expected_date": data_as_of,
+                        "processed": False,
+                        "recoverable": is_recoverable_category("RATE_LIMIT"),
+                    }
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Exception fetching %s: %s", sym, exc)
+                    failed_symbols.add(sym)
+                    exclusions_map[sym] = {
+                        "symbol": sym,
+                        "stage": "STOCK_FETCH",
+                        "category": "PROVIDER_FAILURE",
+                        "status": "FAILED",
+                        "reason": f"Exception fetching {sym}: {type(exc).__name__}",
+                        "latest_date": None,
+                        "expected_date": data_as_of,
+                        "processed": False,
+                        "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
+                    }
+                    stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
+                    stock_dates_map[sym] = None
+
+        with tracker.measure_stage("temporal_validation"):
+            temporal_res = validate_temporal_integrity(
+                data_as_of=data_as_of,
+                stock_dates_map={
+                    s: stock_dates_map[s] for s in processed_symbols if s not in ("VNINDEX", "VN30")
+                },
+                reference_date=generated_at,
+                strict_date_match=update_data,
+            )
+
+            if not temporal_res["is_valid"]:
+                logger.warning("Temporal integrity validation failure: %s", temporal_res["issues"])
+                temporal_invalid_syms = (
+                    temporal_res["future_symbols"]
+                    | temporal_res["stale_symbols"]
+                    | temporal_res["missing_date_symbols"]
                 )
-                else "PROVIDER_FAILURE"
-            )
-            exclusions_map["VN30"] = {
-                "symbol": "VN30",
-                "stage": "BENCHMARK_FETCH",
-                "category": cat,
-                "status": "FAILED",
-                "reason": f"Benchmark VN30 check failed (source={vn30_source}, status={vn30_val.get('status')})",
-                "latest_date": vn30_val.get("latest_date"),
-                "expected_date": data_as_of,
-                "processed": False,
-                "recoverable": is_recoverable_category(cat),
-            }
-        else:
-            processed_symbols.add("VN30")
-    except ProviderRateLimitError:
-        failed_symbols.add("VN30")
-        exclusions_map["VN30"] = {
-            "symbol": "VN30",
-            "stage": "BENCHMARK_FETCH",
-            "category": "RATE_LIMIT",
-            "status": "FAILED",
-            "reason": "Provider rate limit encountered fetching VN30",
-            "latest_date": None,
-            "expected_date": data_as_of,
-            "processed": False,
-            "recoverable": is_recoverable_category("RATE_LIMIT"),
-        }
-        raise
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Exception fetching VN30: %s", exc)
-        failed_symbols.add("VN30")
-        exclusions_map["VN30"] = {
-            "symbol": "VN30",
-            "stage": "BENCHMARK_FETCH",
-            "category": "PROVIDER_FAILURE",
-            "status": "FAILED",
-            "reason": f"Exception fetching VN30: {type(exc).__name__}",
-            "latest_date": None,
-            "expected_date": data_as_of,
-            "processed": False,
-            "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-        }
-        df_vn30_raw = pd.DataFrame()
-        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
+                for sym in temporal_invalid_syms:
+                    processed_symbols.discard(sym)
+                    failed_symbols.add(sym)
+                    exclusions_map[sym] = {
+                        "symbol": sym,
+                        "stage": "TEMPORAL_VALIDATION",
+                        "category": "TEMPORAL_INVALID",
+                        "status": "FAILED",
+                        "reason": f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})",
+                        "latest_date": stock_dates_map.get(sym),
+                        "expected_date": data_as_of,
+                        "processed": False,
+                        "recoverable": is_recoverable_category("TEMPORAL_INVALID"),
+                    }
+                    # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
+                    stock_data_map[sym] = (
+                        pd.DataFrame(),
+                        "EXPLICITLY_INVALID",
+                        [
+                            f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"
+                        ],
+                    )
 
-    stock_data_map = {}
-    stock_dates_map = {}
-
-    for idx, item in enumerate(candidate_stocks):
-        sym = item["symbol"].upper()
-        try:
-            df_stock, tag, warns = get_historical_data(
-                sym,
-                max_retries=1,
-                use_cache_only=use_cache,
-                throttle_delay=throttle,
-                target_date=data_as_of if update_data else None,
-            )
-            stock_data_map[sym] = (df_stock, tag, warns)
-
-            df_clean_stock, stock_val = get_clean_ohlcv_data(df_stock, sym)
-            stock_dates_map[sym] = stock_val.get("latest_date")
-
-            if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
-                failed_symbols.add(sym)
-                cat = "EXPLICITLY_INVALID" if tag == "EXPLICITLY_INVALID" else "PROVIDER_FAILURE"
-                exclusions_map[sym] = {
-                    "symbol": sym,
-                    "stage": "STOCK_FETCH",
-                    "category": cat,
-                    "status": "FAILED",
-                    "reason": f"Provider tag {tag} for symbol {sym}",
-                    "latest_date": stock_dates_map.get(sym),
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category(cat),
-                }
-            elif tag == "INVALID_SYMBOL":
-                invalid_symbols.add(sym)
-                exclusions_map[sym] = {
-                    "symbol": sym,
-                    "stage": "STOCK_FETCH",
-                    "category": "INVALID_SYMBOL",
-                    "status": "INVALID",
-                    "reason": f"Invalid stock symbol {sym}",
-                    "latest_date": stock_dates_map.get(sym),
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("INVALID_SYMBOL"),
-                }
-            elif df_stock is None or df_stock.empty or df_clean_stock.empty:
-                failed_symbols.add(sym)
-                exclusions_map[sym] = {
-                    "symbol": sym,
-                    "stage": "STOCK_FETCH",
-                    "category": "OTHER_VALIDATION_FAILURE",
-                    "status": "FAILED",
-                    "reason": f"Empty OHLCV dataset for {sym}",
-                    "latest_date": stock_dates_map.get(sym),
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("OTHER_VALIDATION_FAILURE"),
-                }
-            elif tag == "INSUFFICIENT_HISTORICAL_DATA" or stock_val.get("status") == "INSUFFICIENT":
-                insufficient_history_symbols.add(sym)
-                exclusions_map[sym] = {
-                    "symbol": sym,
-                    "stage": "STOCK_FETCH",
-                    "category": "INSUFFICIENT_HISTORICAL_DATA",
-                    "status": "INSUFFICIENT",
-                    "reason": f"Insufficient historical sessions for {sym}",
-                    "latest_date": stock_dates_map.get(sym),
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("INSUFFICIENT_HISTORICAL_DATA"),
-                }
-            else:
-                processed_symbols.add(sym)
-        except ProviderRateLimitError:
-            failed_symbols.add(sym)
+        missing_symbols = expected_symbols - (
+            processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
+        )
+        for sym in missing_symbols:
             exclusions_map[sym] = {
                 "symbol": sym,
-                "stage": "STOCK_FETCH",
-                "category": "RATE_LIMIT",
-                "status": "FAILED",
-                "reason": f"Provider rate limit encountered fetching {sym}",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": f"Symbol {sym} missing from scan results",
                 "latest_date": None,
                 "expected_date": data_as_of,
                 "processed": False,
-                "recoverable": is_recoverable_category("RATE_LIMIT"),
+                "recoverable": is_recoverable_category("UNIVERSE_INCOMPLETE"),
             }
-            raise
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Exception fetching %s: %s", sym, exc)
-            failed_symbols.add(sym)
-            exclusions_map[sym] = {
-                "symbol": sym,
-                "stage": "STOCK_FETCH",
-                "category": "PROVIDER_FAILURE",
-                "status": "FAILED",
-                "reason": f"Exception fetching {sym}: {type(exc).__name__}",
-                "latest_date": None,
-                "expected_date": data_as_of,
-                "processed": False,
-                "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-            }
-            stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
-            stock_dates_map[sym] = None
 
-    # Temporal integrity validation across benchmark data_as_of and processed stock dates
-    temporal_res = validate_temporal_integrity(
-        data_as_of=data_as_of,
-        stock_dates_map={
-            s: stock_dates_map[s] for s in processed_symbols if s not in ("VNINDEX", "VN30")
-        },
-        reference_date=generated_at,
-        strict_date_match=update_data,
-    )
-
-    if not temporal_res["is_valid"]:
-        logger.warning("Temporal integrity validation failure: %s", temporal_res["issues"])
-        temporal_invalid_syms = (
-            temporal_res["future_symbols"]
-            | temporal_res["stale_symbols"]
-            | temporal_res["missing_date_symbols"]
+        universe_audit = build_universe_audit(
+            expected_symbols=expected_symbols,
+            processed_symbols=processed_symbols,
+            invalid_symbols=invalid_symbols,
+            insufficient_history_symbols=insufficient_history_symbols,
+            failed_symbols=failed_symbols,
+            missing_symbols=missing_symbols,
+            exclusions_map=exclusions_map,
+            update_data=update_data,
         )
-        for sym in temporal_invalid_syms:
-            processed_symbols.discard(sym)
-            failed_symbols.add(sym)
-            exclusions_map[sym] = {
-                "symbol": sym,
-                "stage": "TEMPORAL_VALIDATION",
-                "category": "TEMPORAL_INVALID",
-                "status": "FAILED",
-                "reason": f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})",
-                "latest_date": stock_dates_map.get(sym),
-                "expected_date": data_as_of,
-                "processed": False,
-                "recoverable": is_recoverable_category("TEMPORAL_INVALID"),
-            }
-            # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
-            stock_data_map[sym] = (
-                pd.DataFrame(),
-                "EXPLICITLY_INVALID",
-                [
-                    f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"
-                ],
+
+        failed_stage = universe_audit["failed_stage"]
+        pipeline_status = universe_audit["status"]
+        diagnostics_list = universe_audit["diagnostics"]
+
+        if update_data and (
+            expected_symbols != (processed_symbols | invalid_symbols)
+            or failed_symbols
+            or insufficient_history_symbols
+            or missing_symbols
+            or not temporal_res["is_valid"]
+        ):
+            err_msg = (
+                f"Incomplete universe scan in update mode: stage={failed_stage}, "
+                f"status={pipeline_status}. "
+                f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
+                f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
+                f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
+                f"Temporal issues: {temporal_res['issues']}. "
+                f"Processed symbols: {sorted(processed_symbols)}. "
+                f"Invalid symbols: {sorted(invalid_symbols)}. "
+                f"Insufficient history symbols: {sorted(insufficient_history_symbols)}. "
+                f"Failed symbols: {sorted(failed_symbols)}. "
+                f"Missing symbols: {sorted(missing_symbols)}."
+            )
+            logger.error(err_msg)
+            logger.error("Per-symbol failure diagnostics (%d):", len(diagnostics_list))
+            for diag in diagnostics_list:
+                logger.error(
+                    "  - [%s] stage=%s category=%s status=%s reason=%s",
+                    diag["symbol"],
+                    diag["stage"],
+                    diag["category"],
+                    diag["status"],
+                    diag["reason"],
+                )
+            exc = RuntimeError(err_msg)
+            exc.universe_audit = universe_audit
+            raise exc
+
+        logger.info("Step 2: Calculating Market Breadth...")
+        with tracker.measure_stage("market_calculation"):
+            bullish_count = 0
+            valid_breadth_denom = 0
+            for sym in candidate_stocks:
+                s_name = sym["symbol"]
+                if s_name in processed_symbols:
+                    df_st, _, _ = stock_data_map[s_name]
+                    df_c_st, st_val = get_clean_ohlcv_data(df_st, s_name)
+                    if (
+                        st_val["status"] == "SUFFICIENT"
+                        and not df_c_st.empty
+                        and len(df_c_st) >= 20
+                    ):
+                        valid_breadth_denom += 1
+                        c = df_c_st["close"].iloc[-1]
+                        ma20 = df_c_st["close"].tail(20).mean()
+                        if c > ma20:
+                            bullish_count += 1
+
+            breadth_ratio = (
+                round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
             )
 
-    missing_symbols = expected_symbols - (
-        processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
-    )
-    for sym in missing_symbols:
-        exclusions_map[sym] = {
-            "symbol": sym,
-            "stage": "UNIVERSE_DISCOVERY",
-            "category": "UNIVERSE_INCOMPLETE",
-            "status": "MISSING",
-            "reason": f"Symbol {sym} missing from scan results",
-            "latest_date": None,
-            "expected_date": data_as_of,
-            "processed": False,
-            "recoverable": is_recoverable_category("UNIVERSE_INCOMPLETE"),
+        logger.info("Step 3: Calculating Final Market Regime...")
+        with tracker.measure_stage("regime_calculation"):
+            final_market_regime = detect_market_regime(
+                df_vnindex=df_vnindex_clean,
+                df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
+                breadth_ratio=breadth_ratio,
+            )
+
+        logger.info("Step 4: Generating Stock Recommendations using Final Market Regime...")
+        with tracker.measure_stage("recommendation_calculation"):
+            scanned_recs = []
+            for item in candidate_stocks:
+                sym = item["symbol"]
+                comp = item["companyName"]
+                sec = item["sector"]
+                ex = item.get("exchange", "HOSE")
+
+                df_stock, tag, _ = stock_data_map[sym]
+                if sym in processed_symbols:
+                    df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
+                    df_stock_input = df_clean_stock
+                else:
+                    df_stock_input = pd.DataFrame()
+
+                rec = generate_recommendation(
+                    symbol=sym,
+                    company_name=comp,
+                    sector=sec,
+                    exchange=ex,
+                    df_stock=df_stock_input,
+                    market_regime_info=final_market_regime,
+                    df_vnindex=df_vnindex_clean,
+                    data_as_of=data_as_of,
+                    data_source=tag if not df_stock_input.empty else None,
+                )
+                scanned_recs.append(rec)
+
+        logger.info("Step 5: Computing Universe Percentile Liquidity Scores...")
+        with tracker.measure_stage("risk_calculation"):
+            scanned_recs = normalize_universe_liquidity_scores(
+                scanned_recs, market_regime=final_market_regime
+            )
+
+        buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
+        watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
+        hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
+        sell_cnt = sum(1 for r in scanned_recs if r["action"] == "SELL")
+        avoid_cnt = sum(1 for r in scanned_recs if r["action"] == "AVOID")
+
+        summary = {
+            "total_scanned": len(scanned_recs),
+            "buy_count": buy_cnt,
+            "watch_count": watch_cnt,
+            "hold_count": hold_cnt,
+            "sell_count": sell_cnt,
+            "avoid_count": avoid_cnt,
         }
 
-    universe_audit = build_universe_audit(
-        expected_symbols=expected_symbols,
-        processed_symbols=processed_symbols,
-        invalid_symbols=invalid_symbols,
-        insufficient_history_symbols=insufficient_history_symbols,
-        failed_symbols=failed_symbols,
-        missing_symbols=missing_symbols,
-        exclusions_map=exclusions_map,
-        update_data=update_data,
-    )
+        recommendations_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": SIGNAL_MODEL_VERSION,
+            "generated_at": generated_at,
+            "data_as_of": data_as_of,
+            "source_date": source_date,
+            "data_source": data_source,
+            "universe_info": universe_info,
+            "market": final_market_regime,
+            "summary": summary,
+            "recommendations": scanned_recs,
+        }
 
-    failed_stage = universe_audit["failed_stage"]
-    pipeline_status = universe_audit["status"]
-    diagnostics_list = universe_audit["diagnostics"]
+        market_payload = {
+            "data_as_of": data_as_of,
+            "source_date": source_date,
+            "generated_at": generated_at,
+            "data_source": data_source,
+            "universe_info": universe_info,
+            "market": final_market_regime,
+            "summary": summary,
+        }
 
-    if update_data and (
-        expected_symbols != (processed_symbols | invalid_symbols)
-        or failed_symbols
-        or insufficient_history_symbols
-        or missing_symbols
-        or not temporal_res["is_valid"]
-    ):
-        err_msg = (
-            f"Incomplete universe scan in update mode: stage={failed_stage}, "
-            f"status={pipeline_status}. "
-            f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
-            f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
-            f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
-            f"Temporal issues: {temporal_res['issues']}. "
-            f"Processed symbols: {sorted(processed_symbols)}. "
-            f"Invalid symbols: {sorted(invalid_symbols)}. "
-            f"Insufficient history symbols: {sorted(insufficient_history_symbols)}. "
-            f"Failed symbols: {sorted(failed_symbols)}. "
-            f"Missing symbols: {sorted(missing_symbols)}."
+        history_payload = recommendations_payload
+
+        with tracker.measure_stage("monitoring"):
+            pass
+
+        with tracker.measure_stage("payload_validation"):
+            find_payload_integrity_issues(recommendations_payload)
+            find_payload_integrity_issues(market_payload)
+
+        pipeline_elapsed = time.perf_counter() - t_pipeline_start
+        performance_data = tracker.get_performance_payload(
+            pipeline_elapsed=pipeline_elapsed,
+            pipeline_status=pipeline_status,
         )
-        logger.error(err_msg)
-        logger.error("Per-symbol failure diagnostics (%d):", len(diagnostics_list))
-        for diag in diagnostics_list:
-            logger.error(
-                "  - [%s] stage=%s category=%s status=%s reason=%s",
-                diag["symbol"],
-                diag["stage"],
-                diag["category"],
-                diag["status"],
-                diag["reason"],
-            )
-        exc = RuntimeError(err_msg)
-        exc.universe_audit = universe_audit
-        raise exc
 
-    logger.info("Step 2: Calculating Market Breadth...")
-    bullish_count = 0
-    valid_breadth_denom = 0
-    for sym in candidate_stocks:
-        s_name = sym["symbol"]
-        if s_name in processed_symbols:
-            df_st, _, _ = stock_data_map[s_name]
-            df_c_st, st_val = get_clean_ohlcv_data(df_st, s_name)
-            if st_val["status"] == "SUFFICIENT" and not df_c_st.empty and len(df_c_st) >= 20:
-                valid_breadth_denom += 1
-                c = df_c_st["close"].iloc[-1]
-                ma20 = df_c_st["close"].tail(20).mean()
-                if c > ma20:
-                    bullish_count += 1
+        universe_audit["performance"] = performance_data
 
-    breadth_ratio = (
-        round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
-    )
-
-    logger.info("Step 3: Calculating Final Market Regime...")
-    final_market_regime = detect_market_regime(
-        df_vnindex=df_vnindex_clean,
-        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-        breadth_ratio=breadth_ratio,
-    )
-
-    logger.info("Step 4: Generating Stock Recommendations using Final Market Regime...")
-    scanned_recs = []
-    for item in candidate_stocks:
-        sym = item["symbol"]
-        comp = item["companyName"]
-        sec = item["sector"]
-        ex = item.get("exchange", "HOSE")
-
-        df_stock, tag, _ = stock_data_map[sym]
-        if sym in processed_symbols:
-            df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
-            df_stock_input = df_clean_stock
-        else:
-            df_stock_input = pd.DataFrame()
-
-        rec = generate_recommendation(
-            symbol=sym,
-            company_name=comp,
-            sector=sec,
-            exchange=ex,
-            df_stock=df_stock_input,
-            market_regime_info=final_market_regime,
+        return PipelineResult(
+            recommendations_payload,
+            market_payload,
+            history_payload,
             df_vnindex=df_vnindex_clean,
-            data_as_of=data_as_of,
-            data_source=tag if not df_stock_input.empty else None,
+            df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
+            universe_audit=universe_audit,
         )
-        scanned_recs.append(rec)
-
-    logger.info("Step 5: Computing Universe Percentile Liquidity Scores...")
-    scanned_recs = normalize_universe_liquidity_scores(
-        scanned_recs, market_regime=final_market_regime
-    )
-
-    buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
-    watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
-    hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
-    sell_cnt = sum(1 for r in scanned_recs if r["action"] == "SELL")
-    avoid_cnt = sum(1 for r in scanned_recs if r["action"] == "AVOID")
-
-    summary = {
-        "total_scanned": len(scanned_recs),
-        "buy_count": buy_cnt,
-        "watch_count": watch_cnt,
-        "hold_count": hold_cnt,
-        "sell_count": sell_cnt,
-        "avoid_count": avoid_cnt,
-    }
-
-    recommendations_payload = {
-        "schema_version": "2.0",
-        "signal_model_version": SIGNAL_MODEL_VERSION,
-        "generated_at": generated_at,
-        "data_as_of": data_as_of,
-        "source_date": source_date,
-        "data_source": data_source,
-        "universe_info": universe_info,
-        "market": final_market_regime,
-        "summary": summary,
-        "recommendations": scanned_recs,
-    }
-
-    market_payload = {
-        "data_as_of": data_as_of,
-        "source_date": source_date,
-        "generated_at": generated_at,
-        "data_source": data_source,
-        "universe_info": universe_info,
-        "market": final_market_regime,
-        "summary": summary,
-    }
-
-    history_payload = recommendations_payload
-
-    # universe_audit already constructed earlier in run_pipeline
-
-    return PipelineResult(
-        recommendations_payload,
-        market_payload,
-        history_payload,
-        df_vnindex=df_vnindex_clean,
-        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-        universe_audit=universe_audit,
-    )
+    except Exception as exc:
+        pipeline_status = "FAILED"
+        pipeline_elapsed = time.perf_counter() - t_pipeline_start
+        performance_data = tracker.get_performance_payload(
+            pipeline_elapsed=pipeline_elapsed,
+            pipeline_status=pipeline_status,
+        )
+        if hasattr(exc, "universe_audit") and isinstance(exc.universe_audit, dict):
+            exc.universe_audit["performance"] = performance_data
+        else:
+            if "expected_symbols" in locals():
+                audit_partial = build_universe_audit(
+                    expected_symbols=expected_symbols,
+                    processed_symbols=locals().get("processed_symbols", set()),
+                    invalid_symbols=locals().get("invalid_symbols", set()),
+                    insufficient_history_symbols=locals().get(
+                        "insufficient_history_symbols", set()
+                    ),
+                    failed_symbols=locals().get("failed_symbols", set()),
+                    missing_symbols=locals().get("missing_symbols", set()),
+                    exclusions_map=locals().get("exclusions_map", {}),
+                    update_data=update_data,
+                    performance_data=performance_data,
+                )
+                exc.universe_audit = audit_partial
+            else:
+                exc.universe_audit = {"performance": performance_data}
+        raise
 
 
 def generate_historical_report(
@@ -916,6 +1069,7 @@ def generate_historical_report(
     candidate_metadata: list[dict] | None = None,
     data_source: str = "explicit_historical_input",
     reference_date: str | None = None,
+    tracker: PerformanceTracker | None = None,
 ) -> PipelineResult:
     """Generate a point-in-time historical report for explicit target date T.
 
@@ -926,6 +1080,12 @@ def generate_historical_report(
     - The target evaluation date T must exist in df_vnindex (raises ValueError if absent).
     - Reuses production quantitative scoring, market regime detection, risk, and trade plan functions.
     """
+    if tracker is None:
+        tracker = PerformanceTracker()
+
+    t_pipeline_start = time.perf_counter()
+    pipeline_status = "SUCCESS"
+
     canonical_as_of = _parse_canonical_date(data_as_of)
     generated_at = reference_date if reference_date is not None else datetime.now(UTC).isoformat()
 
@@ -937,101 +1097,110 @@ def generate_historical_report(
     if not isinstance(universe_stock_map, dict):
         raise TypeError("universe_stock_map must be a dictionary mapping symbols to DataFrames")
 
-    # Slice benchmark datasets strictly <= T (anti-lookahead)
-    df_vnindex_as_of = get_as_of_dataset(df_vnindex, canonical_as_of)
-    df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
+    with tracker.measure_stage("benchmark_fetch"):
+        tracker.record_request("VNINDEX")
+        df_vnindex_as_of = get_as_of_dataset(df_vnindex, canonical_as_of)
+        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
 
-    if df_vnindex_clean.empty or vnindex_val.get("latest_date") != canonical_as_of:
-        raise ValueError(
-            f"Requested historical evaluation date '{canonical_as_of}' is absent from benchmark VNINDEX historical data"
-        )
+        if df_vnindex_clean.empty or vnindex_val.get("latest_date") != canonical_as_of:
+            raise ValueError(
+                f"Requested historical evaluation date '{canonical_as_of}' is absent from benchmark VNINDEX historical data"
+            )
 
-    df_vn30_clean = None
-    vn30_val = {"status": "INSUFFICIENT"}
-    if df_vn30 is not None:
-        df_vn30_as_of = get_as_of_dataset(df_vn30, canonical_as_of)
-        df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+        df_vn30_clean = None
+        vn30_val = {"status": "INSUFFICIENT"}
+        if df_vn30 is not None:
+            tracker.record_request("VN30")
+            df_vn30_as_of = get_as_of_dataset(df_vn30, canonical_as_of)
+            df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
 
-    bullish_count = 0
-    valid_breadth_denom = 0
     clean_stock_as_of_map = {}
-
     seen_candidate_symbols = set()
-    for idx, item in enumerate(candidate_metadata):
-        if not isinstance(item, dict):
-            raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
-        sym = item.get("symbol")
-        if not sym or not isinstance(sym, str):
-            raise ValueError(f"Candidate metadata item at index {idx} missing valid symbol string")
 
-        sym_upper = sym.upper()
-        if sym_upper in seen_candidate_symbols:
-            raise ValueError(
-                f"Duplicate candidate stock symbol '{sym_upper}' in candidate_metadata"
-            )
-        seen_candidate_symbols.add(sym_upper)
+    with tracker.measure_stage("stock_fetch"):
+        for idx, item in enumerate(candidate_metadata):
+            if not isinstance(item, dict):
+                raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
+            sym = item.get("symbol")
+            if not sym or not isinstance(sym, str):
+                raise ValueError(
+                    f"Candidate metadata item at index {idx} missing valid symbol string"
+                )
 
-        if sym_upper not in universe_stock_map:
-            raise ValueError(
-                f"Candidate stock symbol '{sym_upper}' is missing from universe_stock_map"
-            )
+            sym_upper = sym.upper()
+            tracker.record_request(sym_upper)
+            if sym_upper in seen_candidate_symbols:
+                raise ValueError(
+                    f"Duplicate candidate stock symbol '{sym_upper}' in candidate_metadata"
+                )
+            seen_candidate_symbols.add(sym_upper)
 
-        df_stock_raw = universe_stock_map[sym_upper]
-        if df_stock_raw is not None and not df_stock_raw.empty:
-            df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
-            df_stock_clean, stock_val = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
-        else:
-            df_stock_clean = pd.DataFrame()
-            stock_val = {"status": "INSUFFICIENT"}
+            if sym_upper not in universe_stock_map:
+                raise ValueError(
+                    f"Candidate stock symbol '{sym_upper}' is missing from universe_stock_map"
+                )
 
-        clean_stock_as_of_map[sym_upper] = df_stock_clean
+            df_stock_raw = universe_stock_map[sym_upper]
+            if df_stock_raw is not None and not df_stock_raw.empty:
+                df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
+                df_stock_clean, _stock_val = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
+            else:
+                df_stock_clean = pd.DataFrame()
 
-        if (
-            stock_val["status"] == "SUFFICIENT"
-            and not df_stock_clean.empty
-            and len(df_stock_clean) >= 20
-        ):
-            valid_breadth_denom += 1
-            c = df_stock_clean["close"].iloc[-1]
-            ma20 = df_stock_clean["close"].tail(20).mean()
-            if c > ma20:
-                bullish_count += 1
+            clean_stock_as_of_map[sym_upper] = df_stock_clean
 
-    breadth_ratio = (
-        round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
-    )
+    with tracker.measure_stage("temporal_validation"):
+        pass
 
-    final_market_regime = detect_market_regime(
-        df_vnindex=df_vnindex_clean,
-        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-        breadth_ratio=breadth_ratio,
-    )
+    with tracker.measure_stage("market_calculation"):
+        bullish_count = 0
+        valid_breadth_denom = 0
+        for sym_upper, df_stock_clean in clean_stock_as_of_map.items():
+            if not df_stock_clean.empty and len(df_stock_clean) >= 20:
+                valid_breadth_denom += 1
+                c = df_stock_clean["close"].iloc[-1]
+                ma20 = df_stock_clean["close"].tail(20).mean()
+                if c > ma20:
+                    bullish_count += 1
 
-    scanned_recs = []
-    for item in candidate_metadata:
-        sym = item["symbol"].upper()
-        comp = item["companyName"]
-        sec = item["sector"]
-        ex = item.get("exchange", "HOSE")
-
-        df_stock_clean = clean_stock_as_of_map[sym]
-
-        rec = generate_recommendation(
-            symbol=sym,
-            company_name=comp,
-            sector=sec,
-            exchange=ex,
-            df_stock=df_stock_clean,
-            market_regime_info=final_market_regime,
-            df_vnindex=df_vnindex_clean,
-            data_as_of=canonical_as_of,
-            data_source=data_source,
+        breadth_ratio = (
+            round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
         )
-        scanned_recs.append(rec)
 
-    scanned_recs = normalize_universe_liquidity_scores(
-        scanned_recs, market_regime=final_market_regime
-    )
+    with tracker.measure_stage("regime_calculation"):
+        final_market_regime = detect_market_regime(
+            df_vnindex=df_vnindex_clean,
+            df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
+            breadth_ratio=breadth_ratio,
+        )
+
+    with tracker.measure_stage("recommendation_calculation"):
+        scanned_recs = []
+        for item in candidate_metadata:
+            sym = item["symbol"].upper()
+            comp = item["companyName"]
+            sec = item["sector"]
+            ex = item.get("exchange", "HOSE")
+
+            df_stock_clean = clean_stock_as_of_map[sym]
+
+            rec = generate_recommendation(
+                symbol=sym,
+                company_name=comp,
+                sector=sec,
+                exchange=ex,
+                df_stock=df_stock_clean,
+                market_regime_info=final_market_regime,
+                df_vnindex=df_vnindex_clean,
+                data_as_of=canonical_as_of,
+                data_source=data_source,
+            )
+            scanned_recs.append(rec)
+
+    with tracker.measure_stage("risk_calculation"):
+        scanned_recs = normalize_universe_liquidity_scores(
+            scanned_recs, market_regime=final_market_regime
+        )
 
     buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
     watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
@@ -1077,6 +1246,13 @@ def generate_historical_report(
     }
 
     history_payload = recommendations_payload
+
+    with tracker.measure_stage("monitoring"):
+        pass
+
+    with tracker.measure_stage("payload_validation"):
+        find_payload_integrity_issues(recommendations_payload)
+        find_payload_integrity_issues(market_payload)
 
     expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"].upper() for item in candidate_metadata}
     processed_symbols = set()
@@ -1156,6 +1332,12 @@ def generate_historical_report(
             "recoverable": False,
         }
 
+    pipeline_elapsed = time.perf_counter() - t_pipeline_start
+    performance_data = tracker.get_performance_payload(
+        pipeline_elapsed=pipeline_elapsed,
+        pipeline_status=pipeline_status,
+    )
+
     universe_audit = build_universe_audit(
         expected_symbols=expected_symbols,
         processed_symbols=processed_symbols,
@@ -1165,6 +1347,7 @@ def generate_historical_report(
         missing_symbols=missing_symbols,
         exclusions_map=exclusions_map,
         update_data=False,
+        performance_data=performance_data,
     )
 
     return PipelineResult(
