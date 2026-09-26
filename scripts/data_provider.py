@@ -9,6 +9,7 @@ import logging
 import re
 import time
 from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -336,8 +337,8 @@ def validate_canonical_ohlcv(df: pd.DataFrame) -> bool:
 class VnstockDataProvider:
     """Adapter/boundary for external vnstock market-data provider."""
 
-    _last_call_timing: dict | None = None
-    _global_call_history: list[dict] = []
+    _last_call_timing: ClassVar[dict | None] = None
+    _global_call_history: ClassVar[list[dict]] = []
 
     def __init__(self, is_available: bool = VNSTOCK_AVAILABLE):
         self.is_available = is_available

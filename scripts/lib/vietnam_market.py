@@ -21,7 +21,6 @@ from scripts.data_provider import (
     reset_circuit_breaker,
 )
 from scripts.lib.config import (
-    DEFAULT_UPDATE_THROTTLE_DELAY as DEFAULT_UPDATE_THROTTLE_DELAY,
     MAX_BENCHMARK_FUTURE_DAYS,
     MAX_STOCK_STALENESS_DAYS,
 )
