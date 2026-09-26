@@ -115,6 +115,7 @@ const ignorePatterns = [
   "**/.astro",
   "**/.netlify",
   "**/*.gen.*",
+  "**/generated",
 ];
 
 // https://viteplus.dev/config/
