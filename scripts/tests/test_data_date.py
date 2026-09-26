@@ -184,9 +184,11 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertIsNone(mkt_payload["data_as_of"])
             self.assertIsNone(mkt_payload["source_date"])
 
-            # Run main pipeline execution
+            # Run main pipeline execution (data_as_of is None -> monitoring FAIL -> SystemExit(1))
             with patch("sys.argv", ["generate_report.py"]):
-                generate_report_main()
+                with self.assertRaises(SystemExit) as cm:
+                    generate_report_main()
+                self.assertEqual(cm.exception.code, 1)
 
             mock_update_index.assert_not_called()
 
