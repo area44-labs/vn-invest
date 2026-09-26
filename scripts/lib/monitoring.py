@@ -33,6 +33,8 @@ from scripts.lib.config import (
     DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN,
     DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN,
     DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT,
+    FAILURE_CATEGORIES,
+    PIPELINE_STAGES,
     SIGNAL_MODEL_VERSION,
     VALID_MARKET_REGIMES,
 )
@@ -46,15 +48,8 @@ DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 
-VALID_EXCLUSION_CATEGORIES = {
-    "PROVIDER_FAILURE",
-    "EXPLICITLY_INVALID",
-    "INVALID_SYMBOL",
-    "INSUFFICIENT_HISTORICAL_DATA",
-    "TEMPORAL_INVALID",
-    "OTHER_VALIDATION_FAILURE",
-    "MISSING_SYMBOL",
-}
+VALID_EXCLUSION_CATEGORIES = set(FAILURE_CATEGORIES)
+VALID_PIPELINE_STAGES = set(PIPELINE_STAGES)
 
 CANONICAL_CONFIDENCE_BUCKETS = [
     "0.0-0.1",
@@ -3158,6 +3153,20 @@ def evaluate_production_monitoring(
     else:
         overall_status = "PASS"
 
+    failed_monitoring_diagnostics = [
+        {
+            "stage": "MONITORING",
+            "category": "MONITORING_FAILURE",
+            "check": c.check_name,
+            "status": "FAIL",
+            "measured_value": _sanitize_value_for_json(c.measured_value),
+            "expected_condition": c.expected_condition,
+            "reason": c.message,
+        }
+        for c in checks
+        if c.status == "FAIL"
+    ]
+
     summary = recommendations_payload.get("summary", {})
     metrics = {
         "signal_model_version": recommendations_payload.get(
@@ -3174,6 +3183,8 @@ def evaluate_production_monitoring(
         "market_regime": market_payload.get("regime"),
         "universe_audit": universe_audit,
         "drift_monitoring": drift_res.to_dict(),
+        "monitoring_diagnostics": failed_monitoring_diagnostics,
+        "failed_checks": failed_monitoring_diagnostics,
         "check_counts": {
             "total_checks": len(checks),
             "pass_count": statuses.count("PASS"),

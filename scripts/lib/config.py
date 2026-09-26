@@ -277,3 +277,47 @@ DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = (15.0, 25.0)
 DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN = (15.0, 25.0)
 DRIFT_THRESHOLD_CONFIDENCE_MEAN = (0.15, 0.25)
 DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT = (3.0, 5.0)
+
+# Stable Pipeline Stages for Operational Observability
+PIPELINE_STAGES = (
+    "UNIVERSE_DISCOVERY",
+    "BENCHMARK_FETCH",
+    "STOCK_FETCH",
+    "DATA_VALIDATION",
+    "TEMPORAL_VALIDATION",
+    "CALCULATION",
+    "MONITORING",
+    "OUTPUT_VALIDATION",
+    "ARTIFACT_WRITE",
+)
+
+# Stable Failure & Classification Categories for Operational Observability
+FAILURE_CATEGORIES = (
+    "PROVIDER_FAILURE",
+    "RATE_LIMIT",
+    "INVALID_SYMBOL",
+    "EXPLICITLY_INVALID",
+    "INSUFFICIENT_HISTORICAL_DATA",
+    "TEMPORAL_INVALID",
+    "OUTPUT_VALIDATION_FAILURE",
+    "MONITORING_FAILURE",
+    "UNIVERSE_INCOMPLETE",
+    "OTHER_VALIDATION_FAILURE",
+    "MISSING_SYMBOL",
+    "UNKNOWN",
+)
+
+RECOVERABLE_FAILURE_CATEGORIES = {
+    "PROVIDER_FAILURE",
+    "RATE_LIMIT",
+}
+
+
+def is_recoverable_category(category: str) -> bool:
+    """Return True if failure category is considered transient/recoverable, False otherwise.
+
+    - PROVIDER_FAILURE, RATE_LIMIT -> recoverable (transient network or rate limits)
+    - INVALID_SYMBOL, EXPLICITLY_INVALID, INSUFFICIENT_HISTORICAL_DATA, TEMPORAL_INVALID,
+      OUTPUT_VALIDATION_FAILURE, MONITORING_FAILURE, UNIVERSE_INCOMPLETE -> non-recoverable
+    """
+    return category in RECOVERABLE_FAILURE_CATEGORIES

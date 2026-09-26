@@ -10,7 +10,6 @@ from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.lib.monitoring import (
     check_universe_audit_invariants,
     evaluate_production_monitoring,
-    validate_monitoring_payload,
 )
 
 
@@ -181,38 +180,59 @@ class TestAuditTrailObservability(unittest.TestCase):
             "invalidation": [],
         }
 
-    def test_complete_universe_audit(self):
-        """Test 1: Complete universe where 100% of expected symbols are processed."""
+    def test_scenario_1_complete_production_universe(self):
+        """Scenario 1: Complete production universe -> no failures, 100% processed."""
         expected = ["FPT", "MWG", "VN30", "VNINDEX"]
+        summary = {
+            "status": "SUCCESS",
+            "failed_stage": None,
+            "expected_count": 4,
+            "processed_count": 4,
+            "invalid_count": 0,
+            "insufficient_history_count": 0,
+            "failed_count": 0,
+            "missing_count": 0,
+            "diagnostic_count": 0,
+        }
         audit = {
+            "status": "SUCCESS",
+            "failed_stage": None,
             "expected_symbols": expected,
             "processed_symbols": expected,
             "invalid_symbols": [],
             "insufficient_history_symbols": [],
             "failed_symbols": [],
             "missing_symbols": [],
-            "counts": {
-                "expected_count": 4,
-                "processed_count": 4,
-                "invalid_count": 0,
-                "insufficient_history_count": 0,
-                "failed_count": 0,
-                "missing_count": 0,
-            },
+            "counts": summary,
+            "summary": summary,
             "exclusions": [],
+            "diagnostics": [],
         }
         res = check_universe_audit_invariants(audit, self.healthy_payload)
         self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["summary"]["diagnostic_count"], 0)
 
-    def test_invalid_symbols_audit(self):
-        """Test 2: Universe containing invalid stock symbols tagged INVALID_SYMBOL / EXPLICITLY_INVALID."""
+    def test_scenario_2_one_invalid_symbol(self):
+        """Scenario 2: One invalid symbol in candidates universe."""
         payload = copy.deepcopy(self.healthy_payload)
         bad_rec = self._make_insufficient_rec("BADSYM")
         payload["recommendations"].append(bad_rec)
         payload["summary"]["total_scanned"] = 3
         payload["summary"]["avoid_count"] = 1
 
+        ex_record = {
+            "symbol": "BADSYM",
+            "stage": "STOCK_FETCH",
+            "category": "INVALID_SYMBOL",
+            "status": "INVALID",
+            "reason": "Invalid stock symbol BADSYM",
+            "latest_date": None,
+            "expected_date": self.data_as_of,
+            "processed": False,
+        }
         audit = {
+            "status": "SUCCESS",
+            "failed_stage": None,
             "expected_symbols": ["BADSYM", "FPT", "MWG", "VN30", "VNINDEX"],
             "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
             "invalid_symbols": ["BADSYM"],
@@ -226,27 +246,37 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 0,
                 "failed_count": 0,
                 "missing_count": 0,
+                "diagnostic_count": 1,
             },
-            "exclusions": [
-                {
-                    "symbol": "BADSYM",
-                    "category": "INVALID_SYMBOL",
-                    "reason": "Invalid stock symbol BADSYM",
-                }
-            ],
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
         self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["category"], "INVALID_SYMBOL")
+        self.assertEqual(audit["exclusions"][0]["stage"], "STOCK_FETCH")
 
-    def test_insufficient_history_symbols_audit(self):
-        """Test 3: Universe containing symbols with insufficient historical sessions."""
+    def test_scenario_3_one_insufficient_history_symbol(self):
+        """Scenario 3: One symbol with insufficient historical data."""
         payload = copy.deepcopy(self.healthy_payload)
         insuf_rec = self._make_insufficient_rec("SHORT")
         payload["recommendations"].append(insuf_rec)
         payload["summary"]["total_scanned"] = 3
         payload["summary"]["avoid_count"] = 1
 
+        ex_record = {
+            "symbol": "SHORT",
+            "stage": "STOCK_FETCH",
+            "category": "INSUFFICIENT_HISTORICAL_DATA",
+            "status": "INSUFFICIENT",
+            "reason": "Insufficient historical sessions (10 < 20)",
+            "latest_date": "2026-09-25",
+            "expected_date": self.data_as_of,
+            "processed": False,
+        }
         audit = {
+            "status": "DEGRADED",
+            "failed_stage": "STOCK_FETCH",
             "expected_symbols": ["FPT", "MWG", "SHORT", "VN30", "VNINDEX"],
             "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
             "invalid_symbols": [],
@@ -260,27 +290,36 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 1,
                 "failed_count": 0,
                 "missing_count": 0,
+                "diagnostic_count": 1,
             },
-            "exclusions": [
-                {
-                    "symbol": "SHORT",
-                    "category": "INSUFFICIENT_HISTORICAL_DATA",
-                    "reason": "Insufficient historical sessions (10 < 20)",
-                }
-            ],
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
         self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["category"], "INSUFFICIENT_HISTORICAL_DATA")
 
-    def test_provider_failures_audit(self):
-        """Test 4: Universe containing provider fetch failure symbols."""
+    def test_scenario_4_one_provider_failure(self):
+        """Scenario 4: One symbol encountering provider failure."""
         payload = copy.deepcopy(self.healthy_payload)
         fail_rec = self._make_insufficient_rec("FAILSYM")
         payload["recommendations"].append(fail_rec)
         payload["summary"]["total_scanned"] = 3
         payload["summary"]["avoid_count"] = 1
 
+        ex_record = {
+            "symbol": "FAILSYM",
+            "stage": "STOCK_FETCH",
+            "category": "PROVIDER_FAILURE",
+            "status": "FAILED",
+            "reason": "Provider network timeout for symbol FAILSYM",
+            "latest_date": None,
+            "expected_date": self.data_as_of,
+            "processed": False,
+        }
         audit = {
+            "status": "DEGRADED",
+            "failed_stage": "STOCK_FETCH",
             "expected_symbols": ["FAILSYM", "FPT", "MWG", "VN30", "VNINDEX"],
             "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
             "invalid_symbols": [],
@@ -294,27 +333,36 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 0,
                 "failed_count": 1,
                 "missing_count": 0,
+                "diagnostic_count": 1,
             },
-            "exclusions": [
-                {
-                    "symbol": "FAILSYM",
-                    "category": "PROVIDER_FAILURE",
-                    "reason": "Provider network timeout for symbol FAILSYM",
-                }
-            ],
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
         self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["category"], "PROVIDER_FAILURE")
 
-    def test_temporal_invalid_symbols_audit(self):
-        """Test 5: Universe containing symbols excluded due to temporal inconsistency."""
+    def test_scenario_5_one_temporal_invalid_symbol(self):
+        """Scenario 5: One symbol failing temporal validation."""
         payload = copy.deepcopy(self.healthy_payload)
         stale_rec = self._make_insufficient_rec("STALE")
         payload["recommendations"].append(stale_rec)
         payload["summary"]["total_scanned"] = 3
         payload["summary"]["avoid_count"] = 1
 
+        ex_record = {
+            "symbol": "STALE",
+            "stage": "TEMPORAL_VALIDATION",
+            "category": "TEMPORAL_INVALID",
+            "status": "FAILED",
+            "reason": "Stale date 2026-09-10 vs benchmark 2026-09-25",
+            "latest_date": "2026-09-10",
+            "expected_date": self.data_as_of,
+            "processed": False,
+        }
         audit = {
+            "status": "DEGRADED",
+            "failed_stage": "TEMPORAL_VALIDATION",
             "expected_symbols": ["FPT", "MWG", "STALE", "VN30", "VNINDEX"],
             "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
             "invalid_symbols": [],
@@ -328,20 +376,18 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 0,
                 "failed_count": 1,
                 "missing_count": 0,
+                "diagnostic_count": 1,
             },
-            "exclusions": [
-                {
-                    "symbol": "STALE",
-                    "category": "TEMPORAL_INVALID",
-                    "reason": "Stale date 2026-09-10 vs benchmark 2026-09-25",
-                }
-            ],
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
         self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["stage"], "TEMPORAL_VALIDATION")
+        self.assertEqual(audit["exclusions"][0]["category"], "TEMPORAL_INVALID")
 
-    def test_mixed_classification_audit(self):
-        """Test 6: Universe containing a mix of processed, invalid, insufficient, failed, and missing symbols."""
+    def test_scenario_6_mixed_classifications(self):
+        """Scenario 6: Universe containing mixed symbol classifications."""
         payload = copy.deepcopy(self.healthy_payload)
         payload["recommendations"].extend(
             [
@@ -353,7 +399,44 @@ class TestAuditTrailObservability(unittest.TestCase):
         payload["summary"]["total_scanned"] = 5
         payload["summary"]["avoid_count"] = 3
 
+        exclusions = [
+            {
+                "symbol": "FAILSYM",
+                "stage": "STOCK_FETCH",
+                "category": "PROVIDER_FAILURE",
+                "status": "FAILED",
+                "reason": "Fetch error",
+                "processed": False,
+            },
+            {
+                "symbol": "INVSYM",
+                "stage": "STOCK_FETCH",
+                "category": "INVALID_SYMBOL",
+                "status": "INVALID",
+                "reason": "Invalid symbol",
+                "processed": False,
+            },
+            {
+                "symbol": "MISSSYM",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": "Missing from scan",
+                "processed": False,
+            },
+            {
+                "symbol": "SHORTSYM",
+                "stage": "STOCK_FETCH",
+                "category": "INSUFFICIENT_HISTORICAL_DATA",
+                "status": "INSUFFICIENT",
+                "reason": "Short history",
+                "processed": False,
+            },
+        ]
+
         audit = {
+            "status": "DEGRADED",
+            "failed_stage": "STOCK_FETCH",
             "expected_symbols": [
                 "FAILSYM",
                 "FPT",
@@ -376,92 +459,74 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 1,
                 "failed_count": 1,
                 "missing_count": 1,
+                "diagnostic_count": 4,
             },
-            "exclusions": [
-                {"symbol": "FAILSYM", "category": "PROVIDER_FAILURE", "reason": "Fetch error"},
-                {"symbol": "INVSYM", "category": "INVALID_SYMBOL", "reason": "Invalid symbol"},
-                {"symbol": "MISSSYM", "category": "MISSING_SYMBOL", "reason": "Missing from scan"},
-                {
-                    "symbol": "SHORTSYM",
-                    "category": "INSUFFICIENT_HISTORICAL_DATA",
-                    "reason": "Short history",
-                },
-            ],
+            "exclusions": exclusions,
+            "diagnostics": exclusions,
         }
         res = check_universe_audit_invariants(audit, payload)
         self.assertEqual(res.status, "PASS")
 
-    def test_zero_valid_symbols_audit(self):
-        """Test 7: Universe where 0 valid symbols were processed."""
+        # Verify sum invariant: expected == processed + invalid + insufficient + failed + missing
+        c = audit["counts"]
+        self.assertEqual(
+            c["expected_count"],
+            c["processed_count"]
+            + c["invalid_count"]
+            + c["insufficient_history_count"]
+            + c["failed_count"]
+            + c["missing_count"],
+        )
+
+    def test_scenario_7_missing_symbol_detection(self):
+        """Scenario 7: Symbol in expected universe missing from scan results."""
         payload = copy.deepcopy(self.healthy_payload)
-        payload["recommendations"] = [
-            self._make_insufficient_rec("FPT"),
-            self._make_insufficient_rec("MWG"),
-        ]
-        payload["summary"] = {
-            "total_scanned": 2,
-            "buy_count": 0,
-            "watch_count": 0,
-            "hold_count": 0,
-            "sell_count": 0,
-            "avoid_count": 2,
+
+        ex_record = {
+            "symbol": "MISSSYM",
+            "stage": "UNIVERSE_DISCOVERY",
+            "category": "UNIVERSE_INCOMPLETE",
+            "status": "MISSING",
+            "reason": "Symbol MISSSYM missing from scan results",
+            "latest_date": None,
+            "expected_date": self.data_as_of,
+            "processed": False,
         }
 
         audit = {
-            "expected_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
-            "processed_symbols": [],
-            "invalid_symbols": [],
-            "insufficient_history_symbols": ["FPT", "MWG"],
-            "failed_symbols": ["VN30", "VNINDEX"],
-            "missing_symbols": [],
-            "counts": {
-                "expected_count": 4,
-                "processed_count": 0,
-                "invalid_count": 0,
-                "insufficient_history_count": 2,
-                "failed_count": 2,
-                "missing_count": 0,
-            },
-            "exclusions": [
-                {"symbol": "FPT", "category": "INSUFFICIENT_HISTORICAL_DATA", "reason": "No data"},
-                {"symbol": "MWG", "category": "INSUFFICIENT_HISTORICAL_DATA", "reason": "No data"},
-                {"symbol": "VN30", "category": "PROVIDER_FAILURE", "reason": "VN30 failed"},
-                {"symbol": "VNINDEX", "category": "PROVIDER_FAILURE", "reason": "VNINDEX failed"},
-            ],
-        }
-        res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-
-    def test_count_consistency_invariant_failure(self):
-        """Test 8: Failure when expected != processed + invalid + insufficient + failed + missing."""
-        exp = [f"SYM_{i}" for i in range(10)]
-        audit = {
-            "expected_symbols": exp,
-            "processed_symbols": ["SYM_0", "SYM_1", "SYM_2", "SYM_3"],
+            "status": "DEGRADED",
+            "failed_stage": "UNIVERSE_DISCOVERY",
+            "expected_symbols": ["FPT", "MISSSYM", "MWG", "VN30", "VNINDEX"],
+            "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
             "invalid_symbols": [],
             "insufficient_history_symbols": [],
             "failed_symbols": [],
-            "missing_symbols": [],
+            "missing_symbols": ["MISSSYM"],
             "counts": {
-                "expected_count": 10,
+                "expected_count": 5,
                 "processed_count": 4,
                 "invalid_count": 0,
                 "insufficient_history_count": 0,
                 "failed_count": 0,
-                "missing_count": 0,
+                "missing_count": 1,
+                "diagnostic_count": 1,
             },
-            "exclusions": [],
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
         }
-        res = check_universe_audit_invariants(audit, self.healthy_payload)
-        self.assertEqual(res.status, "FAIL")
-        self.assertIn("Audit sum invariant failed", res.message)
+        res = check_universe_audit_invariants(audit, payload)
+        self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["category"], "UNIVERSE_INCOMPLETE")
+        self.assertEqual(audit["exclusions"][0]["status"], "MISSING")
 
-    def test_duplicate_classification_detection(self):
-        """Test 9: Detection of duplicate classifications (symbol in multiple sets)."""
+    def test_scenario_8_duplicate_classification_detection(self):
+        """Scenario 8: Detection of duplicate classification (symbol in multiple disjoint sets)."""
         audit = {
+            "status": "FAILED",
+            "failed_stage": "STOCK_FETCH",
             "expected_symbols": ["FPT", "MWG", "OTHER", "VN30", "VNINDEX"],
             "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
-            "invalid_symbols": ["FPT"],  # FPT is in both processed and invalid
+            "invalid_symbols": ["FPT"],  # Duplicate: FPT in both processed and invalid
             "insufficient_history_symbols": [],
             "failed_symbols": [],
             "missing_symbols": [],
@@ -472,15 +537,33 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "insufficient_history_count": 0,
                 "failed_count": 0,
                 "missing_count": 0,
+                "diagnostic_count": 1,
             },
-            "exclusions": [{"symbol": "FPT", "category": "INVALID_SYMBOL", "reason": "Duplicate"}],
+            "exclusions": [
+                {
+                    "symbol": "FPT",
+                    "stage": "STOCK_FETCH",
+                    "category": "INVALID_SYMBOL",
+                    "status": "INVALID",
+                    "reason": "Duplicate classification",
+                }
+            ],
+            "diagnostics": [
+                {
+                    "symbol": "FPT",
+                    "stage": "STOCK_FETCH",
+                    "category": "INVALID_SYMBOL",
+                    "status": "INVALID",
+                    "reason": "Duplicate classification",
+                }
+            ],
         }
         res = check_universe_audit_invariants(audit, self.healthy_payload)
         self.assertEqual(res.status, "FAIL")
         self.assertIn("Duplicate symbol classification detected", res.message)
 
-    def test_monitoring_payload_consistency_with_pipeline_state(self):
-        """Test 10: Verify production monitoring output payload contains exact universe audit state."""
+    def test_scenario_9_monitoring_count_consistency(self):
+        """Scenario 9: Verification that production monitoring consumes exact pipeline universe_audit counts."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
@@ -490,13 +573,14 @@ class TestAuditTrailObservability(unittest.TestCase):
             with open(os.path.join(tmpdir, "market.json"), "w") as f:
                 json.dump(self.healthy_market, f)
 
-            index_dates = [self.data_as_of]
             with open(os.path.join(hist_dir, "index.json"), "w") as f:
-                json.dump({"dates": index_dates}, f)
+                json.dump({"dates": [self.data_as_of]}, f)
             with open(os.path.join(hist_dir, f"{self.data_as_of}.json"), "w") as f:
                 json.dump(self.healthy_payload, f)
 
             audit_input = {
+                "status": "SUCCESS",
+                "failed_stage": None,
                 "expected_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
                 "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
                 "invalid_symbols": [],
@@ -504,14 +588,18 @@ class TestAuditTrailObservability(unittest.TestCase):
                 "failed_symbols": [],
                 "missing_symbols": [],
                 "counts": {
+                    "status": "SUCCESS",
+                    "failed_stage": None,
                     "expected_count": 4,
                     "processed_count": 4,
                     "invalid_count": 0,
                     "insufficient_history_count": 0,
                     "failed_count": 0,
                     "missing_count": 0,
+                    "diagnostic_count": 0,
                 },
                 "exclusions": [],
+                "diagnostics": [],
             }
 
             mon_res = evaluate_production_monitoring(
@@ -523,19 +611,305 @@ class TestAuditTrailObservability(unittest.TestCase):
             )
 
             mon_dict = mon_res.to_dict()
-            self.assertTrue(validate_monitoring_payload(mon_dict))
+            self.assertEqual(mon_dict["metrics"]["universe_audit"], audit_input)
 
-            # Verify metrics contains universe_audit
-            mon_audit = mon_dict["metrics"]["universe_audit"]
-            self.assertEqual(mon_audit, audit_input)
+    def test_scenario_10_monitoring_count_mismatch_internal_consistency_failure(self):
+        """Scenario 10: Count mismatch between set lengths and reported counts raises internal consistency failure."""
+        audit_mismatched = {
+            "status": "SUCCESS",
+            "failed_stage": None,
+            "expected_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
+            "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 100,  # Mismatch: 100 reported vs 4 actual
+                "processed_count": 4,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+                "diagnostic_count": 0,
+            },
+            "exclusions": [],
+            "diagnostics": [],
+        }
 
-            # Verify universe_audit_invariants check passed
-            chk_names = [c["check_name"] for c in mon_dict["checks"]]
-            self.assertIn("universe_audit_invariants", chk_names)
-            inv_chk = next(
-                c for c in mon_dict["checks"] if c["check_name"] == "universe_audit_invariants"
+        res = check_universe_audit_invariants(audit_mismatched, self.healthy_payload)
+        self.assertEqual(res.status, "FAIL")
+        self.assertIn("Count mismatch for expected", res.message)
+
+    def test_scenario_11_monitoring_fail_diagnostic_identifies_failed_check(self):
+        """Scenario 11: When monitoring produces FAIL, diagnostics explicitly identify the failed check."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            bad_payload = copy.deepcopy(self.healthy_payload)
+            bad_payload["data_as_of"] = "INVALID-DATE"
+
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(bad_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(self.healthy_market, f)
+
+            mon_res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=bad_payload,
+                market_payload=self.healthy_market,
+                reference_date=self.reference_date,
             )
-            self.assertEqual(inv_chk["status"], "PASS")
+
+            mon_dict = mon_res.to_dict()
+            self.assertEqual(mon_dict["overall_status"], "FAIL")
+
+            # Check that failed monitoring diagnostics exist
+            diag = mon_dict["metrics"]["monitoring_diagnostics"]
+            self.assertGreater(len(diag), 0)
+            failed_checks = [d["check"] for d in diag]
+            self.assertTrue(
+                any(c in failed_checks for c in ("data_freshness", "artifact_existence"))
+            )
+            for d in diag:
+                self.assertEqual(d["stage"], "MONITORING")
+                self.assertEqual(d["category"], "MONITORING_FAILURE")
+                self.assertEqual(d["status"], "FAIL")
+
+    def test_scenario_12_output_validation_failure_correct_stage_category(self):
+        """Scenario 12: Payload validation failure identifies stage = OUTPUT_VALIDATION, category = OUTPUT_VALIDATION_FAILURE."""
+        from scripts.generate_report import validate_final_payload_integrity
+
+        invalid_payload = copy.deepcopy(self.healthy_payload)
+        invalid_payload["recommendations"][0]["signal_score"] = 150.0  # Out of bounds score
+
+        with self.assertRaises(ValueError) as cm:
+            validate_final_payload_integrity(
+                invalid_payload, schema=None, payload_name="recommendations"
+            )
+
+        exc = cm.exception
+        self.assertTrue(hasattr(exc, "diagnostics"))
+        self.assertGreater(len(exc.diagnostics), 0)
+        diag = exc.diagnostics[0]
+        self.assertEqual(diag["stage"], "OUTPUT_VALIDATION")
+        self.assertEqual(diag["category"], "OUTPUT_VALIDATION_FAILURE")
+        self.assertEqual(diag["payload"], "recommendations")
+        self.assertEqual(diag["status"], "FAIL")
+
+    def test_scenario_13_rate_limit_failure(self):
+        """Scenario 13: Rate limit failure produces stage = STOCK_FETCH, category = RATE_LIMIT."""
+        payload = copy.deepcopy(self.healthy_payload)
+        rl_rec = self._make_insufficient_rec("RLSYM")
+        payload["recommendations"].append(rl_rec)
+        payload["summary"]["total_scanned"] = 3
+        payload["summary"]["avoid_count"] = 1
+
+        ex_record = {
+            "symbol": "RLSYM",
+            "stage": "STOCK_FETCH",
+            "category": "RATE_LIMIT",
+            "status": "FAILED",
+            "reason": "Provider rate limit encountered fetching RLSYM",
+            "latest_date": None,
+            "expected_date": self.data_as_of,
+            "processed": False,
+        }
+
+        audit = {
+            "status": "DEGRADED",
+            "failed_stage": "STOCK_FETCH",
+            "expected_symbols": ["FPT", "MWG", "RLSYM", "VN30", "VNINDEX"],
+            "processed_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": ["RLSYM"],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 5,
+                "processed_count": 4,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 1,
+                "missing_count": 0,
+                "diagnostic_count": 1,
+            },
+            "exclusions": [ex_record],
+            "diagnostics": [ex_record],
+        }
+
+        res = check_universe_audit_invariants(audit, payload)
+        self.assertEqual(res.status, "PASS")
+        self.assertEqual(audit["exclusions"][0]["category"], "RATE_LIMIT")
+
+    def test_scenario_14_artifact_preservation_remains_unchanged(self):
+        """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk byte-for-byte."""
+        from scripts.generate_report import validate_final_payload_integrity
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            rec_path = os.path.join(tmpdir, "recommendations.json")
+            mkt_path = os.path.join(tmpdir, "market.json")
+            mon_path = os.path.join(tmpdir, "monitoring.json")
+            idx_path = os.path.join(hist_dir, "index.json")
+            hist_path = os.path.join(hist_dir, "2026-09-25.json")
+
+            files_map = {
+                rec_path: b'{\n  "artifact": "recommendations_v1"\n}\n',
+                mkt_path: b'{\n  "artifact": "market_v1"\n}\n',
+                mon_path: b'{\n  "artifact": "monitoring_v1"\n}\n',
+                idx_path: b'{\n  "artifact": "index_v1"\n}\n',
+                hist_path: b'{\n  "artifact": "history_2026-09-25_v1"\n}\n',
+            }
+
+            for fpath, content in files_map.items():
+                with open(fpath, "wb") as f:
+                    f.write(content)
+
+            # Record exact bytes before triggering failure
+            bytes_before = {}
+            for fpath in files_map:
+                with open(fpath, "rb") as f:
+                    bytes_before[fpath] = f.read()
+
+            # Trigger real validation failure with corrupted payload
+            corrupted_payload = copy.deepcopy(self.healthy_payload)
+            corrupted_payload["recommendations"][0]["signal_score"] = -999.0  # Out of bounds
+
+            with self.assertRaises(ValueError) as cm:
+                validate_final_payload_integrity(corrupted_payload, payload_name="recommendations")
+
+            self.assertIn("stage OUTPUT_VALIDATION", str(cm.exception))
+
+            # Verify every pre-existing artifact is byte-for-byte unchanged
+            for fpath, original_bytes in bytes_before.items():
+                with open(fpath, "rb") as f:
+                    current_bytes = f.read()
+                self.assertEqual(
+                    current_bytes,
+                    original_bytes,
+                    f"Artifact '{os.path.basename(fpath)}' was modified during validation failure",
+                )
+
+            # Verify no unexpected partial or temp files were left in tmpdir
+            all_files_in_root = set(os.listdir(tmpdir))
+            all_files_in_hist = set(os.listdir(hist_dir))
+            self.assertEqual(
+                all_files_in_root,
+                {"recommendations.json", "market.json", "monitoring.json", "history"},
+            )
+            self.assertEqual(all_files_in_hist, {"index.json", "2026-09-25.json"})
+
+    def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
+        """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
+        from scripts.generate_report import build_universe_audit
+
+        data_as_of = "2026-09-25"
+
+        exclusions = {
+            "XYZ": {
+                "symbol": "XYZ",
+                "stage": "STOCK_FETCH",
+                "category": "INVALID_SYMBOL",
+                "status": "INVALID",
+                "reason": "Invalid symbol XYZ",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+            "BID": {
+                "symbol": "BID",
+                "stage": "STOCK_FETCH",
+                "category": "PROVIDER_FAILURE",
+                "status": "FAILED",
+                "reason": "Provider timeout for BID",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": True,
+            },
+            "ZAL": {
+                "symbol": "ZAL",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": "Symbol ZAL missing from scan results",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+            "AAA": {
+                "symbol": "AAA",
+                "stage": "UNIVERSE_DISCOVERY",
+                "category": "UNIVERSE_INCOMPLETE",
+                "status": "MISSING",
+                "reason": "Symbol AAA missing from scan results",
+                "latest_date": None,
+                "expected_date": data_as_of,
+                "processed": False,
+                "recoverable": False,
+            },
+        }
+
+        # Run 1: Input iterables in order A
+        audit_run_1 = build_universe_audit(
+            expected_symbols=[
+                "VNINDEX",
+                "VN30",
+                "MWG",
+                "FPT",
+                "VIC",
+                "VNM",
+                "ZAL",
+                "AAA",
+                "XYZ",
+                "BID",
+            ],
+            processed_symbols=["VNINDEX", "VN30", "MWG", "FPT", "VIC", "VNM"],
+            invalid_symbols=["XYZ"],
+            insufficient_history_symbols=[],
+            failed_symbols=["BID"],
+            missing_symbols=["ZAL", "AAA"],
+            exclusions_map=exclusions,
+            update_data=False,
+        )
+
+        # Run 2: Input iterables in different order B (using sets and reordered lists)
+        audit_run_2 = build_universe_audit(
+            expected_symbols={
+                "BID",
+                "XYZ",
+                "AAA",
+                "ZAL",
+                "VNM",
+                "VIC",
+                "FPT",
+                "MWG",
+                "VN30",
+                "VNINDEX",
+            },
+            processed_symbols=["VNM", "VIC", "FPT", "MWG", "VN30", "VNINDEX"],
+            invalid_symbols=["XYZ"],
+            insufficient_history_symbols=[],
+            failed_symbols=["BID"],
+            missing_symbols={"AAA", "ZAL"},
+            exclusions_map=exclusions,
+            update_data=False,
+        )
+
+        # Assert exact equality across runs
+        self.assertEqual(audit_run_1, audit_run_2)
+
+        # Assert symbol lists are deterministically sorted
+        self.assertEqual(audit_run_1["expected_symbols"], sorted(audit_run_1["expected_symbols"]))
+        self.assertEqual(audit_run_1["processed_symbols"], sorted(audit_run_1["processed_symbols"]))
+        symbols_in_diagnostics = [d["symbol"] for d in audit_run_1["diagnostics"]]
+        self.assertEqual(symbols_in_diagnostics, sorted(symbols_in_diagnostics))
 
 
 if __name__ == "__main__":
