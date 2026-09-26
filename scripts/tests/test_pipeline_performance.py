@@ -101,7 +101,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
         from scripts.generate_report import main as generate_report_main
 
-        valid_df = make_valid_canonical_df(25)
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
 
@@ -112,6 +112,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
             try:
                 generate_report_main()
             except SystemExit:
@@ -152,7 +155,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         """2. Stage ordering in performance payload is strictly deterministic."""
         from scripts.generate_report import main as generate_report_main
 
-        valid_df = make_valid_canonical_df(25)
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
@@ -163,6 +166,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
             try:
                 generate_report_main()
             except SystemExit:
@@ -626,7 +632,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         """21. Main pipeline stage ordering matches expected canonical order strictly."""
         from scripts.generate_report import main as generate_report_main
 
-        valid_df = make_valid_canonical_df(25)
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
@@ -637,6 +643,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ):
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
             try:
                 generate_report_main()
             except SystemExit:

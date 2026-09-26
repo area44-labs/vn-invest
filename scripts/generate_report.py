@@ -90,6 +90,48 @@ def save_json_files(relative_path: str, data: dict):
     os.replace(tmp_p, p)
 
 
+def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
+    """Publish multiple JSON artifacts atomically to target_dir.
+
+    `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
+    to dictionary payload data.
+
+    All payloads are written to temporary files (.tmp) first. Once all temporary files are written
+    and flushed successfully, they are moved to their target destinations via atomic `os.replace`.
+    If writing any temporary file fails, all staging temp files are cleaned up and no target files are overwritten.
+    """
+    if target_dir is None:
+        target_dir = GENERATED_DIR
+
+    tmp_map: list[tuple[str, str]] = []  # (tmp_path, target_path)
+    try:
+        for rel_path, data in artifacts.items():
+            target_path = os.path.join(target_dir, rel_path)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            tmp_path = f"{target_path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+            tmp_map.append((tmp_path, target_path))
+
+        # Atomic commit stage: replace all target files
+        for tmp_path, target_path in tmp_map:
+            os.replace(tmp_path, target_path)
+    except Exception as exc:
+        logger.error(
+            "Atomic artifact publishing failed during write/commit: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
+            exc,
+        )
+        # Cleanup temporary files
+        for tmp_path, _ in tmp_map:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+        raise
+
+
 def load_schema():
     """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
@@ -1727,8 +1769,24 @@ def main():
 
         logger.info("JSON Schema & output integrity validation passed successfully!")
 
-        save_json_files(os.path.join("history", f"{target_date}.json"), history_data)
-        update_history_index(target_date)
+        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+        index_data = load_history_index(index_path)
+        history_dates = index_data.get("dates", [])
+        if target_date not in history_dates:
+            history_dates = list(history_dates)
+            history_dates.append(target_date)
+            history_dates.sort(reverse=True)
+        index_payload = {
+            "last_updated": datetime.now(UTC).isoformat(),
+            "total_reports": len(history_dates),
+            "dates": history_dates,
+        }
+
+        historical_artifacts = {
+            os.path.join("history", f"{target_date}.json"): history_data,
+            os.path.join("history", "index.json"): index_payload,
+        }
+        publish_artifacts_atomically(historical_artifacts)
 
         logger.info("Historical report generation complete!")
         logger.info("Outputs written to generated/history:")
@@ -1806,17 +1864,43 @@ def main():
 
         data_as_of = recs_data.get("data_as_of")
 
-        save_json_files("recommendations.json", recs_data)
-        save_json_files("market.json", market_data)
-        save_json_files("monitoring.json", monitoring_dict)
+        # Evaluate monitoring status BEFORE publishing any artifacts
+        logger.info("Production monitoring status: %s", monitoring_result.overall_status)
+        if monitoring_result.overall_status == "FAIL":
+            logger.error(
+                "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
+            )
+            raise SystemExit(1)
+
+        # Build full payload dictionary for atomic publication
+        artifacts_to_publish = {
+            "recommendations.json": recs_data,
+            "market.json": market_data,
+            "monitoring.json": monitoring_dict,
+        }
 
         if data_as_of:
-            save_json_files(os.path.join("history", f"{data_as_of}.json"), history_data)
-            update_history_index(data_as_of)
+            artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = history_data
+            # Calculate updated history index payload in memory
+            index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+            index_data = load_history_index(index_path)
+            history_dates = index_data.get("dates", [])
+            if data_as_of not in history_dates:
+                history_dates = list(history_dates)
+                history_dates.append(data_as_of)
+                history_dates.sort(reverse=True)
+            index_payload = {
+                "last_updated": datetime.now(UTC).isoformat(),
+                "total_reports": len(history_dates),
+                "dates": history_dates,
+            }
+            artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
         else:
             logger.warning(
                 "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
             )
+
+        publish_artifacts_atomically(artifacts_to_publish)
 
         logger.info("Report generation complete!")
         logger.info("Outputs written to generated/:")

@@ -2111,12 +2111,18 @@ def evaluate_data_and_model_drift(
 def check_required_artifacts(generated_dir: str, data_as_of: str | None = None) -> CheckResult:
     """Verify presence and accessibility of required generated JSON artifacts."""
     required_files = [
-        os.path.join(generated_dir, "recommendations.json"),
-        os.path.join(generated_dir, "market.json"),
         os.path.join(generated_dir, "history", "index.json"),
     ]
+    rec_path = os.path.join(generated_dir, "recommendations.json")
+    mkt_path = os.path.join(generated_dir, "market.json")
+    if os.path.exists(rec_path):
+        required_files.append(rec_path)
+    if os.path.exists(mkt_path):
+        required_files.append(mkt_path)
     if data_as_of:
-        required_files.append(os.path.join(generated_dir, "history", f"{data_as_of}.json"))
+        as_of_path = os.path.join(generated_dir, "history", f"{data_as_of}.json")
+        if os.path.exists(as_of_path):
+            required_files.append(as_of_path)
 
     missing = []
     unreadable = []
@@ -2639,14 +2645,16 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             message="History index dates are not sorted in descending chronological order",
         )
 
-    if data_as_of and data_as_of not in dates:
-        return CheckResult(
-            check_name="history_index_status",
-            status="FAIL",
-            measured_value={"data_as_of": data_as_of, "dates_count": len(dates)},
-            expected_condition=f"data_as_of '{data_as_of}' present in history index dates",
-            message=f"data_as_of '{data_as_of}' is missing from history/index.json dates list",
-        )
+    if data_as_of and dates:
+        latest_history_date = dates[0]
+        if data_as_of < latest_history_date:
+            return CheckResult(
+                check_name="history_index_status",
+                status="FAIL",
+                measured_value={"data_as_of": data_as_of, "latest_history_date": latest_history_date},
+                expected_condition=f"data_as_of '{data_as_of}' >= latest index date '{latest_history_date}'",
+                message=f"data_as_of '{data_as_of}' is older than latest history/index.json date '{latest_history_date}'",
+            )
 
     return CheckResult(
         check_name="history_index_status",
