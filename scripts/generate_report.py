@@ -1386,6 +1386,13 @@ def main():
             logger.info("  - history/%s.json", data_as_of)
             logger.info("  - history/index.json")
 
+        logger.info("Production monitoring status: %s", monitoring_result.overall_status)
+        if monitoring_result.overall_status == "FAIL":
+            logger.error("Production update rejected due to monitoring failure.")
+            raise SystemExit(1)
+        elif monitoring_result.overall_status in ("WARN", "WARNING"):
+            logger.warning("Production monitoring produced a warning.")
+
 
 if __name__ == "__main__":
     main()
