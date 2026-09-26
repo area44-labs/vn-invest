@@ -289,8 +289,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         res_uninstrumented = run_pipeline(update_data=False)
         res_instrumented = run_pipeline(update_data=False, tracker=PerformanceTracker())
 
-        recs1, market1, history1 = res_uninstrumented
-        recs2, market2, history2 = res_instrumented
+        recs1, market1, _history1 = res_uninstrumented
+        recs2, market2, _history2 = res_instrumented
 
         self.assertEqual(recs1["summary"], recs2["summary"])
         self.assertEqual(market1["market"]["regime"], market2["market"]["regime"])
