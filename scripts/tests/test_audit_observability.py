@@ -770,7 +770,10 @@ class TestAuditTrailObservability(unittest.TestCase):
                     f.write(content)
 
             # Record exact bytes before triggering failure
-            bytes_before = {fpath: open(fpath, "rb").read() for fpath in files_map}
+            bytes_before = {}
+            for fpath in files_map:
+                with open(fpath, "rb") as f:
+                    bytes_before[fpath] = f.read()
 
             # Trigger real validation failure with corrupted payload
             corrupted_payload = copy.deepcopy(self.healthy_payload)
@@ -783,7 +786,8 @@ class TestAuditTrailObservability(unittest.TestCase):
 
             # Verify every pre-existing artifact is byte-for-byte unchanged
             for fpath, original_bytes in bytes_before.items():
-                current_bytes = open(fpath, "rb").read()
+                with open(fpath, "rb") as f:
+                    current_bytes = f.read()
                 self.assertEqual(
                     current_bytes,
                     original_bytes,
