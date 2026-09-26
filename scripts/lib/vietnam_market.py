@@ -21,6 +21,7 @@ from scripts.data_provider import (
     reset_circuit_breaker,
 )
 from scripts.lib.config import (
+    DEFAULT_UPDATE_THROTTLE_DELAY as DEFAULT_UPDATE_THROTTLE_DELAY,
     MAX_BENCHMARK_FUTURE_DAYS,
     MAX_STOCK_STALENESS_DAYS,
 )
@@ -32,8 +33,6 @@ PRICE_UNIT = "VND/share"
 VOLUME_UNIT = "shares"
 TRADING_VALUE_UNIT = "VND"
 AVG_TRADING_VALUE_UNIT = "billion_VND"
-
-DEFAULT_UPDATE_THROTTLE_DELAY = 3.5
 
 # Source unit contracts for upstream data providers:
 # - Stock data (via vnstock KBS/MSN quotes): Prices (open, high, low, close) are in `thousand_VND/share` (e.g. 128.40 = 128,400 VND/share). Volume is in `shares` (e.g. 3,172,800 shares).

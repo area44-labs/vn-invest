@@ -253,6 +253,10 @@ REGIME_CONFIDENCE_HISTORY_THRESHOLD = 50
 MAX_STOCK_STALENESS_DAYS = 7
 MAX_BENCHMARK_FUTURE_DAYS = 0
 
+# Production Update Provider Throttle Configuration
+# DEFAULT_UPDATE_THROTTLE_DELAY: Throttle delay in seconds applied between requests during production update mode.
+DEFAULT_UPDATE_THROTTLE_DELAY = 3.5
+
 # Data / Model Drift Monitoring Configuration & Threshold Parameters
 # Lookback and minimum baseline rules
 DRIFT_LOOKBACK_REPORTS = 20

@@ -22,6 +22,7 @@ from scripts.data_provider import (
     is_circuit_breaker_active,
     reset_circuit_breaker,
     reset_rate_limit_recovery_count,
+    trip_circuit_breaker,
     validate_canonical_ohlcv,
 )
 from scripts.lib.vietnam_market import get_historical_data
@@ -1811,6 +1812,326 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
             # Verify that artifacts on disk remain 100% identical and unchanged
             self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
             self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
+
+
+class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
+    """PR #155 Provider Reliability & Performance deterministic offline test suite."""
+
+    def setUp(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+        VnstockDataProvider.reset_global_call_history()
+
+    def tearDown(self):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+        VnstockDataProvider.reset_global_call_history()
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_1_successful_provider_call_timing(self, mock_quote, mock_sleep):
+        """1. Successful provider call records timing structure (provider, source, operation, symbol, elapsed, success, retry_count)."""
+        valid_raw = make_valid_canonical_df(10)
+        valid_raw_norm = valid_raw.copy()
+        for col in ["open", "high", "low", "close"]:
+            valid_raw_norm[col] /= 1000.0
+
+        mock_inst = MagicMock()
+        mock_inst.history.return_value = valid_raw_norm
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        df = provider.fetch_ohlcv("FPT")
+
+        self.assertIsNotNone(df)
+        timing = provider.get_last_call_timing()
+        self.assertIsNotNone(timing)
+        self.assertEqual(timing["provider"], "vnstock")
+        self.assertEqual(timing["source"], "kbs")
+        self.assertEqual(timing["operation"], "history")
+        self.assertEqual(timing["symbol"], "FPT")
+        self.assertTrue(timing["success"])
+        self.assertEqual(timing["retry_count"], 0)
+        self.assertIsNone(timing["error"])
+        self.assertGreaterEqual(timing["elapsed_seconds"], 0.0)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_2_provider_exception_timing_and_diagnostic(self, mock_quote, mock_sleep):
+        """2. Provider exception records structured timing and diagnostic error information."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = ConnectionError("Network read timeout")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(RuntimeError):
+            provider.fetch_ohlcv("VCB", max_retries=1)
+
+        history = provider.get_call_history()
+        self.assertGreater(len(history), 0)
+        last_call = history[-1]
+        self.assertEqual(last_call["provider"], "vnstock")
+        self.assertEqual(last_call["symbol"], "VCB")
+        self.assertFalse(last_call["success"])
+        self.assertIn("Network read timeout", last_call["error"])
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_3_bounded_transient_retry(self, mock_quote, mock_sleep):
+        """3. Transient network/server errors have bounded retries and do not loop infinitely."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = TimeoutError("Server timeout")
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(RuntimeError):
+            provider.fetch_ohlcv("SSI", max_retries=2)
+
+        # max_retries=2 * 2 sources = exactly 4 attempts total
+        self.assertEqual(mock_inst.history.call_count, 4)
+        history = provider.get_call_history()
+        self.assertEqual(len(history), 4)
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_4_rate_limit_no_retry_behavior(self, mock_quote, mock_sleep):
+        """4. Rate limit exception is NOT retried across attempts or sources and trips circuit breaker."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = RateLimitExceeded(
+            "quote.history", "min", 20, 20, retry_after=30.0, tier="guest"
+        )
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(ProviderRateLimitError):
+            provider.fetch_ohlcv("HPG", max_retries=3)
+
+        # Fails immediately on 1st call without retrying
+        self.assertEqual(mock_inst.history.call_count, 1)
+        self.assertTrue(is_circuit_breaker_active())
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_5_circuit_breaker_behavior(self, mock_quote, mock_sleep):
+        """5. Active circuit breaker blocks subsequent requests immediately without making API calls."""
+        trip_circuit_breaker("Pre-tripped in test", cooldown_seconds=60)
+
+        mock_inst = MagicMock()
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(ProviderRateLimitError) as ctx:
+            provider.fetch_ohlcv("TCB")
+
+        self.assertEqual(mock_inst.history.call_count, 0)
+        self.assertIn("circuit breaker is active", str(ctx.exception))
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_6_deterministic_source_fallback(self, mock_quote, mock_sleep):
+        """6. Source fallback follows deterministic order ['kbs', 'msn']."""
+        valid_raw = make_valid_canonical_df(10)
+        for col in ["open", "high", "low", "close"]:
+            valid_raw[col] /= 1000.0
+
+        calls = []
+
+        def side_effect(start=None, end=None):
+            args = mock_quote.call_args
+            source = args.kwargs.get("source") if args else None
+            calls.append(source)
+            if len(calls) == 1:
+                raise ConnectionError("kbs failed")
+            return valid_raw
+
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = side_effect
+        mock_quote.side_effect = lambda symbol, source: mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        df = provider.fetch_ohlcv("FPT", max_retries=1)
+
+        self.assertIsNotNone(df)
+        history = provider.get_call_history()
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0]["source"], "kbs")
+        self.assertFalse(history[0]["success"])
+        self.assertEqual(history[1]["source"], "msn")
+        self.assertTrue(history[1]["success"])
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_7_stale_source_followed_by_canonical_date_source(self, mock_quote, mock_sleep):
+        """7. Stale source followed by canonical-date source prefers canonical-date source."""
+        stale_df = make_valid_canonical_df(10, start_date="2026-09-01")  # max date 2026-09-10
+        for col in ["open", "high", "low", "close"]:
+            stale_df[col] /= 1000.0
+
+        canonical_df = make_valid_canonical_df(15, start_date="2026-09-01")  # max date 2026-09-15
+        for col in ["open", "high", "low", "close"]:
+            canonical_df[col] /= 1000.0
+
+        def quote_factory(symbol, source):
+            m = MagicMock()
+            if source == "kbs":
+                m.history.return_value = stale_df
+            else:
+                m.history.return_value = canonical_df
+            return m
+
+        mock_quote.side_effect = quote_factory
+
+        provider = VnstockDataProvider(is_available=True)
+        res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-15")
+
+        self.assertEqual(res_df["time"].max(), "2026-09-15")
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_8_all_sources_stale_fail_closed(self, mock_quote, mock_sleep):
+        """8. When all sources return stale data relative to target_date, update pipeline fails closed."""
+        from scripts.generate_report import run_pipeline
+
+        stale_df = make_valid_canonical_df(15, start_date="2026-08-01")  # max date 2026-08-15
+        canonical_df = make_valid_canonical_df(25, start_date="2026-08-01")  # max date 2026-08-25
+
+        def mock_get_hist(symbol, **kwargs):
+            if symbol in ("VNINDEX", "VN30"):
+                return canonical_df, "REAL_DATA", []
+            # Stocks are all stale (2026-08-15 vs VNINDEX 2026-08-25)
+            return stale_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            with self.assertRaises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
+
+    def test_9_canonical_date_invariant_remains_enforced(self):
+        """9. In update mode, every processed stock must match VNINDEX data_as_of exactly."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
+        target_date = valid_df["time"].max()
+
+        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+            mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+            recs_data, market_data, _ = run_pipeline(update_data=True)
+
+            self.assertEqual(market_data["data_as_of"], target_date)
+            self.assertEqual(recs_data["data_as_of"], target_date)
+            for rec in recs_data["recommendations"]:
+                self.assertEqual(rec["data_as_of"], target_date)
+
+    def test_10_provider_diagnostics_use_existing_stage_category_taxonomy(self):
+        """10. Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
+        from scripts.lib.config import FAILURE_CATEGORIES, PIPELINE_STAGES, is_recoverable_category
+
+        self.assertIn("BENCHMARK_FETCH", PIPELINE_STAGES)
+        self.assertIn("STOCK_FETCH", PIPELINE_STAGES)
+        self.assertIn("PROVIDER_FAILURE", FAILURE_CATEGORIES)
+        self.assertIn("RATE_LIMIT", FAILURE_CATEGORIES)
+
+        self.assertTrue(is_recoverable_category("PROVIDER_FAILURE"))
+        self.assertTrue(is_recoverable_category("RATE_LIMIT"))
+        self.assertFalse(is_recoverable_category("EXPLICITLY_INVALID"))
+
+    @patch("scripts.data_provider.time.sleep")
+    @patch("scripts.data_provider.VnQuote")
+    def test_11_retry_count_is_deterministic(self, mock_quote, mock_sleep):
+        """11. Retry count in timing logs is 0 for initial attempt and increments deterministically."""
+        mock_inst = MagicMock()
+        mock_inst.history.side_effect = [
+            ConnectionError("Attempt 0 kbs failed"),
+            TimeoutError("Attempt 0 msn failed"),
+            ConnectionError("Attempt 1 kbs failed"),
+            TimeoutError("Attempt 1 msn failed"),
+        ]
+        mock_quote.return_value = mock_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        with self.assertRaises(RuntimeError):
+            provider.fetch_ohlcv("MBB", max_retries=2)
+
+        history = provider.get_call_history()
+        self.assertEqual(len(history), 4)
+
+        # Attempt 0 calls
+        self.assertEqual(history[0]["retry_count"], 0)
+        self.assertEqual(history[0]["source"], "kbs")
+        self.assertEqual(history[1]["retry_count"], 0)
+        self.assertEqual(history[1]["source"], "msn")
+
+        # Attempt 1 calls
+        self.assertEqual(history[2]["retry_count"], 1)
+        self.assertEqual(history[2]["source"], "kbs")
+        self.assertEqual(history[3]["retry_count"], 1)
+        self.assertEqual(history[3]["source"], "msn")
+
+    def test_12_provider_failure_preserves_existing_artifact_behavior(self):
+        """12. Provider failure during report update preserves existing generated JSON artifacts on disk."""
+        from scripts.generate_report import main as generate_report_main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+
+            recs_file = gen_dir / "recommendations.json"
+            initial_data = {"schema_version": "2.0", "recommendations": [{"symbol": "PRESERVED"}]}
+            recs_file.write_text(json.dumps(initial_data), encoding="utf-8")
+
+            def mock_get_hist(symbol, **kwargs):
+                if symbol == "ACB":
+                    return pd.DataFrame(), "PROVIDER_FAILURE", ["ACB fetch failed"]
+                return make_valid_canonical_df(25), "REAL_DATA", []
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    generate_report_main()
+
+                self.assertEqual(ctx.exception.code, 1)
+
+            # Artifact on disk remains untouched
+            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_data)
+
+    def test_13_no_duplicate_uncontrolled_provider_calls(self):
+        """13. Universe scan deduplicates symbols and does not make duplicate/uncontrolled provider calls."""
+        from scripts.generate_report import run_pipeline
+
+        valid_df = make_valid_canonical_df(25)
+        calls_set = set()
+        call_counts = {}
+
+        def mock_get_hist(symbol, **kwargs):
+            call_counts[symbol] = call_counts.get(symbol, 0) + 1
+            calls_set.add(symbol)
+            return valid_df, "REAL_DATA", []
+
+        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+            run_pipeline(update_data=True)
+
+        # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once
+        for sym, cnt in call_counts.items():
+            self.assertEqual(cnt, 1, f"Symbol {sym} was called {cnt} times instead of 1")
+
+    def test_14_existing_pr146_freshness_tests_remain_green(self):
+        """14. Existing PR #146 freshness test suite passes cleanly."""
+        from scripts.tests.test_data_date import (
+            TestProductionDataFreshness,
+            TestTemporalIntegrityValidation,
+        )
+
+        loader = unittest.TestLoader()
+        suite = unittest.TestSuite()
+        suite.addTest(loader.loadTestsFromTestCase(TestProductionDataFreshness))
+        suite.addTest(loader.loadTestsFromTestCase(TestTemporalIntegrityValidation))
+        runner = unittest.TextTestRunner()
+        result = runner.run(suite)
+        self.assertTrue(result.wasSuccessful())
 
 
 if __name__ == "__main__":
