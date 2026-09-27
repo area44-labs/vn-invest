@@ -611,7 +611,7 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
                 try:
                     os.replace(txn.backup_dir, target_dir)
                     target_restored = True
-                except Exception as r_err:
+                except (OSError, shutil.Error) as r_err:
                     logger.critical(
                         "Failed restoring target directory from backup during rollback: %s", r_err
                     )
@@ -622,7 +622,7 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
             if os.path.exists(txn.staging_dir):
                 try:
                     shutil.rmtree(txn.staging_dir, ignore_errors=True)
-                except Exception as r_err:
+                except (OSError, shutil.Error) as r_err:
                     logger.warning(
                         "Failed cleaning up staging directory during rollback: %s", r_err
                     )
