@@ -10,6 +10,7 @@ from unittest.mock import patch
 from scripts.generate_report import (
     ArtifactLock,
     ArtifactLockError,
+    ArtifactTransaction,
     ArtifactTransactionError,
     publish_artifacts_atomically,
     recover_interrupted_publish,
@@ -475,9 +476,11 @@ class TestArtifactTransactionSuite(unittest.TestCase):
                 f,
             )
 
-        with patch("os.replace", side_effect=PermissionError("Permission denied")):
-            with self.assertRaises(ArtifactTransactionError):
-                recover_interrupted_publish(self.target_dir)
+        with (
+            patch("os.replace", side_effect=PermissionError("Permission denied")),
+            self.assertRaises(ArtifactTransactionError),
+        ):
+            recover_interrupted_publish(self.target_dir)
 
         self.assertTrue(os.path.exists(state_file))
         self.assertTrue(os.path.exists(bak_dir))
@@ -561,6 +564,107 @@ class TestArtifactTransactionSuite(unittest.TestCase):
 
         # Unrelated staging dir must NOT be blindly deleted
         self.assertTrue(os.path.exists(unrelated_staging))
+
+    def test_17_real_cleanup_interruption_and_recovery(self):
+        """17. Real transaction CLEANUP boundary interruption test across all recovery scenarios.
+
+        - Executes a real transaction advancing through STAGING -> BACKUP -> COMMIT -> CLEANUP.
+        - Injects an interruption/failure at CLEANUP boundary before cleanup completes.
+        - Verifies recovery context behaviors across target valid, target missing, both missing,
+          required restore/cleanup failure, and idempotency.
+        """
+        # 1. Setup initial valid target
+        initial_file = os.path.join(self.target_dir, "recommendations.json")
+        with open(initial_file, "w", encoding="utf-8") as f:
+            f.write('{"v": "version_0"}\n')
+
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        bak_dir = f"{self.target_dir}_bak"
+
+        # Helper to execute a real publish interrupted at CLEANUP boundary
+        def execute_interrupted_publish_at_cleanup():
+            os.makedirs(self.target_dir, exist_ok=True)
+            with open(
+                os.path.join(self.target_dir, "recommendations.json"), "w", encoding="utf-8"
+            ) as f:
+                f.write('{"v": "pre_publish"}\n')
+
+            txn = ArtifactTransaction(self.target_dir)
+            real_update_state = txn.update_state
+
+            def interrupting_update_state(stage):
+                real_update_state(stage)
+                if stage == "CLEANUP":
+                    raise RuntimeError("Simulated process crash/interruption at CLEANUP boundary")
+
+            with (
+                patch.object(txn, "update_state", side_effect=interrupting_update_state),
+                self.assertRaises(RuntimeError),
+            ):
+                txn.execute_publish(self.sample_artifacts)
+
+        # Scenario A: CLEANUP interrupt + Target valid -> keep target, cleanup backup & journal
+        execute_interrupted_publish_at_cleanup()
+
+        self.assertTrue(os.path.exists(state_file))
+        self.assertTrue(os.path.exists(bak_dir))
+        self.assertTrue(os.path.exists(self.target_dir))
+
+        # Fresh recovery context (as a process restarting)
+        recover_interrupted_publish(self.target_dir)
+
+        # Target remains valid with new artifacts
+        recs_file = os.path.join(self.target_dir, "recommendations.json")
+        self.assertTrue(os.path.exists(recs_file))
+        with open(recs_file, "r", encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["v"], 1)
+
+        # Backup and journal cleaned up safely
+        self.assertFalse(os.path.exists(bak_dir))
+        self.assertFalse(os.path.exists(state_file))
+
+        # Scenario B: CLEANUP interrupt + Target missing, backup exists -> restore backup
+        execute_interrupted_publish_at_cleanup()
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+
+        recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(self.target_dir))
+        self.assertFalse(os.path.exists(bak_dir))
+        self.assertFalse(os.path.exists(state_file))
+
+        # Scenario C: CLEANUP interrupt + Target missing AND backup missing -> raise ArtifactTransactionError & keep journal
+        execute_interrupted_publish_at_cleanup()
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        shutil.rmtree(bak_dir, ignore_errors=True)
+
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(state_file))
+
+        # Scenario D: CLEANUP interrupt + Required restore/cleanup failure -> raise exception & preserve journal + backup
+        shutil.rmtree(state_file, ignore_errors=True)
+        execute_interrupted_publish_at_cleanup()
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+
+        with (
+            patch("os.replace", side_effect=PermissionError("Permission denied")),
+            self.assertRaises(ArtifactTransactionError),
+        ):
+            recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(state_file))
+        self.assertTrue(os.path.exists(bak_dir))
+
+        # Scenario E: Repeated recovery runs are idempotent
+        # Fix permission patch and complete recovery twice
+        recover_interrupted_publish(self.target_dir)
+        recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(self.target_dir))
+        self.assertFalse(os.path.exists(bak_dir))
+        self.assertFalse(os.path.exists(state_file))
 
 
 if __name__ == "__main__":
