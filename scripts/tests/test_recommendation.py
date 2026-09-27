@@ -181,7 +181,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(dq, "SUFFICIENT")
 
     def test_confidence_reflects_signal_agreement(self):
-        """Test P1: Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
+        """1. Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
         from scripts.lib.recommendation import calculate_confidence
 
         risk_metrics = {"volatility_60d": 0.15, "max_drawdown": -0.10}
@@ -271,7 +271,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(conf_partial, 0.70)
 
     def test_divergence_timeframe_weighting_and_conflict(self):
-        """Test P1: Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
+        """2. Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
         # 1D Bullish only
         tf_1d_bull = {
             "1d": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
@@ -528,7 +528,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             self.assertIsNone(tp["stop_loss"])
 
     def test_anti_lookahead_module_level_regression(self):
-        """Module-level regression test for anti-lookahead bias (PR #83).
+        """Module-level regression test for anti-lookahead bias.
 
         Note on Pipeline Entry Point & Temporal Isolation Scope:
         The repository's current report generation pipeline (`run_pipeline` in `scripts/generate_report.py`
@@ -690,7 +690,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
            to evaluate index 28 using bars T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
         3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` accurately captures the temporal dependency.
 
-        Per PR #83 scope restrictions, production quantitative logic is intentionally NOT modified in this PR.
+        Production quantitative logic is intentionally preserved.
         """
         n = 29  # Rows 0..28 (date T is index 28)
         dates_a = pd.date_range("2026-01-01", periods=n, freq="D")

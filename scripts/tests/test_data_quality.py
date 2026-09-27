@@ -37,7 +37,7 @@ def make_valid_df(num_rows: int = 30, start_date: str = "2026-08-01") -> pd.Data
 
 class TestDataQualityGate(unittest.TestCase):
     def test_a_empty_data(self):
-        """Test A — Empty data DataFrame -> INSUFFICIENT."""
+        """1. Empty data DataFrame -> INSUFFICIENT."""
         res_none = validate_ohlcv_data(None)
         self.assertEqual(res_none["status"], "INSUFFICIENT")
         self.assertIn("empty_dataframe", res_none["issues"])
@@ -47,7 +47,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertIn("empty_dataframe", res_empty["issues"])
 
     def test_b_missing_required_column(self):
-        """Test B — Missing required column -> INSUFFICIENT."""
+        """2. Missing required column -> INSUFFICIENT."""
         df = make_valid_df(30)
         df_no_close = df.drop(columns=["close"])
         res = validate_ohlcv_data(df_no_close)
@@ -60,7 +60,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertIn("missing_date_column", res_date["issues"])
 
     def test_c_invalid_numeric_value(self):
-        """Test C — Invalid numeric value -> fail closed, clean dataset empty."""
+        """3. Invalid numeric value -> fail closed, clean dataset empty."""
         df = make_valid_df(30)
         df["close"] = df["close"].astype(object)
         df.loc[5, "close"] = "abc"
@@ -71,7 +71,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(res["clean_df"].empty)
 
     def test_d_nan(self):
-        """Test D — NaN in OHLCV -> fail closed, clean dataset empty."""
+        """4. NaN in OHLCV -> fail closed, clean dataset empty."""
         df = make_valid_df(30)
         df.loc[10, "volume"] = None
         res = validate_ohlcv_data(df)
@@ -81,7 +81,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(res["clean_df"].empty)
 
     def test_e_invalid_ohlc_relationship(self):
-        """Test E — Invalid OHLC relationship -> fail closed, clean dataset empty."""
+        """5. Invalid OHLC relationship -> fail closed, clean dataset empty."""
         df = make_valid_df(30)
         # high < close
         df.loc[8, "high"] = 20.0
@@ -92,7 +92,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(res["clean_df"].empty)
 
     def test_f_negative_volume(self):
-        """Test F — Negative volume -> fail closed, clean dataset empty."""
+        """6. Negative volume -> fail closed, clean dataset empty."""
         df = make_valid_df(30)
         df.loc[12, "volume"] = -500
         res = validate_ohlcv_data(df)
@@ -101,7 +101,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(res["clean_df"].empty)
 
     def test_g_duplicate_dates(self):
-        """Test G — Duplicate dates -> duplicate_dates, fail closed."""
+        """7. Duplicate dates -> duplicate_dates, fail closed."""
         df = make_valid_df(30)
         df.loc[15, "time"] = df.loc[14, "time"]
         res = validate_ohlcv_data(df)
@@ -110,7 +110,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(res["clean_df"].empty)
 
     def test_h_valid_dataset(self):
-        """Test H — Valid dataset returns expected SUFFICIENT quality status."""
+        """8. Valid dataset returns expected SUFFICIENT quality status."""
         df = make_valid_df(30, start_date="2026-08-01")
         res = validate_ohlcv_data(df)
         self.assertEqual(res["status"], "SUFFICIENT")
@@ -119,7 +119,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertEqual(res["latest_date"], "2026-08-30")
 
     def test_i_partial_dataset_pipeline_behavior(self):
-        """Test I — Dataset with invalid row fails closed under hardened validation."""
+        """9. Dataset with invalid row fails closed under hardened validation."""
         df = make_valid_df(31, start_date="2026-08-01")
         # Introduce 1 invalid row at index 15
         df.loc[15, "close"] = -10.0
@@ -146,7 +146,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertIsNone(rec["risk_adjusted_score"])
 
     def test_j_partial_raw_insufficient_clean_rows(self):
-        """Test J — Raw dataset with non-positive prices fails closed -> INSUFFICIENT."""
+        """10. Raw dataset with non-positive prices fails closed -> INSUFFICIENT."""
         df = make_valid_df(21)
         for idx in range(5):
             df.loc[idx, "close"] = -5.0
@@ -157,7 +157,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertIn("non_positive_prices", res["issues"])
 
     def test_k_no_normal_recommendation_from_insufficient_data(self):
-        """Test K — Insufficient data produces non-actionable recommendation with null scores."""
+        """11. Insufficient data produces non-actionable recommendation with null scores."""
         df_short = make_valid_df(10)
         regime_info = {"regime": "STRONG_BULL", "confidence": 0.9}
         rec = generate_recommendation(
@@ -174,7 +174,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertEqual(rec["data_quality"], "INSUFFICIENT")
 
     def test_l_data_as_of_uses_latest_usable_date(self):
-        """Test L — data_as_of remains None when market dataset has corrupted rows."""
+        """12. data_as_of remains None when market dataset has corrupted rows."""
         df = make_valid_df(30, start_date="2026-08-01")
         # Make the latest raw row invalid (e.g. close <= 0)
         df.loc[df.index[-1], "close"] = 0.0
@@ -195,7 +195,7 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertEqual(rec["action"], "AVOID")
 
     def test_m_raw_data_is_not_mutated(self):
-        """Test M — Validation and cleaning never mutate the original raw DataFrame."""
+        """13. Validation and cleaning never mutate the original raw DataFrame."""
         df_orig = make_valid_df(30)
         df_orig.loc[5, "close"] = -99.0
         df_orig.loc[10, "high"] = 1.0
@@ -209,7 +209,7 @@ class TestDataQualityGate(unittest.TestCase):
 
 class TestMarketCleanDataBoundary(unittest.TestCase):
     def test_a_invalid_latest_vnindex_row(self):
-        """Test A — Corrupted latest VNINDEX row fails validation fail-closed."""
+        """1. Corrupted latest VNINDEX row fails validation fail-closed."""
         df_raw = make_valid_df(30, start_date="2026-08-14")
         df_raw.loc[29, "close"] = -100.0
 
@@ -220,7 +220,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertTrue(clean_df.empty)
 
     def test_b_duplicate_benchmark_date(self):
-        """Test B — Duplicate benchmark date fails validation fail-closed."""
+        """2. Duplicate benchmark date fails validation fail-closed."""
         df_raw = make_valid_df(30, start_date="2026-08-01")
         dup_date = df_raw.loc[14, "time"]
         df_raw.loc[15, "time"] = dup_date
@@ -231,7 +231,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertTrue(clean_df.empty)
 
     def test_c_invalid_historical_row_does_not_affect_regime(self):
-        """Test C — Invalid historical row fails validation fail-closed."""
+        """3. Invalid historical row fails validation fail-closed."""
         df_raw = make_valid_df(30, start_date="2026-08-01")
         df_raw.loc[15, "close"] = -999.0
 
@@ -240,7 +240,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertTrue(clean_df.empty)
 
     def test_e_insufficient_clean_benchmark(self):
-        """Test E — Insufficient clean benchmark: fixture with >=20 raw rows but corrupted rows produces INSUFFICIENT status."""
+        """4. Insufficient clean benchmark: fixture with >=20 raw rows but corrupted rows produces INSUFFICIENT status."""
         df_raw = make_valid_df(25, start_date="2026-08-01")
         for i in range(10):
             df_raw.loc[i, "close"] = -1.0
@@ -255,7 +255,7 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         self.assertIsNone(regime["metrics"]["vnindex_value"])
 
     def test_f_no_mutation(self):
-        """Test F — No mutation: Raw VNINDEX/VN30 DataFrames remain unchanged after validation and cleaning."""
+        """5. No mutation: Raw VNINDEX/VN30 DataFrames remain unchanged after validation and cleaning."""
         df_vnindex_raw = make_valid_df(30, start_date="2026-08-01")
         df_vnindex_raw.loc[5, "close"] = -50.0
         df_vn30_raw = make_valid_df(30, start_date="2026-08-01")

@@ -300,7 +300,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_all_artifacts_preserved_when_monitoring_validation_fails(self):
-        """Regression test for PR #143: Ensure no files are written/modified if monitoring validation fails."""
+        """Regression test: Ensure no files are written/modified if monitoring validation fails."""
         temp_dir = tempfile.mkdtemp()
         try:
             gen_dir = os.path.join(temp_dir, "generated")

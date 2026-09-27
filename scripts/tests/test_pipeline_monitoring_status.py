@@ -145,7 +145,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_a_monitoring_pass_succeeds(self):
-        """Test A: Monitoring PASS -> pipeline succeeds, monitoring status is PASS, process exits 0."""
+        """1. Monitoring PASS -> pipeline succeeds, monitoring status is PASS, process exits 0."""
         mock_mon = MagicMock()
         mock_mon.overall_status = "PASS"
         mock_mon.to_dict.return_value = {
@@ -175,7 +175,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertEqual(mon_data["overall_status"], "PASS")
 
     def test_b_monitoring_warn_succeeds_with_warning_logged(self):
-        """Test B: Monitoring WARN -> pipeline remains successful (exit 0), monitoring payload contains WARN."""
+        """2. Monitoring WARN -> pipeline remains successful (exit 0), monitoring payload contains WARN."""
         mock_mon = MagicMock()
         mock_mon.overall_status = "WARN"
         mock_mon.to_dict.return_value = {
@@ -205,7 +205,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertEqual(mon_data["overall_status"], "WARN")
 
     def test_c_monitoring_fail_exits_nonzero(self):
-        """Test C: Monitoring FAIL -> process exits non-zero (SystemExit(1)), no artifacts written."""
+        """3. Monitoring FAIL -> process exits non-zero (SystemExit(1)), no artifacts written."""
         mock_mon = MagicMock()
         mock_mon.overall_status = "FAIL"
         mock_mon.to_dict.return_value = {
@@ -234,7 +234,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertFalse(os.path.exists(mon_path))
 
     def test_d_existing_drift_scenario_evaluates_to_fail(self):
-        """Test D: Reproduce realistic distribution shift scenario and verify monitoring result evaluates to FAIL."""
+        """4. Reproduce realistic distribution shift scenario and verify monitoring result evaluates to FAIL."""
         # Current distribution:
         # BUY   0.000 (0 / 42)
         # WATCH 0.310 (13 / 42)
@@ -271,7 +271,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertGreater(action_chk.observation.absolute_difference["max_difference"], 0.35)
 
     def test_e_payload_integrity_failure_preserves_artifacts_byte_for_byte(self):
-        """Test E: Payload integrity failure -> exit non-zero, existing artifacts remain byte-for-byte unchanged, no partial output created."""
+        """5. Payload integrity failure -> exit non-zero, existing artifacts remain byte-for-byte unchanged, no partial output created."""
         recs_file = os.path.join(self.gen_dir, "recommendations.json")
         mkt_file = os.path.join(self.gen_dir, "market.json")
         mon_file = os.path.join(self.gen_dir, "monitoring.json")
@@ -318,7 +318,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         self.assertFalse(os.path.exists(mon_file))
 
     def test_f_rate_limit_regression_preserves_artifacts(self):
-        """Test F: ProviderRateLimitError handling -> exits non-zero, preserves existing artifacts."""
+        """6. ProviderRateLimitError handling -> exits non-zero, preserves existing artifacts."""
         recs_file = os.path.join(self.gen_dir, "recommendations.json")
         original_content = '{"existing": "data"}\n'
         with open(recs_file, "w", encoding="utf-8") as f:

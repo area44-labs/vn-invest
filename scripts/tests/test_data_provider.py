@@ -951,7 +951,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
 
 
 class TestUniverseCompletenessValidation(unittest.TestCase):
-    """Offline unit tests verifying PR #136 complete universe processing and fail-closed validation."""
+    """Offline unit tests verifying complete universe processing and fail-closed validation."""
 
     def setUp(self):
         reset_circuit_breaker()
@@ -1815,7 +1815,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
 
 class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
-    """PR #155 Provider Reliability & Performance deterministic offline test suite."""
+    """Provider Reliability & Performance deterministic offline test suite."""
 
     def setUp(self):
         reset_circuit_breaker()
@@ -2119,7 +2119,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             self.assertEqual(cnt, 1, f"Symbol {sym} was called {cnt} times instead of 1")
 
     def test_14_existing_pr146_freshness_tests_remain_green(self):
-        """14. Existing PR #146 freshness test suite passes cleanly."""
+        """14. Existing freshness test suite passes cleanly."""
         from scripts.tests.test_data_date import (
             TestProductionDataFreshness,
             TestTemporalIntegrityValidation,

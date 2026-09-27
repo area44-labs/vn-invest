@@ -25,7 +25,7 @@ from scripts.lib.vietnam_market import (
 
 class TestDataDateSemantics(unittest.TestCase):
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
-        """Test C: extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
+        """1. extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
         df_unsorted = pd.DataFrame(
             {
                 "time": ["2026-09-10", "2026-09-12", "2026-09-11", "invalid-date", None],
@@ -169,7 +169,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
-        """Test B: When data_as_of is None, monitoring fails and no output artifacts are published."""
+        """2. When data_as_of is None, monitoring fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
             patch("scripts.generate_report.get_historical_data") as mock_get_hist,

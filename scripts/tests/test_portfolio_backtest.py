@@ -614,7 +614,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
         self.eval_date = self.df_aaa["date"].iloc[40]
 
-    def test_mutating_data_after_T_does_not_affect_portfolio_at_T(self) -> None:
+    def test_mutating_data_after_t_does_not_affect_portfolio_at_t(self) -> None:
         cfg = PortfolioConfig(
             min_signal_score=0.0,
             min_history=30,
@@ -1981,20 +1981,20 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         df_gap = create_synthetic_ohlcv(
             start_date="2024-01-01", num_days=33, base_price=10000.0, daily_trend=100.0
         )
-        p_T = df_gap.loc[29, "close"]
+        p_t = df_gap.loc[29, "close"]
 
         # Row 29 is Friday (2024-02-09)
         # Row 30 is Monday (2024-02-12) -> price 110% of Friday close
         # Row 31 is Tuesday (2024-02-13) -> price 120% of Friday close
-        df_gap.loc[30, "close"] = p_T * 1.10
-        df_gap.loc[30, "open"] = p_T * 1.09
-        df_gap.loc[30, "high"] = p_T * 1.11
-        df_gap.loc[30, "low"] = p_T * 1.08
+        df_gap.loc[30, "close"] = p_t * 1.10
+        df_gap.loc[30, "open"] = p_t * 1.09
+        df_gap.loc[30, "high"] = p_t * 1.11
+        df_gap.loc[30, "low"] = p_t * 1.08
 
-        df_gap.loc[31, "close"] = p_T * 1.20
-        df_gap.loc[31, "open"] = p_T * 1.19
-        df_gap.loc[31, "high"] = p_T * 1.21
-        df_gap.loc[31, "low"] = p_T * 1.18
+        df_gap.loc[31, "close"] = p_t * 1.20
+        df_gap.loc[31, "open"] = p_t * 1.19
+        df_gap.loc[31, "high"] = p_t * 1.21
+        df_gap.loc[31, "low"] = p_t * 1.18
 
         eval_fri = df_gap["date"].iloc[29]  # Friday evaluation date
 
@@ -2003,7 +2003,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             "signal_score": 80.0,
             "risk_adjusted_score": 80.0,
             "confidence": 0.8,
-            "trade_plan": {"current_price": p_T},
+            "trade_plan": {"current_price": p_t},
         }
 
         cfg = PortfolioConfig(

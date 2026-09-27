@@ -295,7 +295,7 @@ PIPELINE_STAGES = (
     "ARTIFACT_WRITE",
 )
 
-# Authoritative Pipeline Stages & Statuses for Performance Profiling (PR #156)
+# Authoritative Pipeline Stages & Statuses for Performance Profiling
 PERFORMANCE_PIPELINE_STAGES = (
     "pipeline",
     "benchmark_fetch",

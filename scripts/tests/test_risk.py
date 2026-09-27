@@ -386,7 +386,7 @@ class TestRiskModel(unittest.TestCase):
         n = 30
         dates_past = pd.date_range("2026-03-01", periods=n, freq="D")
         prices_past = np.linspace(100.0, 140.0, n)
-        df_as_of_T = pd.DataFrame(
+        df_as_of_t = pd.DataFrame(
             {
                 "time": dates_past,
                 "open": prices_past - 1.0,
@@ -397,7 +397,7 @@ class TestRiskModel(unittest.TestCase):
             }
         )
 
-        metrics_baseline = calculate_t25_risk_metrics(df_as_of_T)
+        metrics_baseline = calculate_t25_risk_metrics(df_as_of_t)
 
         # Append future data after 2026-03-30 with extreme price swings
         dates_future = pd.date_range("2026-03-31", periods=10, freq="D")
@@ -412,7 +412,7 @@ class TestRiskModel(unittest.TestCase):
                 "volume": [50000.0] * 10,
             }
         )
-        df_full = pd.concat([df_as_of_T, df_future], ignore_index=True)
+        df_full = pd.concat([df_as_of_t, df_future], ignore_index=True)
 
         # Use backtest point-in-time temporal slicer to slice <= 2026-03-30
         df_sliced = get_as_of_dataset(df_full, "2026-03-30")

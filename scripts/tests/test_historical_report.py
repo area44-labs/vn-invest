@@ -1,4 +1,4 @@
-"""Unit and integration tests for reproducible historical report generation (PR #96)."""
+"""Unit and integration tests for reproducible historical report generation."""
 
 import json
 import os

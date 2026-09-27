@@ -36,16 +36,16 @@ Key Architectural Principles:
    This module explicitly distinguishes five separate concepts:
    1. Production Market Regime & Signal Generation: Real-time, point-in-time calculation of complete market
       regimes and stock signal recommendations using production model weights, confidence rules, and trade plans.
-   2. Historical Market-Regime Validation (PR #92): Point-in-time descriptive evaluation measuring how production
+   2. Historical Market-Regime Validation: Point-in-time descriptive evaluation measuring how production
       market regimes (STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC) assigned at date T map to forward market returns
       (5D, 10D, 20D) strictly without lookahead bias, threshold tuning, or model modification.
-   3. Historical Component Evaluation (PR #88): Point-in-time measurement of individual signal component scores
+   3. Historical Component Evaluation: Point-in-time measurement of individual signal component scores
       (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
       on identical evaluation dates and horizons without model or weight modification.
-   4. Execution & Liquidity Eligibility Evaluation (PR #90): Point-in-time evaluation of whether historical observable
+   4. Execution & Liquidity Eligibility Evaluation: Point-in-time evaluation of whether historical observable
       market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
       min price, max participation rate) without altering production signal scores or model weights.
-   5. Portfolio Backtesting (PR #91): Simulation of portfolio-level capital allocation, position sizing,
+   5. Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
       slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
       (OUT OF SCOPE for this framework).
    6. Historical Confidence Evaluation & Calibration: Point-in-time observational measurement of production
@@ -1051,11 +1051,11 @@ def evaluate_forward_outcomes(
     if matches.empty:
         raise ValueError(f"Evaluation date '{target_date_str}' not present in stock price history.")
 
-    idx_T = matches.index[0]
-    price_T = _safe_float(df_clean.iloc[idx_T]["close"])
+    idx_t = matches.index[0]
+    price_t = _safe_float(df_clean.iloc[idx_t]["close"])
 
-    if price_T is None or price_T <= 0:
-        raise ValueError(f"Invalid price at evaluation date '{target_date_str}': {price_T}")
+    if price_t is None or price_t <= 0:
+        raise ValueError(f"Invalid price at evaluation date '{target_date_str}': {price_t}")
 
     returns: dict[int, float | None] = {}
     availability: dict[int, bool] = {}
@@ -1067,7 +1067,7 @@ def evaluate_forward_outcomes(
         if h <= 0:
             raise ValueError(f"Horizon must be a positive integer, got {h}")
 
-        future_idx = idx_T + h
+        future_idx = idx_t + h
         if future_idx < total_sessions:
             row_future = df_clean.iloc[future_idx]
             date_future = row_future["_date_str"]
@@ -1079,7 +1079,7 @@ def evaluate_forward_outcomes(
                 and price_future is not None
                 and price_future > 0
             ):
-                ret_val = round((price_future / price_T) - 1.0, 6)
+                ret_val = round((price_future / price_t) - 1.0, 6)
                 returns[h] = ret_val
                 availability[h] = True
 
@@ -2454,7 +2454,7 @@ def evaluate_signal_components(
       derived strictly from point-in-time data <= T (`get_as_of_dataset`), without score or weight modification.
     - Market inputs (VNINDEX, VN30, and universe breadth as-of T) are strictly bounded <= T.
     - Forward outcomes (> T) are evaluated using the existing deterministic forward-horizon primitive (`evaluate_forward_outcomes`).
-    - Fail-closed validation rules from PR #86 / #87 are fully preserved.
+    - Fail-closed validation rules for minimum history are fully preserved.
 
     Returns:
     `ComponentEvaluationResult` containing granular component observations and aggregated metrics.

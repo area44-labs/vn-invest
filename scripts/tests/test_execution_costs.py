@@ -390,7 +390,7 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
 
         # Equal weighting (0.50 each):
         # Hand-calculated weighted portfolio return = 0.5 * 0.098572 + 0.5 * 0.0 = 0.049286
-        HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN = 0.049286
+        hand_calculated_oracle_portfolio_net_return = 0.049286
 
         cfg = PortfolioConfig(
             max_positions=2,
@@ -417,7 +417,7 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
 
         self.assertEqual(
             eval_res.portfolio_forward_returns[5],
-            HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN,
+            hand_calculated_oracle_portfolio_net_return,
         )
 
     def test_portfolio_net_return_equals_weighted_net_position_returns(self) -> None:
@@ -614,17 +614,17 @@ class TestSellExitPriceReconstructionAndPortfolioCoverage(unittest.TestCase):
 
         # Hand-calculated oracle weighted net return:
         # 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round to 6 decimals = 0.094709
-        HAND_CALCULATED_COMBINED_ORACLE_RETURN = 0.094709
+        hand_calculated_combined_oracle_return = 0.094709
         self.assertEqual(
-            eval_res.portfolio_forward_returns[5], HAND_CALCULATED_COMBINED_ORACLE_RETURN
+            eval_res.portfolio_forward_returns[5], hand_calculated_combined_oracle_return
         )
 
 
 class TestNoLookaheadAndEligibilityInteraction(unittest.TestCase):
-    """Test suite validating temporal isolation and PR #100 execution eligibility interaction."""
+    """Test suite validating temporal isolation and execution eligibility interaction."""
 
     def test_execution_eligibility_not_altered_by_cost_assumptions(self) -> None:
-        """Verify non-executable stocks under PR #100 remain non-executable regardless of cost settings."""
+        """Verify non-executable stocks remain non-executable regardless of cost settings."""
         dates = pd.date_range("2024-01-01", periods=30, freq="B").strftime("%Y-%m-%d")
         # Low volume stock failing min_avg_volume requirement (10,000 < 50,000 threshold)
         prices = [10_000.0] * 30
@@ -829,7 +829,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         # P_exit_exec = 110 * (1 - 0.001) = 109.89
         # net_return_buy = (1 - 0.0015) * (109.89 / 100.1) * (1 - 0.0015) - 1
         # = 0.9985 * 1.0978021978021978 * 0.9985 - 1 = 1.0945112137862137 - 1 = 0.094511213... -> 0.094511
-        BUY_HAND_CALCULATED_NET = 0.094511
+        buy_hand_calculated_net = 0.094511
 
         # SELL (entry = 100, exit = 90):
         # P_entry_exec = 100 * (1 - 0.001) = 99.9
@@ -837,11 +837,11 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         # slip_ret = 1.0 - (90.09 / 99.9) = 1.0 - 0.9018018018018018 = 0.0981981981981982
         # net_return_sell = (1 - 0.0015) * (1 + 0.0981981981981982) * (1 - 0.0015) - 1
         # = 0.9985 * 1.0981981981981982 * 0.9985 - 1 = 1.0949060601... - 1 = 0.09490606... -> 0.094906
-        SELL_HAND_CALCULATED_NET = 0.094906
+        sell_hand_calculated_net = 0.094906
 
         # Portfolio Net Return Oracle:
         # = 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round(..., 6) = 0.094709
-        PORTFOLIO_HAND_CALCULATED_NET = 0.094709
+        portfolio_hand_calculated_net = 0.094709
 
         pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
         pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
@@ -849,16 +849,16 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         self.assertEqual(pos_buy.weight, 0.50)
         self.assertEqual(pos_sell.weight, 0.50)
 
-        self.assertEqual(pos_buy.forward_returns[5], BUY_HAND_CALCULATED_NET)
-        self.assertEqual(pos_sell.forward_returns[5], SELL_HAND_CALCULATED_NET)
+        self.assertEqual(pos_buy.forward_returns[5], buy_hand_calculated_net)
+        self.assertEqual(pos_sell.forward_returns[5], sell_hand_calculated_net)
 
         # Verify portfolio net return equals weighted position net returns exactly
         oracle_weighted_sum = round(
-            pos_buy.weight * BUY_HAND_CALCULATED_NET + pos_sell.weight * SELL_HAND_CALCULATED_NET,
+            pos_buy.weight * buy_hand_calculated_net + pos_sell.weight * sell_hand_calculated_net,
             6,
         )
-        self.assertEqual(oracle_weighted_sum, PORTFOLIO_HAND_CALCULATED_NET)
-        self.assertEqual(eval_res.portfolio_forward_returns[5], PORTFOLIO_HAND_CALCULATED_NET)
+        self.assertEqual(oracle_weighted_sum, portfolio_hand_calculated_net)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], portfolio_hand_calculated_net)
 
     @patch("scripts.lib.portfolio_backtest.generate_recommendation")
     def test_multi_horizon_consistency_and_missing_outcomes(self, mock_gen_rec) -> None:

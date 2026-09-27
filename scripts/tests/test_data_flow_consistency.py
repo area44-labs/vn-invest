@@ -1,4 +1,4 @@
-"""Deterministic offline regression tests for end-to-end pipeline data flow consistency (PR #107).
+"""Deterministic offline regression tests for end-to-end pipeline data flow consistency.
 
 Validates:
 1. Symbol categorization when raw data is >= 20 rows but clean data is < 20 rows ('status' == 'INSUFFICIENT').

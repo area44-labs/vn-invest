@@ -1,4 +1,4 @@
-"""Deterministic offline unit tests for production pipeline performance profiling (PR #156).
+"""Deterministic offline unit tests for production pipeline performance profiling.
 
 Tests performance timing instrumentation, stage ordering, provider timing aggregation,
 duplicate work detection, fail-closed guarantees, and output invariance without live network access.
@@ -192,7 +192,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertEqual(stages1, expected_order)
 
     def test_3_provider_timing_from_pr155_aggregated_correctly(self):
-        """3. Provider call timing history from PR #155 is aggregated correctly."""
+        """3. Provider call timing history is aggregated correctly."""
         call_history = [
             {
                 "provider": "vnstock",

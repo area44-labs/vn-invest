@@ -616,8 +616,8 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(sig.evaluation_date, eval_d)
 
         # Verify entry price matches exact price at evaluation date T (rounded to VND unit)
-        c_at_T = self.df_stock[self.df_stock["date"] == eval_d]["close"].iloc[0]
-        self.assertAlmostEqual(sig.entry_price, round(c_at_T, 0), places=2)
+        c_at_t = self.df_stock[self.df_stock["date"] == eval_d]["close"].iloc[0]
+        self.assertAlmostEqual(sig.entry_price, round(c_at_t, 0), places=2)
 
     def test_wf_d_future_mutation_isolation(self):
         """Test WF-D: Mutating post-T stock data leaves signal scores, confidence, regime, and components identical."""
@@ -758,9 +758,9 @@ class TestBacktestFramework(unittest.TestCase):
         )
 
         outcome = wf_res.results[0].outcome
-        p_T = self.df_stock["close"].iloc[50]
-        p_T5 = self.df_stock["close"].iloc[55]
-        expected_ret5 = round((p_T5 / p_T) - 1.0, 6)
+        p_t = self.df_stock["close"].iloc[50]
+        p_t5 = self.df_stock["close"].iloc[55]
+        expected_ret5 = round((p_t5 / p_t) - 1.0, 6)
 
         self.assertAlmostEqual(outcome.returns[5], expected_ret5, places=5)
 
@@ -815,7 +815,7 @@ class TestBacktestFramework(unittest.TestCase):
             )
 
     def test_wf_min_history_explicit_evaluation_date_too_early(self):
-        """Test PR #87 Fix Test A1: Single stock explicit evaluation date with insufficient history <= T raises ValueError."""
+        """Test single stock explicit evaluation date with insufficient history <= T raises ValueError."""
         # Date at index 3 has only 4 historical sessions <= T
         early_date = self.df_stock["date"].iloc[3]
 
@@ -831,7 +831,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertIn("TCB", str(cm.exception))
 
     def test_wf_min_history_explicit_evaluation_date_exact_minimum(self):
-        """Test PR #87 Fix Test A2: Single stock explicit evaluation date with exact min_history sessions succeeds."""
+        """Test single stock explicit evaluation date with exact min_history sessions succeeds."""
         # Date at index 4 has exactly 5 historical sessions <= T (indices 0, 1, 2, 3, 4)
         exact_date = self.df_stock["date"].iloc[4]
 
@@ -902,7 +902,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertIn("BBB", str(cm.exception))
 
     def test_wf_universe_explicit_dates_per_stock_min_history(self):
-        """Test PR #87 Fix Test B / Test 5: Universe explicit evaluation date fails closed if ANY stock lacks min_history."""
+        """Test universe explicit evaluation date fails closed if ANY stock lacks min_history."""
         # Stock A starts at index 0 (2025-01-01) -> 50 sessions at index 49
         df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
         # Stock B starts later at 2025-02-15 -> on 2025-02-20, Stock B only has 4 sessions
@@ -924,7 +924,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertIn(eval_d, str(cm.exception))
 
     def test_wf_universe_generated_dates_strict_contract(self):
-        """Test PR #87 Fix Test C: Generated universe dates strictly require ALL stocks to satisfy min_history."""
+        """Test generated universe dates strictly require ALL stocks to satisfy min_history."""
         # Stock A starts 2025-01-01 (100 sessions)
         df_stock_a = generate_synthetic_ohlcv(100, start_date="2025-01-01", base_price=50.0)
         # Stock B starts 2025-01-01 (70 sessions)
@@ -968,7 +968,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertIn("failed point-in-time validation", str(cm.exception))
 
     def test_wf_min_history_future_mutation_cannot_satisfy_min_history(self):
-        """Test PR #87 Fix Test D: Mutating future data (> T) cannot bypass min_history enforcement <= T."""
+        """Test mutating future data (> T) cannot bypass min_history enforcement <= T."""
         # Date at index 3 has 4 sessions <= T
         early_date = self.df_stock["date"].iloc[3]
 
@@ -1010,7 +1010,7 @@ class TestBacktestFramework(unittest.TestCase):
                 symbol="TCB",
             )
 
-    # --- PR #88 Signal Component Evaluation Unit Tests ---
+    # --- Signal Component Evaluation Unit Tests ---
 
     def test_comp_1_component_decomposition(self):
         """Test Comp 1: Signal component decomposition returns Trend, Momentum, Volume, RS, and Divergence scores matching production recommendation engine."""
@@ -1274,14 +1274,14 @@ class TestBacktestFramework(unittest.TestCase):
             horizons=[5, 10, 20],
         )
 
-        p_T = self.df_stock["close"].iloc[50]
-        p_T5 = self.df_stock["close"].iloc[55]
-        p_T10 = self.df_stock["close"].iloc[60]
-        p_T20 = self.df_stock["close"].iloc[70]
+        p_t = self.df_stock["close"].iloc[50]
+        p_t5 = self.df_stock["close"].iloc[55]
+        p_t10 = self.df_stock["close"].iloc[60]
+        p_t20 = self.df_stock["close"].iloc[70]
 
-        expected_ret5 = round((p_T5 / p_T) - 1.0, 6)
-        expected_ret10 = round((p_T10 / p_T) - 1.0, 6)
-        expected_ret20 = round((p_T20 / p_T) - 1.0, 6)
+        expected_ret5 = round((p_t5 / p_t) - 1.0, 6)
+        expected_ret10 = round((p_t10 / p_t) - 1.0, 6)
+        expected_ret20 = round((p_t20 / p_t) - 1.0, 6)
 
         obs_5 = next(o for o in comp_res.observations if o.horizon == 5)
         obs_10 = next(o for o in comp_res.observations if o.horizon == 10)
@@ -1885,7 +1885,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
 
 
 class TestMarketRegimeValidationFramework(unittest.TestCase):
-    """Test suite verifying PR #92 Market-Regime Validation Layer."""
+    """Test suite verifying Market-Regime Validation Layer."""
 
     def setUp(self):
         self.df_vnindex = generate_synthetic_ohlcv(
@@ -1928,18 +1928,18 @@ class TestMarketRegimeValidationFramework(unittest.TestCase):
             self.assertTrue(obs.availability)
 
         # Check forward return formula exactness
-        p_T = self.df_vnindex["close"].iloc[50]
-        p_T5 = self.df_vnindex["close"].iloc[55]
-        p_T10 = self.df_vnindex["close"].iloc[60]
-        p_T20 = self.df_vnindex["close"].iloc[70]
+        p_t = self.df_vnindex["close"].iloc[50]
+        p_t5 = self.df_vnindex["close"].iloc[55]
+        p_t10 = self.df_vnindex["close"].iloc[60]
+        p_t20 = self.df_vnindex["close"].iloc[70]
 
         obs_5 = next(o for o in res.observations if o.horizon == 5)
         obs_10 = next(o for o in res.observations if o.horizon == 10)
         obs_20 = next(o for o in res.observations if o.horizon == 20)
 
-        self.assertAlmostEqual(obs_5.forward_return, round((p_T5 / p_T) - 1.0, 6), places=5)
-        self.assertAlmostEqual(obs_10.forward_return, round((p_T10 / p_T) - 1.0, 6), places=5)
-        self.assertAlmostEqual(obs_20.forward_return, round((p_T20 / p_T) - 1.0, 6), places=5)
+        self.assertAlmostEqual(obs_5.forward_return, round((p_t5 / p_t) - 1.0, 6), places=5)
+        self.assertAlmostEqual(obs_10.forward_return, round((p_t10 / p_t) - 1.0, 6), places=5)
+        self.assertAlmostEqual(obs_20.forward_return, round((p_t20 / p_t) - 1.0, 6), places=5)
 
     def test_regime_val_2_no_lookahead_future_mutation(self):
         """Test Regime Val 2: Mutating VNINDEX, VN30, or market breadth strictly AFTER T cannot change regime at T."""
