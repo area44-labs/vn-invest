@@ -305,7 +305,7 @@ def recover_transaction_state(target_dir: str) -> None:
             )
             try:
                 os.replace(bak_dir, target_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.critical("Required cleanup failed restoring target from backup: %s", err)
                 raise ArtifactTransactionError(
                     f"Required cleanup failed restoring target from backup: {err}"
@@ -314,7 +314,7 @@ def recover_transaction_state(target_dir: str) -> None:
             # Optional cleanup
             try:
                 shutil.rmtree(bak_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.warning("Optional cleanup of fallback backup '%s' failed: %s", bak_dir, err)
         return
 
@@ -331,7 +331,7 @@ def recover_transaction_state(target_dir: str) -> None:
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.error(
                     "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
                 )
@@ -348,7 +348,7 @@ def recover_transaction_state(target_dir: str) -> None:
                 os.replace(backup_dir, target_dir)
                 target_exists = True
                 backup_exists = False
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.critical("Required cleanup failed restoring backup in stage BACKUP: %s", err)
                 raise ArtifactTransactionError(
                     f"Required cleanup failed restoring backup in stage BACKUP: {err}"
@@ -358,7 +358,7 @@ def recover_transaction_state(target_dir: str) -> None:
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.error(
                     "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
                 )
@@ -371,7 +371,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -383,7 +383,7 @@ def recover_transaction_state(target_dir: str) -> None:
                 os.replace(backup_dir, target_dir)
                 target_exists = True
                 backup_exists = False
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.critical("Required cleanup failed restoring backup in stage COMMIT: %s", err)
                 raise ArtifactTransactionError(
                     f"Required cleanup failed restoring backup in stage COMMIT: {err}"
@@ -392,7 +392,7 @@ def recover_transaction_state(target_dir: str) -> None:
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.error(
                     "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
                 )
@@ -404,7 +404,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -413,7 +413,7 @@ def recover_transaction_state(target_dir: str) -> None:
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.error(
                     "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
                 )
@@ -425,7 +425,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -433,7 +433,7 @@ def recover_transaction_state(target_dir: str) -> None:
     # Conclusively safe -> remove state file
     try:
         os.remove(state_file)
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         logger.warning("Failed removing transaction state file '%s': %s", state_file, err)
 
 
