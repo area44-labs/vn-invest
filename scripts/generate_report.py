@@ -410,6 +410,35 @@ def recover_transaction_state(target_dir: str) -> None:
                 )
 
     elif stage == "CLEANUP":
+        # Required safety check: target must exist and be valid before removing backup
+        if not target_exists:
+            if backup_exists:
+                logger.info(
+                    "Restoring target '%s' from backup '%s' during CLEANUP recovery...",
+                    target_dir,
+                    backup_dir,
+                )
+                try:
+                    os.replace(backup_dir, target_dir)
+                    target_exists = True
+                    backup_exists = False
+                except Exception as err:
+                    logger.critical(
+                        "Required cleanup failed restoring backup in stage CLEANUP: %s", err
+                    )
+                    raise ArtifactTransactionError(
+                        f"Required cleanup failed restoring backup in stage CLEANUP: {err}"
+                    ) from err
+            else:
+                logger.critical(
+                    "CRITICAL: Neither target_dir '%s' nor backup_dir '%s' exists during CLEANUP recovery!",
+                    target_dir,
+                    backup_dir,
+                )
+                raise ArtifactTransactionError(
+                    f"CRITICAL: Neither target_dir '{target_dir}' nor backup_dir '{backup_dir}' exists during CLEANUP recovery!"
+                )
+
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)

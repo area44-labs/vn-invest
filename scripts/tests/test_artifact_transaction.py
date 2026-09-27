@@ -368,6 +368,93 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             self.assertEqual(f.read(), '{"v": "restore_me"}\n')
         self.assertFalse(os.path.exists(state_file))
 
+    def test_15_cleanup_boundary_scenarios(self):
+        """15. Behavior-based tests for CLEANUP boundary scenarios."""
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        bak_dir = f"{self.target_dir}_bak"
+        staging_dir = f"{self.target_dir}_staging_test_cleanup"
+
+        # Scenario 1: CLEANUP + target valid + backup exists -> clean backup and complete
+        os.makedirs(bak_dir, exist_ok=True)
+        os.makedirs(self.target_dir, exist_ok=True)
+        with open(
+            os.path.join(self.target_dir, "recommendations.json"), "w", encoding="utf-8"
+        ) as f:
+            f.write('{"v": "target_valid"}\n')
+        with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
+            f.write('{"v": "old_backup"}\n')
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test_cleanup",
+                    "stage": "CLEANUP",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertFalse(os.path.exists(bak_dir))
+        self.assertFalse(os.path.exists(state_file))
+
+        # Scenario 2: CLEANUP + target missing + backup exists -> restore backup to target
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        os.makedirs(bak_dir, exist_ok=True)
+        with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
+            f.write('{"v": "restore_backup_cleanup"}\n')
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test_cleanup",
+                    "stage": "CLEANUP",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        with open(
+            os.path.join(self.target_dir, "recommendations.json"), "r", encoding="utf-8"
+        ) as f:
+            self.assertEqual(f.read(), '{"v": "restore_backup_cleanup"}\n')
+        self.assertFalse(os.path.exists(bak_dir))
+
+        # Scenario 3: CLEANUP + target missing + backup restore failure -> preserve journal and raise
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        os.makedirs(bak_dir, exist_ok=True)
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test_cleanup",
+                    "stage": "CLEANUP",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        with patch("os.replace", side_effect=PermissionError("Permission denied")):
+            with self.assertRaises(ArtifactTransactionError):
+                recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(state_file))
+        self.assertTrue(os.path.exists(bak_dir))
+
+        # Scenario 4: CLEANUP + neither target nor backup exists -> raise ArtifactTransactionError & preserve journal
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        shutil.rmtree(bak_dir, ignore_errors=True)
+
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+
+        self.assertTrue(os.path.exists(state_file))
+
     def test_13_required_vs_optional_cleanup_failures(self):
         """13. Verify required cleanup failure raises error while optional cleanup failure logs warning and preserves success."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
