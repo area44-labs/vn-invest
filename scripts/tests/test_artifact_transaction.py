@@ -392,9 +392,11 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             )
 
         # Required cleanup failure (shutil.rmtree failing on required staging dir removal)
-        with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
-            with self.assertRaises(ArtifactTransactionError):
-                recover_interrupted_publish(self.target_dir)
+        with (
+            patch("shutil.rmtree", side_effect=PermissionError("Permission denied")),
+            self.assertRaises(ArtifactTransactionError),
+        ):
+            recover_interrupted_publish(self.target_dir)
 
         # Journal remains for retry when required cleanup fails
         self.assertTrue(os.path.exists(state_file))
