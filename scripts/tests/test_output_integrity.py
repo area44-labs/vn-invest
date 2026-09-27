@@ -488,7 +488,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
             def failing_os_replace(src, dst):
                 nonlocal replace_count
                 replace_count += 1
-                if replace_count == 2:  # Fail on second replace call AFTER first replace succeeded
+                if "staging" in str(src):  # Fail on COMMIT swap
                     raise OSError("Disk failure on second artifact replacement")
                 return real_os_replace(src, dst)
 
@@ -538,20 +538,15 @@ class TestOutputIntegritySuite(unittest.TestCase):
             artifacts = {"recommendations.json": {"new": 1}}
 
             real_os_replace = os.replace
-            replace_count = 0
 
             def double_failing_replace(src, dst):
-                nonlocal replace_count
-                replace_count += 1
-                if replace_count == 1:
-                    # Backup replace: target -> bak
-                    return real_os_replace(src, dst)
-                elif replace_count == 2:
-                    # Target replace: tmp -> target fails
+                if "staging" in str(src):
+                    # Target replace: staging -> target fails
                     raise OSError("Disk write error during commit")
-                else:
+                elif "bak" in str(src):
                     # Rollback replace: bak -> target fails
                     raise OSError("Disk write error during rollback")
+                return real_os_replace(src, dst)
 
             with (
                 patch("os.replace", side_effect=double_failing_replace),
