@@ -160,9 +160,11 @@ class TestArtifactTransactionSuite(unittest.TestCase):
                 raise OSError("Simulated disk replacement failure during commit")
             return real_replace(src, dst)
 
-        with patch("os.replace", side_effect=failing_replace):
-            with self.assertRaises(OSError):
-                publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
+        with (
+            patch("os.replace", side_effect=failing_replace),
+            self.assertRaises(OSError),
+        ):
+            publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
 
         # Target must be restored byte-for-byte to pre-commit state
         with open(target_file, "r", encoding="utf-8") as f:
@@ -195,9 +197,11 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         # Fail transaction during execute_publish write phase
         bad_artifacts = {"invalid/path/null": None}
 
-        with patch("json.dump", side_effect=TypeError("Non-serializable object")):
-            with self.assertRaises(TypeError):
-                publish_artifacts_atomically(bad_artifacts, target_dir=self.target_dir)
+        with (
+            patch("json.dump", side_effect=TypeError("Non-serializable object")),
+            self.assertRaises(TypeError),
+        ):
+            publish_artifacts_atomically(bad_artifacts, target_dir=self.target_dir)
 
         # Original data preserved
         with open(target_file, "r", encoding="utf-8") as f:

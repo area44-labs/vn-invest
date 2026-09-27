@@ -21,9 +21,9 @@ import math
 import os
 import shutil
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Self
 
 import jsonschema
 import pandas as pd
@@ -84,13 +84,9 @@ def validate_performance_payload(performance_data: dict, schema: dict | None = N
 class ArtifactLockError(RuntimeError):
     """Raised when artifact directory lock cannot be acquired."""
 
-    pass
-
 
 class ArtifactTransactionError(RuntimeError):
     """Raised when artifact publishing transaction fails."""
-
-    pass
 
 
 class ArtifactLock:
@@ -105,11 +101,11 @@ class ArtifactLock:
         parent_dir = os.path.dirname(self.target_dir)
         dir_name = os.path.basename(self.target_dir)
         self.lock_path = os.path.join(parent_dir, f".{dir_name}.lock")
-        self.fd = None
+        self.fd: Any = None
         self.is_acquired = False
         self.timeout = timeout
 
-    def acquire(self) -> "ArtifactLock":
+    def acquire(self) -> Self:
         if self.is_acquired:
             return self
 
@@ -126,12 +122,12 @@ class ArtifactLock:
                 return self
             except (BlockingIOError, OSError) as err:
                 if "fd" in locals() and fd:
-                    try:
+                    with suppress(OSError):
                         fd.close()
-                    except Exception:  # noqa: BLE001
-                        pass
 
                 holder_info = self._read_lock_metadata()
+                if self._is_stale(holder_info):
+                    logger.debug("Lock file metadata refers to a non-existent process PID")
 
                 if time.time() - start_time >= self.timeout:
                     pid = holder_info.get("pid") if holder_info else None
@@ -144,18 +140,14 @@ class ArtifactLock:
 
     def release(self) -> None:
         if self.is_acquired and self.fd is not None:
-            try:
+            with suppress(OSError):
                 fcntl.flock(self.fd, fcntl.LOCK_UN)
-            except Exception:  # noqa: BLE001
-                pass
-            try:
+            with suppress(OSError):
                 self.fd.close()
-            except Exception:  # noqa: BLE001
-                pass
             self.fd = None
             self.is_acquired = False
 
-    def __enter__(self) -> "ArtifactLock":
+    def __enter__(self) -> Self:
         return self.acquire()
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -173,16 +165,16 @@ class ArtifactLock:
                 }
                 json.dump(meta, self.fd)
                 self.fd.flush()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:
+                logger.debug("Non-fatal error writing lock metadata: %s", err)
 
     def _read_lock_metadata(self) -> dict | None:
         try:
             if os.path.exists(self.lock_path):
                 with open(self.lock_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:
+            logger.debug("Non-fatal error reading lock metadata: %s", err)
         return None
 
     def _is_stale(self, holder_info: dict | None) -> bool:
@@ -194,7 +186,7 @@ class ArtifactLock:
         try:
             os.kill(pid, 0)
             return False  # Process is alive
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError, OSError:
             return True  # Process is dead
 
 
@@ -258,10 +250,8 @@ def recover_transaction_state(target_dir: str) -> None:
 
     # 4. Clean up transaction state file
     if os.path.exists(state_file):
-        try:
+        with suppress(OSError):
             os.remove(state_file)
-        except Exception:  # noqa: BLE001
-            pass
 
 
 class ArtifactTransaction:
@@ -301,11 +291,9 @@ class ArtifactTransaction:
             logger.warning("Failed writing transaction state metadata: %s", err)
 
     def clear_state(self) -> None:
-        try:
-            if os.path.exists(self.state_path):
+        if os.path.exists(self.state_path):
+            with suppress(OSError):
                 os.remove(self.state_path)
-        except Exception:  # noqa: BLE001
-            pass
 
     def recover(self) -> None:
         """Deterministic, idempotent transaction recovery."""
