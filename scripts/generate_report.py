@@ -190,146 +190,251 @@ class ArtifactLock:
             return True  # Process is dead
 
 
+def validate_journal_metadata(state_file: str, target_dir: str) -> dict | None:
+    """Validate transaction journal metadata strictly against expected target environment.
+
+    Raises ArtifactTransactionError if journal is corrupt, has invalid paths, or mismatched target.
+    Returns parsed journal dict if valid, or None if state_file does not exist.
+    """
+    if not os.path.exists(state_file):
+        return None
+
+    target_dir = os.path.abspath(target_dir)
+    parent_dir = os.path.dirname(target_dir)
+    dir_name = os.path.basename(target_dir)
+
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as err:
+        logger.error(
+            "Transaction journal file '%s' is corrupt or malformed JSON: %s", state_file, err
+        )
+        raise ArtifactTransactionError(
+            f"Transaction journal file '{state_file}' is corrupt or malformed JSON: {err}"
+        ) from err
+
+    if not isinstance(data, dict):
+        logger.error("Transaction journal root in '%s' is not a JSON object", state_file)
+        raise ArtifactTransactionError(
+            f"Transaction journal root in '{state_file}' is not a JSON object"
+        )
+
+    required_fields = ("txn_id", "stage", "target_dir", "staging_dir", "backup_dir")
+    missing = [f for f in required_fields if f not in data or not isinstance(data[f], str)]
+    if missing:
+        logger.error(
+            "Transaction journal '%s' is missing required string fields: %s", state_file, missing
+        )
+        raise ArtifactTransactionError(
+            f"Transaction journal '{state_file}' is missing required string fields: {missing}"
+        )
+
+    valid_stages = ("STAGING", "BACKUP", "COMMIT", "CLEANUP")
+    if data["stage"] not in valid_stages:
+        logger.error("Transaction journal '%s' has unknown stage: '%s'", state_file, data["stage"])
+        raise ArtifactTransactionError(
+            f"Transaction journal '{state_file}' has unknown stage: '{data['stage']}'"
+        )
+
+    j_target = os.path.abspath(data["target_dir"])
+    if j_target != target_dir:
+        logger.error(
+            "Transaction journal '%s' target_dir mismatch: journal specifies '%s', expected '%s'",
+            state_file,
+            j_target,
+            target_dir,
+        )
+        raise ArtifactTransactionError(
+            f"Transaction journal '{state_file}' target_dir mismatch: expected '{target_dir}', got '{j_target}'"
+        )
+
+    j_staging = os.path.abspath(data["staging_dir"])
+    j_backup = os.path.abspath(data["backup_dir"])
+    txn_id = data["txn_id"]
+
+    expected_staging_name = f"{dir_name}_staging_{txn_id}"
+    expected_backup = os.path.join(parent_dir, f"{dir_name}_bak")
+
+    # Path escape and structure checks
+    if (
+        os.path.dirname(j_staging) != parent_dir
+        or os.path.basename(j_staging) != expected_staging_name
+    ):
+        logger.error(
+            "Transaction journal '%s' staging_dir '%s' is invalid or escapes parent directory",
+            state_file,
+            j_staging,
+        )
+        raise ArtifactTransactionError(
+            f"Transaction journal '{state_file}' staging_dir '{j_staging}' is invalid or escapes parent directory"
+        )
+
+    if os.path.dirname(j_backup) != parent_dir or j_backup != expected_backup:
+        logger.error(
+            "Transaction journal '%s' backup_dir '%s' is invalid or escapes parent directory",
+            state_file,
+            j_backup,
+        )
+        raise ArtifactTransactionError(
+            f"Transaction journal '{state_file}' backup_dir '{j_backup}' is invalid or escapes parent directory"
+        )
+
+    return data
+
+
 def recover_transaction_state(target_dir: str) -> None:
     """Recover target_dir from interrupted atomic transaction deterministically and idempotently."""
     target_dir = os.path.abspath(target_dir)
     parent_dir = os.path.dirname(target_dir)
     dir_name = os.path.basename(target_dir)
 
-    bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
     state_file = os.path.join(parent_dir, f".{dir_name}_txn.json")
-
-    journal = None
-    if os.path.exists(state_file):
-        try:
-            with open(state_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            required_fields = ("txn_id", "stage", "target_dir", "staging_dir", "backup_dir")
-            if (
-                isinstance(data, dict)
-                and all(field in data for field in required_fields)
-                and os.path.abspath(data["target_dir"]) == target_dir
-            ):
-                journal = data
-            else:
-                logger.warning(
-                    "Transaction journal file '%s' has missing required fields or mismatched target_dir",
-                    state_file,
-                )
-        except Exception as err:  # noqa: BLE001
-            logger.warning(
-                "Transaction journal file '%s' is invalid or corrupt: %s", state_file, err
-            )
-
-    staging_dirs = set()
-    if journal and isinstance(journal.get("staging_dir"), str):
-        staging_dirs.add(os.path.abspath(journal["staging_dir"]))
-
-    try:
-        if os.path.exists(parent_dir):
-            prefix = f"{dir_name}_staging_"
-            for item in os.listdir(parent_dir):
-                if item.startswith(prefix):
-                    staging_dirs.add(os.path.abspath(os.path.join(parent_dir, item)))
-    except Exception as err:  # noqa: BLE001
-        logger.warning("Error scanning for staging directories in '%s': %s", parent_dir, err)
-
-    if journal and isinstance(journal.get("backup_dir"), str):
-        journal_bak = os.path.abspath(journal["backup_dir"])
-        if os.path.exists(journal_bak):
-            bak_dir = journal_bak
-
-    valid_stages = ("STAGING", "BACKUP", "COMMIT", "CLEANUP")
-    stage = journal.get("stage") if (journal and journal.get("stage") in valid_stages) else None
+    journal = validate_journal_metadata(state_file, target_dir)
 
     target_exists = os.path.exists(target_dir)
-    bak_exists = os.path.exists(bak_dir)
 
-    if stage == "STAGING":
-        for s_dir in staging_dirs:
-            if os.path.exists(s_dir):
-                with suppress(OSError):
-                    shutil.rmtree(s_dir, ignore_errors=True)
-    elif stage == "BACKUP":
+    # 1. No journal present: conservative filesystem recovery if unambiguous
+    if journal is None:
+        bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
+        bak_exists = os.path.exists(bak_dir)
+
         if not target_exists and bak_exists:
             logger.info(
-                "Recovering target directory '%s' from backup '%s' (stage=BACKUP)...",
-                target_dir,
-                bak_dir,
-            )
-            os.replace(bak_dir, target_dir)
-            target_exists = True
-            bak_exists = False
-        elif target_exists and bak_exists:
-            with suppress(OSError):
-                shutil.rmtree(bak_dir, ignore_errors=True)
-            bak_exists = False
-
-        for s_dir in staging_dirs:
-            if os.path.exists(s_dir):
-                with suppress(OSError):
-                    shutil.rmtree(s_dir, ignore_errors=True)
-    elif stage == "COMMIT":
-        if target_exists:
-            if bak_exists:
-                with suppress(OSError):
-                    shutil.rmtree(bak_dir, ignore_errors=True)
-            for s_dir in staging_dirs:
-                if os.path.exists(s_dir):
-                    with suppress(OSError):
-                        shutil.rmtree(s_dir, ignore_errors=True)
-        else:
-            if bak_exists:
-                logger.info(
-                    "Restoring backup '%s' to '%s' during COMMIT recovery...", bak_dir, target_dir
-                )
-                os.replace(bak_dir, target_dir)
-                target_exists = True
-
-            for s_dir in staging_dirs:
-                if os.path.exists(s_dir):
-                    with suppress(OSError):
-                        shutil.rmtree(s_dir, ignore_errors=True)
-    elif stage == "CLEANUP":
-        if bak_exists:
-            with suppress(OSError):
-                shutil.rmtree(bak_dir, ignore_errors=True)
-        for s_dir in staging_dirs:
-            if os.path.exists(s_dir):
-                with suppress(OSError):
-                    shutil.rmtree(s_dir, ignore_errors=True)
-    else:
-        if not target_exists and bak_exists:
-            logger.info(
-                "Recovering target directory '%s' from interrupted backup '%s'...",
-                target_dir,
-                bak_dir,
+                "Restoring target directory '%s' from fallback backup '%s'...", target_dir, bak_dir
             )
             try:
                 os.replace(bak_dir, target_dir)
-                target_exists = True
             except Exception as err:
-                logger.critical(
-                    "Failed recovering target directory '%s' from '%s': %s",
-                    target_dir,
-                    bak_dir,
-                    err,
-                )
-                raise RuntimeError(
-                    f"Failed recovering target directory from backup: {err}"
+                logger.critical("Required cleanup failed restoring target from backup: %s", err)
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed restoring target from backup: {err}"
                 ) from err
         elif target_exists and bak_exists:
-            with suppress(OSError):
-                shutil.rmtree(bak_dir, ignore_errors=True)
+            # Optional cleanup
+            try:
+                shutil.rmtree(bak_dir)
+            except Exception as err:
+                logger.warning("Optional cleanup of fallback backup '%s' failed: %s", bak_dir, err)
+        return
 
-        for s_dir in staging_dirs:
-            if os.path.exists(s_dir):
-                with suppress(OSError):
-                    shutil.rmtree(s_dir, ignore_errors=True)
+    # 2. Valid journal present
+    stage = journal["stage"]
+    staging_dir = os.path.abspath(journal["staging_dir"])
+    backup_dir = os.path.abspath(journal["backup_dir"])
 
-    if os.path.exists(state_file):
-        with suppress(OSError):
-            os.remove(state_file)
+    staging_exists = os.path.exists(staging_dir)
+    backup_exists = os.path.exists(backup_dir)
+
+    if stage == "STAGING":
+        # Required cleanup: remove transaction's staging dir, preserve target
+        if staging_exists:
+            try:
+                shutil.rmtree(staging_dir)
+            except Exception as err:
+                logger.error(
+                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
+                )
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
+                ) from err
+
+    elif stage == "BACKUP":
+        if not target_exists and backup_exists:
+            logger.info(
+                "Restoring target '%s' from backup '%s' (stage=BACKUP)...", target_dir, backup_dir
+            )
+            try:
+                os.replace(backup_dir, target_dir)
+                target_exists = True
+                backup_exists = False
+            except Exception as err:
+                logger.critical("Required cleanup failed restoring backup in stage BACKUP: %s", err)
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed restoring backup in stage BACKUP: {err}"
+                ) from err
+
+        # Remove transaction staging dir
+        if staging_exists:
+            try:
+                shutil.rmtree(staging_dir)
+            except Exception as err:
+                logger.error(
+                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
+                )
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
+                ) from err
+
+        # Optional cleanup: remove backup if target exists
+        if target_exists and backup_exists:
+            try:
+                shutil.rmtree(backup_dir)
+                backup_exists = False
+            except Exception as err:
+                logger.warning(
+                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
+                )
+
+    elif stage == "COMMIT":
+        if not target_exists and backup_exists:
+            logger.info("Restoring backup '%s' to '%s' (stage=COMMIT)...", backup_dir, target_dir)
+            try:
+                os.replace(backup_dir, target_dir)
+                target_exists = True
+                backup_exists = False
+            except Exception as err:
+                logger.critical("Required cleanup failed restoring backup in stage COMMIT: %s", err)
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed restoring backup in stage COMMIT: {err}"
+                ) from err
+
+        if staging_exists:
+            try:
+                shutil.rmtree(staging_dir)
+            except Exception as err:
+                logger.error(
+                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
+                )
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
+                ) from err
+
+        if target_exists and backup_exists:
+            try:
+                shutil.rmtree(backup_dir)
+                backup_exists = False
+            except Exception as err:
+                logger.warning(
+                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
+                )
+
+    elif stage == "CLEANUP":
+        if staging_exists:
+            try:
+                shutil.rmtree(staging_dir)
+            except Exception as err:
+                logger.error(
+                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
+                )
+                raise ArtifactTransactionError(
+                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
+                ) from err
+
+        if backup_exists:
+            try:
+                shutil.rmtree(backup_dir)
+                backup_exists = False
+            except Exception as err:
+                logger.warning(
+                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
+                )
+
+    # Conclusively safe -> remove state file
+    try:
+        os.remove(state_file)
+    except Exception as err:
+        logger.warning("Failed removing transaction state file '%s': %s", state_file, err)
 
 
 class ArtifactTransaction:

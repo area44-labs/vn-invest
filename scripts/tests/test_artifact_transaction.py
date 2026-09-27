@@ -10,6 +10,7 @@ from unittest.mock import patch
 from scripts.generate_report import (
     ArtifactLock,
     ArtifactLockError,
+    ArtifactTransactionError,
     publish_artifacts_atomically,
     recover_interrupted_publish,
 )
@@ -79,11 +80,24 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         with open(initial_file, "w", encoding="utf-8") as f:
             f.write('{"v": "original"}\n')
 
-        # Simulate leftover staging dir
+        # Simulate leftover staging dir and journal
         staging_dir = f"{self.target_dir}_staging_test_123"
         os.makedirs(staging_dir, exist_ok=True)
         with open(os.path.join(staging_dir, "recommendations.json"), "w", encoding="utf-8") as f:
             f.write('{"v": "incomplete_staging"}\n')
+
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test_123",
+                    "stage": "STAGING",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": f"{self.target_dir}_bak",
+                },
+                f,
+            )
 
         recover_interrupted_publish(self.target_dir)
 
@@ -140,6 +154,19 @@ class TestArtifactTransactionSuite(unittest.TestCase):
 
         staging_dir = f"{self.target_dir}_staging_456"
         os.makedirs(staging_dir, exist_ok=True)
+
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "456",
+                    "stage": "STAGING",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": f"{self.target_dir}_bak",
+                },
+                f,
+            )
 
         recover_interrupted_publish(self.target_dir)
 
@@ -210,19 +237,20 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             self.assertFalse("bak" in item)
 
     def test_11_corrupted_or_invalid_journal_recovery(self):
-        """11. Verify recovery handles corrupted JSON, missing fields, or unknown stage in journal safely."""
+        """11. Verify recovery raises ArtifactTransactionError and preserves journal/target when journal is corrupt or invalid."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
             f.write('{"v": "good_data"}\n')
 
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
 
-        # Scenario A: Corrupted non-JSON file
+        # Scenario A: Corrupted non-JSON file -> raises ArtifactTransactionError, preserves journal & target
         with open(state_file, "w", encoding="utf-8") as f:
             f.write("CORRUPTED_NOT_JSON {{{")
 
-        recover_interrupted_publish(self.target_dir)
-        self.assertFalse(os.path.exists(state_file))
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(state_file))
         with open(target_file, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), '{"v": "good_data"}\n')
 
@@ -230,8 +258,9 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         with open(state_file, "w", encoding="utf-8") as f:
             json.dump({"txn_id": "123", "stage": "STAGING"}, f)
 
-        recover_interrupted_publish(self.target_dir)
-        self.assertFalse(os.path.exists(state_file))
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(state_file))
 
         # Scenario C: Unknown stage string
         invalid_journal = {
@@ -244,8 +273,24 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         with open(state_file, "w", encoding="utf-8") as f:
             json.dump(invalid_journal, f)
 
-        recover_interrupted_publish(self.target_dir)
-        self.assertFalse(os.path.exists(state_file))
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(state_file))
+
+        # Scenario D: Path escape check
+        path_escape_journal = {
+            "txn_id": "123",
+            "stage": "STAGING",
+            "target_dir": self.target_dir,
+            "staging_dir": "/etc/passwd_staging_123",
+            "backup_dir": f"{self.target_dir}_bak",
+        }
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(path_escape_journal, f)
+
+        with self.assertRaises(ArtifactTransactionError):
+            recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(state_file))
 
     def test_12_stage_boundary_failure_injection_with_journal(self):
         """12. Verify failure-injection at STAGING, BACKUP, COMMIT, and CLEANUP boundaries using persisted journal."""
@@ -274,6 +319,7 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         recover_interrupted_publish(self.target_dir)
         self.assertFalse(os.path.exists(staging_dir))
         self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        self.assertFalse(os.path.exists(state_file))
 
         # Boundary B: Crashed during BACKUP (target_dir moved to bak_dir, target_dir missing)
         os.makedirs(bak_dir, exist_ok=True)
@@ -295,6 +341,7 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         recover_interrupted_publish(self.target_dir)
         self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
         self.assertFalse(os.path.exists(bak_dir))
+        self.assertFalse(os.path.exists(state_file))
 
         # Boundary C: Crashed during COMMIT with missing target_dir and backup_dir present
         os.makedirs(bak_dir, exist_ok=True)
@@ -319,6 +366,76 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             os.path.join(self.target_dir, "recommendations.json"), "r", encoding="utf-8"
         ) as f:
             self.assertEqual(f.read(), '{"v": "restore_me"}\n')
+        self.assertFalse(os.path.exists(state_file))
+
+    def test_13_required_vs_optional_cleanup_failures(self):
+        """13. Verify required cleanup failure raises error while optional cleanup failure logs warning and preserves success."""
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        staging_dir = f"{self.target_dir}_staging_req_test"
+        bak_dir = f"{self.target_dir}_bak"
+
+        os.makedirs(staging_dir, exist_ok=True)
+        with open(
+            os.path.join(self.target_dir, "recommendations.json"), "w", encoding="utf-8"
+        ) as f:
+            f.write('{"v": "valid_target"}\n')
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "req_test",
+                    "stage": "STAGING",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        # Required cleanup failure (shutil.rmtree failing on required staging dir removal)
+        with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
+            with self.assertRaises(ArtifactTransactionError):
+                recover_interrupted_publish(self.target_dir)
+
+        # Journal remains for retry when required cleanup fails
+        self.assertTrue(os.path.exists(state_file))
+
+        # Optional cleanup failure (backup removal in stage COMMIT)
+        os.makedirs(bak_dir, exist_ok=True)
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "req_test",
+                    "stage": "CLEANUP",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        real_rmtree = shutil.rmtree
+
+        def failing_rmtree_for_bak(path, *args, **kwargs):
+            if path == bak_dir:
+                raise PermissionError("Optional cleanup permission error")
+            return real_rmtree(path, *args, **kwargs)
+
+        with patch("shutil.rmtree", side_effect=failing_rmtree_for_bak):
+            # Should NOT raise error because bak_dir removal in CLEANUP is optional
+            recover_interrupted_publish(self.target_dir)
+
+        # Journal is removed because recovery completed successfully
+        self.assertFalse(os.path.exists(state_file))
+
+    def test_14_unrelated_staging_directories_preserved(self):
+        """14. Verify unrelated staging directories not belonging to current journal are preserved."""
+        unrelated_staging = f"{self.target_dir}_staging_unrelated_999"
+        os.makedirs(unrelated_staging, exist_ok=True)
+
+        recover_interrupted_publish(self.target_dir)
+
+        # Unrelated staging dir must NOT be blindly deleted
+        self.assertTrue(os.path.exists(unrelated_staging))
 
 
 if __name__ == "__main__":
