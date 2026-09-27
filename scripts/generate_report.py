@@ -114,7 +114,7 @@ class ArtifactLock:
 
         while True:
             try:
-                fd = open(self.lock_path, "a+", encoding="utf-8")
+                fd = open(self.lock_path, "a+", encoding="utf-8")  # noqa: SIM115
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 self.fd = fd
                 self.is_acquired = True
@@ -165,7 +165,7 @@ class ArtifactLock:
                 }
                 json.dump(meta, self.fd)
                 self.fd.flush()
-            except Exception as err:
+            except (OSError, TypeError, ValueError) as err:
                 logger.debug("Non-fatal error writing lock metadata: %s", err)
 
     def _read_lock_metadata(self) -> dict | None:
@@ -173,7 +173,7 @@ class ArtifactLock:
             if os.path.exists(self.lock_path):
                 with open(self.lock_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-        except Exception as err:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as err:
             logger.debug("Non-fatal error reading lock metadata: %s", err)
         return None
 
@@ -186,7 +186,7 @@ class ArtifactLock:
         try:
             os.kill(pid, 0)
             return False  # Process is alive
-        except ProcessLookupError, OSError:
+        except (ProcessLookupError, OSError):
             return True  # Process is dead
 
 
@@ -220,7 +220,7 @@ def recover_transaction_state(target_dir: str) -> None:
         try:
             os.replace(bak_dir, target_dir)
             target_exists = True
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             logger.critical(
                 "Failed recovering target directory '%s' from '%s': %s", target_dir, bak_dir, err
             )
