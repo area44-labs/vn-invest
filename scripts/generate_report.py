@@ -314,7 +314,7 @@ def recover_transaction_state(target_dir: str) -> None:
             # Optional cleanup
             try:
                 shutil.rmtree(bak_dir)
-            except Exception as err:
+            except (OSError, shutil.Error) as err:
                 logger.warning("Optional cleanup of fallback backup '%s' failed: %s", bak_dir, err)
         return
 
@@ -371,7 +371,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:
+            except (OSError, shutil.Error) as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -404,7 +404,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:
+            except (OSError, shutil.Error) as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -454,7 +454,7 @@ def recover_transaction_state(target_dir: str) -> None:
             try:
                 shutil.rmtree(backup_dir)
                 backup_exists = False
-            except Exception as err:
+            except (OSError, shutil.Error) as err:
                 logger.warning(
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
@@ -462,7 +462,7 @@ def recover_transaction_state(target_dir: str) -> None:
     # Conclusively safe -> remove state file
     try:
         os.remove(state_file)
-    except Exception as err:
+    except OSError as err:
         logger.warning("Failed removing transaction state file '%s': %s", state_file, err)
 
 
@@ -1174,7 +1174,7 @@ def run_pipeline(
                     "recoverable": is_recoverable_category("RATE_LIMIT"),
                 }
                 raise
-            except Exception as exc:  # noqa: BLE001
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, AttributeError) as exc:
                 logger.error("Exception fetching VNINDEX: %s", exc)
                 failed_symbols.add("VNINDEX")
                 exclusions_map["VNINDEX"] = {
@@ -1254,7 +1254,7 @@ def run_pipeline(
                     "recoverable": is_recoverable_category("RATE_LIMIT"),
                 }
                 raise
-            except Exception as exc:  # noqa: BLE001
+            except (RuntimeError, ValueError, TypeError, OSError, KeyError, AttributeError) as exc:
                 logger.error("Exception fetching VN30: %s", exc)
                 failed_symbols.add("VN30")
                 exclusions_map["VN30"] = {
@@ -1367,7 +1367,14 @@ def run_pipeline(
                         "recoverable": is_recoverable_category("RATE_LIMIT"),
                     }
                     raise
-                except Exception as exc:  # noqa: BLE001
+                except (
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    OSError,
+                    KeyError,
+                    AttributeError,
+                ) as exc:
                     logger.error("Exception fetching %s: %s", sym, exc)
                     failed_symbols.add(sym)
                     exclusions_map[sym] = {
@@ -2341,7 +2348,7 @@ def main():
                     try:
                         idx_data = load_history_index(index_path)
                         dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
-                    except Exception:  # noqa: BLE001
+                    except (ValueError, TypeError, OSError):
                         dates = []
                     if data_as_of_peek not in dates:
                         dates = list(dates) + [data_as_of_peek]
