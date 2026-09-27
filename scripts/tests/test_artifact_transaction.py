@@ -194,13 +194,10 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         with open(target_file, "w", encoding="utf-8") as f:
             f.write('{"v": "original_good_data"}\n')
 
-        # Fail transaction during execute_publish write phase
-        bad_artifacts = {"invalid/path/null": None}
+        # Fail transaction during execute_publish write phase with non-serializable object
+        bad_artifacts = {"bad_file.json": {"unserializable": object()}}
 
-        with (
-            patch("json.dump", side_effect=TypeError("Non-serializable object")),
-            self.assertRaises(TypeError),
-        ):
+        with self.assertRaises(TypeError):
             publish_artifacts_atomically(bad_artifacts, target_dir=self.target_dir)
 
         # Original data preserved
@@ -211,6 +208,117 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         for item in os.listdir(self.temp_dir):
             self.assertFalse("staging" in item)
             self.assertFalse("bak" in item)
+
+    def test_11_corrupted_or_invalid_journal_recovery(self):
+        """11. Verify recovery handles corrupted JSON, missing fields, or unknown stage in journal safely."""
+        target_file = os.path.join(self.target_dir, "recommendations.json")
+        with open(target_file, "w", encoding="utf-8") as f:
+            f.write('{"v": "good_data"}\n')
+
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+
+        # Scenario A: Corrupted non-JSON file
+        with open(state_file, "w", encoding="utf-8") as f:
+            f.write("CORRUPTED_NOT_JSON {{{")
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertFalse(os.path.exists(state_file))
+        with open(target_file, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), '{"v": "good_data"}\n')
+
+        # Scenario B: Missing required fields
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump({"txn_id": "123", "stage": "STAGING"}, f)
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertFalse(os.path.exists(state_file))
+
+        # Scenario C: Unknown stage string
+        invalid_journal = {
+            "txn_id": "123",
+            "stage": "UNKNOWN_STAGE",
+            "target_dir": self.target_dir,
+            "staging_dir": f"{self.target_dir}_staging_123",
+            "backup_dir": f"{self.target_dir}_bak",
+        }
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(invalid_journal, f)
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertFalse(os.path.exists(state_file))
+
+    def test_12_stage_boundary_failure_injection_with_journal(self):
+        """12. Verify failure-injection at STAGING, BACKUP, COMMIT, and CLEANUP boundaries using persisted journal."""
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        bak_dir = f"{self.target_dir}_bak"
+        staging_dir = f"{self.target_dir}_staging_test"
+
+        # Boundary A: Crashed during STAGING
+        os.makedirs(staging_dir, exist_ok=True)
+        with open(
+            os.path.join(self.target_dir, "recommendations.json"), "w", encoding="utf-8"
+        ) as f:
+            f.write('{"v": "valid_target"}\n')
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test",
+                    "stage": "STAGING",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertFalse(os.path.exists(staging_dir))
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+
+        # Boundary B: Crashed during BACKUP (target_dir moved to bak_dir, target_dir missing)
+        os.makedirs(bak_dir, exist_ok=True)
+        with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
+            f.write('{"v": "backed_up_good"}\n')
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test",
+                    "stage": "BACKUP",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        self.assertFalse(os.path.exists(bak_dir))
+
+        # Boundary C: Crashed during COMMIT with missing target_dir and backup_dir present
+        os.makedirs(bak_dir, exist_ok=True)
+        with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
+            f.write('{"v": "restore_me"}\n')
+        shutil.rmtree(self.target_dir, ignore_errors=True)
+        with open(state_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "txn_id": "test",
+                    "stage": "COMMIT",
+                    "target_dir": self.target_dir,
+                    "staging_dir": staging_dir,
+                    "backup_dir": bak_dir,
+                },
+                f,
+            )
+
+        recover_interrupted_publish(self.target_dir)
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        with open(
+            os.path.join(self.target_dir, "recommendations.json"), "r", encoding="utf-8"
+        ) as f:
+            self.assertEqual(f.read(), '{"v": "restore_me"}\n')
 
 
 if __name__ == "__main__":

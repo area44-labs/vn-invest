@@ -199,56 +199,134 @@ def recover_transaction_state(target_dir: str) -> None:
     bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
     state_file = os.path.join(parent_dir, f".{dir_name}_txn.json")
 
-    staging_dirs = []
+    journal = None
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            required_fields = ("txn_id", "stage", "target_dir", "staging_dir", "backup_dir")
+            if (
+                isinstance(data, dict)
+                and all(field in data for field in required_fields)
+                and os.path.abspath(data["target_dir"]) == target_dir
+            ):
+                journal = data
+            else:
+                logger.warning(
+                    "Transaction journal file '%s' has missing required fields or mismatched target_dir",
+                    state_file,
+                )
+        except Exception as err:  # noqa: BLE001
+            logger.warning(
+                "Transaction journal file '%s' is invalid or corrupt: %s", state_file, err
+            )
+
+    staging_dirs = set()
+    if journal and isinstance(journal.get("staging_dir"), str):
+        staging_dirs.add(os.path.abspath(journal["staging_dir"]))
+
     try:
         if os.path.exists(parent_dir):
             prefix = f"{dir_name}_staging_"
             for item in os.listdir(parent_dir):
                 if item.startswith(prefix):
-                    staging_dirs.append(os.path.join(parent_dir, item))
+                    staging_dirs.add(os.path.abspath(os.path.join(parent_dir, item)))
     except Exception as err:  # noqa: BLE001
         logger.warning("Error scanning for staging directories in '%s': %s", parent_dir, err)
+
+    if journal and isinstance(journal.get("backup_dir"), str):
+        journal_bak = os.path.abspath(journal["backup_dir"])
+        if os.path.exists(journal_bak):
+            bak_dir = journal_bak
+
+    valid_stages = ("STAGING", "BACKUP", "COMMIT", "CLEANUP")
+    stage = journal.get("stage") if (journal and journal.get("stage") in valid_stages) else None
 
     target_exists = os.path.exists(target_dir)
     bak_exists = os.path.exists(bak_dir)
 
-    # 1. Target missing, Backup exists -> restore backup
-    if not target_exists and bak_exists:
-        logger.info(
-            "Recovering target directory '%s' from interrupted backup '%s'...", target_dir, bak_dir
-        )
-        try:
+    if stage == "STAGING":
+        for s_dir in staging_dirs:
+            if os.path.exists(s_dir):
+                with suppress(OSError):
+                    shutil.rmtree(s_dir, ignore_errors=True)
+    elif stage == "BACKUP":
+        if not target_exists and bak_exists:
+            logger.info(
+                "Recovering target directory '%s' from backup '%s' (stage=BACKUP)...",
+                target_dir,
+                bak_dir,
+            )
             os.replace(bak_dir, target_dir)
             target_exists = True
-        except Exception as err:
-            logger.critical(
-                "Failed recovering target directory '%s' from '%s': %s", target_dir, bak_dir, err
+            bak_exists = False
+        elif target_exists and bak_exists:
+            with suppress(OSError):
+                shutil.rmtree(bak_dir, ignore_errors=True)
+            bak_exists = False
+
+        for s_dir in staging_dirs:
+            if os.path.exists(s_dir):
+                with suppress(OSError):
+                    shutil.rmtree(s_dir, ignore_errors=True)
+    elif stage == "COMMIT":
+        if target_exists:
+            if bak_exists:
+                with suppress(OSError):
+                    shutil.rmtree(bak_dir, ignore_errors=True)
+            for s_dir in staging_dirs:
+                if os.path.exists(s_dir):
+                    with suppress(OSError):
+                        shutil.rmtree(s_dir, ignore_errors=True)
+        else:
+            if bak_exists:
+                logger.info(
+                    "Restoring backup '%s' to '%s' during COMMIT recovery...", bak_dir, target_dir
+                )
+                os.replace(bak_dir, target_dir)
+                target_exists = True
+
+            for s_dir in staging_dirs:
+                if os.path.exists(s_dir):
+                    with suppress(OSError):
+                        shutil.rmtree(s_dir, ignore_errors=True)
+    elif stage == "CLEANUP":
+        if bak_exists:
+            with suppress(OSError):
+                shutil.rmtree(bak_dir, ignore_errors=True)
+        for s_dir in staging_dirs:
+            if os.path.exists(s_dir):
+                with suppress(OSError):
+                    shutil.rmtree(s_dir, ignore_errors=True)
+    else:
+        if not target_exists and bak_exists:
+            logger.info(
+                "Recovering target directory '%s' from interrupted backup '%s'...",
+                target_dir,
+                bak_dir,
             )
-            raise RuntimeError(f"Failed recovering target directory from backup: {err}") from err
-
-    # 2. Target exists, Backup exists -> target is already valid production; clean backup safely
-    elif target_exists and bak_exists:
-        try:
-            shutil.rmtree(bak_dir, ignore_errors=True)
-        except Exception as err:  # noqa: BLE001
-            logger.debug("Non-fatal error removing backup dir '%s': %s", bak_dir, err)
-
-    # 3. Clean up staging directories if target exists or backup restored
-    if os.path.exists(target_dir):
-        for s_dir in staging_dirs:
             try:
-                shutil.rmtree(s_dir, ignore_errors=True)
-            except Exception as err:  # noqa: BLE001
-                logger.debug("Non-fatal error removing staging dir '%s': %s", s_dir, err)
-    elif not bak_exists:
-        # Neither target nor backup exists (e.g. initial publish interrupted during staging)
-        for s_dir in staging_dirs:
-            try:
-                shutil.rmtree(s_dir, ignore_errors=True)
-            except Exception as err:  # noqa: BLE001
-                logger.debug("Non-fatal error removing staging dir '%s': %s", s_dir, err)
+                os.replace(bak_dir, target_dir)
+                target_exists = True
+            except Exception as err:
+                logger.critical(
+                    "Failed recovering target directory '%s' from '%s': %s",
+                    target_dir,
+                    bak_dir,
+                    err,
+                )
+                raise RuntimeError(
+                    f"Failed recovering target directory from backup: {err}"
+                ) from err
+        elif target_exists and bak_exists:
+            with suppress(OSError):
+                shutil.rmtree(bak_dir, ignore_errors=True)
 
-    # 4. Clean up transaction state file
+        for s_dir in staging_dirs:
+            if os.path.exists(s_dir):
+                with suppress(OSError):
+                    shutil.rmtree(s_dir, ignore_errors=True)
+
     if os.path.exists(state_file):
         with suppress(OSError):
             os.remove(state_file)
@@ -287,8 +365,11 @@ class ArtifactTransaction:
             with open(tmp_state, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2)
             os.replace(tmp_state, self.state_path)
-        except Exception as err:  # noqa: BLE001
-            logger.warning("Failed writing transaction state metadata: %s", err)
+        except Exception as err:
+            logger.error("Failed writing transaction state metadata: %s", err)
+            raise ArtifactTransactionError(
+                f"Failed writing transaction state metadata: {err}"
+            ) from err
 
     def clear_state(self) -> None:
         if os.path.exists(self.state_path):
