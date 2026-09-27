@@ -2348,7 +2348,7 @@ def main():
                     try:
                         idx_data = load_history_index(index_path)
                         dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
-                    except (ValueError, TypeError, OSError):
+                    except ValueError, TypeError, OSError:
                         dates = []
                     if data_as_of_peek not in dates:
                         dates = list(dates) + [data_as_of_peek]
