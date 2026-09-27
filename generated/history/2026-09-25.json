@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0",
   "signal_model_version": "2.0",
-  "generated_at": "2026-09-26T07:32:50.745632+00:00",
+  "generated_at": "2026-09-27T21:55:17.833083+00:00",
   "data_as_of": "2026-09-25",
   "source_date": "2026-09-25",
   "data_source": "REAL_DATA",
@@ -19,7 +19,7 @@
       "vn30_change_pct": 0.33,
       "market_breadth_ratio": 0.31,
       "volatility": 0.1589,
-      "volume_20d_ratio": 1.19
+      "volume_20d_ratio": 0.9
     }
   },
   "summary": {
@@ -124,7 +124,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0845,
+        "var_t25": -0.0846,
         "es_t25": -0.105,
         "volatility_60d": 0.4958,
         "max_drawdown": -0.5549,
@@ -250,7 +250,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.061,
+        "var_t25": -0.0611,
         "es_t25": -0.0756,
         "volatility_60d": 0.3754,
         "max_drawdown": -0.3419,
@@ -375,7 +375,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.054,
+        "var_t25": -0.0541,
         "es_t25": -0.068,
         "volatility_60d": 0.3048,
         "max_drawdown": -0.4057,
@@ -439,7 +439,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0834,
+        "var_t25": -0.0836,
         "es_t25": -0.1256,
         "volatility_60d": 0.439,
         "max_drawdown": -0.4996,
@@ -504,7 +504,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0799,
+        "var_t25": -0.08,
         "es_t25": -0.1185,
         "volatility_60d": 0.389,
         "max_drawdown": -0.4317,
@@ -571,7 +571,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0515,
+        "var_t25": -0.0518,
         "es_t25": -0.0655,
         "volatility_60d": 0.2306,
         "max_drawdown": -0.1886,
@@ -761,7 +761,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0515,
+        "var_t25": -0.0517,
         "es_t25": -0.0711,
         "volatility_60d": 0.2384,
         "max_drawdown": -0.2755,
@@ -825,7 +825,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0616,
+        "var_t25": -0.0618,
         "es_t25": -0.0842,
         "volatility_60d": 0.3465,
         "max_drawdown": -0.3244,
@@ -889,7 +889,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0874,
+        "var_t25": -0.0882,
         "es_t25": -0.1221,
         "volatility_60d": 0.381,
         "max_drawdown": -0.5303,
@@ -953,7 +953,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0502,
+        "var_t25": -0.0503,
         "es_t25": -0.0792,
         "volatility_60d": 0.2248,
         "max_drawdown": -0.2508,
@@ -1278,7 +1278,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0623,
+        "var_t25": -0.0625,
         "es_t25": -0.0771,
         "volatility_60d": 0.3298,
         "max_drawdown": -0.3051,
@@ -1477,7 +1477,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0929,
+        "var_t25": -0.093,
         "es_t25": -0.1198,
         "volatility_60d": 0.4142,
         "max_drawdown": -0.4087,
@@ -1865,7 +1865,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0911,
+        "var_t25": -0.0912,
         "es_t25": -0.1154,
         "volatility_60d": 0.3843,
         "max_drawdown": -0.4918,
@@ -2052,7 +2052,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.062,
+        "var_t25": -0.0621,
         "es_t25": -0.0806,
         "volatility_60d": 0.4278,
         "max_drawdown": -0.3718,
@@ -2118,7 +2118,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0722,
+        "var_t25": -0.0723,
         "es_t25": -0.094,
         "volatility_60d": 0.3876,
         "max_drawdown": -0.3509,
@@ -2183,7 +2183,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.075,
+        "var_t25": -0.0751,
         "es_t25": -0.0945,
         "volatility_60d": 0.4313,
         "max_drawdown": -0.4283,
@@ -2246,7 +2246,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0597,
+        "var_t25": -0.0599,
         "es_t25": -0.0841,
         "volatility_60d": 0.3047,
         "max_drawdown": -0.3029,
@@ -2374,10 +2374,10 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0498,
+        "var_t25": -0.0499,
         "es_t25": -0.0752,
         "volatility_60d": 0.2558,
-        "max_drawdown": -0.3271,
+        "max_drawdown": -0.3165,
         "liquidity_score": 7.1,
         "avg_value_20d": 23.17
       },
@@ -2442,7 +2442,7 @@
         "var_t25": -0.0581,
         "es_t25": -0.0763,
         "volatility_60d": 0.2619,
-        "max_drawdown": -0.4171,
+        "max_drawdown": -0.4121,
         "liquidity_score": 2.4,
         "avg_value_20d": 15.54
       },
@@ -2502,10 +2502,10 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.08,
-        "es_t25": -0.093,
+        "var_t25": -0.0791,
+        "es_t25": -0.0926,
         "volatility_60d": 0.3969,
-        "max_drawdown": -0.5013,
+        "max_drawdown": -0.498,
         "liquidity_score": 40.5,
         "avg_value_20d": 115.91
       },
@@ -2567,7 +2567,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0842,
+        "var_t25": -0.0843,
         "es_t25": -0.0966,
         "volatility_60d": 0.3843,
         "max_drawdown": -0.6062,
@@ -2631,7 +2631,7 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0749,
+        "var_t25": -0.075,
         "es_t25": -0.0884,
         "volatility_60d": 0.3049,
         "max_drawdown": -0.576,
