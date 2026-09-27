@@ -186,7 +186,7 @@ class ArtifactLock:
         try:
             os.kill(pid, 0)
             return False  # Process is alive
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError, OSError:
             return True  # Process is dead
 
 
