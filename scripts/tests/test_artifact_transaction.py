@@ -197,6 +197,42 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         with open(target_file, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), '{"v": "pre_commit_val"}\n')
 
+    def test_16_rollback_failure_preserves_journal_and_backup(self):
+        """16. Verify when publish fails AND rollback fails to restore target, journal and backup are preserved for recovery."""
+        target_file = os.path.join(self.target_dir, "recommendations.json")
+        with open(target_file, "w", encoding="utf-8") as f:
+            f.write('{"v": "pre_commit_val"}\n')
+
+        state_file = os.path.join(self.temp_dir, ".generated_txn.json")
+        bak_dir = f"{self.target_dir}_bak"
+
+        real_replace = os.replace
+
+        def failing_replace_during_commit_and_rollback(src, dst):
+            # Fail when attempting to promote staging -> target in COMMIT, or restore bak -> target in rollback
+            if dst == self.target_dir:
+                raise OSError("Simulated commit swap and rollback failure")
+            return real_replace(src, dst)
+
+        with (
+            patch("os.replace", side_effect=failing_replace_during_commit_and_rollback),
+            self.assertRaises(RuntimeError) as cm,
+        ):
+            publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
+
+        self.assertIn("Directory-level atomic artifact publish rollback failed", str(cm.exception))
+        # State file and backup directory must be preserved for future recovery
+        self.assertTrue(os.path.exists(state_file))
+        self.assertTrue(os.path.exists(bak_dir))
+
+        # Test recovery from a fresh context
+        recover_interrupted_publish(self.target_dir)
+
+        # Target restored, journal and backup cleaned up
+        self.assertTrue(os.path.exists(target_file))
+        self.assertFalse(os.path.exists(state_file))
+        self.assertFalse(os.path.exists(bak_dir))
+
     def test_9_repeated_recovery_is_idempotent(self):
         """9. Verify running recovery multiple times produces identical clean state."""
         bak_dir = f"{self.target_dir}_bak"

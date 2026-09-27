@@ -606,10 +606,15 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
             )
             rollback_errors: list[str] = []
 
-            if not os.path.exists(target_dir) and os.path.exists(txn.backup_dir):
+            target_restored = os.path.exists(target_dir)
+            if not target_restored and os.path.exists(txn.backup_dir):
                 try:
                     os.replace(txn.backup_dir, target_dir)
-                except Exception as r_err:  # noqa: BLE001
+                    target_restored = True
+                except Exception as r_err:
+                    logger.critical(
+                        "Failed restoring target directory from backup during rollback: %s", r_err
+                    )
                     rollback_errors.append(
                         f"Failed restoring target directory from backup: {r_err}"
                     )
@@ -617,15 +622,23 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
             if os.path.exists(txn.staging_dir):
                 try:
                     shutil.rmtree(txn.staging_dir, ignore_errors=True)
-                except Exception as r_err:  # noqa: BLE001
-                    rollback_errors.append(
-                        f"Failed cleaning up staging directory '{txn.staging_dir}': {r_err}"
+                except Exception as r_err:
+                    logger.warning(
+                        "Failed cleaning up staging directory during rollback: %s", r_err
                     )
 
-            txn.clear_state()
+            # Preserve transaction state journal if target was not conclusively restored
+            if target_restored:
+                txn.clear_state()
+            else:
+                logger.warning(
+                    "Preserving transaction state file '%s' and backup '%s' for future recovery because rollback failed to restore target",
+                    txn.state_path,
+                    txn.backup_dir,
+                )
 
-            if rollback_errors:
-                err_msg = "; ".join(rollback_errors)
+            if rollback_errors or not target_restored:
+                err_msg = "; ".join(rollback_errors) if rollback_errors else "Target not restored"
                 logger.critical(
                     "CRITICAL: Directory-level atomic artifact rollback failed: %s", err_msg
                 )
