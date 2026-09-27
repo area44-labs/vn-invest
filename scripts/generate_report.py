@@ -18,6 +18,8 @@ import json
 import logging
 import math
 import os
+import shutil
+import tempfile
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -90,103 +92,116 @@ def save_json_files(relative_path: str, data: dict):
     os.replace(tmp_p, p)
 
 
+def recover_interrupted_publish(target_dir: str | None = None) -> None:
+    """Recover target_dir from interrupted atomic publish if backup exists on startup."""
+    if target_dir is None:
+        target_dir = GENERATED_DIR
+
+    parent_dir = os.path.dirname(os.path.abspath(target_dir))
+    dir_name = os.path.basename(os.path.abspath(target_dir))
+    bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
+
+    if not os.path.exists(target_dir) and os.path.exists(bak_dir):
+        logger.info(
+            "Recovering target directory '%s' from interrupted backup '%s'...", target_dir, bak_dir
+        )
+        try:
+            os.replace(bak_dir, target_dir)
+        except Exception as err:  # noqa: BLE001
+            logger.critical(
+                "Failed recovering target directory '%s' from '%s': %s", target_dir, bak_dir, err
+            )
+    elif os.path.exists(target_dir) and os.path.exists(bak_dir):
+        try:
+            shutil.rmtree(bak_dir, ignore_errors=True)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
-    """Publish multiple JSON artifacts atomically to target_dir.
+    """Publish multiple JSON artifacts atomically using directory-level staging and swap semantics.
 
     `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
     to dictionary payload data.
 
-    All payloads are written to temporary files (.tmp) first.
-    Existing files are backed up to (.bak) before replacement.
-    If replacement fails midway, all replaced files are restored from backup (.bak).
+    Directory-Level Atomic Commit Semantics:
+    1. A staging directory (e.g. `generated_staging_XXXXXX`) is created alongside `target_dir`.
+    2. If `target_dir` exists, existing preserved files (e.g. historical reports) are copied to `staging_dir`.
+    3. All new validated JSON artifacts are written into `staging_dir`.
+    4. Directory-level swap: `target_dir` -> `target_dir_bak`, `staging_dir` -> `target_dir`.
+    5. Clean up `target_dir_bak`.
+    If any step fails, `target_dir` is restored from `target_dir_bak`.
     """
     if target_dir is None:
         target_dir = GENERATED_DIR
 
-    tmp_map: list[tuple[str, str]] = []  # (tmp_path, target_path)
-    bak_map: list[tuple[str, str]] = []  # (bak_path, target_path)
-    completed_replaces: list[tuple[str, str, str | None]] = []  # (tmp_path, target_path, bak_path)
+    recover_interrupted_publish(target_dir)
+
+    parent_dir = os.path.dirname(os.path.abspath(target_dir))
+    dir_name = os.path.basename(os.path.abspath(target_dir))
+
+    staging_dir = tempfile.mkdtemp(prefix=f"{dir_name}_staging_", dir=parent_dir)
+    bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
 
     try:
-        # Step 1: Write all new data to .tmp files
+        # Step 1: Copy existing preserved artifacts from target_dir to staging_dir
+        if os.path.exists(target_dir):
+            for item in os.listdir(target_dir):
+                s_item = os.path.join(target_dir, item)
+                d_item = os.path.join(staging_dir, item)
+                if os.path.isdir(s_item):
+                    shutil.copytree(s_item, d_item)
+                else:
+                    shutil.copy2(s_item, d_item)
+
+        # Step 2: Write all new validated artifacts into staging_dir
         for rel_path, data in artifacts.items():
-            target_path = os.path.join(target_dir, rel_path)
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            tmp_path = f"{target_path}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
+            out_path = os.path.join(staging_dir, rel_path)
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
                 f.write("\n")
-            tmp_map.append((tmp_path, target_path))
 
-        # Step 2: Backup any existing target files
-        for tmp_path, target_path in tmp_map:
-            if os.path.exists(target_path):
-                bak_path = f"{target_path}.bak"
-                os.replace(target_path, bak_path)
-                bak_map.append((bak_path, target_path))
+        # Step 3: Atomic directory swap
+        if os.path.exists(bak_dir):
+            shutil.rmtree(bak_dir, ignore_errors=True)
 
-        # Step 3: Atomic replacement of target files from .tmp files
-        for tmp_path, target_path in tmp_map:
-            bak_path = f"{target_path}.bak" if os.path.exists(f"{target_path}.bak") else None
-            os.replace(tmp_path, target_path)
-            completed_replaces.append((tmp_path, target_path, bak_path))
+        if os.path.exists(target_dir):
+            os.replace(target_dir, bak_dir)
 
-        # Step 4: Cleanup backup (.bak) files on successful commit
-        for bak_path, _ in bak_map:
-            if os.path.exists(bak_path):
-                try:
-                    os.remove(bak_path)
-                except OSError:
-                    pass
+        os.replace(staging_dir, target_dir)
+
+        if os.path.exists(bak_dir):
+            shutil.rmtree(bak_dir, ignore_errors=True)
 
     except Exception as exc:
         logger.error(
-            "Atomic artifact publishing failed during write/commit: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
+            "Atomic artifact publishing failed during directory staging/swap: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
             exc,
         )
         rollback_errors: list[str] = []
 
-        # Rollback: restore backed-up files for completed replaces
-        for _tmp_path, target_path, bak_path in completed_replaces:
-            if bak_path and os.path.exists(bak_path):
-                try:
-                    os.replace(bak_path, target_path)
-                except Exception as r_err:  # noqa: BLE001
-                    rollback_errors.append(
-                        f"Failed restoring '{target_path}' from '{bak_path}': {r_err}"
-                    )
-            elif os.path.exists(target_path) and not bak_path:
-                # File was newly created during this run, remove it
-                try:
-                    os.remove(target_path)
-                except Exception as r_err:  # noqa: BLE001
-                    rollback_errors.append(
-                        f"Failed removing newly created '{target_path}': {r_err}"
-                    )
+        if not os.path.exists(target_dir) and os.path.exists(bak_dir):
+            try:
+                os.replace(bak_dir, target_dir)
+            except Exception as r_err:  # noqa: BLE001
+                rollback_errors.append(f"Failed restoring target directory from backup: {r_err}")
 
-        # Cleanup remaining .bak files
-        for bak_path, target_path in bak_map:
-            if os.path.exists(bak_path):
-                try:
-                    os.replace(bak_path, target_path)
-                except Exception as r_err:  # noqa: BLE001
-                    rollback_errors.append(
-                        f"Failed restoring backup '{bak_path}' to '{target_path}': {r_err}"
-                    )
-
-        # Cleanup temporary files
-        for tmp_path, _ in tmp_map:
-            if os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception as r_err:  # noqa: BLE001
-                    rollback_errors.append(f"Failed removing temporary file '{tmp_path}': {r_err}")
+        if os.path.exists(staging_dir):
+            try:
+                shutil.rmtree(staging_dir, ignore_errors=True)
+            except Exception as r_err:  # noqa: BLE001
+                rollback_errors.append(
+                    f"Failed cleaning up staging directory '{staging_dir}': {r_err}"
+                )
 
         if rollback_errors:
             err_msg = "; ".join(rollback_errors)
-            logger.critical("CRITICAL: Atomic artifact rollback failed: %s", err_msg)
+            logger.critical(
+                "CRITICAL: Directory-level atomic artifact rollback failed: %s", err_msg
+            )
             raise RuntimeError(
-                f"CRITICAL: Atomic artifact publish rollback failed: {err_msg}"
+                f"CRITICAL: Directory-level atomic artifact publish rollback failed: {err_msg}"
             ) from exc
 
         raise
@@ -1756,6 +1771,7 @@ def update_history_index(data_date: str | None, index_path: str | None = None):
 
 
 def main():
+    recover_interrupted_publish(GENERATED_DIR)
     parser = argparse.ArgumentParser(description="VN Invest Report Generator v2")
     parser.add_argument(
         "--update",

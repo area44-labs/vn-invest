@@ -559,7 +559,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
             ):
                 publish_artifacts_atomically(artifacts, target_dir=temp_dir)
 
-            self.assertIn("CRITICAL: Atomic artifact publish rollback failed", str(cm.exception))
+            self.assertIn(
+                "CRITICAL: Directory-level atomic artifact publish rollback failed",
+                str(cm.exception),
+            )
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
