@@ -19,6 +19,8 @@ dist-ssr
 __pycache__/
 *.py[cod]
 *$py.class
+.*.lock
+.*_txn.json
 
 # Editor directories and files
 .vscode/*

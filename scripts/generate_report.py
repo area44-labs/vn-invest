@@ -14,12 +14,12 @@ Outputs:
 
 import argparse
 import copy
+import fcntl
 import json
 import logging
 import math
 import os
 import shutil
-import tempfile
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -81,130 +81,356 @@ def validate_performance_payload(performance_data: dict, schema: dict | None = N
     jsonschema.validate(instance=performance_data, schema=schema)
 
 
-def save_json_files(relative_path: str, data: dict):
-    """Save JSON data atomically to generated/."""
-    p = os.path.join(GENERATED_DIR, relative_path)
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    tmp_p = f"{p}.tmp"
-    with open(tmp_p, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-        f.write("\n")
-    os.replace(tmp_p, p)
+class ArtifactLockError(RuntimeError):
+    """Raised when artifact directory lock cannot be acquired."""
+
+    pass
 
 
-def recover_interrupted_publish(target_dir: str | None = None) -> None:
-    """Recover target_dir from interrupted atomic publish if backup exists on startup."""
-    if target_dir is None:
-        target_dir = GENERATED_DIR
+class ArtifactTransactionError(RuntimeError):
+    """Raised when artifact publishing transaction fails."""
 
-    parent_dir = os.path.dirname(os.path.abspath(target_dir))
-    dir_name = os.path.basename(os.path.abspath(target_dir))
+    pass
+
+
+class ArtifactLock:
+    """Single-writer lock for artifact directory modifications.
+
+    Uses OS-level fcntl.flock on POSIX platforms combined with process metadata
+    for crash-resilient mutual exclusion and stale lock handling.
+    """
+
+    def __init__(self, target_dir: str, timeout: float = 0.0):
+        self.target_dir = os.path.abspath(target_dir)
+        parent_dir = os.path.dirname(self.target_dir)
+        dir_name = os.path.basename(self.target_dir)
+        self.lock_path = os.path.join(parent_dir, f".{dir_name}.lock")
+        self.fd = None
+        self.is_acquired = False
+        self.timeout = timeout
+
+    def acquire(self) -> "ArtifactLock":
+        if self.is_acquired:
+            return self
+
+        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+        start_time = time.time()
+
+        while True:
+            try:
+                fd = open(self.lock_path, "a+", encoding="utf-8")
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.fd = fd
+                self.is_acquired = True
+                self._write_metadata()
+                return self
+            except (BlockingIOError, OSError) as err:
+                if "fd" in locals() and fd:
+                    try:
+                        fd.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                holder_info = self._read_lock_metadata()
+
+                if time.time() - start_time >= self.timeout:
+                    pid = holder_info.get("pid") if holder_info else None
+                    pid_str = f" (PID {pid})" if pid and isinstance(pid, int) else ""
+                    raise ArtifactLockError(
+                        f"Artifact directory '{self.target_dir}' is locked by another process{pid_str}"
+                    ) from err
+
+                time.sleep(0.05)
+
+    def release(self) -> None:
+        if self.is_acquired and self.fd is not None:
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self.fd.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self.fd = None
+            self.is_acquired = False
+
+    def __enter__(self) -> "ArtifactLock":
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.release()
+
+    def _write_metadata(self) -> None:
+        if self.fd is not None:
+            try:
+                self.fd.seek(0)
+                self.fd.truncate()
+                meta = {
+                    "pid": os.getpid(),
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "target_dir": self.target_dir,
+                }
+                json.dump(meta, self.fd)
+                self.fd.flush()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _read_lock_metadata(self) -> dict | None:
+        try:
+            if os.path.exists(self.lock_path):
+                with open(self.lock_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    def _is_stale(self, holder_info: dict | None) -> bool:
+        if not holder_info or "pid" not in holder_info:
+            return True
+        pid = holder_info.get("pid")
+        if not isinstance(pid, int):
+            return True
+        try:
+            os.kill(pid, 0)
+            return False  # Process is alive
+        except (ProcessLookupError, OSError):
+            return True  # Process is dead
+
+
+def recover_transaction_state(target_dir: str) -> None:
+    """Recover target_dir from interrupted atomic transaction deterministically and idempotently."""
+    target_dir = os.path.abspath(target_dir)
+    parent_dir = os.path.dirname(target_dir)
+    dir_name = os.path.basename(target_dir)
+
     bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
+    state_file = os.path.join(parent_dir, f".{dir_name}_txn.json")
 
-    if not os.path.exists(target_dir) and os.path.exists(bak_dir):
+    staging_dirs = []
+    try:
+        if os.path.exists(parent_dir):
+            prefix = f"{dir_name}_staging_"
+            for item in os.listdir(parent_dir):
+                if item.startswith(prefix):
+                    staging_dirs.append(os.path.join(parent_dir, item))
+    except Exception as err:  # noqa: BLE001
+        logger.warning("Error scanning for staging directories in '%s': %s", parent_dir, err)
+
+    target_exists = os.path.exists(target_dir)
+    bak_exists = os.path.exists(bak_dir)
+
+    # 1. Target missing, Backup exists -> restore backup
+    if not target_exists and bak_exists:
         logger.info(
             "Recovering target directory '%s' from interrupted backup '%s'...", target_dir, bak_dir
         )
         try:
             os.replace(bak_dir, target_dir)
+            target_exists = True
         except Exception as err:  # noqa: BLE001
             logger.critical(
                 "Failed recovering target directory '%s' from '%s': %s", target_dir, bak_dir, err
             )
-    elif os.path.exists(target_dir) and os.path.exists(bak_dir):
+            raise RuntimeError(f"Failed recovering target directory from backup: {err}") from err
+
+    # 2. Target exists, Backup exists -> target is already valid production; clean backup safely
+    elif target_exists and bak_exists:
         try:
             shutil.rmtree(bak_dir, ignore_errors=True)
         except Exception as err:  # noqa: BLE001
             logger.debug("Non-fatal error removing backup dir '%s': %s", bak_dir, err)
 
+    # 3. Clean up staging directories if target exists or backup restored
+    if os.path.exists(target_dir):
+        for s_dir in staging_dirs:
+            try:
+                shutil.rmtree(s_dir, ignore_errors=True)
+            except Exception as err:  # noqa: BLE001
+                logger.debug("Non-fatal error removing staging dir '%s': %s", s_dir, err)
+    elif not bak_exists:
+        # Neither target nor backup exists (e.g. initial publish interrupted during staging)
+        for s_dir in staging_dirs:
+            try:
+                shutil.rmtree(s_dir, ignore_errors=True)
+            except Exception as err:  # noqa: BLE001
+                logger.debug("Non-fatal error removing staging dir '%s': %s", s_dir, err)
 
-def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
-    """Publish multiple JSON artifacts atomically using directory-level staging and swap semantics.
+    # 4. Clean up transaction state file
+    if os.path.exists(state_file):
+        try:
+            os.remove(state_file)
+        except Exception:  # noqa: BLE001
+            pass
 
-    `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
-    to dictionary payload data.
 
-    Directory-Level Atomic Commit Semantics:
-    1. A staging directory (e.g. `generated_staging_XXXXXX`) is created alongside `target_dir`.
-    2. If `target_dir` exists, existing preserved files (e.g. historical reports) are copied to `staging_dir`.
-    3. All new validated JSON artifacts are written into `staging_dir`.
-    4. Directory-level swap: `target_dir` -> `target_dir_bak`, `staging_dir` -> `target_dir`.
-    5. Clean up `target_dir_bak`.
-    If any step fails, `target_dir` is restored from `target_dir_bak`.
+class ArtifactTransaction:
+    """Manages explicit artifact publishing lifecycle: STAGING -> BACKUP -> COMMIT -> CLEANUP.
+
+    Ensures target_dir is always in a valid state and recovery is deterministic.
     """
-    if target_dir is None:
-        target_dir = GENERATED_DIR
 
-    recover_interrupted_publish(target_dir)
+    def __init__(self, target_dir: str | None = None, txn_id: str | None = None):
+        self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
+        self.parent_dir = os.path.dirname(self.target_dir)
+        self.dir_name = os.path.basename(self.target_dir)
 
-    parent_dir = os.path.dirname(os.path.abspath(target_dir))
-    dir_name = os.path.basename(os.path.abspath(target_dir))
+        self.txn_id = txn_id or f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}_{os.getpid()}"
+        self.staging_dir = os.path.join(self.parent_dir, f"{self.dir_name}_staging_{self.txn_id}")
+        self.backup_dir = os.path.join(self.parent_dir, f"{self.dir_name}_bak")
+        self.state_path = os.path.join(self.parent_dir, f".{self.dir_name}_txn.json")
+        self.stage = "INIT"
 
-    staging_dir = tempfile.mkdtemp(prefix=f"{dir_name}_staging_", dir=parent_dir)
-    bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
+    def update_state(self, stage: str) -> None:
+        self.stage = stage
+        state_data = {
+            "txn_id": self.txn_id,
+            "stage": stage,
+            "target_dir": self.target_dir,
+            "staging_dir": self.staging_dir,
+            "backup_dir": self.backup_dir,
+            "pid": os.getpid(),
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        tmp_state = f"{self.state_path}.tmp"
+        try:
+            with open(tmp_state, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2)
+            os.replace(tmp_state, self.state_path)
+        except Exception as err:  # noqa: BLE001
+            logger.warning("Failed writing transaction state metadata: %s", err)
 
-    try:
-        # Step 1: Copy existing preserved artifacts from target_dir to staging_dir
-        if os.path.exists(target_dir):
-            for item in os.listdir(target_dir):
-                s_item = os.path.join(target_dir, item)
-                d_item = os.path.join(staging_dir, item)
+    def clear_state(self) -> None:
+        try:
+            if os.path.exists(self.state_path):
+                os.remove(self.state_path)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def recover(self) -> None:
+        """Deterministic, idempotent transaction recovery."""
+        recover_transaction_state(self.target_dir)
+
+    def execute_publish(self, artifacts: dict[str, dict]) -> None:
+        """Execute full atomic publish transaction with explicit lifecycle stages."""
+        self.recover()
+
+        # Step 1: STAGING
+        self.update_state("STAGING")
+        os.makedirs(self.staging_dir, exist_ok=True)
+
+        if os.path.exists(self.target_dir):
+            for item in os.listdir(self.target_dir):
+                s_item = os.path.join(self.target_dir, item)
+                d_item = os.path.join(self.staging_dir, item)
                 if os.path.isdir(s_item):
                     shutil.copytree(s_item, d_item)
                 else:
                     shutil.copy2(s_item, d_item)
 
-        # Step 2: Write all new validated artifacts into staging_dir
         for rel_path, data in artifacts.items():
-            out_path = os.path.join(staging_dir, rel_path)
+            out_path = os.path.join(self.staging_dir, rel_path)
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
                 f.write("\n")
 
-        # Step 3: Atomic directory swap
-        if os.path.exists(bak_dir):
-            shutil.rmtree(bak_dir, ignore_errors=True)
+        # Step 2: BACKUP
+        self.update_state("BACKUP")
+        if os.path.exists(self.backup_dir):
+            shutil.rmtree(self.backup_dir, ignore_errors=True)
 
-        if os.path.exists(target_dir):
-            os.replace(target_dir, bak_dir)
+        if os.path.exists(self.target_dir):
+            os.replace(self.target_dir, self.backup_dir)
 
-        os.replace(staging_dir, target_dir)
+        # Step 3: COMMIT
+        self.update_state("COMMIT")
+        os.replace(self.staging_dir, self.target_dir)
 
-        if os.path.exists(bak_dir):
-            shutil.rmtree(bak_dir, ignore_errors=True)
+        # Step 4: CLEANUP
+        self.update_state("CLEANUP")
+        if os.path.exists(self.backup_dir):
+            shutil.rmtree(self.backup_dir, ignore_errors=True)
+        if os.path.exists(self.staging_dir):
+            shutil.rmtree(self.staging_dir, ignore_errors=True)
 
-    except Exception as exc:
-        logger.error(
-            "Atomic artifact publishing failed during directory staging/swap: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
-            exc,
-        )
-        rollback_errors: list[str] = []
+        self.clear_state()
 
-        if not os.path.exists(target_dir) and os.path.exists(bak_dir):
-            try:
-                os.replace(bak_dir, target_dir)
-            except Exception as r_err:  # noqa: BLE001
-                rollback_errors.append(f"Failed restoring target directory from backup: {r_err}")
 
-        if os.path.exists(staging_dir):
-            try:
-                shutil.rmtree(staging_dir, ignore_errors=True)
-            except Exception as r_err:  # noqa: BLE001
-                rollback_errors.append(
-                    f"Failed cleaning up staging directory '{staging_dir}': {r_err}"
-                )
+def save_json_files(relative_path: str, data: dict):
+    """Save JSON data atomically to generated/ under lock."""
+    with ArtifactLock(GENERATED_DIR):
+        p = os.path.join(GENERATED_DIR, relative_path)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp_p = f"{p}.tmp"
+        with open(tmp_p, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp_p, p)
 
-        if rollback_errors:
-            err_msg = "; ".join(rollback_errors)
-            logger.critical(
-                "CRITICAL: Directory-level atomic artifact rollback failed: %s", err_msg
+
+def recover_interrupted_publish(target_dir: str | None = None) -> None:
+    """Recover target_dir from interrupted atomic publish under single-writer lock."""
+    if target_dir is None:
+        target_dir = GENERATED_DIR
+
+    target_dir = os.path.abspath(target_dir)
+
+    with ArtifactLock(target_dir):
+        recover_transaction_state(target_dir)
+
+
+def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
+    """Publish multiple JSON artifacts atomically using single-writer lock and explicit lifecycle transaction.
+
+    `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
+    to dictionary payload data.
+    """
+    if target_dir is None:
+        target_dir = GENERATED_DIR
+
+    target_dir = os.path.abspath(target_dir)
+
+    with ArtifactLock(target_dir):
+        txn = ArtifactTransaction(target_dir)
+        try:
+            txn.execute_publish(artifacts)
+        except Exception as exc:
+            logger.error(
+                "Atomic artifact publishing failed during directory staging/swap: stage=%s artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
+                txn.stage,
+                exc,
             )
-            raise RuntimeError(
-                f"CRITICAL: Directory-level atomic artifact publish rollback failed: {err_msg}"
-            ) from exc
+            rollback_errors: list[str] = []
 
-        raise
+            if not os.path.exists(target_dir) and os.path.exists(txn.backup_dir):
+                try:
+                    os.replace(txn.backup_dir, target_dir)
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(
+                        f"Failed restoring target directory from backup: {r_err}"
+                    )
+
+            if os.path.exists(txn.staging_dir):
+                try:
+                    shutil.rmtree(txn.staging_dir, ignore_errors=True)
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(
+                        f"Failed cleaning up staging directory '{txn.staging_dir}': {r_err}"
+                    )
+
+            txn.clear_state()
+
+            if rollback_errors:
+                err_msg = "; ".join(rollback_errors)
+                logger.critical(
+                    "CRITICAL: Directory-level atomic artifact rollback failed: %s", err_msg
+                )
+                raise RuntimeError(
+                    f"CRITICAL: Directory-level atomic artifact publish rollback failed: {err_msg}"
+                ) from exc
+
+            raise
 
 
 def load_schema():
