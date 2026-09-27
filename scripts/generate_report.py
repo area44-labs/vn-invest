@@ -144,35 +144,51 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
             "Atomic artifact publishing failed during write/commit: stage=ARTIFACT_WRITE artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
             exc,
         )
+        rollback_errors: list[str] = []
+
         # Rollback: restore backed-up files for completed replaces
         for _tmp_path, target_path, bak_path in completed_replaces:
             if bak_path and os.path.exists(bak_path):
                 try:
                     os.replace(bak_path, target_path)
-                except OSError:
-                    pass
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(
+                        f"Failed restoring '{target_path}' from '{bak_path}': {r_err}"
+                    )
             elif os.path.exists(target_path) and not bak_path:
                 # File was newly created during this run, remove it
                 try:
                     os.remove(target_path)
-                except OSError:
-                    pass
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(
+                        f"Failed removing newly created '{target_path}': {r_err}"
+                    )
 
         # Cleanup remaining .bak files
         for bak_path, target_path in bak_map:
             if os.path.exists(bak_path):
                 try:
                     os.replace(bak_path, target_path)
-                except OSError:
-                    pass
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(
+                        f"Failed restoring backup '{bak_path}' to '{target_path}': {r_err}"
+                    )
 
         # Cleanup temporary files
         for tmp_path, _ in tmp_map:
             if os.path.exists(tmp_path):
                 try:
                     os.remove(tmp_path)
-                except OSError:
-                    pass
+                except Exception as r_err:  # noqa: BLE001
+                    rollback_errors.append(f"Failed removing temporary file '{tmp_path}': {r_err}")
+
+        if rollback_errors:
+            err_msg = "; ".join(rollback_errors)
+            logger.critical("CRITICAL: Atomic artifact rollback failed: %s", err_msg)
+            raise RuntimeError(
+                f"CRITICAL: Atomic artifact publish rollback failed: {err_msg}"
+            ) from exc
+
         raise
 
 

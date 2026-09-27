@@ -525,6 +525,44 @@ class TestOutputIntegritySuite(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_publish_rollback_failure_raises_runtime_error(self):
+        """Verify that if rollback itself fails during atomic publishing, RuntimeError is raised with CRITICAL message."""
+        from scripts.generate_report import publish_artifacts_atomically
+
+        temp_dir = tempfile.mkdtemp()
+        try:
+            target_file = os.path.join(temp_dir, "recommendations.json")
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write('{"old": 1}\n')
+
+            artifacts = {"recommendations.json": {"new": 1}}
+
+            real_os_replace = os.replace
+            replace_count = 0
+
+            def double_failing_replace(src, dst):
+                nonlocal replace_count
+                replace_count += 1
+                if replace_count == 1:
+                    # Backup replace: target -> bak
+                    return real_os_replace(src, dst)
+                elif replace_count == 2:
+                    # Target replace: tmp -> target fails
+                    raise OSError("Disk write error during commit")
+                else:
+                    # Rollback replace: bak -> target fails
+                    raise OSError("Disk write error during rollback")
+
+            with (
+                patch("os.replace", side_effect=double_failing_replace),
+                self.assertRaises(RuntimeError) as cm,
+            ):
+                publish_artifacts_atomically(artifacts, target_dir=temp_dir)
+
+            self.assertIn("CRITICAL: Atomic artifact publish rollback failed", str(cm.exception))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_successful_retry_after_previous_failure(self):
         """Verify that after a failure leaves artifacts unchanged, a subsequent valid run completes and publishes all new artifacts."""
         temp_dir = tempfile.mkdtemp()

@@ -2554,29 +2554,41 @@ def check_market_regime_status(market_payload: dict) -> CheckResult:
     )
 
 
-def check_history_index_status(generated_dir: str, data_as_of: str | None = None) -> CheckResult:
+def check_history_index_status(
+    generated_dir: str,
+    data_as_of: str | None = None,
+    in_memory_artifacts: dict[str, Any] | None = None,
+) -> CheckResult:
     """Validate history index (history/index.json) integrity, chronological ordering, and inclusion of data_as_of."""
-    index_path = os.path.join(generated_dir, "history", "index.json")
-    if not os.path.exists(index_path):
-        return CheckResult(
-            check_name="history_index_status",
-            status="FAIL",
-            measured_value={"index_path": index_path},
-            expected_condition="history/index.json exists",
-            message="History index file history/index.json does not exist",
-        )
+    in_mem = in_memory_artifacts or {}
+    data = None
 
-    try:
-        with open(index_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as err:  # noqa: BLE001
-        return CheckResult(
-            check_name="history_index_status",
-            status="FAIL",
-            measured_value={"error": str(err)},
-            expected_condition="history/index.json is valid JSON",
-            message=f"Failed to read history index JSON: {err}",
-        )
+    if "history/index.json" in in_mem:
+        data = in_mem["history/index.json"]
+    elif "index.json" in in_mem:
+        data = in_mem["index.json"]
+    else:
+        index_path = os.path.join(generated_dir, "history", "index.json")
+        if not os.path.exists(index_path):
+            return CheckResult(
+                check_name="history_index_status",
+                status="FAIL",
+                measured_value={"index_path": index_path},
+                expected_condition="history/index.json exists",
+                message="History index file history/index.json does not exist",
+            )
+
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as err:  # noqa: BLE001
+            return CheckResult(
+                check_name="history_index_status",
+                status="FAIL",
+                measured_value={"error": str(err)},
+                expected_condition="history/index.json is valid JSON",
+                message=f"Failed to read history index JSON: {err}",
+            )
 
     if not isinstance(data, dict) or "dates" not in data:
         return CheckResult(
@@ -2616,11 +2628,13 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             message=f"History index contains invalid date entries: {', '.join(invalid_date_items[:5])}",
         )
 
-    # Check that corresponding history date JSON files exist on disk
+    # Check that corresponding history date JSON files exist on disk or in memory
     missing_history_files = []
     for d in dates:
         file_path = os.path.join(generated_dir, "history", f"{d}.json")
-        if not os.path.exists(file_path):
+        rel_path = os.path.join("history", f"{d}.json")
+        file_name = f"{d}.json"
+        if not os.path.exists(file_path) and rel_path not in in_mem and file_name not in in_mem:
             missing_history_files.append(f"history/{d}.json")
 
     if missing_history_files:
@@ -2653,19 +2667,14 @@ def check_history_index_status(generated_dir: str, data_as_of: str | None = None
             message="History index dates are not sorted in descending chronological order",
         )
 
-    if data_as_of and dates:
-        latest_history_date = dates[0]
-        if data_as_of < latest_history_date:
-            return CheckResult(
-                check_name="history_index_status",
-                status="FAIL",
-                measured_value={
-                    "data_as_of": data_as_of,
-                    "latest_history_date": latest_history_date,
-                },
-                expected_condition=f"data_as_of '{data_as_of}' >= latest index date '{latest_history_date}'",
-                message=f"data_as_of '{data_as_of}' is older than latest history/index.json date '{latest_history_date}'",
-            )
+    if data_as_of and data_as_of not in dates:
+        return CheckResult(
+            check_name="history_index_status",
+            status="FAIL",
+            measured_value={"data_as_of": data_as_of, "dates": dates[:5]},
+            expected_condition=f"data_as_of '{data_as_of}' must be present in history/index.json dates list",
+            message=f"data_as_of '{data_as_of}' is missing from history/index.json dates",
+        )
 
     return CheckResult(
         check_name="history_index_status",
@@ -3141,7 +3150,11 @@ def evaluate_production_monitoring(
     checks.append(check_market_regime_status(market_payload))
 
     # 7. History index integrity check (ALWAYS executed, fails closed if history/index.json is missing)
-    checks.append(check_history_index_status(g_dir, data_as_of=data_as_of))
+    checks.append(
+        check_history_index_status(
+            g_dir, data_as_of=data_as_of, in_memory_artifacts=in_memory_artifacts
+        )
+    )
 
     # 8. Benchmark OHLCV checks (if provided)
     if df_vnindex is not None:
