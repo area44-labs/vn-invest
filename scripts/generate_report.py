@@ -114,8 +114,8 @@ def recover_interrupted_publish(target_dir: str | None = None) -> None:
     elif os.path.exists(target_dir) and os.path.exists(bak_dir):
         try:
             shutil.rmtree(bak_dir, ignore_errors=True)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            logger.debug("Non-fatal error removing backup dir '%s': %s", bak_dir, err)
 
 
 def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
