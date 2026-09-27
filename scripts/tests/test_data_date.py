@@ -169,11 +169,11 @@ class TestDataDateSemantics(unittest.TestCase):
                 )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
-        """Test B: When data_as_of is None, no history JSON artifact is created and index is not updated."""
+        """Test B: When data_as_of is None, monitoring fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
             patch("scripts.generate_report.get_historical_data") as mock_get_hist,
-            patch("scripts.generate_report.save_json_files") as mock_save,
+            patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
             patch("scripts.generate_report.update_history_index") as mock_update_index,
         ):
             mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
@@ -191,13 +191,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 self.assertEqual(cm.exception.code, 1)
 
             mock_update_index.assert_not_called()
-
-            # Ensure save_json_files was called only for recommendations.json and market.json, NOT for history/YYYY-MM-DD.json
-            saved_paths = [call.args[0] for call in mock_save.call_args_list]
-            self.assertIn("recommendations.json", saved_paths)
-            self.assertIn("market.json", saved_paths)
-            for p in saved_paths:
-                self.assertFalse(p.startswith("history/"))
+            mock_publish.assert_not_called()
 
     def test_generated_at_differs_from_data_as_of(self):
         """Verify generated_at is a current execution timestamp while data_as_of reflects historical OHLCV data."""
