@@ -3488,7 +3488,7 @@ def evaluate_production_monitoring(
                     message=bud_msg,
                 )
             )
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             checks.append(
                 CheckResult(
                     check_name="performance_payload_integrity",
