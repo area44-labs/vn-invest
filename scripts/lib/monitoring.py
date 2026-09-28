@@ -48,9 +48,7 @@ logger = logging.getLogger(__name__)
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
-DEFAULT_PERFORMANCE_SCHEMA_PATH = os.path.join(
-    ROOT_DIR, "schemas", "performance.schema.json"
-)
+DEFAULT_PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
 
 
 def load_performance_schema(
@@ -58,16 +56,12 @@ def load_performance_schema(
 ) -> dict:
     """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
     if not os.path.exists(schema_path):
-        raise FileNotFoundError(
-            f"Performance schema file not found at '{schema_path}'"
-        )
+        raise FileNotFoundError(f"Performance schema file not found at '{schema_path}'")
     with open(schema_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def validate_performance_payload(
-    performance_data: dict, schema: dict | None = None
-) -> None:
+def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
     """Validate canonical performance object structure and schema.
 
     Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
@@ -89,9 +83,7 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
     Returns structured dict with overall_status ("PASS", "DEGRADED", "FAILED") and stage_evaluations list.
     """
     if not isinstance(performance_data, dict):
-        raise TypeError(
-            f"performance_data must be a dict, got {type(performance_data).__name__}"
-        )
+        raise TypeError(f"performance_data must be a dict, got {type(performance_data).__name__}")
 
     stages = performance_data.get("stages", [])
     if not isinstance(stages, list):
@@ -107,9 +99,7 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
         actual_seconds = float(st.get("elapsed_seconds", 0.0))
         exec_status = st.get("status", "SUCCESS")
 
-        baseline_seconds = float(
-            PERFORMANCE_STAGE_BASELINES.get(stage_name, actual_seconds)
-        )
+        baseline_seconds = float(PERFORMANCE_STAGE_BASELINES.get(stage_name, actual_seconds))
         deg_mult, fail_mult, noise_floor = PERFORMANCE_STAGE_THRESHOLDS.get(
             stage_name, (2.0, 4.0, 1.0)
         )
@@ -118,9 +108,7 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
         fail_threshold = max(baseline_seconds * fail_mult, noise_floor)
 
         exceeded_ratio = (
-            round(actual_seconds / baseline_seconds, 4)
-            if baseline_seconds > 0
-            else 1.0
+            round(actual_seconds / baseline_seconds, 4) if baseline_seconds > 0 else 1.0
         )
 
         if exec_status == "FAILED":
@@ -195,32 +183,20 @@ def evaluate_provider_budget(performance_data: dict) -> dict[str, Any]:
     Returns structured dict with overall_status ("PASS", "FAILED") and violation details.
     """
     if not isinstance(performance_data, dict):
-        raise TypeError(
-            f"performance_data must be a dict, got {type(performance_data).__name__}"
-        )
+        raise TypeError(f"performance_data must be a dict, got {type(performance_data).__name__}")
 
     provider = performance_data.get("provider", {})
     duplicates = performance_data.get("duplicate_operations", [])
 
-    total_calls = (
-        int(provider.get("total_calls", 0)) if isinstance(provider, dict) else 0
-    )
-    duplicate_operations_count = (
-        len(duplicates) if isinstance(duplicates, list) else 0
-    )
+    total_calls = int(provider.get("total_calls", 0)) if isinstance(provider, dict) else 0
+    duplicate_operations_count = len(duplicates) if isinstance(duplicates, list) else 0
     total_elapsed_seconds = (
-        float(provider.get("total_elapsed_seconds", 0.0))
-        if isinstance(provider, dict)
-        else 0.0
+        float(provider.get("total_elapsed_seconds", 0.0)) if isinstance(provider, dict) else 0.0
     )
 
     max_calls_budget = int(PROVIDER_BUDGET.get("max_total_calls", 120))
-    max_duplicates_budget = int(
-        PROVIDER_BUDGET.get("max_duplicate_operations", 5)
-    )
-    max_elapsed_budget_seconds = float(
-        PROVIDER_BUDGET.get("max_total_elapsed_seconds", 60.0)
-    )
+    max_duplicates_budget = int(PROVIDER_BUDGET.get("max_duplicate_operations", 5))
+    max_elapsed_budget_seconds = float(PROVIDER_BUDGET.get("max_total_elapsed_seconds", 60.0))
 
     violations = []
     if total_calls > max_calls_budget:
@@ -250,6 +226,7 @@ def evaluate_provider_budget(performance_data: dict) -> dict[str, Any]:
         "max_elapsed_budget_seconds": max_elapsed_budget_seconds,
         "violations": violations,
     }
+
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 
@@ -3445,11 +3422,15 @@ def evaluate_production_monitoring(
 
             if reg_eval["overall_status"] == "FAILED":
                 reg_status = "FAIL"
-                failed_msgs = [e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "FAILED"]
+                failed_msgs = [
+                    e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "FAILED"
+                ]
                 reg_msg = f"Performance regression detected: {'; '.join(failed_msgs)}"
             elif reg_eval["overall_status"] == "DEGRADED":
                 reg_status = "WARNING"
-                deg_msgs = [e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "DEGRADED"]
+                deg_msgs = [
+                    e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "DEGRADED"
+                ]
                 reg_msg = f"Performance degradation detected: {'; '.join(deg_msgs)}"
             else:
                 reg_status = "PASS"

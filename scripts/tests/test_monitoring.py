@@ -144,7 +144,11 @@ class TestProductionMonitoring(unittest.TestCase):
                 {"stage": "market_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
                 {"stage": "regime_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
                 {"stage": "risk_calculation", "elapsed_seconds": 0.1, "status": "SUCCESS"},
-                {"stage": "recommendation_calculation", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {
+                    "stage": "recommendation_calculation",
+                    "elapsed_seconds": 0.1,
+                    "status": "SUCCESS",
+                },
                 {"stage": "monitoring", "elapsed_seconds": 0.05, "status": "SUCCESS"},
                 {"stage": "payload_validation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
             ],

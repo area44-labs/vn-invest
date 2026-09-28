@@ -947,9 +947,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
         res_calls = evaluate_provider_budget(payload_calls)
         self.assertEqual(res_calls["overall_status"], "FAILED")
-        self.assertTrue(
-            any("Total provider calls" in v for v in res_calls["violations"])
-        )
+        self.assertTrue(any("Total provider calls" in v for v in res_calls["violations"]))
 
         # 2. Duplicate operations exceeded
         payload_dups = {
@@ -977,9 +975,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
         res_dups = evaluate_provider_budget(payload_dups)
         self.assertEqual(res_dups["overall_status"], "FAILED")
-        self.assertTrue(
-            any("Duplicate operations count" in v for v in res_dups["violations"])
-        )
+        self.assertTrue(any("Duplicate operations count" in v for v in res_dups["violations"]))
 
         # 3. Elapsed time exceeded
         payload_time = {
@@ -997,11 +993,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
         res_time = evaluate_provider_budget(payload_time)
         self.assertEqual(res_time["overall_status"], "FAILED")
-        self.assertTrue(
-            any(
-                "Total provider elapsed time" in v for v in res_time["violations"]
-            )
-        )
+        self.assertTrue(any("Total provider elapsed time" in v for v in res_time["violations"]))
 
     def test_duplicate_provider_operations(self):
         """Verify duplicate provider operations are accurately detected and reported."""
@@ -1162,9 +1154,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             (hist_dir / "index.json").write_text(
                 json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
             )
-            (hist_dir / "2026-09-17.json").write_text(
-                json.dumps(valid_payload), encoding="utf-8"
-            )
+            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
             (Path(tmpdir) / "recommendations.json").write_text(
                 json.dumps(valid_payload), encoding="utf-8"
             )
@@ -1179,7 +1169,9 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 reference_date="2026-09-17",
                 universe_audit=healthy_audit,
             )
-            reg_pass_chk = next(c for c in res_pass.checks if c.check_name == "performance_regression")
+            reg_pass_chk = next(
+                c for c in res_pass.checks if c.check_name == "performance_regression"
+            )
             self.assertEqual(reg_pass_chk.status, "PASS")
             self.assertIn(res_pass.overall_status, ("PASS", "WARNING"))
 
@@ -1195,9 +1187,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             (hist_dir / "index.json").write_text(
                 json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
             )
-            (hist_dir / "2026-09-17.json").write_text(
-                json.dumps(valid_payload), encoding="utf-8"
-            )
+            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
             (Path(tmpdir) / "recommendations.json").write_text(
                 json.dumps(valid_payload), encoding="utf-8"
             )
@@ -1213,9 +1203,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 universe_audit=regression_audit,
             )
             self.assertEqual(res_fail.overall_status, "FAIL")
-            reg_chk = next(
-                c for c in res_fail.checks if c.check_name == "performance_regression"
-            )
+            reg_chk = next(c for c in res_fail.checks if c.check_name == "performance_regression")
             self.assertEqual(reg_chk.status, "FAIL")
 
     def test_malformed_and_missing_performance_data(self):
@@ -1321,9 +1309,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             (hist_dir / "index.json").write_text(
                 json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
             )
-            (hist_dir / "2026-09-17.json").write_text(
-                json.dumps(valid_payload), encoding="utf-8"
-            )
+            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
             (Path(tmpdir) / "recommendations.json").write_text(
                 json.dumps(valid_payload), encoding="utf-8"
             )
@@ -1354,9 +1340,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             (hist_dir / "index.json").write_text(
                 json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
             )
-            (hist_dir / "2026-09-17.json").write_text(
-                json.dumps(valid_payload), encoding="utf-8"
-            )
+            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
             (Path(tmpdir) / "recommendations.json").write_text(
                 json.dumps(valid_payload), encoding="utf-8"
             )
