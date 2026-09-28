@@ -3329,6 +3329,10 @@ def evaluate_production_monitoring(
                 "missing_count": 0,
             },
             "exclusions": ex_list,
+            "performance": recommendations_payload.get("performance")
+            if isinstance(recommendations_payload, dict)
+            and "performance" in recommendations_payload
+            else create_default_performance_payload(),
         }
 
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)
@@ -3368,15 +3372,8 @@ def evaluate_production_monitoring(
         checks.append(c_res)
 
     # 10. Performance Regression & Provider Budget checks
-    if isinstance(universe_audit, dict):
-        if "performance" not in universe_audit or universe_audit["performance"] is None:
-            if "performance" in universe_audit and universe_audit["performance"] is None:
-                perf_data = None
-            else:
-                universe_audit["performance"] = create_default_performance_payload()
-                perf_data = universe_audit["performance"]
-        else:
-            perf_data = universe_audit["performance"]
+    if isinstance(universe_audit, dict) and "performance" in universe_audit:
+        perf_data = universe_audit["performance"]
     elif isinstance(recommendations_payload, dict) and "performance" in recommendations_payload:
         perf_data = recommendations_payload["performance"]
     else:

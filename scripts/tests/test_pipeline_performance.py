@@ -1694,6 +1694,37 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             )
             self.assertEqual(integ_chk.status, "FAIL")
 
+        # 1b. Performance key completely absent from universe_audit
+        absent_audit = copy.deepcopy(base_audit)
+        self.assertNotIn("performance", absent_audit)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = Path(tmpdir) / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(
+                json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
+            )
+            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
+            (Path(tmpdir) / "recommendations.json").write_text(
+                json.dumps(valid_payload), encoding="utf-8"
+            )
+            (Path(tmpdir) / "market.json").write_text(
+                json.dumps(valid_payload["market"]), encoding="utf-8"
+            )
+
+            res_absent = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=valid_payload,
+                market_payload=valid_payload["market"],
+                reference_date="2026-09-17",
+                universe_audit=absent_audit,
+            )
+            self.assertEqual(res_absent.overall_status, "FAIL")
+            integ_chk = next(
+                c for c in res_absent.checks if c.check_name == "performance_payload_integrity"
+            )
+            self.assertEqual(integ_chk.status, "FAIL")
+
         # 2. Performance payload malformed (invalid structure)
         malformed_audit = copy.deepcopy(base_audit)
         malformed_audit["performance"] = {"stages": "not_a_list"}
