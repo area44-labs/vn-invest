@@ -1143,8 +1143,127 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         self.assertEqual(dups[0]["successful_calls"], 2)
 
     def test_performance_regression_failure_blocks_artifact_publishing(self):
-        """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched."""
-        from scripts.generate_report import main as generate_report_main
+        """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched and publish is blocked."""
+        from scripts.generate_report import PipelineResult, main as generate_report_main
+
+        valid_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-09-17T06:00:00+00:00",
+            "data_as_of": "2026-09-17",
+            "source_date": "2026-09-17",
+            "data_source": "REAL_DATA",
+            "universe_info": {"universe_type": "TEST", "universe_size": 1},
+            "market": {
+                "regime": "STRONG_BULL",
+                "confidence": 0.85,
+                "metrics": {
+                    "vnindex_value": 1280.50,
+                    "vnindex_change_pct": 1.25,
+                    "vn30_change_pct": 1.10,
+                    "market_breadth_ratio": 0.70,
+                    "volatility": 0.12,
+                    "volume_20d_ratio": 1.15,
+                },
+            },
+            "summary": {
+                "total_scanned": 1,
+                "buy_count": 1,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [
+                {
+                    "symbol": "FPT",
+                    "company_name": "FPT Corp",
+                    "exchange": "HOSE",
+                    "sector": "Tech",
+                    "action": "BUY",
+                    "data_quality": "SUFFICIENT",
+                    "data_quality_issues": [],
+                    "data_as_of": "2026-09-17",
+                    "data_source": "REAL_DATA",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 75.0,
+                    "confidence": 0.8,
+                    "risk_level": "LOW",
+                    "expected_return": {
+                        "expected_return_5d": 2.5,
+                        "expected_return_10d": 4.0,
+                        "expected_return_20d": 6.5,
+                    },
+                    "risk_metrics": {
+                        "var_t25": -3.2,
+                        "es_t25": -4.5,
+                        "volatility_60d": 0.18,
+                        "max_drawdown": -8.5,
+                        "liquidity_score": 85.0,
+                        "avg_value_20d": 120.5,
+                    },
+                    "trade_plan": {
+                        "current_price": 130000.0,
+                        "entry_low": 128000.0,
+                        "entry_high": 130000.0,
+                        "stop_loss": 122000.0,
+                        "tp1": 138000.0,
+                        "tp2": 145000.0,
+                        "risk_reward": 2.1,
+                        "position_percent": 15.0,
+                    },
+                    "reasons": ["Strong trend"],
+                    "warnings": [],
+                    "invalidation": ["Close below stop loss"],
+                }
+            ],
+        }
+
+        audit_with_regression = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 3,
+                "processed_count": 3,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": {
+                "stages": [
+                    {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                    {"stage": "stock_fetch", "elapsed_seconds": 30.0, "status": "SUCCESS"},
+                ],
+                "provider": {
+                    "total_calls": 3,
+                    "successful_calls": 3,
+                    "failed_calls": 0,
+                    "retry_count": 0,
+                    "total_elapsed_seconds": 1.0,
+                    "average_call_seconds": 0.3333,
+                    "calls_by_source": {"kbs": 3},
+                },
+                "duplicate_operations": [],
+            },
+        }
+
+        df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
+        df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
+
+        mock_pipeline_res = PipelineResult(
+            valid_payload,
+            valid_payload["market"],
+            valid_payload,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+            universe_audit=audit_with_regression,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
@@ -1152,31 +1271,45 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             hist_dir = gen_dir / "history"
             hist_dir.mkdir(parents=True, exist_ok=True)
 
+            sentinel_recs = b'{"sentinel": "recommendations_unmodified"}'
+            sentinel_market = b'{"sentinel": "market_unmodified"}'
+            sentinel_monitoring = b'{"sentinel": "monitoring_unmodified"}'
+            sentinel_index = b'{"sentinel": "index_unmodified"}'
+            sentinel_hist = b'{"sentinel": "history_2026_09_17_unmodified"}'
+
             recs_file = gen_dir / "recommendations.json"
-            initial_bytes = (
-                b'{"schema_version": "2.0", "recommendations": [{"symbol": "UNTOUCHED"}]}'
-            )
-            recs_file.write_bytes(initial_bytes)
+            market_file = gen_dir / "market.json"
+            monitoring_file = gen_dir / "monitoring.json"
+            index_file = hist_dir / "index.json"
+            hist_file = hist_dir / "2026-09-17.json"
 
-            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
-
-            # Mock pipeline execution result with a severe performance regression
-            res = run_pipeline(update_data=False)
-            res.universe_audit["performance"]["stages"].append(
-                {"stage": "stock_fetch", "elapsed_seconds": 30.0, "status": "SUCCESS"}
-            )
+            recs_file.write_bytes(sentinel_recs)
+            market_file.write_bytes(sentinel_market)
+            monitoring_file.write_bytes(sentinel_monitoring)
+            index_file.write_bytes(sentinel_index)
+            hist_file.write_bytes(sentinel_hist)
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.generate_report.run_pipeline", return_value=res),
-                patch("sys.argv", ["generate_report.py"]),
+                patch(
+                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
+                ) as mock_run,
+                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                patch("sys.argv", ["generate_report.py", "--update"]),
                 self.assertRaises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
             self.assertEqual(ctx.exception.code, 1)
-            # Verify existing artifact file on disk remains 100% byte-for-byte untouched
-            self.assertEqual(recs_file.read_bytes(), initial_bytes)
+            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
+            mock_publish.assert_not_called()
+
+            # Verify existing artifact files on disk remain 100% byte-for-byte untouched
+            self.assertEqual(recs_file.read_bytes(), sentinel_recs)
+            self.assertEqual(market_file.read_bytes(), sentinel_market)
+            self.assertEqual(monitoring_file.read_bytes(), sentinel_monitoring)
+            self.assertEqual(index_file.read_bytes(), sentinel_index)
+            self.assertEqual(hist_file.read_bytes(), sentinel_hist)
 
     def test_deterministic_ci_regression(self):
         """Verify deterministic CI regression triggers monitoring check status 'FAIL' and halts update."""
