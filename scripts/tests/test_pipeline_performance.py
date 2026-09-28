@@ -1144,7 +1144,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
 
     def test_performance_regression_failure_blocks_artifact_publishing(self):
         """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched and publish is blocked."""
-        from scripts.generate_report import PipelineResult, main as generate_report_main
+        from scripts.generate_report import PipelineResult
+        from scripts.generate_report import main as generate_report_main
 
         valid_payload = {
             "schema_version": "2.0",
