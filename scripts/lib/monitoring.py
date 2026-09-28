@@ -115,7 +115,7 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
             status = "FAILED"
             message = f"Stage '{stage_name}' failed during execution"
         elif actual_seconds > fail_threshold:
-            status = "DEGRADED"
+            status = "FAILED"
             message = (
                 f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded FAILED threshold "
                 f"{fail_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"

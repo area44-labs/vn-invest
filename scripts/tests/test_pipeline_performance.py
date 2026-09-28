@@ -1006,13 +1006,13 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         res_deg = evaluate_performance_regression(performance_payload_deg)
         self.assertEqual(res_deg["overall_status"], "DEGRADED")
 
-    def test_threshold_duration_exceeded_produces_degraded(self):
-        """Verify duration exceeding threshold produces status 'DEGRADED'."""
+    def test_threshold_degraded_duration_exceeded_produces_degraded(self):
+        """Verify duration exceeding degraded threshold (but below failed threshold) produces status 'DEGRADED'."""
         performance_payload = {
             "stages": [
                 {
                     "stage": "benchmark_fetch",
-                    "elapsed_seconds": 10.0,
+                    "elapsed_seconds": 3.0,
                     "status": "SUCCESS",
                 },
             ],
@@ -1021,8 +1021,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 "successful_calls": 1,
                 "failed_calls": 0,
                 "retry_count": 0,
-                "total_elapsed_seconds": 10.0,
-                "average_call_seconds": 10.0,
+                "total_elapsed_seconds": 3.0,
+                "average_call_seconds": 3.0,
                 "calls_by_source": {"kbs": 1},
             },
             "duplicate_operations": [],
@@ -1033,6 +1033,35 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         eval_b = res["stage_evaluations"][0]
         self.assertEqual(eval_b["stage"], "benchmark_fetch")
         self.assertEqual(eval_b["status"], "DEGRADED")
+        self.assertIn("exceeded DEGRADED threshold", eval_b["message"])
+
+    def test_threshold_failed_duration_exceeded_produces_failed(self):
+        """Verify duration exceeding failed threshold produces status 'FAILED'."""
+        performance_payload = {
+            "stages": [
+                {
+                    "stage": "benchmark_fetch",
+                    "elapsed_seconds": 5.0,
+                    "status": "SUCCESS",
+                },
+            ],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 5.0,
+                "average_call_seconds": 5.0,
+                "calls_by_source": {"kbs": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        res = evaluate_performance_regression(performance_payload)
+        self.assertEqual(res["overall_status"], "FAILED")
+        eval_b = res["stage_evaluations"][0]
+        self.assertEqual(eval_b["stage"], "benchmark_fetch")
+        self.assertEqual(eval_b["status"], "FAILED")
         self.assertIn("exceeded FAILED threshold", eval_b["message"])
 
     def test_provider_budget_exceeded(self):
@@ -1215,7 +1244,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
     def test_performance_regression_degraded_allows_publishing(self):
-        """Verify that stage duration exceeding threshold produces DEGRADED status (WARNING) and publishing is allowed."""
+        """Verify that stage duration exceeding degraded threshold produces DEGRADED status (WARNING) and publishing is allowed."""
         valid_payload = self.make_sample_report_payload()
         audit_degraded = {
             "expected_symbols": ["VNINDEX", "VN30", "FPT"],
@@ -1238,9 +1267,9 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
-                        "elapsed_seconds": 30.0,
+                        "elapsed_seconds": 10.0,
                         "status": "SUCCESS",
-                    },  # Exceeds threshold -> DEGRADED
+                    },  # Exceeds degraded threshold (7.5s) but <= failed threshold (15s) -> DEGRADED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1294,6 +1323,85 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 c for c in mon_data["checks"] if c["check_name"] == "performance_regression"
             )
             self.assertEqual(reg_check["status"], "WARNING")
+
+    def test_performance_regression_failed_blocks_publishing(self):
+        """Verify that stage duration exceeding failed threshold produces FAILED status (FAIL) and blocks publishing."""
+        valid_payload = self.make_sample_report_payload()
+        audit_failed = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 3,
+                "processed_count": 3,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": {
+                "stages": [
+                    {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                    {
+                        "stage": "stock_fetch",
+                        "elapsed_seconds": 20.0,
+                        "status": "SUCCESS",
+                    },  # Exceeds failed threshold (15s) -> FAILED
+                ],
+                "provider": {
+                    "total_calls": 3,
+                    "successful_calls": 3,
+                    "failed_calls": 0,
+                    "retry_count": 0,
+                    "total_elapsed_seconds": 1.0,
+                    "average_call_seconds": 0.3333,
+                    "calls_by_source": {"kbs": 3},
+                },
+                "duplicate_operations": [],
+            },
+        }
+
+        df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
+        df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
+
+        mock_pipeline_res = PipelineResult(
+            valid_payload,
+            valid_payload["market"],
+            valid_payload,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+            universe_audit=audit_failed,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+
+            sentinel_recs = b'{"sentinel": "recommendations_unmodified"}'
+            recs_file = gen_dir / "recommendations.json"
+            recs_file.write_bytes(sentinel_recs)
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
+                ) as mock_run,
+                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                patch("sys.argv", ["generate_report.py", "--update"]),
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                generate_report_main()
+
+            self.assertEqual(ctx.exception.code, 1)
+            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
+            mock_publish.assert_not_called()
+            self.assertEqual(recs_file.read_bytes(), sentinel_recs)
 
     def test_performance_stage_failed_blocks_publishing(self):
         """Verify that an explicit stage execution failure (status='FAILED') produces FAIL status and blocks publishing."""
@@ -1539,10 +1647,10 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             self.assertEqual(reg_pass_chk.status, "PASS")
             self.assertIn(res_pass.overall_status, ("PASS", "WARNING"))
 
-        # Stage duration exceeding threshold -> DEGRADED & overall_status WARNING
+        # Stage duration exceeding degraded threshold -> DEGRADED & overall_status WARNING
         regression_audit = copy.deepcopy(healthy_audit)
         regression_audit["performance"]["stages"].append(
-            {"stage": "stock_fetch", "elapsed_seconds": 25.0, "status": "SUCCESS"}
+            {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"}
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
