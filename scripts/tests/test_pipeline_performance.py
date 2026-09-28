@@ -1694,9 +1694,12 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             )
             self.assertEqual(integ_chk.status, "FAIL")
 
-        # 1b. Performance key completely absent from universe_audit
+        # 1b. Performance key completely absent from universe_audit even if recommendations_payload contains performance
         absent_audit = copy.deepcopy(base_audit)
         self.assertNotIn("performance", absent_audit)
+
+        payload_with_perf = copy.deepcopy(valid_payload)
+        payload_with_perf["performance"] = make_valid_performance_payload()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = Path(tmpdir) / "history"
@@ -1704,26 +1707,29 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             (hist_dir / "index.json").write_text(
                 json.dumps({"dates": ["2026-09-17"]}), encoding="utf-8"
             )
-            (hist_dir / "2026-09-17.json").write_text(json.dumps(valid_payload), encoding="utf-8")
+            (hist_dir / "2026-09-17.json").write_text(
+                json.dumps(payload_with_perf), encoding="utf-8"
+            )
             (Path(tmpdir) / "recommendations.json").write_text(
-                json.dumps(valid_payload), encoding="utf-8"
+                json.dumps(payload_with_perf), encoding="utf-8"
             )
             (Path(tmpdir) / "market.json").write_text(
-                json.dumps(valid_payload["market"]), encoding="utf-8"
+                json.dumps(payload_with_perf["market"]), encoding="utf-8"
             )
 
             res_absent = evaluate_production_monitoring(
                 generated_dir=tmpdir,
-                recommendations_payload=valid_payload,
-                market_payload=valid_payload["market"],
+                recommendations_payload=payload_with_perf,
+                market_payload=payload_with_perf["market"],
                 reference_date="2026-09-17",
                 universe_audit=absent_audit,
             )
             self.assertEqual(res_absent.overall_status, "FAIL")
-            integ_chk = next(
-                c for c in res_absent.checks if c.check_name == "performance_payload_integrity"
-            )
-            self.assertEqual(integ_chk.status, "FAIL")
+
+            checks_map = {c.check_name: c.status for c in res_absent.checks}
+            self.assertEqual(checks_map.get("performance_payload_integrity"), "FAIL")
+            self.assertEqual(checks_map.get("performance_regression"), "FAIL")
+            self.assertEqual(checks_map.get("provider_budget"), "FAIL")
 
         # 2. Performance payload malformed (invalid structure)
         malformed_audit = copy.deepcopy(base_audit)

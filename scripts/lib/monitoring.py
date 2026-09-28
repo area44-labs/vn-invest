@@ -3372,10 +3372,8 @@ def evaluate_production_monitoring(
         checks.append(c_res)
 
     # 10. Performance Regression & Provider Budget checks
-    if isinstance(universe_audit, dict) and "performance" in universe_audit:
-        perf_data = universe_audit["performance"]
-    elif isinstance(recommendations_payload, dict) and "performance" in recommendations_payload:
-        perf_data = recommendations_payload["performance"]
+    if isinstance(universe_audit, dict):
+        perf_data = universe_audit.get("performance")
     else:
         perf_data = None
 
