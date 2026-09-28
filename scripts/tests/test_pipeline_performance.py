@@ -23,6 +23,8 @@ from scripts.data_provider import (
 )
 from scripts.generate_report import (
     PerformanceTracker,
+    PipelineResult,
+    main as generate_report_main,
     run_pipeline,
     validate_performance_payload,
 )
@@ -106,7 +108,6 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     @patch("scripts.generate_report.get_historical_data")
     def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_get_hist, mock_perf):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
-        from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
@@ -160,7 +161,6 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     @patch("scripts.generate_report.get_historical_data")
     def test_2_stage_ordering_is_deterministic(self, mock_get_hist, mock_perf):
         """2. Stage ordering in performance payload is strictly deterministic."""
-        from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
@@ -480,7 +480,6 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
 
     def test_15_output_artifacts_remain_protected_on_failure(self):
         """15. Output artifacts in generated/ remain protected and untouched on failure."""
-        from scripts.generate_report import main as generate_report_main
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
@@ -518,8 +517,6 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     ):
         """16. Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
         from unittest.mock import MagicMock
-
-        from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25)
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
@@ -635,7 +632,6 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
     @patch("scripts.generate_report.get_historical_data")
     def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_get_hist, mock_perf):
         """21. Main pipeline stage ordering matches expected canonical order strictly."""
-        from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
@@ -1144,8 +1140,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
 
     def test_performance_regression_failure_blocks_artifact_publishing(self):
         """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched and publish is blocked."""
-        from scripts.generate_report import PipelineResult
-        from scripts.generate_report import main as generate_report_main
 
         valid_payload = {
             "schema_version": "2.0",
