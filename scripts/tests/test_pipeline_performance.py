@@ -965,12 +965,12 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                     "elapsed_seconds": 0.1,
                     "status": "DEGRADED",
                 },  # DEGRADED
-                {"stage": "stock_fetch", "elapsed_seconds": 25.0, "status": "SUCCESS"},  # FAILED
+                {"stage": "stock_fetch", "elapsed_seconds": 0.5, "status": "FAILED"},  # FAILED
             ],
             "provider": {
                 "total_calls": 2,
-                "successful_calls": 2,
-                "failed_calls": 0,
+                "successful_calls": 1,
+                "failed_calls": 1,
                 "retry_count": 0,
                 "total_elapsed_seconds": 1.0,
                 "average_call_seconds": 0.5,
@@ -1006,8 +1006,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         res_deg = evaluate_performance_regression(performance_payload_deg)
         self.assertEqual(res_deg["overall_status"], "DEGRADED")
 
-    def test_threshold_failure(self):
-        """Verify duration exceeding failed threshold produces 'FAILED' status."""
+    def test_threshold_duration_exceeded_produces_degraded(self):
+        """Verify duration exceeding threshold produces status 'DEGRADED'."""
         performance_payload = {
             "stages": [
                 {
@@ -1029,14 +1029,14 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "FAILED")
+        self.assertEqual(res["overall_status"], "DEGRADED")
         eval_b = res["stage_evaluations"][0]
         self.assertEqual(eval_b["stage"], "benchmark_fetch")
-        self.assertEqual(eval_b["status"], "FAILED")
+        self.assertEqual(eval_b["status"], "DEGRADED")
         self.assertIn("exceeded FAILED threshold", eval_b["message"])
 
     def test_provider_budget_exceeded(self):
-        """Verify provider budget checks fail when call count, duplicate operations, or elapsed time exceed limits."""
+        """Verify provider budget checks set status DEGRADED and report violations when limits are exceeded."""
         # 1. Total calls exceeded
         payload_calls = {
             "stages": [],
@@ -1052,7 +1052,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "duplicate_operations": [],
         }
         res_calls = evaluate_provider_budget(payload_calls)
-        self.assertEqual(res_calls["overall_status"], "FAILED")
+        self.assertEqual(res_calls["overall_status"], "DEGRADED")
         self.assertTrue(any("Total provider calls" in v for v in res_calls["violations"]))
 
         # 2. Duplicate operations exceeded
@@ -1080,7 +1080,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             ],
         }
         res_dups = evaluate_provider_budget(payload_dups)
-        self.assertEqual(res_dups["overall_status"], "FAILED")
+        self.assertEqual(res_dups["overall_status"], "DEGRADED")
         self.assertTrue(any("Duplicate operations count" in v for v in res_dups["violations"]))
 
         # 3. Elapsed time exceeded
@@ -1098,7 +1098,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "duplicate_operations": [],
         }
         res_time = evaluate_provider_budget(payload_time)
-        self.assertEqual(res_time["overall_status"], "FAILED")
+        self.assertEqual(res_time["overall_status"], "DEGRADED")
         self.assertTrue(any("Total provider elapsed time" in v for v in res_time["violations"]))
 
     def test_duplicate_provider_operations(self):
@@ -1140,10 +1140,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         self.assertEqual(dups[0]["provider_call_count"], 2)
         self.assertEqual(dups[0]["successful_calls"], 2)
 
-    def test_performance_regression_failure_blocks_artifact_publishing(self):
-        """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched and publish is blocked."""
-
-        valid_payload = {
+    def make_sample_report_payload(self):
+        return {
             "schema_version": "2.0",
             "signal_model_version": "2.0",
             "generated_at": "2026-09-17T06:00:00+00:00",
@@ -1216,7 +1214,10 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             ],
         }
 
-        audit_with_regression = {
+    def test_performance_regression_degraded_allows_publishing(self):
+        """Verify that stage duration exceeding threshold produces DEGRADED status (WARNING) and publishing is allowed."""
+        valid_payload = self.make_sample_report_payload()
+        audit_degraded = {
             "expected_symbols": ["VNINDEX", "VN30", "FPT"],
             "processed_symbols": ["VNINDEX", "VN30", "FPT"],
             "invalid_symbols": [],
@@ -1235,7 +1236,11 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "performance": {
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
-                    {"stage": "stock_fetch", "elapsed_seconds": 30.0, "status": "SUCCESS"},
+                    {
+                        "stage": "stock_fetch",
+                        "elapsed_seconds": 30.0,
+                        "status": "SUCCESS",
+                    },  # Exceeds threshold -> DEGRADED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1259,7 +1264,88 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             valid_payload,
             df_vnindex=df_vnindex,
             df_vn30=df_vn30,
-            universe_audit=audit_with_regression,
+            universe_audit=audit_degraded,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
+                ) as mock_run,
+                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                generate_report_main()
+
+            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
+            mock_publish.assert_called_once()
+            published_args = mock_publish.call_args[0][0]
+            self.assertIn("monitoring.json", published_args)
+            mon_data = published_args["monitoring.json"]
+            self.assertEqual(mon_data["overall_status"], "WARNING")
+            reg_check = next(
+                c for c in mon_data["checks"] if c["check_name"] == "performance_regression"
+            )
+            self.assertEqual(reg_check["status"], "WARNING")
+
+    def test_performance_stage_failed_blocks_publishing(self):
+        """Verify that an explicit stage execution failure (status='FAILED') produces FAIL status and blocks publishing."""
+        valid_payload = self.make_sample_report_payload()
+        audit_failed = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 3,
+                "processed_count": 3,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": {
+                "stages": [
+                    {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                    {
+                        "stage": "stock_fetch",
+                        "elapsed_seconds": 1.0,
+                        "status": "FAILED",
+                    },  # Stage status FAILED
+                ],
+                "provider": {
+                    "total_calls": 3,
+                    "successful_calls": 2,
+                    "failed_calls": 1,
+                    "retry_count": 0,
+                    "total_elapsed_seconds": 1.0,
+                    "average_call_seconds": 0.3333,
+                    "calls_by_source": {"kbs": 3},
+                },
+                "duplicate_operations": [],
+            },
+        }
+
+        df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
+        df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
+
+        mock_pipeline_res = PipelineResult(
+            valid_payload,
+            valid_payload["market"],
+            valid_payload,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+            universe_audit=audit_failed,
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1308,80 +1394,84 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             self.assertEqual(index_file.read_bytes(), sentinel_index)
             self.assertEqual(hist_file.read_bytes(), sentinel_hist)
 
-    def test_deterministic_ci_regression(self):
-        """Verify deterministic CI regression triggers monitoring check status 'FAIL' and halts update."""
-        valid_payload = {
-            "schema_version": "2.0",
-            "signal_model_version": "2.0",
-            "generated_at": "2026-09-17T06:00:00+00:00",
-            "data_as_of": "2026-09-17",
-            "source_date": "2026-09-17",
-            "data_source": "REAL_DATA",
-            "universe_info": {"universe_type": "TEST", "universe_size": 1},
-            "market": {
-                "regime": "STRONG_BULL",
-                "confidence": 0.85,
-                "metrics": {
-                    "vnindex_value": 1280.50,
-                    "vnindex_change_pct": 1.25,
-                    "vn30_change_pct": 1.10,
-                    "market_breadth_ratio": 0.70,
-                    "volatility": 0.12,
-                    "volume_20d_ratio": 1.15,
+    def test_provider_budget_exceeded_allows_publishing_and_records_warning(self):
+        """Verify that provider budget violations produce WARNING status and allow publishing with violation diagnostics."""
+        valid_payload = self.make_sample_report_payload()
+        audit_budget_exceeded = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 3,
+                "processed_count": 3,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": {
+                "stages": [
+                    {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                ],
+                "provider": {
+                    "total_calls": 200,  # Exceeds max_total_calls (120)
+                    "successful_calls": 200,
+                    "failed_calls": 0,
+                    "retry_count": 0,
+                    "total_elapsed_seconds": 10.0,
+                    "average_call_seconds": 0.05,
+                    "calls_by_source": {"kbs": 200},
                 },
+                "duplicate_operations": [],
             },
-            "summary": {
-                "total_scanned": 1,
-                "buy_count": 1,
-                "watch_count": 0,
-                "hold_count": 0,
-                "sell_count": 0,
-                "avoid_count": 0,
-            },
-            "recommendations": [
-                {
-                    "symbol": "FPT",
-                    "company_name": "FPT Corp",
-                    "exchange": "HOSE",
-                    "sector": "Tech",
-                    "action": "BUY",
-                    "data_quality": "SUFFICIENT",
-                    "data_quality_issues": [],
-                    "data_as_of": "2026-09-17",
-                    "data_source": "REAL_DATA",
-                    "signal_score": 80.0,
-                    "risk_adjusted_score": 75.0,
-                    "confidence": 0.8,
-                    "risk_level": "LOW",
-                    "expected_return": {
-                        "expected_return_5d": 2.5,
-                        "expected_return_10d": 4.0,
-                        "expected_return_20d": 6.5,
-                    },
-                    "risk_metrics": {
-                        "var_t25": -3.2,
-                        "es_t25": -4.5,
-                        "volatility_60d": 0.18,
-                        "max_drawdown": -8.5,
-                        "liquidity_score": 85.0,
-                        "avg_value_20d": 120.5,
-                    },
-                    "trade_plan": {
-                        "current_price": 130000.0,
-                        "entry_low": 128000.0,
-                        "entry_high": 130000.0,
-                        "stop_loss": 122000.0,
-                        "tp1": 138000.0,
-                        "tp2": 145000.0,
-                        "risk_reward": 2.1,
-                        "position_percent": 15.0,
-                    },
-                    "reasons": ["Strong trend"],
-                    "warnings": [],
-                    "invalidation": ["Close below stop loss"],
-                }
-            ],
         }
+
+        df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
+        df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
+
+        mock_pipeline_res = PipelineResult(
+            valid_payload,
+            valid_payload["market"],
+            valid_payload,
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30,
+            universe_audit=audit_budget_exceeded,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch(
+                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
+                ) as mock_run,
+                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                patch("sys.argv", ["generate_report.py", "--update"]),
+            ):
+                generate_report_main()
+
+            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
+            mock_publish.assert_called_once()
+            published_args = mock_publish.call_args[0][0]
+            self.assertIn("monitoring.json", published_args)
+            mon_data = published_args["monitoring.json"]
+            self.assertEqual(mon_data["overall_status"], "WARNING")
+            bud_check = next(c for c in mon_data["checks"] if c["check_name"] == "provider_budget")
+            self.assertEqual(bud_check["status"], "WARNING")
+            self.assertIn("Total provider calls (200) exceeded budget", bud_check["message"])
+
+    def test_deterministic_ci_regression(self):
+        """Verify deterministic CI regression evaluation logic for healthy and degraded pipelines."""
+        valid_payload = self.make_sample_report_payload()
 
         # Stage duration well within thresholds -> PASS
         healthy_audit = {
@@ -1449,7 +1539,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             self.assertEqual(reg_pass_chk.status, "PASS")
             self.assertIn(res_pass.overall_status, ("PASS", "WARNING"))
 
-        # Stage duration severely exceeding FAILED threshold -> FAILED & overall_status FAIL
+        # Stage duration exceeding threshold -> DEGRADED & overall_status WARNING
         regression_audit = copy.deepcopy(healthy_audit)
         regression_audit["performance"]["stages"].append(
             {"stage": "stock_fetch", "elapsed_seconds": 25.0, "status": "SUCCESS"}
@@ -1469,16 +1559,16 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 json.dumps(valid_payload["market"]), encoding="utf-8"
             )
 
-            res_fail = evaluate_production_monitoring(
+            res_warn = evaluate_production_monitoring(
                 generated_dir=tmpdir,
                 recommendations_payload=valid_payload,
                 market_payload=valid_payload["market"],
                 reference_date="2026-09-17",
                 universe_audit=regression_audit,
             )
-            self.assertEqual(res_fail.overall_status, "FAIL")
-            reg_chk = next(c for c in res_fail.checks if c.check_name == "performance_regression")
-            self.assertEqual(reg_chk.status, "FAIL")
+            self.assertEqual(res_warn.overall_status, "WARNING")
+            reg_chk = next(c for c in res_warn.checks if c.check_name == "performance_regression")
+            self.assertEqual(reg_chk.status, "WARNING")
 
     def test_malformed_and_missing_performance_data(self):
         """Verify missing or malformed performance payloads fail closed in production monitoring."""

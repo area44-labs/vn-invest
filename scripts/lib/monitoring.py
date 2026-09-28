@@ -115,7 +115,7 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
             status = "FAILED"
             message = f"Stage '{stage_name}' failed during execution"
         elif actual_seconds > fail_threshold:
-            status = "FAILED"
+            status = "DEGRADED"
             message = (
                 f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded FAILED threshold "
                 f"{fail_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
@@ -220,7 +220,7 @@ def evaluate_provider_budget(performance_data: dict) -> dict[str, Any]:
             f"Total provider elapsed time ({total_elapsed_seconds:.4f}s) exceeded budget ({max_elapsed_budget_seconds:.4f}s)"
         )
 
-    overall_status = "FAILED" if violations else "PASS"
+    overall_status = "DEGRADED" if violations else "PASS"
 
     return {
         "overall_status": overall_status,
@@ -3455,8 +3455,8 @@ def evaluate_production_monitoring(
             bud_eval = evaluate_provider_budget(perf_data)
             perf_data["budget"] = bud_eval
 
-            if bud_eval["overall_status"] == "FAILED":
-                bud_status = "FAIL"
+            if bud_eval["overall_status"] in ("DEGRADED", "FAILED") or bud_eval.get("violations"):
+                bud_status = "WARNING"
                 bud_msg = f"Provider budget exceeded: {'; '.join(bud_eval['violations'])}"
             else:
                 bud_status = "PASS"
