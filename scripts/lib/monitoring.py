@@ -3332,7 +3332,7 @@ def evaluate_production_monitoring(
             "performance": recommendations_payload.get("performance")
             if isinstance(recommendations_payload, dict)
             and "performance" in recommendations_payload
-            else create_default_performance_payload(),
+            else None,
         }
 
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)

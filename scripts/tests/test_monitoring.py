@@ -175,6 +175,24 @@ class TestProductionMonitoring(unittest.TestCase):
             "summary": self.healthy_summary,
             "recommendations": self.healthy_recommendations,
         }
+        self.healthy_audit = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT", "MWG"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT", "MWG"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 4,
+                "processed_count": 4,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": self.healthy_performance,
+        }
 
     def test_healthy_production_data_passes(self):
         """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""
@@ -203,6 +221,7 @@ class TestProductionMonitoring(unittest.TestCase):
                 recommendations_payload=self.healthy_payload,
                 market_payload=self.healthy_market,
                 reference_date=self.reference_date,
+                universe_audit=self.healthy_audit,
             )
             self.assertEqual(res.overall_status, "PASS")
             self.assertEqual(res.data_as_of, "2026-09-17")
@@ -270,6 +289,7 @@ class TestProductionMonitoring(unittest.TestCase):
                 recommendations_payload=self.healthy_payload,
                 market_payload=self.healthy_market,
                 reference_date="2026-09-17",
+                universe_audit=self.healthy_audit,
             )
             art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
             hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")
