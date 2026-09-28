@@ -135,6 +135,30 @@ class TestProductionMonitoring(unittest.TestCase):
                 "invalidation": ["Close below support"],
             },
         ]
+        self.healthy_performance = {
+            "stages": [
+                {"stage": "pipeline", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "benchmark_fetch", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 0.5, "status": "SUCCESS"},
+                {"stage": "temporal_validation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "market_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "regime_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "risk_calculation", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {"stage": "recommendation_calculation", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {"stage": "monitoring", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "payload_validation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+            ],
+            "provider": {
+                "total_calls": 2,
+                "successful_calls": 2,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.6,
+                "average_call_seconds": 0.3,
+                "calls_by_source": {"kbs": 2},
+            },
+            "duplicate_operations": [],
+        }
         self.healthy_payload = {
             "schema_version": "2.0",
             "signal_model_version": SIGNAL_MODEL_VERSION,
