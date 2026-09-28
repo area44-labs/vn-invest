@@ -315,6 +315,47 @@ VALID_STAGE_STATUSES = (
     "FAILED",
 )
 
+# Performance Regression Baselines & Threshold Multipliers (in seconds)
+# PERFORMANCE_STAGE_BASELINES represents static, deterministic reference benchmarks per stage.
+# It provides operational reference durations for pipeline performance profiling across environments.
+PERFORMANCE_STAGE_BASELINES = {
+    "pipeline": 10.0,
+    "benchmark_fetch": 1.0,
+    "stock_fetch": 5.0,
+    "temporal_validation": 0.5,
+    "market_calculation": 0.5,
+    "regime_calculation": 0.5,
+    "risk_calculation": 1.0,
+    "recommendation_calculation": 2.0,
+    "monitoring": 1.5,
+    "payload_validation": 0.5,
+}
+
+# Regression thresholds per stage: (degraded_multiplier, failed_multiplier, noise_floor_seconds)
+# A stage is DEGRADED if actual > max(baseline * degraded_multiplier, noise_floor_seconds)
+# A stage is FAILED if actual > max(baseline * failed_multiplier, noise_floor_seconds)
+PERFORMANCE_STAGE_THRESHOLDS = {
+    "pipeline": (1.5, 2.5, 5.0),
+    "benchmark_fetch": (2.0, 4.0, 1.0),
+    "stock_fetch": (1.5, 3.0, 3.0),
+    "temporal_validation": (2.0, 4.0, 0.5),
+    "market_calculation": (2.0, 4.0, 0.5),
+    "regime_calculation": (2.0, 4.0, 0.5),
+    "risk_calculation": (2.0, 4.0, 1.0),
+    "recommendation_calculation": (2.0, 4.0, 1.0),
+    "monitoring": (2.0, 4.0, 1.0),
+    "payload_validation": (2.0, 4.0, 0.5),
+}
+
+# Provider Budget Limits
+# Enforces strict bounds on provider operations during pipeline execution.
+# `max_duplicate_operations` bounds the number of symbol duplicate operation records.
+PROVIDER_BUDGET = {
+    "max_total_calls": 120,
+    "max_duplicate_operations": 5,
+    "max_total_elapsed_seconds": 60.0,
+}
+
 # Stable Failure & Classification Categories for Operational Observability
 FAILURE_CATEGORIES = (
     "PROVIDER_FAILURE",

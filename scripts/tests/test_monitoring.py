@@ -135,6 +135,34 @@ class TestProductionMonitoring(unittest.TestCase):
                 "invalidation": ["Close below support"],
             },
         ]
+        self.healthy_performance = {
+            "stages": [
+                {"stage": "pipeline", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "benchmark_fetch", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 0.5, "status": "SUCCESS"},
+                {"stage": "temporal_validation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "market_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "regime_calculation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "risk_calculation", "elapsed_seconds": 0.1, "status": "SUCCESS"},
+                {
+                    "stage": "recommendation_calculation",
+                    "elapsed_seconds": 0.1,
+                    "status": "SUCCESS",
+                },
+                {"stage": "monitoring", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+                {"stage": "payload_validation", "elapsed_seconds": 0.05, "status": "SUCCESS"},
+            ],
+            "provider": {
+                "total_calls": 2,
+                "successful_calls": 2,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.6,
+                "average_call_seconds": 0.3,
+                "calls_by_source": {"kbs": 2},
+            },
+            "duplicate_operations": [],
+        }
         self.healthy_payload = {
             "schema_version": "2.0",
             "signal_model_version": SIGNAL_MODEL_VERSION,
@@ -146,6 +174,24 @@ class TestProductionMonitoring(unittest.TestCase):
             "market": self.healthy_market,
             "summary": self.healthy_summary,
             "recommendations": self.healthy_recommendations,
+        }
+        self.healthy_audit = {
+            "expected_symbols": ["VNINDEX", "VN30", "FPT", "MWG"],
+            "processed_symbols": ["VNINDEX", "VN30", "FPT", "MWG"],
+            "invalid_symbols": [],
+            "insufficient_history_symbols": [],
+            "failed_symbols": [],
+            "missing_symbols": [],
+            "counts": {
+                "expected_count": 4,
+                "processed_count": 4,
+                "invalid_count": 0,
+                "insufficient_history_count": 0,
+                "failed_count": 0,
+                "missing_count": 0,
+            },
+            "exclusions": [],
+            "performance": self.healthy_performance,
         }
 
     def test_healthy_production_data_passes(self):
@@ -175,6 +221,7 @@ class TestProductionMonitoring(unittest.TestCase):
                 recommendations_payload=self.healthy_payload,
                 market_payload=self.healthy_market,
                 reference_date=self.reference_date,
+                universe_audit=self.healthy_audit,
             )
             self.assertEqual(res.overall_status, "PASS")
             self.assertEqual(res.data_as_of, "2026-09-17")
@@ -242,6 +289,7 @@ class TestProductionMonitoring(unittest.TestCase):
                 recommendations_payload=self.healthy_payload,
                 market_payload=self.healthy_market,
                 reference_date="2026-09-17",
+                universe_audit=self.healthy_audit,
             )
             art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
             hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")

@@ -34,7 +34,10 @@ from scripts.lib.config import (
     DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN,
     DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT,
     FAILURE_CATEGORIES,
+    PERFORMANCE_STAGE_BASELINES,
+    PERFORMANCE_STAGE_THRESHOLDS,
     PIPELINE_STAGES,
+    PROVIDER_BUDGET,
     SIGNAL_MODEL_VERSION,
     VALID_MARKET_REGIMES,
 )
@@ -45,6 +48,191 @@ logger = logging.getLogger(__name__)
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
+DEFAULT_PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
+
+
+def load_performance_schema(
+    schema_path: str = DEFAULT_PERFORMANCE_SCHEMA_PATH,
+) -> dict:
+    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
+    if not os.path.exists(schema_path):
+        raise FileNotFoundError(f"Performance schema file not found at '{schema_path}'")
+    with open(schema_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
+    """Validate canonical performance object structure and schema.
+
+    Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
+    """
+    if not isinstance(performance_data, dict):
+        raise TypeError(
+            f"Performance payload must be a dict, got {type(performance_data).__name__}"
+        )
+
+    if schema is None:
+        schema = load_performance_schema()
+
+    jsonschema.validate(instance=performance_data, schema=schema)
+
+
+def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
+    """Evaluate pipeline stage timing records against centralized stage baselines and thresholds.
+
+    Returns structured dict with overall_status ("PASS", "DEGRADED", "FAILED") and stage_evaluations list.
+    """
+    if not isinstance(performance_data, dict):
+        raise TypeError(f"performance_data must be a dict, got {type(performance_data).__name__}")
+
+    stages = performance_data.get("stages", [])
+    if not isinstance(stages, list):
+        raise TypeError(f"stages must be a list, got {type(stages).__name__}")
+
+    stage_evaluations = []
+    overall_status = "PASS"
+
+    for st in stages:
+        if not isinstance(st, dict):
+            continue
+        stage_name = st.get("stage", "unknown")
+        actual_seconds = float(st.get("elapsed_seconds", 0.0))
+        exec_status = st.get("status", "SUCCESS")
+
+        baseline_seconds = float(PERFORMANCE_STAGE_BASELINES.get(stage_name, actual_seconds))
+        deg_mult, fail_mult, noise_floor = PERFORMANCE_STAGE_THRESHOLDS.get(
+            stage_name, (2.0, 4.0, 1.0)
+        )
+
+        deg_threshold = max(baseline_seconds * deg_mult, noise_floor)
+        fail_threshold = max(baseline_seconds * fail_mult, noise_floor)
+
+        exceeded_ratio = (
+            round(actual_seconds / baseline_seconds, 4) if baseline_seconds > 0 else 1.0
+        )
+
+        if exec_status == "FAILED":
+            status = "FAILED"
+            message = f"Stage '{stage_name}' failed during execution"
+        elif actual_seconds > fail_threshold:
+            status = "FAILED"
+            message = (
+                f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded FAILED threshold "
+                f"{fail_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
+            )
+        elif actual_seconds > deg_threshold:
+            status = "DEGRADED"
+            message = (
+                f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded DEGRADED threshold "
+                f"{deg_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
+            )
+        elif exec_status == "DEGRADED":
+            status = "DEGRADED"
+            message = f"Stage '{stage_name}' marked DEGRADED during execution"
+        else:
+            status = "PASS"
+            message = (
+                f"Stage '{stage_name}' duration {actual_seconds:.4f}s within thresholds "
+                f"(baseline={baseline_seconds:.4f}s)"
+            )
+
+        if status == "FAILED":
+            overall_status = "FAILED"
+        elif status == "DEGRADED" and overall_status != "FAILED":
+            overall_status = "DEGRADED"
+
+        stage_evaluations.append(
+            {
+                "stage": stage_name,
+                "baseline_seconds": baseline_seconds,
+                "actual_seconds": round(actual_seconds, 4),
+                "exceeded_ratio": exceeded_ratio,
+                "status": status,
+                "message": message,
+            }
+        )
+
+    return {
+        "overall_status": overall_status,
+        "stage_evaluations": stage_evaluations,
+    }
+
+
+def create_default_performance_payload() -> dict[str, Any]:
+    """Construct a minimal valid performance payload for default monitoring initialization."""
+    payload = {
+        "stages": [
+            {"stage": "pipeline", "elapsed_seconds": 0.0, "status": "SUCCESS"},
+        ],
+        "provider": {
+            "total_calls": 0,
+            "successful_calls": 0,
+            "failed_calls": 0,
+            "retry_count": 0,
+            "total_elapsed_seconds": 0.0,
+            "average_call_seconds": 0.0,
+            "calls_by_source": {},
+        },
+        "duplicate_operations": [],
+    }
+    payload["regression"] = evaluate_performance_regression(payload)
+    payload["budget"] = evaluate_provider_budget(payload)
+    return payload
+
+
+def evaluate_provider_budget(performance_data: dict) -> dict[str, Any]:
+    """Evaluate provider operations metrics against centralized provider budget thresholds.
+
+    `duplicate_operations_count` is the count of duplicate operation symbol records
+    present in the `duplicate_operations` list.
+
+    Returns structured dict with overall_status ("PASS", "FAILED") and violation details.
+    """
+    if not isinstance(performance_data, dict):
+        raise TypeError(f"performance_data must be a dict, got {type(performance_data).__name__}")
+
+    provider = performance_data.get("provider", {})
+    duplicates = performance_data.get("duplicate_operations", [])
+
+    total_calls = int(provider.get("total_calls", 0)) if isinstance(provider, dict) else 0
+    duplicate_operations_count = len(duplicates) if isinstance(duplicates, list) else 0
+    total_elapsed_seconds = (
+        float(provider.get("total_elapsed_seconds", 0.0)) if isinstance(provider, dict) else 0.0
+    )
+
+    max_calls_budget = int(PROVIDER_BUDGET.get("max_total_calls", 120))
+    max_duplicates_budget = int(PROVIDER_BUDGET.get("max_duplicate_operations", 5))
+    max_elapsed_budget_seconds = float(PROVIDER_BUDGET.get("max_total_elapsed_seconds", 60.0))
+
+    violations = []
+    if total_calls > max_calls_budget:
+        violations.append(
+            f"Total provider calls ({total_calls}) exceeded budget ({max_calls_budget})"
+        )
+
+    if duplicate_operations_count > max_duplicates_budget:
+        violations.append(
+            f"Duplicate operations count ({duplicate_operations_count}) exceeded budget ({max_duplicates_budget})"
+        )
+
+    if total_elapsed_seconds > max_elapsed_budget_seconds:
+        violations.append(
+            f"Total provider elapsed time ({total_elapsed_seconds:.4f}s) exceeded budget ({max_elapsed_budget_seconds:.4f}s)"
+        )
+
+    overall_status = "DEGRADED" if violations else "PASS"
+
+    return {
+        "overall_status": overall_status,
+        "total_calls": total_calls,
+        "max_calls_budget": max_calls_budget,
+        "duplicate_operations_count": duplicate_operations_count,
+        "max_duplicates_budget": max_duplicates_budget,
+        "total_elapsed_seconds": round(total_elapsed_seconds, 4),
+        "max_elapsed_budget_seconds": max_elapsed_budget_seconds,
+        "violations": violations,
+    }
+
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 
@@ -3141,6 +3329,10 @@ def evaluate_production_monitoring(
                 "missing_count": 0,
             },
             "exclusions": ex_list,
+            "performance": recommendations_payload.get("performance")
+            if isinstance(recommendations_payload, dict)
+            and "performance" in recommendations_payload
+            else None,
         }
 
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)
@@ -3178,6 +3370,134 @@ def evaluate_production_monitoring(
             message=d_chk.observation.message,
         )
         checks.append(c_res)
+
+    # 10. Performance Regression & Provider Budget checks
+    if isinstance(universe_audit, dict):
+        perf_data = universe_audit.get("performance")
+    else:
+        perf_data = None
+
+    if perf_data is None:
+        checks.append(
+            CheckResult(
+                check_name="performance_payload_integrity",
+                status="FAIL",
+                measured_value={"performance": None},
+                expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                message="Performance payload is explicitly None or missing from universe audit",
+            )
+        )
+        checks.append(
+            CheckResult(
+                check_name="performance_regression",
+                status="FAIL",
+                measured_value=None,
+                expected_condition="Stage durations stay within performance baseline thresholds",
+                message="Cannot evaluate performance regression because performance payload is missing",
+            )
+        )
+        checks.append(
+            CheckResult(
+                check_name="provider_budget",
+                status="FAIL",
+                measured_value=None,
+                expected_condition="Provider operations stay within allocated budget",
+                message="Cannot evaluate provider budget because performance payload is missing",
+            )
+        )
+    else:
+        try:
+            validate_performance_payload(perf_data)
+            checks.append(
+                CheckResult(
+                    check_name="performance_payload_integrity",
+                    status="PASS",
+                    measured_value={"stages_count": len(perf_data.get("stages", []))},
+                    expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                    message="Performance payload passed JSON schema validation",
+                )
+            )
+
+            reg_eval = evaluate_performance_regression(perf_data)
+            perf_data["regression"] = reg_eval
+
+            if reg_eval["overall_status"] == "FAILED":
+                reg_status = "FAIL"
+                failed_msgs = [
+                    e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "FAILED"
+                ]
+                reg_msg = f"Performance regression detected: {'; '.join(failed_msgs)}"
+            elif reg_eval["overall_status"] == "DEGRADED":
+                reg_status = "WARNING"
+                deg_msgs = [
+                    e["message"] for e in reg_eval["stage_evaluations"] if e["status"] == "DEGRADED"
+                ]
+                reg_msg = f"Performance degradation detected: {'; '.join(deg_msgs)}"
+            else:
+                reg_status = "PASS"
+                reg_msg = "All pipeline stage durations are within performance baseline thresholds"
+
+            checks.append(
+                CheckResult(
+                    check_name="performance_regression",
+                    status=reg_status,
+                    measured_value=reg_eval,
+                    expected_condition="All pipeline stage durations stay within performance baseline thresholds",
+                    message=reg_msg,
+                )
+            )
+
+            bud_eval = evaluate_provider_budget(perf_data)
+            perf_data["budget"] = bud_eval
+
+            if bud_eval["overall_status"] in ("DEGRADED", "FAILED") or bud_eval.get("violations"):
+                bud_status = "WARNING"
+                bud_msg = f"Provider budget exceeded: {'; '.join(bud_eval['violations'])}"
+            else:
+                bud_status = "PASS"
+                bud_msg = (
+                    f"Provider budget check passed ({bud_eval['total_calls']}/{bud_eval['max_calls_budget']} calls, "
+                    f"{bud_eval['duplicate_operations_count']}/{bud_eval['max_duplicates_budget']} duplicates, "
+                    f"{bud_eval['total_elapsed_seconds']:.2f}s/{bud_eval['max_elapsed_budget_seconds']:.2f}s elapsed)"
+                )
+
+            checks.append(
+                CheckResult(
+                    check_name="provider_budget",
+                    status=bud_status,
+                    measured_value=bud_eval,
+                    expected_condition="Provider operations stay within allocated call, duplicate, and time budgets",
+                    message=bud_msg,
+                )
+            )
+        except Exception as err:  # noqa: BLE001
+            checks.append(
+                CheckResult(
+                    check_name="performance_payload_integrity",
+                    status="FAIL",
+                    measured_value={"error": str(err)},
+                    expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                    message=f"Performance payload schema validation failed: {err}",
+                )
+            )
+            checks.append(
+                CheckResult(
+                    check_name="performance_regression",
+                    status="FAIL",
+                    measured_value=None,
+                    expected_condition="Stage durations stay within performance baseline thresholds",
+                    message=f"Cannot evaluate performance regression due to malformed payload: {err}",
+                )
+            )
+            checks.append(
+                CheckResult(
+                    check_name="provider_budget",
+                    status="FAIL",
+                    measured_value=None,
+                    expected_condition="Provider operations stay within allocated budget",
+                    message=f"Cannot evaluate provider budget due to malformed payload: {err}",
+                )
+            )
 
     # Aggregate overall status
     statuses = [c.status for c in checks]

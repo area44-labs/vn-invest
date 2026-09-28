@@ -125,6 +125,106 @@
           }
         }
       }
+    },
+    "regression": {
+      "type": "object",
+      "required": ["overall_status", "stage_evaluations"],
+      "additionalProperties": false,
+      "properties": {
+        "overall_status": {
+          "type": "string",
+          "enum": ["PASS", "DEGRADED", "FAILED"]
+        },
+        "stage_evaluations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "stage",
+              "baseline_seconds",
+              "actual_seconds",
+              "exceeded_ratio",
+              "status",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "stage": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseline_seconds": {
+                "type": "number",
+                "minimum": 0.0
+              },
+              "actual_seconds": {
+                "type": "number",
+                "minimum": 0.0
+              },
+              "exceeded_ratio": {
+                "type": "number"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["PASS", "DEGRADED", "FAILED"]
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "overall_status",
+        "total_calls",
+        "max_calls_budget",
+        "duplicate_operations_count",
+        "max_duplicates_budget",
+        "total_elapsed_seconds",
+        "max_elapsed_budget_seconds",
+        "violations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "overall_status": {
+          "type": "string",
+          "enum": ["PASS", "DEGRADED", "FAILED"]
+        },
+        "total_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_calls_budget": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicate_operations_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_duplicates_budget": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_elapsed_seconds": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "max_elapsed_budget_seconds": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

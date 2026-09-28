@@ -36,7 +36,11 @@ from scripts.data_provider import (
 )
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
-from scripts.lib.monitoring import evaluate_production_monitoring
+from scripts.lib.monitoring import (
+    evaluate_performance_regression,
+    evaluate_production_monitoring,
+    evaluate_provider_budget,
+)
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
@@ -937,6 +941,9 @@ class PerformanceTracker:
             "provider": provider_summary,
             "duplicate_operations": duplicates,
         }
+
+        payload["regression"] = evaluate_performance_regression(payload)
+        payload["budget"] = evaluate_provider_budget(payload)
 
         validate_performance_payload(payload)
         return payload
