@@ -932,7 +932,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         )
         mock_get_hist.return_value = (df_sample, "OK", [])
 
-        # Test case A: Market regime detected as STRONG_BULL
+        # 1. Market regime detected as STRONG_BULL
         mock_detect.return_value = {
             "regime": "STRONG_BULL",
             "regime_score": 85.0,
@@ -964,7 +964,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         self.assertEqual(rec_fpt_bull["risk_adjusted_score"], expected_strong_bull_score)
         self.assertNotEqual(rec_fpt_bull["risk_adjusted_score"], defensive_fallback_score)
 
-        # Test case B: Market regime detected as BEAR
+        # 2. Market regime detected as BEAR
         mock_detect.return_value = {
             "regime": "BEAR",
             "regime_score": 30.0,

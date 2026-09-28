@@ -79,7 +79,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertIsNone(metrics["es_t25"])
 
     def test_a_t25_known_return(self):
-        """Test A — Known return: Verify exact T+2.5 return calculation on synthetic prices."""
+        """1. Known return: Verify exact T+2.5 return calculation on synthetic prices."""
         prices = pd.Series([100.0, 102.0, 104.0, 106.0, 108.12])
         returns = calculate_t25_returns(prices)
 
@@ -91,7 +91,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertAlmostEqual(returns.iloc[1], 0.06, places=4)
 
     def test_b_t25_insufficient_history(self):
-        """Test B — Insufficient history: Fewer than 4 price observations produces empty series."""
+        """2. Insufficient history: Fewer than 4 price observations produces empty series."""
         prices_3 = pd.Series([100.0, 102.0, 104.0])
         returns = calculate_t25_returns(prices_3)
         self.assertTrue(returns.empty)
@@ -103,14 +103,14 @@ class TestRiskModel(unittest.TestCase):
         self.assertIsNone(metrics["es_t25"])
 
     def test_c_t25_exact_minimum_history(self):
-        """Test C — Exact minimum history: 4 price observations produces exactly 1 return observation."""
+        """3. Exact minimum history: 4 price observations produces exactly 1 return observation."""
         prices_4 = pd.Series([100.0, 102.0, 104.0, 110.0])
         returns = calculate_t25_returns(prices_4)
         self.assertEqual(len(returns), 1)
         self.assertAlmostEqual(returns.iloc[0], 0.10, places=4)
 
     def test_d_t25_no_look_ahead(self):
-        """Test D — No look-ahead: Changing future prices cannot change earlier T+2.5 returns."""
+        """4. No look-ahead: Changing future prices cannot change earlier T+2.5 returns."""
         prices_base = pd.Series([100.0, 102.0, 104.0, 106.0, 108.0, 110.0])
         returns_base = calculate_t25_returns(prices_base)
 
@@ -123,7 +123,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertAlmostEqual(returns_base.iloc[1], returns_modified.iloc[1], places=6)
 
     def test_e_t25_non_uniform_calendar_dates(self):
-        """Test E — Non-uniform calendar dates: Uses trading-session rows, not calendar day interpolation."""
+        """5. Non-uniform calendar dates: Uses trading-session rows, not calendar day interpolation."""
         # Non-uniform trading dates (e.g. weekend/holiday gaps)
         dates = ["2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12"]
         prices = pd.Series([10.0, 12.0, 14.0, 15.0, 18.0], index=dates)
@@ -135,7 +135,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertAlmostEqual(returns.iloc[0], 0.50, places=4)
 
     def test_f_t25_unsorted_input(self):
-        """Test F — Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
+        """6. Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
         chronological_prices = pd.Series([100.0, 102.0, 104.0, 106.0])
         unsorted_prices = pd.Series([106.0, 100.0, 104.0, 102.0])
 
@@ -149,7 +149,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertNotEqual(returns_chrono.iloc[0], returns_unsorted.iloc[0])
 
     def test_g_t25_duplicate_invalid_rows_clean_boundary(self):
-        """Test G — Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
+        """7. Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
         # Construct synthetic price series where raw data has duplicate date and an extreme invalid price
         # Clean prices: 100.0, 102.0, 104.0, 106.0 -> 3-session return = (106.0 - 100.0) / 100.0 = 0.06
         df_raw = pd.DataFrame(
@@ -178,7 +178,7 @@ class TestRiskModel(unittest.TestCase):
         self.assertTrue(clean_df.empty)
 
     def test_i_other_risk_metrics_unchanged(self):
-        """Test I — Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
+        """8. Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_prices = np.linspace(20000.0, 35000.0, n)

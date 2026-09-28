@@ -25,7 +25,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
     """Test suite validating transaction cost semantics, formula, and input bounds."""
 
     def test_case_a_zero_transaction_cost(self) -> None:
-        """Case A — Zero transaction cost: return remains unchanged from gross return."""
+        """1. Zero transaction cost: return remains unchanged from gross return."""
         entry_price = 10_000.0
         exit_price = 11_000.0
         res = calculate_execution_return(
@@ -41,7 +41,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
         self.assertEqual(res.net_return, expected_gross)
 
     def test_case_b_positive_transaction_cost(self) -> None:
-        """Case B — Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
+        """2. Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
         entry_price = 50_000.0
         exit_price = 55_000.0
         # Total transaction cost = 0.30% (0.0030), i.e., 0.15% (0.0015) entry and 0.15% exit
@@ -62,7 +62,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
         self.assertEqual(res.net_return, 0.096702)
 
     def test_case_c_transaction_cost_symmetry(self) -> None:
-        """Case C — Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
+        """3. Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
         entry_price = 20_000.0
         exit_price = 22_000.0
         # BUY leg: entry cost 0.15%, exit cost 0.15%
@@ -119,7 +119,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
             )
 
     def test_case_d_invalid_transaction_cost(self) -> None:
-        """Case D — Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
+        """4. Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
         # Negative cost
         with self.assertRaises(ValueError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=-0.01)
@@ -145,7 +145,7 @@ class TestSlippageSemantics(unittest.TestCase):
     """Test suite validating execution slippage semantics, directionality, and input bounds."""
 
     def test_case_a_zero_slippage(self) -> None:
-        """Case A — Zero slippage: execution prices match reference prices exactly."""
+        """1. Zero slippage: execution prices match reference prices exactly."""
         p_entry = 25_000.0
         p_exit = 27_500.0
         res = calculate_execution_return(
@@ -160,7 +160,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertEqual(res.slippage_adjusted_return, res.gross_return)
 
     def test_case_b_positive_slippage(self) -> None:
-        """Case B — Positive slippage: hand-calculated expected execution price and return."""
+        """2. Positive slippage: hand-calculated expected execution price and return."""
         p_entry = 10_000.0
         p_exit = 12_000.0
         slip = 0.0010  # 0.10% adverse slippage on each leg
@@ -180,7 +180,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertEqual(res.slippage_adjusted_return, round((11_988.0 / 10_010.0) - 1.0, 6))
 
     def test_case_c_buy_vs_sell_directionality(self) -> None:
-        """Case C — Buy vs Sell slippage directionality: both legs experience adverse pricing."""
+        """3. Buy vs Sell slippage directionality: both legs experience adverse pricing."""
         p_entry = 40_000.0
         p_exit = 44_000.0
         slip = 0.0020  # 0.20% slippage
@@ -211,7 +211,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertLess(res_sell.slippage_adjusted_return, res_sell.gross_return)
 
     def test_case_d_invalid_slippage(self) -> None:
-        """Case D — Invalid slippage parameters raise ValueError or TypeError fail-closed."""
+        """4. Invalid slippage parameters raise ValueError or TypeError fail-closed."""
         # Negative slippage
         with self.assertRaises(ValueError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=-0.005)
@@ -712,7 +712,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
 
     @patch("scripts.lib.portfolio_backtest.generate_recommendation")
     def test_case_a_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
-        """Case A — Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
+        """1. Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -780,7 +780,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
     def test_case_b_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
         self, mock_gen_rec
     ) -> None:
-        """Case B & C — Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
+        """2. Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":

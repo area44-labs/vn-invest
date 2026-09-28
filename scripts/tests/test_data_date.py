@@ -42,7 +42,7 @@ class TestDataDateSemantics(unittest.TestCase):
         self.assertIsNone(extract_latest_trading_date(None))
 
     def test_market_date_independent_from_stock_date(self):
-        """Case A: Stock data one day behind VNINDEX gets canonical report date in recommendation."""
+        """1. Stock data one day behind VNINDEX gets canonical report date in recommendation."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -80,7 +80,7 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertEqual(fpt_rec["data_as_of"], "2026-09-25")
 
     def test_all_recommendations_match_canonical_date(self):
-        """Case B: All recommendations match top-level canonical date for a complete valid pipeline."""
+        """2. All recommendations match top-level canonical date for a complete valid pipeline."""
         df_valid = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -102,7 +102,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 self.assertEqual(rec["data_as_of"], payload["data_as_of"])
 
     def test_exact_production_ci_failure_regression(self):
-        """Case C: Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
+        """3. Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
 
         Pipeline completes successfully within temporal staleness window,
         final payload integrity validation passes, and every recommendation uses '2026-09-25'.

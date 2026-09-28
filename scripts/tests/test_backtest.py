@@ -106,7 +106,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.evaluation_date = self.df_stock["date"].iloc[50]  # T = day 50
 
     def test_a_basic_forward_return(self):
-        """Test A: Basic forward return calculation (T = 100, T+5 = 110 -> +10%)."""
+        """1. Basic forward return calculation (T = 100, T+5 = 110 -> +10%)."""
         dates = pd.date_range("2025-01-01", periods=10, freq="B").strftime("%Y-%m-%d")
         prices = [100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0, 116.0, 118.0]
 
@@ -131,7 +131,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(outcome.strategy_returns[5], 0.10, places=4)
 
     def test_b_horizon_correctness(self):
-        """Test B: Horizon correctness (5D, 10D, 20D index mapping)."""
+        """2. Horizon correctness (5D, 10D, 20D index mapping)."""
         dates = pd.date_range("2025-01-01", periods=30, freq="B").strftime("%Y-%m-%d")
         # Prices increase linearly by 1.0 each session
         prices = [50.0 + float(i) for i in range(30)]
@@ -159,7 +159,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(outcome.returns[20], 20.0 / 52.0, places=5)
 
     def test_c_insufficient_future_data(self):
-        """Test C: Insufficient future data handling (no extrapolated outcomes)."""
+        """3. Insufficient future data handling (no extrapolated outcomes)."""
         df_short = self.df_stock.iloc[:30].copy()  # Total 30 sessions
         eval_d = df_short["date"].iloc[25]  # T = index 25
 
@@ -173,7 +173,7 @@ class TestBacktestFramework(unittest.TestCase):
             self.assertIsNone(outcome.strategy_returns[h])
 
     def test_d_no_lookahead_stock_and_market_level_critical(self):
-        """Test D: Critical market-level and stock-level no-lookahead regression test.
+        """4. Critical market-level and stock-level no-lookahead regression test.
 
         Mutating post-T data in stock price, VNINDEX, VN30, and universe breadth
         leaves the market regime, breadth, and recommendation at T 100% identical.
@@ -259,7 +259,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertNotEqual(outcome_orig.returns[5], outcome_mutated.returns[5])
 
     def test_e_future_data_quality_isolation(self):
-        """Test E: Future Data Quality Isolation ('future data quality != signal at T').
+        """5. Future Data Quality Isolation ('future data quality != signal at T').
 
         Corrupting/malforming data strictly AFTER T (e.g., unparseable dates, negative prices, bad OHLC)
         must NOT affect or fail point-in-time signal generation at T.
@@ -290,7 +290,7 @@ class TestBacktestFramework(unittest.TestCase):
             evaluate_forward_outcomes(df_corrupted_post_t, eval_d)
 
     def test_f_determinism(self):
-        """Test F: Determinism verification across multiple invocations."""
+        """6. Determinism verification across multiple invocations."""
         eval_dates = [self.df_stock["date"].iloc[40], self.df_stock["date"].iloc[50]]
 
         run1 = run_backtest_for_symbol("VNM", self.df_stock, eval_dates)
@@ -301,7 +301,7 @@ class TestBacktestFramework(unittest.TestCase):
             self.assertEqual(r1.to_dict(), r2.to_dict())
 
     def test_g_direction_handling(self):
-        """Test G: Direction handling (BUY, SELL, HOLD strategy returns)."""
+        """7. Direction handling (BUY, SELL, HOLD strategy returns)."""
         dates = pd.date_range("2025-01-01", periods=10, freq="B").strftime("%Y-%m-%d")
         prices = [100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0, 116.0, 118.0]
 
@@ -331,7 +331,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(outcome_hold.strategy_returns[5], 0.0, places=4)
 
     def test_h_aggregation_metrics_exact_assertions(self):
-        """Test H: Aggregation and breakdown metrics with exact numerical assertions."""
+        """8. Aggregation and breakdown metrics with exact numerical assertions."""
         sig1 = BacktestSignal(
             symbol="AAA",
             evaluation_date="2025-01-10",
@@ -429,7 +429,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(act_bd["BUY"][5]["stats"]["mean"], 0.10, places=4)
 
     def test_i_market_breadth_and_universe_backtest(self):
-        """Test I: Point-in-time market breadth calculation and universe-wide backtest."""
+        """9. Point-in-time market breadth calculation and universe-wide backtest."""
         universe_map = {
             "TCB": self.df_stock,
             "ACB": generate_synthetic_ohlcv(num_days=100, base_price=25.0, daily_trend=0.001),
@@ -449,7 +449,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(len(univ_results), 2)
 
     def test_j_strict_validation_and_fail_closed_error_handling(self):
-        """Test J: Strict input validation and fail-closed error handling."""
+        """10. Strict input validation and fail-closed error handling."""
         eval_d = self.df_stock["date"].iloc[30]
 
         # 1. Empty DataFrame
@@ -503,7 +503,7 @@ class TestBacktestFramework(unittest.TestCase):
             calculate_as_of_market_breadth(bad_univ_map, eval_d)
 
     def test_k_fail_closed_empty_or_malformed_breadth(self):
-        """Test K: Fail-closed market breadth validation on empty or malformed universe."""
+        """11. Fail-closed market breadth validation on empty or malformed universe."""
         eval_d = self.df_stock["date"].iloc[30]
 
         # Empty universe map fails closed
@@ -515,7 +515,7 @@ class TestBacktestFramework(unittest.TestCase):
             calculate_as_of_market_breadth({"BAD1": pd.DataFrame(), "BAD2": None}, eval_d)
 
     def test_l_unsorted_and_duplicate_outcome_dataset_validation(self):
-        """Test L: Unsorted and duplicate outcome dataset fail-closed validation."""
+        """12. Unsorted and duplicate outcome dataset fail-closed validation."""
         eval_d = self.df_stock["date"].iloc[10]
 
         # Unsorted outcome dataset
@@ -533,7 +533,7 @@ class TestBacktestFramework(unittest.TestCase):
             evaluate_forward_outcomes(df_dup, eval_d)
 
     def test_m_future_row_physically_placed_before_t_fails_closed(self):
-        """Test M: Regression test where a future row (> T) is physically placed before T in DataFrame.
+        """13. Regression test where a future row (> T) is physically placed before T in DataFrame.
 
         Example physical sequence: T-3, T-2, T-1, T+10 (future row), T, T+1.
         get_as_of_dataset(df, evaluation_date=T) MUST fail closed with ValueError because dates <= T are non-monotonic,
@@ -559,7 +559,7 @@ class TestBacktestFramework(unittest.TestCase):
     # --- Walk-Forward Validation Framework Unit Tests ---
 
     def test_wf_a_chronological_evaluation(self):
-        """Test WF-A: Evaluation dates are processed in strict chronological order."""
+        """1. Evaluation dates are processed in strict chronological order."""
         eval_dates = [
             self.df_stock["date"].iloc[50],
             self.df_stock["date"].iloc[60],
@@ -583,7 +583,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(res_dates, sorted(res_dates))
 
     def test_wf_b_minimum_history(self):
-        """Test WF-B: Minimum history rule excludes dates with insufficient sessions."""
+        """2. Minimum history rule excludes dates with insufficient sessions."""
         # Generating dates with min_history=50, step=10 on 100-day dataset
         gen_dates = generate_walk_forward_dates(self.df_stock, min_history=50, step=10)
 
@@ -601,7 +601,7 @@ class TestBacktestFramework(unittest.TestCase):
             generate_walk_forward_dates(df_short, min_history=50)
 
     def test_wf_c_exact_pit_boundary(self):
-        """Test WF-C: Exact Point-In-Time (PIT) boundary verification at T."""
+        """3. Exact Point-In-Time (PIT) boundary verification at T."""
         eval_d = self.df_stock["date"].iloc[55]
 
         wf_res = run_walk_forward_backtest(
@@ -620,7 +620,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(sig.entry_price, round(c_at_t, 0), places=2)
 
     def test_wf_d_future_mutation_isolation(self):
-        """Test WF-D: Mutating post-T stock data leaves signal scores, confidence, regime, and components identical."""
+        """4. Mutating post-T stock data leaves signal scores, confidence, regime, and components identical."""
         eval_d = self.df_stock["date"].iloc[60]
 
         res_orig = run_walk_forward_backtest(
@@ -659,7 +659,7 @@ class TestBacktestFramework(unittest.TestCase):
         )
 
     def test_wf_e_market_future_mutation_isolation(self):
-        """Test WF-E: Mutating market-level data (VNINDEX, VN30, breadth) after T leaves signal at T identical."""
+        """5. Mutating market-level data (VNINDEX, VN30, breadth) after T leaves signal at T identical."""
         eval_d = self.df_stock["date"].iloc[60]
 
         universe_stock_map = {
@@ -705,7 +705,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(sig_orig.risk_adjusted_score, sig_mut.risk_adjusted_score)
 
     def test_wf_f_future_row_physically_before_t_fails_closed(self):
-        """Test WF-F: Misordered dataframe containing future row before T fails closed."""
+        """6. Misordered dataframe containing future row before T fails closed."""
         df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01")
         eval_d = df_normal["date"].iloc[20]
 
@@ -726,7 +726,7 @@ class TestBacktestFramework(unittest.TestCase):
             )
 
     def test_wf_g_deterministic_rerun(self):
-        """Test WF-G: Running walk-forward evaluation twice yields identical outputs."""
+        """7. Running walk-forward evaluation twice yields identical outputs."""
         eval_dates = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[60]]
 
         run1 = run_walk_forward_backtest(
@@ -747,7 +747,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertEqual(run1.to_dict(), run2.to_dict())
 
     def test_wf_h_forward_horizon_semantics(self):
-        """Test WF-H: Exact (Price[T+N] / Price[T]) - 1.0 forward return formula."""
+        """8. Exact (Price[T+N] / Price[T]) - 1.0 forward return formula."""
         eval_d = self.df_stock["date"].iloc[50]  # T = index 50
 
         wf_res = run_walk_forward_backtest(
@@ -765,7 +765,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertAlmostEqual(outcome.returns[5], expected_ret5, places=5)
 
     def test_wf_i_insufficient_future_data(self):
-        """Test WF-I: Evaluation date near end of history sets availability=False and returns=None."""
+        """9. Evaluation date near end of history sets availability=False and returns=None."""
         eval_d = self.df_stock["date"].iloc[-3]  # Only 2 future sessions remain
 
         wf_res = run_walk_forward_backtest(
@@ -780,7 +780,7 @@ class TestBacktestFramework(unittest.TestCase):
         self.assertIsNone(outcome.returns[5])
 
     def test_wf_j_no_hidden_future_dependency(self):
-        """Test WF-J: Synthetic dataset with extreme post-T price shifts leaves signal at T completely unchanged."""
+        """10. Synthetic dataset with extreme post-T price shifts leaves signal at T completely unchanged."""
         eval_d = self.df_stock["date"].iloc[50]
 
         df_synth_a = generate_synthetic_ohlcv(num_days=80, start_date="2025-01-01", base_price=50.0)
@@ -1407,7 +1407,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(cfg.min_avg_traded_value_bn, 0.0)
 
     def test_exec_a_exact_t_boundary(self):
-        """Test Exec A: Exact T boundary - observation <= T used, > T ignored."""
+        """1. Exact T boundary - observation <= T used, > T ignored."""
         elig_t = evaluate_execution_eligibility(
             self.df_stock, self.evaluation_date, ExecutionConfig(lookback_window=20)
         )
@@ -1416,7 +1416,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(elig_t.metrics["available_lookback_sessions"], 20)
 
     def test_exec_b_future_mutation_isolation(self):
-        """Test Exec B: Future mutation - altering volume/turnover > T leaves eligibility at T identical."""
+        """2. Future mutation - altering volume/turnover > T leaves eligibility at T identical."""
         config = ExecutionConfig(
             min_avg_traded_value_bn=1.0,
             min_avg_volume=50_000.0,
@@ -1439,7 +1439,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(elig_orig.to_dict(), elig_mut.to_dict())
 
     def test_exec_c_physically_misplaced_future_row_raises(self):
-        """Test Exec C: Physically misplaced future row (> T before T) raises ValueError through evaluate_execution_eligibility."""
+        """3. Physically misplaced future row (> T before T) raises ValueError through evaluate_execution_eligibility."""
         df_normal = generate_synthetic_ohlcv(50, start_date="2025-01-01", base_price=50000.0)
         eval_d = df_normal["date"].iloc[20]
 
@@ -1456,7 +1456,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
             evaluate_execution_eligibility(df_misordered, eval_d, ExecutionConfig())
 
     def test_exec_d_insufficient_history(self):
-        """Test Exec D: Insufficient history <= T produces INSUFFICIENT_LIQUIDITY_HISTORY without falling back to future."""
+        """4. Insufficient history <= T produces INSUFFICIENT_LIQUIDITY_HISTORY without falling back to future."""
         # Dataset with only 15 sessions <= T, but lookback_window = 20
         df_short = generate_synthetic_ohlcv(15, start_date="2025-01-01", base_price=50000.0)
         eval_d = df_short["date"].iloc[-1]
@@ -1469,7 +1469,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(elig.metrics["available_lookback_sessions"], 15)
 
     def test_exec_e_temporal_violations_raise_value_error(self):
-        """Test Exec E: Duplicate dates, unsorted dates, or missing evaluation date raise ValueError."""
+        """5. Duplicate dates, unsorted dates, or missing evaluation date raise ValueError."""
         eval_d = self.df_stock["date"].iloc[30]
 
         # Duplicate dates <= T
@@ -1491,7 +1491,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
             evaluate_execution_eligibility(self.df_stock, "2020-01-01")
 
     def test_exec_f_deterministic_rerun(self):
-        """Test Exec F: Deterministic rerun gives identical byte-for-byte / struct output."""
+        """6. Deterministic rerun gives identical byte-for-byte / struct output."""
         config = ExecutionConfig(
             min_avg_traded_value_bn=2.0,
             min_avg_volume=100_000.0,
@@ -1506,7 +1506,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertEqual(run1.to_dict(), run2.to_dict())
 
     def test_exec_g_threshold_boundary_and_precision(self):
-        """Test Exec G: Threshold boundary checks (exact, below, above, participation boundary)."""
+        """7. Threshold boundary checks (exact, below, above, participation boundary)."""
         dates = pd.date_range("2025-01-01", periods=20, freq="B").strftime("%Y-%m-%d")
         # Fixed 20 sessions: close = 10,000 VND, volume = 100,000 shares
         # Daily traded value = 1,000,000,000 VND = 1.0 billion VND
@@ -1565,7 +1565,7 @@ class TestExecutionEligibilityFramework(unittest.TestCase):
         self.assertIn(REASON_EXCEEDS_MAX_PARTICIPATION, elig_part.reasons)
 
     def test_exec_h_walk_forward_integration(self):
-        """Test Exec H: Walk-forward integration consistently evaluates execution eligibility across dates."""
+        """8. Walk-forward integration consistently evaluates execution eligibility across dates."""
         eval_dates = [self.df_stock["date"].iloc[50], self.df_stock["date"].iloc[60]]
 
         exec_cfg = ExecutionConfig(
