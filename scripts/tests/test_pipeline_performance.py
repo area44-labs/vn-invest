@@ -900,6 +900,114 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         self.assertEqual(eval_b["status"], "DEGRADED")
         self.assertIn("exceeded DEGRADED threshold", eval_b["message"])
 
+    def test_stage_degraded_status_preserved(self):
+        """Verify stage with execution status DEGRADED preserves status DEGRADED even with low duration."""
+        performance_payload = {
+            "stages": [
+                {
+                    "stage": "benchmark_fetch",
+                    "elapsed_seconds": 0.1,  # Below degraded duration threshold
+                    "status": "DEGRADED",
+                },
+            ],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.1,
+                "average_call_seconds": 0.1,
+                "calls_by_source": {"kbs": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        res = evaluate_performance_regression(performance_payload)
+        self.assertEqual(res["overall_status"], "DEGRADED")
+        eval_b = res["stage_evaluations"][0]
+        self.assertEqual(eval_b["stage"], "benchmark_fetch")
+        self.assertEqual(eval_b["status"], "DEGRADED")
+        self.assertIn("marked DEGRADED during execution", eval_b["message"])
+
+    def test_stage_failed_status_handling(self):
+        """Verify stage with execution status FAILED produces status FAILED."""
+        performance_payload = {
+            "stages": [
+                {
+                    "stage": "stock_fetch",
+                    "elapsed_seconds": 0.5,
+                    "status": "FAILED",
+                },
+            ],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 0,
+                "failed_calls": 1,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.5,
+                "average_call_seconds": 0.5,
+                "calls_by_source": {"kbs": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        res = evaluate_performance_regression(performance_payload)
+        self.assertEqual(res["overall_status"], "FAILED")
+        eval_s = res["stage_evaluations"][0]
+        self.assertEqual(eval_s["stage"], "stock_fetch")
+        self.assertEqual(eval_s["status"], "FAILED")
+
+    def test_mixed_stages_priority_evaluation(self):
+        """Verify overall status evaluates correctly according to priority: FAILED > DEGRADED > PASS."""
+        performance_payload = {
+            "stages": [
+                {"stage": "pipeline", "elapsed_seconds": 1.0, "status": "SUCCESS"},  # PASS
+                {
+                    "stage": "benchmark_fetch",
+                    "elapsed_seconds": 0.1,
+                    "status": "DEGRADED",
+                },  # DEGRADED
+                {"stage": "stock_fetch", "elapsed_seconds": 25.0, "status": "SUCCESS"},  # FAILED
+            ],
+            "provider": {
+                "total_calls": 2,
+                "successful_calls": 2,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 1.0,
+                "average_call_seconds": 0.5,
+                "calls_by_source": {"kbs": 2},
+            },
+            "duplicate_operations": [],
+        }
+
+        res = evaluate_performance_regression(performance_payload)
+        self.assertEqual(res["overall_status"], "FAILED")
+
+        # Mixed PASS and DEGRADED without FAILED evaluates to DEGRADED
+        performance_payload_deg = {
+            "stages": [
+                {"stage": "pipeline", "elapsed_seconds": 1.0, "status": "SUCCESS"},  # PASS
+                {
+                    "stage": "benchmark_fetch",
+                    "elapsed_seconds": 0.1,
+                    "status": "DEGRADED",
+                },  # DEGRADED
+            ],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 1.0,
+                "average_call_seconds": 1.0,
+                "calls_by_source": {"kbs": 1},
+            },
+            "duplicate_operations": [],
+        }
+        res_deg = evaluate_performance_regression(performance_payload_deg)
+        self.assertEqual(res_deg["overall_status"], "DEGRADED")
+
     def test_threshold_failure(self):
         """Verify duration exceeding failed threshold produces 'FAILED' status."""
         performance_payload = {
@@ -1033,6 +1141,42 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         self.assertEqual(dups[0]["symbol"], "FPT")
         self.assertEqual(dups[0]["provider_call_count"], 2)
         self.assertEqual(dups[0]["successful_calls"], 2)
+
+    def test_performance_regression_failure_blocks_artifact_publishing(self):
+        """Verify that when performance regression causes monitoring to FAIL during update, existing artifacts are untouched."""
+        from scripts.generate_report import main as generate_report_main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gen_dir = Path(tmpdir) / "generated"
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            hist_dir = gen_dir / "history"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+
+            recs_file = gen_dir / "recommendations.json"
+            initial_bytes = (
+                b'{"schema_version": "2.0", "recommendations": [{"symbol": "UNTOUCHED"}]}'
+            )
+            recs_file.write_bytes(initial_bytes)
+
+            (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
+
+            # Mock pipeline execution result with a severe performance regression
+            res = run_pipeline(update_data=False)
+            res.universe_audit["performance"]["stages"].append(
+                {"stage": "stock_fetch", "elapsed_seconds": 30.0, "status": "SUCCESS"}
+            )
+
+            with (
+                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
+                patch("scripts.generate_report.run_pipeline", return_value=res),
+                patch("sys.argv", ["generate_report.py"]),
+                self.assertRaises(SystemExit) as ctx,
+            ):
+                generate_report_main()
+
+            self.assertEqual(ctx.exception.code, 1)
+            # Verify existing artifact file on disk remains 100% byte-for-byte untouched
+            self.assertEqual(recs_file.read_bytes(), initial_bytes)
 
     def test_deterministic_ci_regression(self):
         """Verify deterministic CI regression triggers monitoring check status 'FAIL' and halts update."""

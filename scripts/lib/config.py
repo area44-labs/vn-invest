@@ -316,7 +316,8 @@ VALID_STAGE_STATUSES = (
 )
 
 # Performance Regression Baselines & Threshold Multipliers (in seconds)
-# Baseline durations represent expected operational benchmarks per stage.
+# PERFORMANCE_STAGE_BASELINES represents static, deterministic reference benchmarks per stage.
+# It provides operational reference durations for pipeline performance profiling across environments.
 PERFORMANCE_STAGE_BASELINES = {
     "pipeline": 10.0,
     "benchmark_fetch": 1.0,
@@ -348,6 +349,7 @@ PERFORMANCE_STAGE_THRESHOLDS = {
 
 # Provider Budget Limits
 # Enforces strict bounds on provider operations during pipeline execution.
+# `max_duplicate_operations` bounds the number of symbol duplicate operation records.
 PROVIDER_BUDGET = {
     "max_total_calls": 120,
     "max_duplicate_operations": 5,

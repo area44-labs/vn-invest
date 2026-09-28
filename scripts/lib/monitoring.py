@@ -126,6 +126,9 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
                 f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded DEGRADED threshold "
                 f"{deg_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
             )
+        elif exec_status == "DEGRADED":
+            status = "DEGRADED"
+            message = f"Stage '{stage_name}' marked DEGRADED during execution"
         else:
             status = "PASS"
             message = (
@@ -179,6 +182,9 @@ def create_default_performance_payload() -> dict[str, Any]:
 
 def evaluate_provider_budget(performance_data: dict) -> dict[str, Any]:
     """Evaluate provider operations metrics against centralized provider budget thresholds.
+
+    `duplicate_operations_count` is the count of duplicate operation symbol records
+    present in the `duplicate_operations` list.
 
     Returns structured dict with overall_status ("PASS", "FAILED") and violation details.
     """
