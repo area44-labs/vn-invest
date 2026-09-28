@@ -24,9 +24,11 @@ from scripts.data_provider import (
 from scripts.generate_report import (
     PerformanceTracker,
     PipelineResult,
-    main as generate_report_main,
     run_pipeline,
     validate_performance_payload,
+)
+from scripts.generate_report import (
+    main as generate_report_main,
 )
 from scripts.lib.config import PERFORMANCE_STAGE_BASELINES
 from scripts.lib.monitoring import (
