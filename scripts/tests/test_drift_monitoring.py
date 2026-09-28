@@ -590,7 +590,7 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
 class TestTemporalSafetyRegression(unittest.TestCase):
     """Explicit temporal safety regression tests."""
 
-    def test_future_observation_appearing_before_T_in_index_fails_closed(self):
+    def test_future_observation_appearing_before_t_in_index_fails_closed(self):
         """Regression test: T = 2026-09-17. History index has dates ['2026-09-16', '2026-09-18', '2026-09-15'].
 
         A future observation '2026-09-18' appears after '2026-09-16' in physical index array.
@@ -610,7 +610,7 @@ class TestTemporalSafetyRegression(unittest.TestCase):
 
 
 class TestFeedbackRegressionCases(unittest.TestCase):
-    """Regression test suite covering user feedback review items for PR #95."""
+    """Regression test suite covering user feedback review items."""
 
     def test_market_metrics_prioritize_market_payload(self):
         """Verify vnindex_change_pct and market_breadth_ratio are prioritized from market_payload."""

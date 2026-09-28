@@ -25,7 +25,7 @@ from scripts.lib.vietnam_market import (
 
 class TestDataDateSemantics(unittest.TestCase):
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
-        """Test C: extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
+        """1. extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
         df_unsorted = pd.DataFrame(
             {
                 "time": ["2026-09-10", "2026-09-12", "2026-09-11", "invalid-date", None],
@@ -42,7 +42,7 @@ class TestDataDateSemantics(unittest.TestCase):
         self.assertIsNone(extract_latest_trading_date(None))
 
     def test_market_date_independent_from_stock_date(self):
-        """Case A: Stock data one day behind VNINDEX gets canonical report date in recommendation."""
+        """1. Stock data one day behind VNINDEX gets canonical report date in recommendation."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -80,7 +80,7 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertEqual(fpt_rec["data_as_of"], "2026-09-25")
 
     def test_all_recommendations_match_canonical_date(self):
-        """Case B: All recommendations match top-level canonical date for a complete valid pipeline."""
+        """2. All recommendations match top-level canonical date for a complete valid pipeline."""
         df_valid = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -102,7 +102,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 self.assertEqual(rec["data_as_of"], payload["data_as_of"])
 
     def test_exact_production_ci_failure_regression(self):
-        """Case C: Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
+        """3. Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
 
         Pipeline completes successfully within temporal staleness window,
         final payload integrity validation passes, and every recommendation uses '2026-09-25'.
@@ -169,7 +169,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
-        """Test B: When data_as_of is None, monitoring fails and no output artifacts are published."""
+        """2. When data_as_of is None, monitoring fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
             patch("scripts.generate_report.get_historical_data") as mock_get_hist,

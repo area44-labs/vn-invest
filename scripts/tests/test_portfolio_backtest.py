@@ -614,7 +614,7 @@ class TestPortfolioTemporalIntegrity(unittest.TestCase):
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
         self.eval_date = self.df_aaa["date"].iloc[40]
 
-    def test_mutating_data_after_T_does_not_affect_portfolio_at_T(self) -> None:
+    def test_mutating_data_after_t_does_not_affect_portfolio_at_t(self) -> None:
         cfg = PortfolioConfig(
             min_signal_score=0.0,
             min_history=30,
@@ -1811,7 +1811,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             self.assertEqual(p1.is_executable, p2.is_executable)
 
     def test_case_a_evaluation_date_at_min_history_boundary(self) -> None:
-        """Case A: Evaluation date at the start of sufficient min_history window (T-30 ... T ... T+N).
+        """1. Evaluation date at the start of sufficient min_history window (T-30 ... T ... T+N).
 
         Verify:
         - Signal is calculated using data <= T;
@@ -1862,7 +1862,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertNotEqual(pos1_aaa.forward_returns[5], pos2_aaa.forward_returns[5])
 
     def test_case_b_evaluation_date_at_last_trading_session(self) -> None:
-        """Case B: Evaluation date at the last trading session in the dataset.
+        """2. Evaluation date at the last trading session in the dataset.
 
         Verify:
         - Signal/history is valid with sufficient history;
@@ -1908,7 +1908,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertIsNone(h5["sequential_compounded_return"])
 
     def test_case_c_evaluation_date_near_dataset_end(self) -> None:
-        """Case C: Evaluation date near the dataset end (e.g. exactly 1 session available after T).
+        """3. Evaluation date near the dataset end (e.g. exactly 1 session available after T).
 
         Verify:
         - Horizon 1 is available if framework evaluated with horizon=[1, 5] at both stock and portfolio levels;
@@ -1948,7 +1948,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         self.assertIsNone(eval_res.portfolio_forward_returns[5])
 
     def test_case_d_evaluation_date_before_min_history(self) -> None:
-        """Case D: Evaluation date before min_history requirement is satisfied.
+        """4. Evaluation date before min_history requirement is satisfied.
 
         Verify:
         - Raises ValueError for insufficient history;
@@ -1981,20 +1981,20 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
         df_gap = create_synthetic_ohlcv(
             start_date="2024-01-01", num_days=33, base_price=10000.0, daily_trend=100.0
         )
-        p_T = df_gap.loc[29, "close"]
+        p_t = df_gap.loc[29, "close"]
 
         # Row 29 is Friday (2024-02-09)
         # Row 30 is Monday (2024-02-12) -> price 110% of Friday close
         # Row 31 is Tuesday (2024-02-13) -> price 120% of Friday close
-        df_gap.loc[30, "close"] = p_T * 1.10
-        df_gap.loc[30, "open"] = p_T * 1.09
-        df_gap.loc[30, "high"] = p_T * 1.11
-        df_gap.loc[30, "low"] = p_T * 1.08
+        df_gap.loc[30, "close"] = p_t * 1.10
+        df_gap.loc[30, "open"] = p_t * 1.09
+        df_gap.loc[30, "high"] = p_t * 1.11
+        df_gap.loc[30, "low"] = p_t * 1.08
 
-        df_gap.loc[31, "close"] = p_T * 1.20
-        df_gap.loc[31, "open"] = p_T * 1.19
-        df_gap.loc[31, "high"] = p_T * 1.21
-        df_gap.loc[31, "low"] = p_T * 1.18
+        df_gap.loc[31, "close"] = p_t * 1.20
+        df_gap.loc[31, "open"] = p_t * 1.19
+        df_gap.loc[31, "high"] = p_t * 1.21
+        df_gap.loc[31, "low"] = p_t * 1.18
 
         eval_fri = df_gap["date"].iloc[29]  # Friday evaluation date
 
@@ -2003,7 +2003,7 @@ class TestPortfolioTemporalBoundaries(unittest.TestCase):
             "signal_score": 80.0,
             "risk_adjusted_score": 80.0,
             "confidence": 0.8,
-            "trade_plan": {"current_price": p_T},
+            "trade_plan": {"current_price": p_t},
         }
 
         cfg = PortfolioConfig(
@@ -3724,7 +3724,7 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
         universe = {"AAA": df_aaa, "BBB": df_bbb}
         eval_d = df_aaa["date"].iloc[40]
 
-        # Case A: Full allocation
+        # 1. Full allocation
         cfg_full = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
@@ -3749,7 +3749,7 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
             res_full.allocated_weight + res_full.unallocated_weight, 1.0, places=6
         )
 
-        # Case B: Partial allocation (max_weight_per_position < 1.0, e.g. 0.30 per position)
+        # 2. Partial allocation (max_weight_per_position < 1.0, e.g. 0.30 per position)
         cfg_partial = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
@@ -3775,7 +3775,7 @@ class TestPortfolioAggregationConsistencyAndOracles(unittest.TestCase):
             res_partial.allocated_weight + res_partial.unallocated_weight, 1.0, places=6
         )
 
-        # Case C: Empty portfolio (e.g. min_signal_score=99.9 filters out all candidates)
+        # 3. Empty portfolio (e.g. min_signal_score=99.9 filters out all candidates)
         cfg_empty = PortfolioConfig(
             min_signal_score=99.9,
             min_history=30,

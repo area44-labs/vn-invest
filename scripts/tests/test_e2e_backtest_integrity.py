@@ -1,4 +1,4 @@
-"""End-to-End Integrity Validation Test Suite for Backtesting Framework (PR #105).
+"""End-to-End Integrity Validation Test Suite for Backtesting Framework.
 
 This module provides test-only validation proving that when all existing layers are used together:
     historical PIT data

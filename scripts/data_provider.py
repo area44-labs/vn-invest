@@ -578,7 +578,7 @@ class VnstockDataProvider:
 
 
 def aggregate_provider_performance(call_history: list[dict] | None = None) -> dict:
-    """Aggregate PR #155 provider call timing history into structured performance statistics."""
+    """Aggregate provider call timing history into structured performance statistics."""
     if call_history is None:
         call_history = VnstockDataProvider.get_global_call_history()
 

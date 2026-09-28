@@ -25,7 +25,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
     """Test suite validating transaction cost semantics, formula, and input bounds."""
 
     def test_case_a_zero_transaction_cost(self) -> None:
-        """Case A — Zero transaction cost: return remains unchanged from gross return."""
+        """1. Zero transaction cost: return remains unchanged from gross return."""
         entry_price = 10_000.0
         exit_price = 11_000.0
         res = calculate_execution_return(
@@ -41,7 +41,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
         self.assertEqual(res.net_return, expected_gross)
 
     def test_case_b_positive_transaction_cost(self) -> None:
-        """Case B — Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
+        """2. Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
         entry_price = 50_000.0
         exit_price = 55_000.0
         # Total transaction cost = 0.30% (0.0030), i.e., 0.15% (0.0015) entry and 0.15% exit
@@ -62,7 +62,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
         self.assertEqual(res.net_return, 0.096702)
 
     def test_case_c_transaction_cost_symmetry(self) -> None:
-        """Case C — Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
+        """3. Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
         entry_price = 20_000.0
         exit_price = 22_000.0
         # BUY leg: entry cost 0.15%, exit cost 0.15%
@@ -119,7 +119,7 @@ class TestTransactionCostSemantics(unittest.TestCase):
             )
 
     def test_case_d_invalid_transaction_cost(self) -> None:
-        """Case D — Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
+        """4. Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
         # Negative cost
         with self.assertRaises(ValueError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=-0.01)
@@ -145,7 +145,7 @@ class TestSlippageSemantics(unittest.TestCase):
     """Test suite validating execution slippage semantics, directionality, and input bounds."""
 
     def test_case_a_zero_slippage(self) -> None:
-        """Case A — Zero slippage: execution prices match reference prices exactly."""
+        """1. Zero slippage: execution prices match reference prices exactly."""
         p_entry = 25_000.0
         p_exit = 27_500.0
         res = calculate_execution_return(
@@ -160,7 +160,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertEqual(res.slippage_adjusted_return, res.gross_return)
 
     def test_case_b_positive_slippage(self) -> None:
-        """Case B — Positive slippage: hand-calculated expected execution price and return."""
+        """2. Positive slippage: hand-calculated expected execution price and return."""
         p_entry = 10_000.0
         p_exit = 12_000.0
         slip = 0.0010  # 0.10% adverse slippage on each leg
@@ -180,7 +180,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertEqual(res.slippage_adjusted_return, round((11_988.0 / 10_010.0) - 1.0, 6))
 
     def test_case_c_buy_vs_sell_directionality(self) -> None:
-        """Case C — Buy vs Sell slippage directionality: both legs experience adverse pricing."""
+        """3. Buy vs Sell slippage directionality: both legs experience adverse pricing."""
         p_entry = 40_000.0
         p_exit = 44_000.0
         slip = 0.0020  # 0.20% slippage
@@ -211,7 +211,7 @@ class TestSlippageSemantics(unittest.TestCase):
         self.assertLess(res_sell.slippage_adjusted_return, res_sell.gross_return)
 
     def test_case_d_invalid_slippage(self) -> None:
-        """Case D — Invalid slippage parameters raise ValueError or TypeError fail-closed."""
+        """4. Invalid slippage parameters raise ValueError or TypeError fail-closed."""
         # Negative slippage
         with self.assertRaises(ValueError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=-0.005)
@@ -390,7 +390,7 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
 
         # Equal weighting (0.50 each):
         # Hand-calculated weighted portfolio return = 0.5 * 0.098572 + 0.5 * 0.0 = 0.049286
-        HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN = 0.049286
+        hand_calculated_oracle_portfolio_net_return = 0.049286
 
         cfg = PortfolioConfig(
             max_positions=2,
@@ -417,7 +417,7 @@ class TestPortfolioLevelCostConsistency(unittest.TestCase):
 
         self.assertEqual(
             eval_res.portfolio_forward_returns[5],
-            HAND_CALCULATED_ORACLE_PORTFOLIO_NET_RETURN,
+            hand_calculated_oracle_portfolio_net_return,
         )
 
     def test_portfolio_net_return_equals_weighted_net_position_returns(self) -> None:
@@ -614,17 +614,17 @@ class TestSellExitPriceReconstructionAndPortfolioCoverage(unittest.TestCase):
 
         # Hand-calculated oracle weighted net return:
         # 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round to 6 decimals = 0.094709
-        HAND_CALCULATED_COMBINED_ORACLE_RETURN = 0.094709
+        hand_calculated_combined_oracle_return = 0.094709
         self.assertEqual(
-            eval_res.portfolio_forward_returns[5], HAND_CALCULATED_COMBINED_ORACLE_RETURN
+            eval_res.portfolio_forward_returns[5], hand_calculated_combined_oracle_return
         )
 
 
 class TestNoLookaheadAndEligibilityInteraction(unittest.TestCase):
-    """Test suite validating temporal isolation and PR #100 execution eligibility interaction."""
+    """Test suite validating temporal isolation and execution eligibility interaction."""
 
     def test_execution_eligibility_not_altered_by_cost_assumptions(self) -> None:
-        """Verify non-executable stocks under PR #100 remain non-executable regardless of cost settings."""
+        """Verify non-executable stocks remain non-executable regardless of cost settings."""
         dates = pd.date_range("2024-01-01", periods=30, freq="B").strftime("%Y-%m-%d")
         # Low volume stock failing min_avg_volume requirement (10,000 < 50,000 threshold)
         prices = [10_000.0] * 30
@@ -712,7 +712,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
 
     @patch("scripts.lib.portfolio_backtest.generate_recommendation")
     def test_case_a_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
-        """Case A — Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
+        """1. Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -780,7 +780,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
     def test_case_b_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
         self, mock_gen_rec
     ) -> None:
-        """Case B & C — Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
+        """2. Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -829,7 +829,7 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         # P_exit_exec = 110 * (1 - 0.001) = 109.89
         # net_return_buy = (1 - 0.0015) * (109.89 / 100.1) * (1 - 0.0015) - 1
         # = 0.9985 * 1.0978021978021978 * 0.9985 - 1 = 1.0945112137862137 - 1 = 0.094511213... -> 0.094511
-        BUY_HAND_CALCULATED_NET = 0.094511
+        buy_hand_calculated_net = 0.094511
 
         # SELL (entry = 100, exit = 90):
         # P_entry_exec = 100 * (1 - 0.001) = 99.9
@@ -837,11 +837,11 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         # slip_ret = 1.0 - (90.09 / 99.9) = 1.0 - 0.9018018018018018 = 0.0981981981981982
         # net_return_sell = (1 - 0.0015) * (1 + 0.0981981981981982) * (1 - 0.0015) - 1
         # = 0.9985 * 1.0981981981981982 * 0.9985 - 1 = 1.0949060601... - 1 = 0.09490606... -> 0.094906
-        SELL_HAND_CALCULATED_NET = 0.094906
+        sell_hand_calculated_net = 0.094906
 
         # Portfolio Net Return Oracle:
         # = 0.50 * 0.094511 + 0.50 * 0.094906 = 0.0947085 -> round(..., 6) = 0.094709
-        PORTFOLIO_HAND_CALCULATED_NET = 0.094709
+        portfolio_hand_calculated_net = 0.094709
 
         pos_buy = next(p for p in eval_res.positions if p.symbol == "STK_BUY")
         pos_sell = next(p for p in eval_res.positions if p.symbol == "STK_SELL")
@@ -849,16 +849,16 @@ class TestCostAwarePortfolioConsistency(unittest.TestCase):
         self.assertEqual(pos_buy.weight, 0.50)
         self.assertEqual(pos_sell.weight, 0.50)
 
-        self.assertEqual(pos_buy.forward_returns[5], BUY_HAND_CALCULATED_NET)
-        self.assertEqual(pos_sell.forward_returns[5], SELL_HAND_CALCULATED_NET)
+        self.assertEqual(pos_buy.forward_returns[5], buy_hand_calculated_net)
+        self.assertEqual(pos_sell.forward_returns[5], sell_hand_calculated_net)
 
         # Verify portfolio net return equals weighted position net returns exactly
         oracle_weighted_sum = round(
-            pos_buy.weight * BUY_HAND_CALCULATED_NET + pos_sell.weight * SELL_HAND_CALCULATED_NET,
+            pos_buy.weight * buy_hand_calculated_net + pos_sell.weight * sell_hand_calculated_net,
             6,
         )
-        self.assertEqual(oracle_weighted_sum, PORTFOLIO_HAND_CALCULATED_NET)
-        self.assertEqual(eval_res.portfolio_forward_returns[5], PORTFOLIO_HAND_CALCULATED_NET)
+        self.assertEqual(oracle_weighted_sum, portfolio_hand_calculated_net)
+        self.assertEqual(eval_res.portfolio_forward_returns[5], portfolio_hand_calculated_net)
 
     @patch("scripts.lib.portfolio_backtest.generate_recommendation")
     def test_multi_horizon_consistency_and_missing_outcomes(self, mock_gen_rec) -> None:

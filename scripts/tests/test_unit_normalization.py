@@ -1,16 +1,16 @@
-"""Comprehensive Unit Normalization Test Suite for VN Invest (PR #71).
+"""Comprehensive Unit Normalization Test Suite for VN Invest.
 
-Covers Tests A through J:
-- Test A: Explicit price conversion (50.0 thousand_VND/share -> 50,000 VND/share).
-- Test B: No magnitude heuristic (conversion strictly follows declared source contract).
-- Test C: Volume unit preservation (1,000,000 shares remains 1,000,000 shares).
-- Test D: Trading value formula (price * volume = VND).
-- Test E: 20-day average trading value calculation (mean(trading_value_vnd) / 1e9).
-- Test F: Invalid source unit handling (raises ValueError on unsupported units).
-- Test G: No double conversion (canonical dataset with source_price_unit="VND/share" is unchanged; risk/recommendation modules consume canonical units directly).
-- Test H: Risk metrics regression (VaR, ES, Volatility, Max Drawdown remain unchanged).
-- Test I: Liquidity ranking regression (relative ordering of liquidity scores preserved).
-- Test J: Regression test suite compatibility (PR #68 data_as_of and PR #70 clean data boundary).
+Covers Tests 1 through 10:
+- 1. Explicit price conversion (50.0 thousand_VND/share -> 50,000 VND/share).
+- 2. No magnitude heuristic (conversion strictly follows declared source contract).
+- 3. Volume unit preservation (1,000,000 shares remains 1,000,000 shares).
+- 4. Trading value formula (price * volume = VND).
+- 5. 20-day average trading value calculation (mean(trading_value_vnd) / 1e9).
+- 6. Invalid source unit handling (raises ValueError on unsupported units).
+- 7. No double conversion (canonical dataset with source_price_unit="VND/share" is unchanged; risk/recommendation modules consume canonical units directly).
+- 8. Risk metrics regression (VaR, ES, Volatility, Max Drawdown remain unchanged).
+- 9. Liquidity ranking regression (relative ordering of liquidity scores preserved).
+- 10. Regression test suite compatibility (data_as_of and clean data boundary).
 """
 
 import unittest
@@ -42,7 +42,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(AVG_TRADING_VALUE_UNIT, "billion_VND")
 
     def test_a_explicit_price_conversion(self):
-        """Test A — Given 50.0 thousand VND/share, normalize_ohlcv_units produces 50,000 VND/share."""
+        """1. Given 50.0 thousand VND/share, normalize_ohlcv_units produces 50,000 VND/share."""
         df_raw = pd.DataFrame(
             {
                 "open": [49.5],
@@ -61,7 +61,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(df_norm["low"].iloc[0], 49000.0)
 
     def test_b_no_magnitude_heuristic(self):
-        """Test B — Conversion strictly follows declared source unit contract, independent of numeric magnitude."""
+        """2. Conversion strictly follows declared source unit contract, independent of numeric magnitude."""
         # Low numeric value (e.g. 0.5) with declared unit 'thousand_VND/share' -> 500.0 VND/share
         df_low = pd.DataFrame({"close": [0.5], "volume": [1000.0]})
         norm_low = normalize_ohlcv_units(df_low, source_price_unit="thousand_VND/share")
@@ -73,13 +73,13 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(norm_already_vnd["close"].iloc[0], 500.0)
 
     def test_c_volume_preservation(self):
-        """Test C — Given 1,000,000 shares, normalize_ohlcv_units preserves 1,000,000 shares."""
+        """3. Given 1,000,000 shares, normalize_ohlcv_units preserves 1,000,000 shares."""
         df = pd.DataFrame({"close": [50000.0], "volume": [1_000_000.0]})
         norm = normalize_ohlcv_units(df, source_volume_unit="shares")
         self.assertEqual(norm["volume"].iloc[0], 1_000_000.0)
 
     def test_d_trading_value_formula(self):
-        """Test D — 50,000 VND/share x 1,000,000 shares produces 50,000,000,000 VND (50 billion VND)."""
+        """4. 50,000 VND/share x 1,000,000 shares produces 50,000,000,000 VND (50 billion VND)."""
         n = 20
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         df = pd.DataFrame(
@@ -96,7 +96,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(metrics["avg_value_20d"], 50.0)
 
     def test_e_20_day_average_exactness(self):
-        """Test E — 20-day average trading value equals mean(trading_value_vnd) / 1e9 exactness."""
+        """5. 20-day average trading value equals mean(trading_value_vnd) / 1e9 exactness."""
         n = 20
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         prices = np.linspace(20000.0, 39000.0, n)
@@ -110,7 +110,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(metrics["avg_value_20d"], expected_avg_bn)
 
     def test_f_invalid_units_raise_error(self):
-        """Test F — Unsupported source price or volume units raise ValueError loudly."""
+        """6. Unsupported source price or volume units raise ValueError loudly."""
         df = pd.DataFrame({"close": [50.0], "volume": [1000.0]})
 
         with self.assertRaises(ValueError):
@@ -120,7 +120,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
             normalize_ohlcv_units(df, source_volume_unit="unknown_volume_unit")
 
     def test_g_no_double_conversion(self):
-        """Test G — Verify a canonical dataset (source_price_unit='VND/share') is not converted again."""
+        """7. Verify a canonical dataset (source_price_unit='VND/share') is not converted again."""
         n = 20
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         df_canonical = pd.DataFrame(
@@ -155,7 +155,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertEqual(rec["trade_plan"]["current_price"], 30000.0)
 
     def test_h_risk_metrics_invariant(self):
-        """Test H — Verify VaR, ES, Volatility, and Max Drawdown remain unchanged between raw percentage dynamics."""
+        """8. Verify VaR, ES, Volatility, and Max Drawdown remain unchanged between raw percentage dynamics."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_prices = np.linspace(20000.0, 35000.0, n)
@@ -174,7 +174,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         self.assertIsNotNone(metrics["max_drawdown"])
 
     def test_i_liquidity_ranking_invariant(self):
-        """Test I — Relative liquidity ordering is preserved after canonical unit normalization."""
+        """9. Relative liquidity ordering is preserved after canonical unit normalization."""
         scanned = [
             {"risk_metrics": {"avg_value_20d": 10.0, "liquidity_score": None}},
             {"risk_metrics": {"avg_value_20d": 50.0, "liquidity_score": None}},
@@ -191,7 +191,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         )
 
     def test_j_data_quality_and_date_compatibility(self):
-        """Test J — PR #68 data_as_of and PR #70 clean data boundary compatibility."""
+        """10. data_as_of and clean data boundary compatibility."""
         df_raw = pd.DataFrame(
             {
                 "time": ["2026-09-01", "2026-09-02", "invalid-date", "2026-09-04"],
