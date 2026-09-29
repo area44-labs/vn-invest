@@ -170,7 +170,9 @@ def normalize_universe_liquidity_scores(
         dq = r.data_quality if isinstance(r, Recommendation) else r.get("data_quality")
         if dq == "INSUFFICIENT":
             if isinstance(r, Recommendation):
-                recs_out[idx] = r.with_liquidity_score(liquidity_score=None, risk_adjusted_score=None)
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
             else:
                 if r.get("risk_metrics"):
                     r["risk_metrics"]["liquidity_score"] = None
@@ -180,7 +182,11 @@ def normalize_universe_liquidity_scores(
         if isinstance(r, Recommendation):
             avg_val = r.risk_metrics.avg_value_20d if r.risk_metrics else None
         else:
-            avg_val = r.get("risk_metrics", {}).get("avg_value_20d") if isinstance(r.get("risk_metrics"), dict) else None
+            avg_val = (
+                r.get("risk_metrics", {}).get("avg_value_20d")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
 
         val = _safe_float(avg_val)
         if val is not None and val > 0:
@@ -188,7 +194,9 @@ def normalize_universe_liquidity_scores(
             valid_recs_indices.append(idx)
         else:
             if isinstance(r, Recommendation):
-                recs_out[idx] = r.with_liquidity_score(liquidity_score=None, risk_adjusted_score=None)
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
             else:
                 if isinstance(r.get("risk_metrics"), dict):
                     r["risk_metrics"]["liquidity_score"] = None
@@ -197,7 +205,9 @@ def normalize_universe_liquidity_scores(
     if not values:
         for idx, r in enumerate(recs_out):
             if isinstance(r, Recommendation):
-                recs_out[idx] = r.with_liquidity_score(liquidity_score=None, risk_adjusted_score=None)
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
             else:
                 if isinstance(r.get("risk_metrics"), dict):
                     r["risk_metrics"]["liquidity_score"] = None
@@ -217,8 +227,16 @@ def normalize_universe_liquidity_scores(
             mdd = r.risk_metrics.max_drawdown if r.risk_metrics else None
         else:
             sig_score = r.get("signal_score")
-            vol_60d = r.get("risk_metrics", {}).get("volatility_60d") if isinstance(r.get("risk_metrics"), dict) else None
-            mdd = r.get("risk_metrics", {}).get("max_drawdown") if isinstance(r.get("risk_metrics"), dict) else None
+            vol_60d = (
+                r.get("risk_metrics", {}).get("volatility_60d")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
+            mdd = (
+                r.get("risk_metrics", {}).get("max_drawdown")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
 
         if sig_score is not None:
             final_adj = calculate_risk_adjusted_score(
@@ -232,7 +250,9 @@ def normalize_universe_liquidity_scores(
             final_adj = None
 
         if isinstance(r, Recommendation):
-            recs_out[rec_idx] = r.with_liquidity_score(liquidity_score=liq_score, risk_adjusted_score=final_adj)
+            recs_out[rec_idx] = r.with_liquidity_score(
+                liquidity_score=liq_score, risk_adjusted_score=final_adj
+            )
         else:
             if isinstance(r.get("risk_metrics"), dict):
                 r["risk_metrics"]["liquidity_score"] = liq_score

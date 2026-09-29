@@ -30,7 +30,9 @@ class UniverseCandidate:
 
         ex_u = self.exchange.strip().upper() if isinstance(self.exchange, str) else "HOSE"
         if ex_u not in VALID_EXCHANGES:
-            raise ValueError(f"Candidate [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}")
+            raise ValueError(
+                f"Candidate [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}"
+            )
         object.__setattr__(self, "exchange", ex_u)
 
     def to_dict(self) -> dict[str, str]:
@@ -76,9 +78,13 @@ class Universe:
                 elif isinstance(item, dict):
                     cands.append(UniverseCandidate.from_dict(item))
                 else:
-                    raise TypeError(f"Candidate item at index {idx} must be UniverseCandidate or dict, got {type(item).__name__}")
+                    raise TypeError(
+                        f"Candidate item at index {idx} must be UniverseCandidate or dict, got {type(item).__name__}"
+                    )
         else:
-            raise TypeError(f"Field 'candidates' must be a tuple or list, got {type(self.candidates).__name__}")
+            raise TypeError(
+                f"Field 'candidates' must be a tuple or list, got {type(self.candidates).__name__}"
+            )
 
         object.__setattr__(self, "candidates", tuple(cands))
 

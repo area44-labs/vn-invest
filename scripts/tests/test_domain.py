@@ -1,7 +1,7 @@
 """Unit tests for VN Invest Domain Contracts."""
 
-from dataclasses import FrozenInstanceError
 import unittest
+from dataclasses import FrozenInstanceError
 
 from scripts.domain import (
     DataQuality,
@@ -82,9 +82,13 @@ class TestOHLCVDataDomainContract(unittest.TestCase):
 
     def test_nan_and_inf_rejection(self):
         with self.assertRaises(ValueError):
-            OHLCVData("2026-03-31", open=float("nan"), high=52.5, low=49.5, close=51.0, volume=1000.0)
+            OHLCVData(
+                "2026-03-31", open=float("nan"), high=52.5, low=49.5, close=51.0, volume=1000.0
+            )
         with self.assertRaises(ValueError):
-            OHLCVData("2026-03-31", open=50.0, high=float("inf"), low=49.5, close=51.0, volume=1000.0)
+            OHLCVData(
+                "2026-03-31", open=50.0, high=float("inf"), low=49.5, close=51.0, volume=1000.0
+            )
 
 
 class TestDataQualityDomainContract(unittest.TestCase):
@@ -124,8 +128,12 @@ class TestUniverseDomainContract(unittest.TestCase):
     """Test suite for UniverseCandidate and Universe domain models."""
 
     def test_candidate_and_universe_construction(self):
-        c1 = UniverseCandidate(symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="HOSE")
-        c2 = UniverseCandidate(symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HOSE")
+        c1 = UniverseCandidate(
+            symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="HOSE"
+        )
+        c2 = UniverseCandidate(
+            symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HOSE"
+        )
 
         u = Universe(universe_type="VN30", candidates=(c1, c2))
         self.assertEqual(u.universe_size, 2)
@@ -143,7 +151,9 @@ class TestUniverseDomainContract(unittest.TestCase):
 
     def test_invalid_candidate_exchange_rejection(self):
         with self.assertRaises(ValueError):
-            UniverseCandidate(symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="NASDAQ")
+            UniverseCandidate(
+                symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="NASDAQ"
+            )
 
     def test_empty_candidate_symbol_rejection(self):
         with self.assertRaises(ValueError):

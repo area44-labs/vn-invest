@@ -1,7 +1,7 @@
 """Domain contract for Stock Recommendations."""
 
-from dataclasses import dataclass, replace
 import math
+from dataclasses import dataclass, replace
 from typing import Any, Self
 
 from scripts.domain.data_quality import VALID_DATA_QUALITY_STATUSES
@@ -21,7 +21,9 @@ def _validate_score_or_none(val: Any, name: str) -> float | None:
     try:
         f = float(val)
     except (ValueError, TypeError) as err:
-        raise TypeError(f"Field '{name}' must be numeric or None, got {type(val).__name__}") from err
+        raise TypeError(
+            f"Field '{name}' must be numeric or None, got {type(val).__name__}"
+        ) from err
     if math.isnan(f) or math.isinf(f):
         raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")
     if f < 0.0 or f > 100.0:
@@ -82,24 +84,35 @@ class Recommendation:
         object.__setattr__(self, "symbol", sym_u)
 
         if not isinstance(self.company_name, str):
-            raise TypeError(f"Recommendation [{sym_u}] 'company_name' must be a string, got {type(self.company_name).__name__}")
+            raise TypeError(
+                f"Recommendation [{sym_u}] 'company_name' must be a string, got {type(self.company_name).__name__}"
+            )
         comp_str = self.company_name if self.company_name else f"Company {sym_u}"
         object.__setattr__(self, "company_name", comp_str)
 
         if not isinstance(self.sector, str):
-            raise TypeError(f"Recommendation [{sym_u}] 'sector' must be a string, got {type(self.sector).__name__}")
+            raise TypeError(
+                f"Recommendation [{sym_u}] 'sector' must be a string, got {type(self.sector).__name__}"
+            )
         sec_str = self.sector if self.sector else "General"
         object.__setattr__(self, "sector", sec_str)
 
         ex_u = self.exchange.strip().upper() if isinstance(self.exchange, str) else "HOSE"
         if ex_u not in VALID_EXCHANGES:
-            raise ValueError(f"Recommendation [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}")
+            raise ValueError(
+                f"Recommendation [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}"
+            )
         object.__setattr__(self, "exchange", ex_u)
 
         if not isinstance(self.action, str) or self.action not in VALID_ACTIONS:
-            raise ValueError(f"Recommendation [{sym_u}] invalid action '{self.action}'. Must be one of {sorted(VALID_ACTIONS)}")
+            raise ValueError(
+                f"Recommendation [{sym_u}] invalid action '{self.action}'. Must be one of {sorted(VALID_ACTIONS)}"
+            )
 
-        if not isinstance(self.data_quality, str) or self.data_quality not in VALID_DATA_QUALITY_STATUSES:
+        if (
+            not isinstance(self.data_quality, str)
+            or self.data_quality not in VALID_DATA_QUALITY_STATUSES
+        ):
             raise ValueError(
                 f"Recommendation [{sym_u}] invalid data_quality '{self.data_quality}'. Must be one of {sorted(VALID_DATA_QUALITY_STATUSES)}"
             )
@@ -118,7 +131,9 @@ class Recommendation:
             if isinstance(val, (list, set)):
                 object.__setattr__(self, field_name, tuple(str(x) for x in val))
             elif not isinstance(val, tuple):
-                raise TypeError(f"Recommendation [{sym_u}] field '{field_name}' must be tuple or list")
+                raise TypeError(
+                    f"Recommendation [{sym_u}] field '{field_name}' must be tuple or list"
+                )
 
         # Normalize score_components
         if self.score_components is None:
@@ -178,7 +193,9 @@ class Recommendation:
         self, liquidity_score: float | None, risk_adjusted_score: float | None
     ) -> Self:
         """Return a new immutable Recommendation instance with updated liquidity and risk-adjusted scores."""
-        current_rm = self.risk_metrics if isinstance(self.risk_metrics, RiskAssessment) else RiskAssessment()
+        current_rm = (
+            self.risk_metrics if isinstance(self.risk_metrics, RiskAssessment) else RiskAssessment()
+        )
         updated_rm = replace(current_rm, liquidity_score=liquidity_score)
         return replace(
             self,

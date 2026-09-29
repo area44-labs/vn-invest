@@ -1,7 +1,7 @@
 """Domain contract for Trade Plan bounds and sizing."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Any, Self
 
 
@@ -14,7 +14,9 @@ def _validate_float_or_none(val: Any, name: str) -> float | None:
     try:
         f = float(val)
     except (ValueError, TypeError) as err:
-        raise TypeError(f"Field '{name}' must be numeric or None, got {type(val).__name__}") from err
+        raise TypeError(
+            f"Field '{name}' must be numeric or None, got {type(val).__name__}"
+        ) from err
     if math.isnan(f) or math.isinf(f):
         raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")
     return f

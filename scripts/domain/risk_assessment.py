@@ -1,7 +1,7 @@
 """Domain contract for Risk Assessment metrics and risk levels."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Any, Self
 
 VALID_RISK_LEVELS = {"LOW", "MEDIUM", "HIGH"}
@@ -16,7 +16,9 @@ def _validate_float_or_none(val: Any, name: str) -> float | None:
     try:
         f = float(val)
     except (ValueError, TypeError) as err:
-        raise TypeError(f"Field '{name}' must be numeric or None, got {type(val).__name__}") from err
+        raise TypeError(
+            f"Field '{name}' must be numeric or None, got {type(val).__name__}"
+        ) from err
     if math.isnan(f) or math.isinf(f):
         raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")
     return f
@@ -51,7 +53,9 @@ class RiskAssessment:
         rl = self.risk_level
         if rl is not None:
             if not isinstance(rl, str):
-                raise TypeError(f"Field 'risk_level' must be a string or None, got {type(rl).__name__}")
+                raise TypeError(
+                    f"Field 'risk_level' must be a string or None, got {type(rl).__name__}"
+                )
             rl_u = rl.strip().upper()
             if rl_u not in VALID_RISK_LEVELS:
                 raise ValueError(

@@ -29,13 +29,19 @@ class DataQuality:
         if isinstance(self.issues, (list, set)):
             object.__setattr__(self, "issues", tuple(str(i) for i in self.issues))
         elif not isinstance(self.issues, tuple):
-            raise TypeError(f"Field 'issues' must be a tuple or list, got {type(self.issues).__name__}")
+            raise TypeError(
+                f"Field 'issues' must be a tuple or list, got {type(self.issues).__name__}"
+            )
 
         if isinstance(self.valid_row_count, bool) or not isinstance(self.valid_row_count, int):
-            raise TypeError(f"Field 'valid_row_count' must be an integer, got {type(self.valid_row_count).__name__}")
+            raise TypeError(
+                f"Field 'valid_row_count' must be an integer, got {type(self.valid_row_count).__name__}"
+            )
 
         if self.valid_row_count < 0:
-            raise ValueError(f"Field 'valid_row_count' must be non-negative (>= 0), got {self.valid_row_count}")
+            raise ValueError(
+                f"Field 'valid_row_count' must be non-negative (>= 0), got {self.valid_row_count}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert DataQuality contract to dictionary representation."""
