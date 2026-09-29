@@ -81,7 +81,9 @@ class ProductionPipeline:
                 context.market_payload,
                 context.history_payload,
                 df_vnindex=context.df_vnindex_clean,
-                df_vn30=context.df_vn30_clean if context.vn30_val.get("status") != "INSUFFICIENT" else None,
+                df_vn30=context.df_vn30_clean
+                if context.vn30_val.get("status") != "INSUFFICIENT"
+                else None,
                 universe_audit=context.universe_audit,
                 monitoring_result=context.monitoring_result,
                 monitoring_dict=context.monitoring_dict,
@@ -97,7 +99,9 @@ class ProductionPipeline:
                 exc.universe_audit["performance"] = performance_data
             else:
                 if context.expected_symbols:
-                    build_audit_func = _get_helper("build_universe_audit", fallback=build_universe_audit)
+                    build_audit_func = _get_helper(
+                        "build_universe_audit", fallback=build_universe_audit
+                    )
                     audit_partial = build_audit_func(
                         expected_symbols=context.expected_symbols,
                         processed_symbols=context.processed_symbols,

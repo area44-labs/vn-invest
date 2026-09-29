@@ -195,7 +195,7 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
             )
 
             self.assertIsInstance(res, PipelineResult)
-            recs, market, history = res
+            recs, market, _ = res
             self.assertEqual(recs["data_as_of"], "2025-01-20")
             self.assertEqual(market["data_as_of"], "2025-01-20")
 

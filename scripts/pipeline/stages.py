@@ -721,7 +721,7 @@ class MarketAnalysisStage(PipelineStage):
             with context.tracker.measure_stage("market_calculation"):
                 bullish_count = 0
                 valid_breadth_denom = 0
-                for sym_upper, (df_st, _, _) in context.stock_data_map.items():
+                for df_st, _, _ in context.stock_data_map.values():
                     if not df_st.empty and len(df_st) >= 20:
                         valid_breadth_denom += 1
                         c = df_st["close"].iloc[-1]
@@ -1036,12 +1036,15 @@ class ArtifactPublishingStage(PipelineStage):
         return "artifact_publishing"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.publish_artifacts and context.monitoring_result is not None:
-            if context.monitoring_result.overall_status == "FAIL":
-                logger.error(
-                    "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
-                )
-                raise SystemExit(1)
+        if (
+            context.publish_artifacts
+            and context.monitoring_result is not None
+            and context.monitoring_result.overall_status == "FAIL"
+        ):
+            logger.error(
+                "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
+            )
+            raise SystemExit(1)
 
         from scripts.generate_report import (
             load_history_index,
