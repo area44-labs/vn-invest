@@ -189,4 +189,4 @@ def generate_historical_report(
     return pipeline.execute(context)
 
 
-__all__ = ["ProductionPipeline", "run_pipeline", "generate_historical_report"]
+__all__ = ["ProductionPipeline", "generate_historical_report", "run_pipeline"]
