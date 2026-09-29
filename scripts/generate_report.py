@@ -1373,8 +1373,6 @@ def main():
     )
     args = parser.parse_args()
 
-    schema = load_schema()
-
     if args.as_of:
         if not args.universe_snapshot or not args.historical_ohlcv:
             missing_args = []
@@ -1397,49 +1395,23 @@ def main():
             args.historical_ohlcv, required_symbols=required_symbols
         )
 
-        pipeline_res = generate_historical_report(
-            data_as_of=target_date,
-            universe_stock_map=stock_data_map,
-            df_vnindex=df_vnindex_raw,
-            df_vn30=df_vn30_raw,
-            candidate_metadata=candidate_stocks,
-            data_source="explicit_historical_input",
-            generated_dir=GENERATED_DIR,
-        )
-
-        recs_data = pipeline_res[0]
-        history_data = pipeline_res[2]
-
-        logger.info("Validating historical recommendations payload & integrity...")
         try:
-            validate_final_payload_integrity(recs_data, schema=schema)
-            if history_data is not recs_data:
-                validate_final_payload_integrity(history_data, schema=schema)
+            pipeline_res = generate_historical_report(
+                data_as_of=target_date,
+                universe_stock_map=stock_data_map,
+                df_vnindex=df_vnindex_raw,
+                df_vn30=df_vn30_raw,
+                candidate_metadata=candidate_stocks,
+                data_source="explicit_historical_input",
+                generated_dir=GENERATED_DIR,
+                publish_artifacts=True,
+            )
         except ValueError as exc:
             logger.error("Historical report payload integrity validation failed: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
 
-        logger.info("JSON Schema & output integrity validation passed successfully!")
-
-        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-        index_data = load_history_index(index_path)
-        history_dates = index_data.get("dates", [])
-        if target_date not in history_dates:
-            history_dates = list(history_dates)
-            history_dates.append(target_date)
-            history_dates.sort(reverse=True)
-        index_payload = {
-            "last_updated": datetime.now(UTC).isoformat(),
-            "total_reports": len(history_dates),
-            "dates": history_dates,
-        }
-
-        historical_artifacts = {
-            os.path.join("history", f"{target_date}.json"): history_data,
-            os.path.join("history", "index.json"): index_payload,
-        }
-        publish_artifacts_atomically(historical_artifacts)
+        recs_data = pipeline_res[0]
 
         logger.info("Historical report generation complete!")
         logger.info("Outputs written to generated/history:")
@@ -1451,140 +1423,21 @@ def main():
         logger.info("Starting VN Invest Report Generator v2 (update=%s)...", args.update)
         tracker = PerformanceTracker()
         try:
-            pipeline_res = run_pipeline(update_data=args.update, tracker=tracker)
+            pipeline_res = run_pipeline(
+                update_data=args.update,
+                tracker=tracker,
+                publish_artifacts=True,
+            )
         except (ProviderRateLimitError, RuntimeError) as exc:
             logger.error("Data pipeline halted: %s", exc)
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
+        except ValueError as exc:
+            logger.error("Report payload integrity validation failed: %s", exc)
+            logger.error("Existing generated report files have been preserved and not overwritten.")
+            raise SystemExit(1) from exc
 
         recs_data = pipeline_res[0]
-        market_data = pipeline_res[1]
-        history_data = pipeline_res[2]
-        df_vnindex_clean = getattr(pipeline_res, "df_vnindex", None)
-        df_vn30_clean = getattr(pipeline_res, "df_vn30", None)
-
-        if (
-            hasattr(pipeline_res, "monitoring_result")
-            and getattr(pipeline_res, "monitoring_result", None) is not None
-        ):
-            monitoring_result = pipeline_res.monitoring_result
-            monitoring_dict = pipeline_res.monitoring_dict
-        else:
-            logger.info("Executing production pipeline monitoring...")
-            try:
-                with tracker.measure_stage("monitoring"):
-                    in_mem_artifacts = {
-                        "recommendations.json": recs_data,
-                        "market.json": market_data,
-                    }
-                    data_as_of_peek = recs_data.get("data_as_of")
-                    if data_as_of_peek:
-                        in_mem_artifacts[f"history/{data_as_of_peek}.json"] = history_data
-                        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-                        try:
-                            idx_data = load_history_index(index_path)
-                            dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
-                        except ValueError, TypeError, OSError:
-                            dates = []
-                        if data_as_of_peek not in dates:
-                            dates = list(dates) + [data_as_of_peek]
-                            dates.sort(reverse=True)
-                        in_mem_artifacts["history/index.json"] = {
-                            "last_updated": datetime.now(UTC).isoformat(),
-                            "total_reports": len(dates),
-                            "dates": dates,
-                        }
-
-                    monitoring_result = evaluate_production_monitoring(
-                        generated_dir=GENERATED_DIR,
-                        recommendations_payload=recs_data,
-                        market_payload=market_data,
-                        df_vnindex=df_vnindex_clean,
-                        df_vn30=df_vn30_clean,
-                        universe_audit=getattr(pipeline_res, "universe_audit", None),
-                        in_memory_artifacts=in_mem_artifacts,
-                    )
-            except Exception:
-                perf_payload = tracker.get_performance_payload(
-                    pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
-                    pipeline_status="FAILED",
-                )
-                if hasattr(pipeline_res, "universe_audit") and isinstance(
-                    getattr(pipeline_res, "universe_audit", None), dict
-                ):
-                    pipeline_res.universe_audit["performance"] = perf_payload
-                raise
-
-            monitoring_dict = monitoring_result.to_dict()
-
-            logger.info("Validating ALL report payloads & output integrity...")
-            try:
-                with tracker.measure_stage("payload_validation"):
-                    validate_final_payload_integrity(recs_data, schema=schema)
-                    validate_final_payload_integrity(market_data, schema=None)
-                    if history_data is not recs_data:
-                        validate_final_payload_integrity(history_data, schema=schema)
-                    validate_final_payload_integrity(monitoring_dict, schema=None)
-            except ValueError as exc:
-                logger.error("Report payload integrity validation failed: %s", exc)
-                logger.error(
-                    "Existing generated report files have been preserved and not overwritten."
-                )
-                raise SystemExit(1) from exc
-
-            logger.info("JSON Schema & output integrity validation passed for all payloads!")
-
-            performance_data = tracker.get_performance_payload(
-                pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
-                pipeline_status="SUCCESS",
-            )
-            if "metrics" not in monitoring_dict or not isinstance(monitoring_dict["metrics"], dict):
-                monitoring_dict["metrics"] = {}
-
-            if hasattr(pipeline_res, "universe_audit") and isinstance(
-                getattr(pipeline_res, "universe_audit", None), dict
-            ):
-                pipeline_res.universe_audit["performance"] = performance_data
-                monitoring_dict["metrics"]["universe_audit"] = pipeline_res.universe_audit
-
-            monitoring_dict["metrics"]["performance"] = performance_data
-
-        data_as_of = recs_data.get("data_as_of")
-
-        logger.info("Production monitoring status: %s", monitoring_result.overall_status)
-        if monitoring_result.overall_status == "FAIL":
-            logger.error(
-                "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
-            )
-            raise SystemExit(1)
-
-        artifacts_to_publish = {
-            "recommendations.json": recs_data,
-            "market.json": market_data,
-            "monitoring.json": monitoring_dict,
-        }
-
-        if data_as_of:
-            artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = history_data
-            index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-            index_data = load_history_index(index_path)
-            history_dates = index_data.get("dates", [])
-            if data_as_of not in history_dates:
-                history_dates = list(history_dates)
-                history_dates.append(data_as_of)
-                history_dates.sort(reverse=True)
-            index_payload = {
-                "last_updated": datetime.now(UTC).isoformat(),
-                "total_reports": len(history_dates),
-                "dates": history_dates,
-            }
-            artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
-        else:
-            logger.warning(
-                "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
-            )
-
-        publish_artifacts_atomically(artifacts_to_publish)
 
         logger.info("Report generation complete!")
         logger.info("Outputs written to generated/:")

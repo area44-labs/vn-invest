@@ -257,6 +257,30 @@ class TestOutputIntegritySuite(unittest.TestCase):
         self.assertIsNone(ex_rec["risk_metrics"]["liquidity_score"])
         self.assertIsNone(ex_rec["risk_adjusted_score"])
 
+    def _make_fake_execute(self, payload):
+        from scripts.domain import PipelineResult
+        from scripts.pipeline import ArtifactPublishingStage, MonitoringStage
+
+        def fake_execute(context):
+            context.recommendations_payload = payload
+            context.market_payload = payload.get("market")
+            context.history_payload = payload
+            context.data_as_of = payload.get("data_as_of")
+            context.df_vnindex_clean = None
+            context.df_vn30_clean = None
+            context.universe_audit = {}
+            MonitoringStage().execute(context)
+            ArtifactPublishingStage().execute(context)
+            return PipelineResult(
+                context.recommendations_payload,
+                context.market_payload,
+                context.history_payload,
+                monitoring_result=context.monitoring_result,
+                monitoring_dict=context.monitoring_dict,
+            )
+
+        return fake_execute
+
     def test_artifact_preservation_on_validation_failure(self):
         """Verify that if validation fails in main(), SystemExit(1) is raised and existing artifacts are preserved."""
         temp_dir = tempfile.mkdtemp()
@@ -272,20 +296,12 @@ class TestOutputIntegritySuite(unittest.TestCase):
             invalid_payload = copy.deepcopy(self.valid_payload)
             invalid_payload["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
 
-            class MockPipelineRes(tuple):
-                def __new__(cls, r, m, h):
-                    obj = super().__new__(cls, (r, m, h))
-                    obj.df_vnindex = None
-                    obj.df_vn30 = None
-                    return obj
-
-            mock_res = MockPipelineRes(
-                invalid_payload, invalid_payload.get("market"), invalid_payload
-            )
-
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_execute(invalid_payload),
+                ),
                 patch("sys.argv", ["generate_report.py"]),
             ):
                 with self.assertRaises(SystemExit) as cm:
@@ -327,15 +343,6 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             valid_p = copy.deepcopy(self.valid_payload)
 
-            class MockPipelineRes(tuple):
-                def __new__(cls, r, m, h):
-                    obj = super().__new__(cls, (r, m, h))
-                    obj.df_vnindex = None
-                    obj.df_vn30 = None
-                    return obj
-
-            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
-
             # Mock monitoring to return invalid dict containing NaN
             mock_mon_res = MagicMock()
             mock_mon_res.overall_status = "FAIL"
@@ -346,7 +353,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_execute(valid_p),
+                ),
                 patch(
                     "scripts.generate_report.evaluate_production_monitoring",
                     return_value=mock_mon_res,
@@ -388,15 +398,6 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             valid_p = copy.deepcopy(self.valid_payload)
 
-            class MockPipelineRes(tuple):
-                def __new__(cls, r, m, h):
-                    obj = super().__new__(cls, (r, m, h))
-                    obj.df_vnindex = None
-                    obj.df_vn30 = None
-                    return obj
-
-            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
-
             mock_mon_res = MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
@@ -409,7 +410,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_execute(valid_p),
+                ),
                 patch(
                     "scripts.generate_report.evaluate_production_monitoring",
                     return_value=mock_mon_res,
@@ -463,15 +467,6 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             valid_p = copy.deepcopy(self.valid_payload)
 
-            class MockPipelineRes(tuple):
-                def __new__(cls, r, m, h):
-                    obj = super().__new__(cls, (r, m, h))
-                    obj.df_vnindex = None
-                    obj.df_vn30 = None
-                    return obj
-
-            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
-
             mock_mon_res = MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
@@ -494,7 +489,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_execute(valid_p),
+                ),
                 patch(
                     "scripts.generate_report.evaluate_production_monitoring",
                     return_value=mock_mon_res,
@@ -607,15 +605,6 @@ class TestOutputIntegritySuite(unittest.TestCase):
             # 2. Retry with valid pipeline output
             valid_p = copy.deepcopy(self.valid_payload)
 
-            class MockPipelineRes(tuple):
-                def __new__(cls, r, m, h):
-                    obj = super().__new__(cls, (r, m, h))
-                    obj.df_vnindex = None
-                    obj.df_vn30 = None
-                    return obj
-
-            mock_res = MockPipelineRes(valid_p, valid_p.get("market"), valid_p)
-
             mock_mon_res = MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
@@ -628,7 +617,10 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_res),
+                patch(
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_execute(valid_p),
+                ),
                 patch(
                     "scripts.generate_report.evaluate_production_monitoring",
                     return_value=mock_mon_res,

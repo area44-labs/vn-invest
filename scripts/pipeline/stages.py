@@ -943,8 +943,12 @@ class MonitoringStage(PipelineStage):
     def execute(self, context: PipelineContext) -> None:
         from scripts.generate_report import (
             load_history_index,
+            load_schema,
             validate_final_payload_integrity,
         )
+
+        load_schema_func = _get_helper("load_schema", fallback=load_schema)
+        schema = load_schema_func()
 
         val_integrity_func = _get_helper(
             "validate_final_payload_integrity", fallback=validate_final_payload_integrity
@@ -952,7 +956,7 @@ class MonitoringStage(PipelineStage):
 
         if context.is_historical:
             with context.tracker.measure_stage("payload_validation"):
-                val_integrity_func(context.recommendations_payload, schema=None)
+                val_integrity_func(context.recommendations_payload, schema=schema)
                 val_integrity_func(context.market_payload, schema=None)
 
             context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
@@ -1004,10 +1008,10 @@ class MonitoringStage(PipelineStage):
         context.monitoring_dict = context.monitoring_result.to_dict()
 
         with context.tracker.measure_stage("payload_validation"):
-            val_integrity_func(context.recommendations_payload, schema=None)
+            val_integrity_func(context.recommendations_payload, schema=schema)
             val_integrity_func(context.market_payload, schema=None)
             if context.history_payload is not context.recommendations_payload:
-                val_integrity_func(context.history_payload, schema=None)
+                val_integrity_func(context.history_payload, schema=schema)
             val_integrity_func(context.monitoring_dict, schema=None)
 
         context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
@@ -1057,9 +1061,6 @@ class ArtifactPublishingStage(PipelineStage):
         data_as_of = context.data_as_of
 
         if context.is_historical:
-            if not context.publish_artifacts:
-                return
-
             index_path = os.path.join(context.generated_dir, "history", "index.json")
             index_data = load_index_func(index_path)
             history_dates = index_data.get("dates", [])
@@ -1078,10 +1079,8 @@ class ArtifactPublishingStage(PipelineStage):
                 os.path.join("history", "index.json"): index_payload,
             }
             context.artifacts_to_publish = historical_artifacts
-            publish_func(historical_artifacts, target_dir=context.generated_dir)
-            return
-
-        if not context.publish_artifacts:
+            if context.publish_artifacts:
+                publish_func(historical_artifacts, target_dir=context.generated_dir)
             return
 
         context.artifacts_to_publish = {
@@ -1107,8 +1106,13 @@ class ArtifactPublishingStage(PipelineStage):
                 "dates": history_dates,
             }
             context.artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
+        else:
+            logger.warning(
+                "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
+            )
 
-        publish_func(context.artifacts_to_publish, target_dir=context.generated_dir)
+        if context.publish_artifacts:
+            publish_func(context.artifacts_to_publish, target_dir=context.generated_dir)
 
 
 __all__ = [

@@ -238,5 +238,84 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
             self.assertTrue(hasattr(cm.exception, "universe_audit"))
 
 
+class TestMonitoringAndPublishingStages(unittest.TestCase):
+    """Verify JSON Schema validation preservation and ArtifactPublishingStage behavior."""
+
+    def test_monitoring_stage_enforces_json_schema_validation(self):
+        """Verify MonitoringStage enforces schema validation and raises ValueError on invalid payload."""
+        from scripts.generate_report import PerformanceTracker
+
+        context = PipelineContext()
+        context.tracker = PerformanceTracker()
+        context.recommendations_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0.0",
+            "generated_at": "2026-09-29T12:00:00Z",
+            "data_as_of": "2026-09-29",
+            "source_date": "2026-09-29",
+            "data_source": "TEST",
+            "universe_info": {"universe_size": 1},
+            "market": {"regime": "BULLISH"},
+            "summary": {
+                "total_scanned": 1,
+                "buy_count": 1,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [
+                {
+                    "symbol": "AAA",
+                    "company_name": "Comp A",
+                    "exchange": "HOSE",
+                    "sector": "Tech",
+                    "action": "BUY",
+                    "signal_score": 150.0,  # Invalid score > 100.0 violates schema!
+                    "data_as_of": "2026-09-29",
+                }
+            ],
+        }
+        context.market_payload = {"data_as_of": "2026-09-29"}
+        context.history_payload = context.recommendations_payload
+        context.is_historical = True
+
+        stage = MonitoringStage()
+        with self.assertRaises(ValueError) as cm:
+            stage.execute(context)
+
+        self.assertIn("out of range [0.0, 100.0]", str(cm.exception))
+
+    def test_artifact_publishing_stage_publishes_when_enabled(self):
+        """Verify ArtifactPublishingStage executes atomic publication when publish_artifacts=True."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            context = PipelineContext(publish_artifacts=True, generated_dir=tmpdir)
+            context.data_as_of = "2026-09-29"
+            context.recommendations_payload = {"recommendations": []}
+            context.market_payload = {"market": {}}
+            context.monitoring_dict = {"status": "PASS"}
+
+            stage = ArtifactPublishingStage()
+            stage.execute(context)
+
+            self.assertIn("recommendations.json", context.artifacts_to_publish)
+            self.assertIn("market.json", context.artifacts_to_publish)
+            self.assertIn("monitoring.json", context.artifacts_to_publish)
+
+    def test_artifact_publishing_stage_rejects_monitoring_failure(self):
+        """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True."""
+        mock_monitoring_res = MagicMock()
+        mock_monitoring_res.overall_status = "FAIL"
+
+        context = PipelineContext(publish_artifacts=True)
+        context.monitoring_result = mock_monitoring_res
+
+        stage = ArtifactPublishingStage()
+        with self.assertRaises(SystemExit) as cm:
+            stage.execute(context)
+
+        self.assertEqual(cm.exception.code, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

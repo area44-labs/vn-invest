@@ -505,7 +505,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             ):
                 generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+            self.assertEqual(ctx.exception.code, 1)
 
             # Artifact file preserved on disk
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
@@ -798,6 +798,106 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
 class TestPerformanceRegressionAndBudget(unittest.TestCase):
     """Deterministic offline unit tests for performance regression detection and provider budget enforcement."""
+
+    def make_sample_report_payload(self):
+        return {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-09-17T06:00:00+00:00",
+            "data_as_of": "2026-09-17",
+            "source_date": "2026-09-17",
+            "data_source": "REAL_DATA",
+            "universe_info": {"universe_type": "TEST", "universe_size": 1},
+            "market": {
+                "regime": "STRONG_BULL",
+                "confidence": 0.85,
+                "metrics": {
+                    "vnindex_value": 1280.50,
+                    "vnindex_change_pct": 1.25,
+                    "vn30_change_pct": 1.10,
+                    "market_breadth_ratio": 0.70,
+                    "volatility": 0.12,
+                    "volume_20d_ratio": 1.15,
+                },
+            },
+            "summary": {
+                "total_scanned": 1,
+                "buy_count": 1,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [
+                {
+                    "symbol": "FPT",
+                    "company_name": "FPT Corp",
+                    "exchange": "HOSE",
+                    "sector": "Tech",
+                    "action": "BUY",
+                    "data_quality": "SUFFICIENT",
+                    "data_quality_issues": [],
+                    "data_as_of": "2026-09-17",
+                    "data_source": "REAL_DATA",
+                    "signal_score": 80.0,
+                    "risk_adjusted_score": 75.0,
+                    "confidence": 0.8,
+                    "risk_level": "LOW",
+                    "expected_return": {
+                        "expected_return_5d": 2.5,
+                        "expected_return_10d": 4.0,
+                        "expected_return_20d": 6.5,
+                    },
+                    "risk_metrics": {
+                        "var_t25": -3.2,
+                        "es_t25": -4.5,
+                        "volatility_60d": 0.18,
+                        "max_drawdown": -8.5,
+                        "liquidity_score": 85.0,
+                        "avg_value_20d": 120.5,
+                    },
+                    "trade_plan": {
+                        "current_price": 130000.0,
+                        "entry_low": 128000.0,
+                        "entry_high": 130000.0,
+                        "stop_loss": 122000.0,
+                        "tp1": 138000.0,
+                        "tp2": 145000.0,
+                        "risk_reward": 2.1,
+                        "position_percent": 15.0,
+                    },
+                    "reasons": ["Strong trend"],
+                    "warnings": [],
+                    "invalidation": ["Close below stop loss"],
+                }
+            ],
+        }
+
+    def _make_fake_perf_execute(self, payload, audit, df_vnindex, df_vn30):
+        from scripts.pipeline import ArtifactPublishingStage, MonitoringStage
+
+        def fake_execute(context):
+            context.recommendations_payload = payload
+            context.market_payload = payload["market"]
+            context.history_payload = payload
+            context.data_as_of = payload["data_as_of"]
+            context.df_vnindex_clean = df_vnindex
+            context.df_vn30_clean = df_vn30
+            context.universe_audit = audit
+            MonitoringStage().execute(context)
+            ArtifactPublishingStage().execute(context)
+            return PipelineResult(
+                context.recommendations_payload,
+                context.market_payload,
+                context.history_payload,
+                df_vnindex=context.df_vnindex_clean,
+                df_vn30=context.df_vn30_clean,
+                universe_audit=context.universe_audit,
+                monitoring_result=context.monitoring_result,
+                monitoring_dict=context.monitoring_dict,
+            )
+
+        return fake_execute
 
     def test_baseline_calculation(self):
         """Verify performance regression evaluates actual durations against centralized stage baselines."""
@@ -1169,80 +1269,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         self.assertEqual(dups[0]["provider_call_count"], 2)
         self.assertEqual(dups[0]["successful_calls"], 2)
 
-    def make_sample_report_payload(self):
-        return {
-            "schema_version": "2.0",
-            "signal_model_version": "2.0",
-            "generated_at": "2026-09-17T06:00:00+00:00",
-            "data_as_of": "2026-09-17",
-            "source_date": "2026-09-17",
-            "data_source": "REAL_DATA",
-            "universe_info": {"universe_type": "TEST", "universe_size": 1},
-            "market": {
-                "regime": "STRONG_BULL",
-                "confidence": 0.85,
-                "metrics": {
-                    "vnindex_value": 1280.50,
-                    "vnindex_change_pct": 1.25,
-                    "vn30_change_pct": 1.10,
-                    "market_breadth_ratio": 0.70,
-                    "volatility": 0.12,
-                    "volume_20d_ratio": 1.15,
-                },
-            },
-            "summary": {
-                "total_scanned": 1,
-                "buy_count": 1,
-                "watch_count": 0,
-                "hold_count": 0,
-                "sell_count": 0,
-                "avoid_count": 0,
-            },
-            "recommendations": [
-                {
-                    "symbol": "FPT",
-                    "company_name": "FPT Corp",
-                    "exchange": "HOSE",
-                    "sector": "Tech",
-                    "action": "BUY",
-                    "data_quality": "SUFFICIENT",
-                    "data_quality_issues": [],
-                    "data_as_of": "2026-09-17",
-                    "data_source": "REAL_DATA",
-                    "signal_score": 80.0,
-                    "risk_adjusted_score": 75.0,
-                    "confidence": 0.8,
-                    "risk_level": "LOW",
-                    "expected_return": {
-                        "expected_return_5d": 2.5,
-                        "expected_return_10d": 4.0,
-                        "expected_return_20d": 6.5,
-                    },
-                    "risk_metrics": {
-                        "var_t25": -3.2,
-                        "es_t25": -4.5,
-                        "volatility_60d": 0.18,
-                        "max_drawdown": -8.5,
-                        "liquidity_score": 85.0,
-                        "avg_value_20d": 120.5,
-                    },
-                    "trade_plan": {
-                        "current_price": 130000.0,
-                        "entry_low": 128000.0,
-                        "entry_high": 130000.0,
-                        "stop_loss": 122000.0,
-                        "tp1": 138000.0,
-                        "tp2": 145000.0,
-                        "risk_reward": 2.1,
-                        "position_percent": 15.0,
-                    },
-                    "reasons": ["Strong trend"],
-                    "warnings": [],
-                    "invalidation": ["Close below stop loss"],
-                }
-            ],
-        }
-
     def test_performance_regression_degraded_allows_publishing(self):
         """Verify that stage duration exceeding degraded threshold produces DEGRADED status (WARNING) and publishing is allowed."""
         valid_payload = self.make_sample_report_payload()
@@ -1287,15 +1313,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
         df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
 
-        mock_pipeline_res = PipelineResult(
-            valid_payload,
-            valid_payload["market"],
-            valid_payload,
-            df_vnindex=df_vnindex,
-            df_vn30=df_vn30,
-            universe_audit=audit_degraded,
-        )
-
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
@@ -1306,18 +1323,18 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
                 patch(
-                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
-                ) as mock_run,
-                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_perf_execute(
+                        valid_payload, audit_degraded, df_vnindex, df_vn30
+                    ),
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 generate_report_main()
 
-            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
-            mock_publish.assert_called_once()
-            published_args = mock_publish.call_args[0][0]
-            self.assertIn("monitoring.json", published_args)
-            mon_data = published_args["monitoring.json"]
+            mon_file = gen_dir / "monitoring.json"
+            self.assertTrue(mon_file.exists())
+            mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
             self.assertEqual(mon_data["overall_status"], "WARNING")
             reg_check = next(
                 c for c in mon_data["checks"] if c["check_name"] == "performance_regression"
@@ -1368,15 +1385,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
         df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
 
-        mock_pipeline_res = PipelineResult(
-            valid_payload,
-            valid_payload["market"],
-            valid_payload,
-            df_vnindex=df_vnindex,
-            df_vn30=df_vn30,
-            universe_audit=audit_failed,
-        )
-
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
@@ -1390,17 +1398,17 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
                 patch(
-                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
-                ) as mock_run,
-                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_perf_execute(
+                        valid_payload, audit_failed, df_vnindex, df_vn30
+                    ),
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
                 self.assertRaises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
             self.assertEqual(ctx.exception.code, 1)
-            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
-            mock_publish.assert_not_called()
             self.assertEqual(recs_file.read_bytes(), sentinel_recs)
 
     def test_performance_stage_failed_blocks_publishing(self):
@@ -1447,15 +1455,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
         df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
 
-        mock_pipeline_res = PipelineResult(
-            valid_payload,
-            valid_payload["market"],
-            valid_payload,
-            df_vnindex=df_vnindex,
-            df_vn30=df_vn30,
-            universe_audit=audit_failed,
-        )
-
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
@@ -1483,17 +1482,17 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
                 patch(
-                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
-                ) as mock_run,
-                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_perf_execute(
+                        valid_payload, audit_failed, df_vnindex, df_vn30
+                    ),
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
                 self.assertRaises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
             self.assertEqual(ctx.exception.code, 1)
-            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
-            mock_publish.assert_not_called()
 
             # Verify existing artifact files on disk remain 100% byte-for-byte untouched
             self.assertEqual(recs_file.read_bytes(), sentinel_recs)
@@ -1541,15 +1540,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         df_vnindex = make_valid_canonical_df(25, start_date="2026-08-01")
         df_vn30 = make_valid_canonical_df(25, start_date="2026-08-01")
 
-        mock_pipeline_res = PipelineResult(
-            valid_payload,
-            valid_payload["market"],
-            valid_payload,
-            df_vnindex=df_vnindex,
-            df_vn30=df_vn30,
-            universe_audit=audit_budget_exceeded,
-        )
-
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
@@ -1560,18 +1550,18 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
                 patch(
-                    "scripts.generate_report.run_pipeline", return_value=mock_pipeline_res
-                ) as mock_run,
-                patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
+                    "scripts.pipeline.runner.ProductionPipeline.execute",
+                    side_effect=self._make_fake_perf_execute(
+                        valid_payload, audit_budget_exceeded, df_vnindex, df_vn30
+                    ),
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 generate_report_main()
 
-            mock_run.assert_called_once_with(update_data=True, tracker=unittest.mock.ANY)
-            mock_publish.assert_called_once()
-            published_args = mock_publish.call_args[0][0]
-            self.assertIn("monitoring.json", published_args)
-            mon_data = published_args["monitoring.json"]
+            mon_file = gen_dir / "monitoring.json"
+            self.assertTrue(mon_file.exists())
+            mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
             self.assertEqual(mon_data["overall_status"], "WARNING")
             bud_check = next(c for c in mon_data["checks"] if c["check_name"] == "provider_budget")
             self.assertEqual(bud_check["status"], "WARNING")
