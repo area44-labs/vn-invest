@@ -24,14 +24,18 @@ class UniverseCandidate:
 
         if not isinstance(self.company_name, str) or not self.company_name.strip():
             raise ValueError(f"Candidate [{sym_u}] field 'company_name' must be a non-empty string")
+        object.__setattr__(self, "company_name", self.company_name.strip())
 
         if not isinstance(self.sector, str) or not self.sector.strip():
             raise ValueError(f"Candidate [{sym_u}] field 'sector' must be a non-empty string")
+        object.__setattr__(self, "sector", self.sector.strip())
 
-        ex_u = self.exchange.strip().upper() if isinstance(self.exchange, str) else "HOSE"
+        if not isinstance(self.exchange, str) or not self.exchange.strip():
+            raise ValueError(f"Candidate [{sym_u}] field 'exchange' must be a non-empty string")
+        ex_u = self.exchange.strip().upper()
         if ex_u not in VALID_EXCHANGES:
             raise ValueError(
-                f"Candidate [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}"
+                f"Candidate [{sym_u}] invalid exchange '{self.exchange}'. Must be one of {sorted(VALID_EXCHANGES)}"
             )
         object.__setattr__(self, "exchange", ex_u)
 

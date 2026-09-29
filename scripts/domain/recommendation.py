@@ -83,26 +83,22 @@ class Recommendation:
         sym_u = self.symbol.strip().upper()
         object.__setattr__(self, "symbol", sym_u)
 
-        if not isinstance(self.company_name, str):
-            raise TypeError(
-                f"Recommendation [{sym_u}] 'company_name' must be a string, got {type(self.company_name).__name__}"
-            )
+        if not isinstance(self.company_name, str) or not self.company_name.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'company_name' must be a non-empty string")
+        object.__setattr__(self, "company_name", self.company_name.strip())
 
-        if not isinstance(self.sector, str):
-            raise TypeError(
-                f"Recommendation [{sym_u}] 'sector' must be a string, got {type(self.sector).__name__}"
-            )
+        if not isinstance(self.sector, str) or not self.sector.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'sector' must be a non-empty string")
+        object.__setattr__(self, "sector", self.sector.strip())
 
-        ex_str = (
-            self.exchange.strip().upper()
-            if isinstance(self.exchange, str) and self.exchange.strip()
-            else "HOSE"
-        )
-        if ex_str not in VALID_EXCHANGES:
+        if not isinstance(self.exchange, str) or not self.exchange.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'exchange' must be a non-empty string")
+        ex_u = self.exchange.strip().upper()
+        if ex_u not in VALID_EXCHANGES:
             raise ValueError(
                 f"Recommendation [{sym_u}] invalid exchange '{self.exchange}'. Must be one of {sorted(VALID_EXCHANGES)}"
             )
-        object.__setattr__(self, "exchange", ex_str)
+        object.__setattr__(self, "exchange", ex_u)
 
         if not isinstance(self.action, str) or self.action not in VALID_ACTIONS:
             raise ValueError(
@@ -268,12 +264,13 @@ class Recommendation:
         """Construct Recommendation contract from dictionary representation."""
         if not isinstance(data, dict):
             raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
-        comp_val = data.get("company_name") if "company_name" in data else data.get("companyName")
-        sec_val = data.get("sector")
+        comp_val = data.get("company_name") or data.get("companyName") or ""
+        sec_val = data.get("sector") or ""
+        ex_val = data.get("exchange") or ""
         return cls(
             symbol=data.get("symbol", ""),
             company_name=comp_val,
-            exchange=data.get("exchange", "HOSE"),
+            exchange=ex_val,
             sector=sec_val,
             action=data.get("action", "AVOID"),
             model_version=data.get("model_version", "2.0"),

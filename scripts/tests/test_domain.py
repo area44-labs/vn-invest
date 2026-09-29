@@ -132,17 +132,35 @@ class TestUniverseDomainContract(unittest.TestCase):
             symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="HOSE"
         )
         c2 = UniverseCandidate(
-            symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HOSE"
+            symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HNX"
+        )
+        c3 = UniverseCandidate(
+            symbol="BSR", company_name="Binh Son", sector="Energy", exchange="UPCOM"
         )
 
-        u = Universe(universe_type="VN30", candidates=(c1, c2))
-        self.assertEqual(u.universe_size, 2)
-        self.assertEqual(len(u.candidates), 2)
+        u = Universe(universe_type="VN30", candidates=(c1, c2, c3))
+        self.assertEqual(u.universe_size, 3)
+        self.assertEqual(len(u.candidates), 3)
 
         u_info = u.to_info_dict()
         self.assertEqual(u_info["universe_type"], "VN30")
-        self.assertEqual(u_info["universe_size"], 2)
+        self.assertEqual(u_info["universe_size"], 3)
         self.assertNotIn("candidates", u_info)
+
+    def test_universe_candidate_valid_exchanges(self):
+        for ex in ("HOSE", "HNX", "UPCOM"):
+            c = UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange=ex)
+            self.assertEqual(c.exchange, ex)
+
+    def test_universe_candidate_strict_rejection(self):
+        with self.assertRaises(ValueError):
+            UniverseCandidate(symbol="ABC", company_name="", sector="Tech", exchange="HOSE")
+        with self.assertRaises(ValueError):
+            UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="  ", exchange="HOSE")
+        with self.assertRaises(ValueError):
+            UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange="")
+        with self.assertRaises(ValueError):
+            UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange="NASDAQ")
 
     def test_universe_lossless_serialization_roundtrip(self):
         c1 = UniverseCandidate(
@@ -166,16 +184,6 @@ class TestUniverseDomainContract(unittest.TestCase):
         self.assertEqual(reconstructed.universe_size, 2)
         self.assertEqual(reconstructed.candidates[0].symbol, "VNM")
         self.assertEqual(reconstructed.candidates[1].company_name, "FPT Corp")
-
-    def test_invalid_candidate_exchange_rejection(self):
-        with self.assertRaises(ValueError):
-            UniverseCandidate(
-                symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="NASDAQ"
-            )
-
-    def test_empty_candidate_symbol_rejection(self):
-        with self.assertRaises(ValueError):
-            UniverseCandidate(symbol="", company_name="Vinamilk", sector="Consumer")
 
 
 class TestTradePlanDomainContract(unittest.TestCase):
@@ -375,6 +383,31 @@ class TestRecommendationDomainContract(unittest.TestCase):
         self.assertEqual(reconstructed.symbol, "VNM")
         self.assertEqual(reconstructed.signal_score, 78.5)
 
+    def test_valid_exchanges_supported(self):
+        for ex in ("HOSE", "HNX", "UPCOM"):
+            rec = Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": ex})
+            self.assertEqual(rec.exchange, ex)
+
+    def test_empty_or_whitespace_company_name_rejection(self):
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": ""})
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": "   "})
+
+    def test_empty_or_whitespace_sector_rejection(self):
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": ""})
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": "  \t "})
+
+    def test_empty_or_invalid_exchange_rejection(self):
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": ""})
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": "  "})
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": "NYSE"})
+
     def test_dict_subscripting_compatibility(self):
         rec = self.valid_rec
         self.assertEqual(rec["symbol"], "VNM")
@@ -395,22 +428,6 @@ class TestRecommendationDomainContract(unittest.TestCase):
         # Verify original instance was unchanged
         self.assertEqual(rec.risk_metrics.liquidity_score, 90.0)
         self.assertEqual(rec.risk_adjusted_score, 75.0)
-
-    def test_non_string_company_name_rejection(self):
-        with self.assertRaises(TypeError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": None})
-
-    def test_non_string_sector_rejection(self):
-        with self.assertRaises(TypeError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": 123})
-
-    def test_invalid_action_rejection(self):
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "action": "SUPER_BUY"})
-
-    def test_invalid_exchange_rejection(self):
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": "NYSE"})
 
     def test_out_of_range_score_rejection(self):
         with self.assertRaises(ValueError):

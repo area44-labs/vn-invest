@@ -1170,9 +1170,9 @@ def run_backtest_for_symbol(
         # 4. Recommendation generation at T using production engine
         rec = generate_recommendation(
             symbol=symbol,
-            company_name=company_name,
-            sector=sector,
-            exchange=exchange,
+            company_name=company_name or f"Company {symbol}",
+            sector=sector or "General",
+            exchange=exchange or "HOSE",
             df_stock=df_stock_as_of,
             market_regime_info=market_regime_info,
             df_vnindex=df_vnindex_clean_as_of,
@@ -1243,9 +1243,9 @@ def run_backtest_for_universe(
 
     for sym, df_stock in universe_stock_map.items():
         item = meta_map.get(sym, {})
-        comp = item.get("companyName", "")
-        sec = item.get("sector", "")
-        ex = item.get("exchange", "HOSE")
+        comp = item.get("companyName") or item.get("company_name") or f"Company {sym}"
+        sec = item.get("sector") or "General"
+        ex = item.get("exchange") or "HOSE"
 
         res_sym = run_backtest_for_symbol(
             symbol=sym,
