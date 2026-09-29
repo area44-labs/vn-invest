@@ -1,7 +1,7 @@
 """Domain contract for Stock Recommendations."""
 
-import math
 from dataclasses import dataclass, replace
+import math
 from typing import Any, Self
 
 from scripts.domain.data_quality import VALID_DATA_QUALITY_STATUSES
