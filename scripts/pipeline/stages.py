@@ -48,12 +48,10 @@ class PipelineStage(abc.ABC):
     @abc.abstractmethod
     def name(self) -> str:
         """Name of the pipeline stage."""
-        pass
 
     @abc.abstractmethod
     def execute(self, context: PipelineContext) -> None:
         """Execute stage logic against the provided PipelineContext."""
-        pass
 
 
 class DataAcquisitionStage(PipelineStage):
@@ -1114,14 +1112,14 @@ class ArtifactPublishingStage(PipelineStage):
 
 
 __all__ = [
-    "PipelineStage",
+    "ArtifactPublishingStage",
     "DataAcquisitionStage",
     "DataValidationStage",
-    "UniverseValidationStage",
     "MarketAnalysisStage",
-    "SignalRecommendationGenerationStage",
-    "RiskTradePlanStage",
-    "PerformanceStage",
     "MonitoringStage",
-    "ArtifactPublishingStage",
+    "PerformanceStage",
+    "PipelineStage",
+    "RiskTradePlanStage",
+    "SignalRecommendationGenerationStage",
+    "UniverseValidationStage",
 ]
