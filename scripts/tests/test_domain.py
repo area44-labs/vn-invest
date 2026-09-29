@@ -152,7 +152,9 @@ class TestUniverseDomainContract(unittest.TestCase):
             symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HOSE"
         )
         u = Universe(
-            universe_type="VN30_EXTENDED", candidates=(c1, c2), scanned_at="2026-03-31T00:00:00Z"
+            universe_type="VN30_EXTENDED",
+            candidates=(c1, c2),
+            scanned_at="2026-03-31T00:00:00Z",
         )
 
         u_dict = u.to_dict()
@@ -394,15 +396,13 @@ class TestRecommendationDomainContract(unittest.TestCase):
         self.assertEqual(rec.risk_metrics.liquidity_score, 90.0)
         self.assertEqual(rec.risk_adjusted_score, 75.0)
 
-    def test_empty_company_name_rejection(self):
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": ""})
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": "   "})
+    def test_non_string_company_name_rejection(self):
+        with self.assertRaises(TypeError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": None})
 
-    def test_empty_sector_rejection(self):
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": ""})
+    def test_non_string_sector_rejection(self):
+        with self.assertRaises(TypeError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": 123})
 
     def test_invalid_action_rejection(self):
         with self.assertRaises(ValueError):
