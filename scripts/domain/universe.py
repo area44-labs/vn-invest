@@ -13,7 +13,7 @@ class UniverseCandidate:
     symbol: str
     company_name: str
     sector: str
-    exchange: str = "HOSE"
+    exchange: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.symbol, str) or not self.symbol.strip():
@@ -58,7 +58,7 @@ class UniverseCandidate:
             symbol=data.get("symbol", ""),
             company_name=data.get("companyName") or data.get("company_name", ""),
             sector=data.get("sector", ""),
-            exchange=data.get("exchange", "HOSE"),
+            exchange=data.get("exchange", ""),
         )
 
 

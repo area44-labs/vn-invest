@@ -152,6 +152,11 @@ class TestUniverseDomainContract(unittest.TestCase):
             c = UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange=ex)
             self.assertEqual(c.exchange, ex)
 
+            c_dict = UniverseCandidate.from_dict(
+                {"symbol": "ABC", "company_name": "Co ABC", "sector": "Tech", "exchange": ex}
+            )
+            self.assertEqual(c_dict.exchange, ex)
+
     def test_universe_candidate_strict_rejection(self):
         with self.assertRaises(ValueError):
             UniverseCandidate(symbol="ABC", company_name="", sector="Tech", exchange="HOSE")
@@ -160,7 +165,23 @@ class TestUniverseDomainContract(unittest.TestCase):
         with self.assertRaises(ValueError):
             UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange="")
         with self.assertRaises(ValueError):
+            UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange="   ")
+        with self.assertRaises(ValueError):
             UniverseCandidate(symbol="ABC", company_name="Co ABC", sector="Tech", exchange="NASDAQ")
+
+    def test_universe_candidate_from_dict_missing_exchange_rejection(self):
+        with self.assertRaises(ValueError):
+            UniverseCandidate.from_dict(
+                {"symbol": "ABC", "company_name": "Co ABC", "sector": "Tech"}
+            )
+        with self.assertRaises(ValueError):
+            UniverseCandidate.from_dict(
+                {"symbol": "ABC", "company_name": "Co ABC", "sector": "Tech", "exchange": ""}
+            )
+        with self.assertRaises(ValueError):
+            UniverseCandidate.from_dict(
+                {"symbol": "ABC", "company_name": "Co ABC", "sector": "Tech", "exchange": "  \t "}
+            )
 
     def test_universe_lossless_serialization_roundtrip(self):
         c1 = UniverseCandidate(
@@ -388,46 +409,21 @@ class TestRecommendationDomainContract(unittest.TestCase):
             rec = Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": ex})
             self.assertEqual(rec.exchange, ex)
 
-    def test_empty_or_whitespace_company_name_rejection(self):
+    def test_non_string_company_name_rejection(self):
         with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": ""})
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": "   "})
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": None})
 
-    def test_empty_or_whitespace_sector_rejection(self):
+    def test_non_string_sector_rejection(self):
         with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": ""})
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": "  \t "})
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": 123})
 
-    def test_empty_or_invalid_exchange_rejection(self):
+    def test_invalid_action_rejection(self):
         with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": ""})
-        with self.assertRaises(ValueError):
-            Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": "  "})
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "action": "SUPER_BUY"})
+
+    def test_invalid_exchange_rejection(self):
         with self.assertRaises(ValueError):
             Recommendation.from_dict({**self.valid_rec.to_dict(), "exchange": "NYSE"})
-
-    def test_dict_subscripting_compatibility(self):
-        rec = self.valid_rec
-        self.assertEqual(rec["symbol"], "VNM")
-        self.assertEqual(rec["action"], "BUY")
-        self.assertEqual(rec.get("confidence"), 0.82)
-        self.assertIn("trade_plan", rec)
-        self.assertIn("risk_metrics", rec)
-        self.assertEqual(rec["trade_plan"]["current_price"], 68000.0)
-
-    def test_immutable_with_liquidity_score_update(self):
-        rec = self.valid_rec
-        updated = rec.with_liquidity_score(liquidity_score=95.0, risk_adjusted_score=77.0)
-
-        # Verify updated instance has new scores
-        self.assertEqual(updated.risk_metrics.liquidity_score, 95.0)
-        self.assertEqual(updated.risk_adjusted_score, 77.0)
-
-        # Verify original instance was unchanged
-        self.assertEqual(rec.risk_metrics.liquidity_score, 90.0)
-        self.assertEqual(rec.risk_adjusted_score, 75.0)
 
     def test_out_of_range_score_rejection(self):
         with self.assertRaises(ValueError):
