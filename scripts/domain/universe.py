@@ -94,7 +94,18 @@ class Universe:
         return len(self.candidates)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert Universe contract to dictionary representation matching schema."""
+        """Convert Universe contract to dictionary representation with all candidates preserved for lossless round-trip."""
+        res: dict[str, Any] = {
+            "universe_type": self.universe_type,
+            "universe_size": self.universe_size,
+            "candidates": [c.to_dict() for c in self.candidates],
+        }
+        if self.scanned_at:
+            res["scanned_at"] = self.scanned_at
+        return res
+
+    def to_info_dict(self) -> dict[str, Any]:
+        """Convert Universe metadata to dictionary matching report payload 'universe_info' schema."""
         res: dict[str, Any] = {
             "universe_type": self.universe_type,
             "universe_size": self.universe_size,

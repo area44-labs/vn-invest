@@ -71,15 +71,20 @@ class RiskAssessment:
         object.__setattr__(self, "avg_value_20d", avg_v)
 
     def to_metrics_dict(self) -> dict[str, Any]:
-        """Convert RiskAssessment metrics fields to dictionary matching schema 'risk_metrics' object."""
-        return {
+        """Convert RiskAssessment metrics fields to dictionary matching schema 'risk_metrics' object.
+
+        Preserves exact legacy JSON output semantics: omits 'avg_value_20d' when None.
+        """
+        res: dict[str, Any] = {
             "var_t25": self.var_t25,
             "es_t25": self.es_t25,
             "volatility_60d": self.volatility_60d,
             "max_drawdown": self.max_drawdown,
             "liquidity_score": self.liquidity_score,
-            "avg_value_20d": self.avg_value_20d,
         }
+        if self.avg_value_20d is not None:
+            res["avg_value_20d"] = self.avg_value_20d
+        return res
 
     def to_dict(self) -> dict[str, Any]:
         """Convert RiskAssessment contract to full dictionary representation."""

@@ -139,15 +139,31 @@ class TestUniverseDomainContract(unittest.TestCase):
         self.assertEqual(u.universe_size, 2)
         self.assertEqual(len(u.candidates), 2)
 
-        u_dict = u.to_dict()
-        self.assertEqual(u_dict["universe_type"], "VN30")
-        self.assertEqual(u_dict["universe_size"], 2)
+        u_info = u.to_info_dict()
+        self.assertEqual(u_info["universe_type"], "VN30")
+        self.assertEqual(u_info["universe_size"], 2)
+        self.assertNotIn("candidates", u_info)
 
-        reconstructed = Universe.from_dict(
-            {"universe_type": "VN30", "candidates": [c1.to_dict(), c2.to_dict()]}
+    def test_universe_lossless_serialization_roundtrip(self):
+        c1 = UniverseCandidate(
+            symbol="VNM", company_name="Vinamilk", sector="Consumer", exchange="HOSE"
         )
+        c2 = UniverseCandidate(
+            symbol="FPT", company_name="FPT Corp", sector="Technology", exchange="HOSE"
+        )
+        u = Universe(
+            universe_type="VN30_EXTENDED", candidates=(c1, c2), scanned_at="2026-03-31T00:00:00Z"
+        )
+
+        u_dict = u.to_dict()
+        self.assertIn("candidates", u_dict)
+        self.assertEqual(len(u_dict["candidates"]), 2)
+
+        reconstructed = Universe.from_dict(u_dict)
+        self.assertEqual(reconstructed, u)
         self.assertEqual(reconstructed.universe_size, 2)
         self.assertEqual(reconstructed.candidates[0].symbol, "VNM")
+        self.assertEqual(reconstructed.candidates[1].company_name, "FPT Corp")
 
     def test_invalid_candidate_exchange_rejection(self):
         with self.assertRaises(ValueError):
@@ -211,10 +227,26 @@ class TestRiskAssessmentDomainContract(unittest.TestCase):
         metrics_dict = ra.to_metrics_dict()
         self.assertNotIn("risk_level", metrics_dict)
         self.assertEqual(metrics_dict["liquidity_score"], 85.0)
+        self.assertEqual(metrics_dict["avg_value_20d"], 150.5)
 
         full_dict = ra.to_dict()
         self.assertEqual(full_dict["risk_level"], "MEDIUM")
         self.assertEqual(RiskAssessment.from_dict(full_dict), ra)
+
+    def test_insufficient_risk_assessment_omits_avg_value_20d(self):
+        ra = RiskAssessment(
+            var_t25=None,
+            es_t25=None,
+            volatility_60d=None,
+            max_drawdown=None,
+            liquidity_score=None,
+            avg_value_20d=None,
+            risk_level=None,
+        )
+        metrics = ra.to_metrics_dict()
+        self.assertNotIn("avg_value_20d", metrics)
+        expected_keys = {"var_t25", "es_t25", "volatility_60d", "max_drawdown", "liquidity_score"}
+        self.assertEqual(set(metrics.keys()), expected_keys)
 
     def test_invalid_liquidity_score_rejection(self):
         with self.assertRaises(ValueError):
@@ -282,6 +314,53 @@ class TestRecommendationDomainContract(unittest.TestCase):
             divergence={"1H": "NONE", "1D": "BULLISH", "1W": "NONE", "1M": "NONE"},
         )
 
+    def test_insufficient_recommendation_exact_legacy_json_parity(self):
+        insufficient_rec = Recommendation(
+            symbol="VNM",
+            company_name="Vinamilk",
+            exchange="HOSE",
+            sector="Consumer Goods",
+            action="AVOID",
+            model_version="2.0",
+            data_quality="INSUFFICIENT",
+            data_quality_issues=("Insufficient historical data",),
+            data_as_of="2026-03-31",
+            data_source="PROVIDER_FAILURE",
+            confidence=0.10,
+            risk_level=None,
+            risk_metrics=RiskAssessment(),
+            trade_plan=TradePlan(),
+        )
+
+        d = insufficient_rec.to_dict()
+
+        # Exact legacy keys check for risk_metrics (must NOT contain avg_value_20d)
+        expected_risk_metrics = {
+            "var_t25": None,
+            "es_t25": None,
+            "volatility_60d": None,
+            "max_drawdown": None,
+            "liquidity_score": None,
+        }
+        self.assertEqual(d["risk_metrics"], expected_risk_metrics)
+        self.assertNotIn("avg_value_20d", d["risk_metrics"])
+
+        # Exact legacy trade plan check
+        expected_trade_plan = {
+            "current_price": None,
+            "entry_low": None,
+            "entry_high": None,
+            "stop_loss": None,
+            "tp1": None,
+            "tp2": None,
+            "risk_reward": None,
+            "position_percent": 0.0,
+        }
+        self.assertEqual(d["trade_plan"], expected_trade_plan)
+
+        self.assertEqual(d["action"], "AVOID")
+        self.assertEqual(d["data_quality"], "INSUFFICIENT")
+
     def test_valid_recommendation_serialization(self):
         rec_dict = self.valid_rec.to_dict()
         self.assertEqual(rec_dict["symbol"], "VNM")
@@ -314,6 +393,16 @@ class TestRecommendationDomainContract(unittest.TestCase):
         # Verify original instance was unchanged
         self.assertEqual(rec.risk_metrics.liquidity_score, 90.0)
         self.assertEqual(rec.risk_adjusted_score, 75.0)
+
+    def test_empty_company_name_rejection(self):
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": ""})
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "company_name": "   "})
+
+    def test_empty_sector_rejection(self):
+        with self.assertRaises(ValueError):
+            Recommendation.from_dict({**self.valid_rec.to_dict(), "sector": ""})
 
     def test_invalid_action_rejection(self):
         with self.assertRaises(ValueError):

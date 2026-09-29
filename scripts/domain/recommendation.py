@@ -83,21 +83,17 @@ class Recommendation:
         sym_u = self.symbol.strip().upper()
         object.__setattr__(self, "symbol", sym_u)
 
-        if not isinstance(self.company_name, str):
-            raise TypeError(
-                f"Recommendation [{sym_u}] 'company_name' must be a string, got {type(self.company_name).__name__}"
-            )
-        comp_str = self.company_name if self.company_name else f"Company {sym_u}"
-        object.__setattr__(self, "company_name", comp_str)
+        if not isinstance(self.company_name, str) or not self.company_name.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'company_name' must be a non-empty string")
+        object.__setattr__(self, "company_name", self.company_name.strip())
 
-        if not isinstance(self.sector, str):
-            raise TypeError(
-                f"Recommendation [{sym_u}] 'sector' must be a string, got {type(self.sector).__name__}"
-            )
-        sec_str = self.sector if self.sector else "General"
-        object.__setattr__(self, "sector", sec_str)
+        if not isinstance(self.sector, str) or not self.sector.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'sector' must be a non-empty string")
+        object.__setattr__(self, "sector", self.sector.strip())
 
-        ex_u = self.exchange.strip().upper() if isinstance(self.exchange, str) else "HOSE"
+        if not isinstance(self.exchange, str) or not self.exchange.strip():
+            raise ValueError(f"Recommendation [{sym_u}] 'exchange' must be a non-empty string")
+        ex_u = self.exchange.strip().upper()
         if ex_u not in VALID_EXCHANGES:
             raise ValueError(
                 f"Recommendation [{sym_u}] invalid exchange '{ex_u}'. Must be one of {sorted(VALID_EXCHANGES)}"
