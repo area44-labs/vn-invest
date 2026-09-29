@@ -1,7 +1,7 @@
 """Domain contract for Trade Plan bounds and sizing."""
 
-import math
 from dataclasses import dataclass
+import math
 from typing import Any, Self
 
 
