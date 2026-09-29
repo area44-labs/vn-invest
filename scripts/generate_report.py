@@ -34,6 +34,7 @@ from scripts.data_provider import (
     aggregate_provider_performance,
     detect_duplicate_operations,
 )
+from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.monitoring import (
@@ -1043,25 +1044,6 @@ def validate_final_payload_integrity(
     return []
 
 
-class PipelineResult(tuple):
-    """Pipeline result tuple preserving 3-element unpacking backward compatibility."""
-
-    def __new__(
-        cls,
-        recs_data: dict,
-        market_data: dict,
-        history_data: dict,
-        df_vnindex: Any = None,
-        df_vn30: Any = None,
-        universe_audit: dict | None = None,
-    ):
-        obj = super().__new__(cls, (recs_data, market_data, history_data))
-        obj.df_vnindex = df_vnindex
-        obj.df_vn30 = df_vn30
-        obj.universe_audit = universe_audit
-        return obj
-
-
 def run_pipeline(
     update_data: bool = False, tracker: PerformanceTracker | None = None
 ) -> tuple[dict, dict, dict]:
@@ -1571,6 +1553,8 @@ def run_pipeline(
                 scanned_recs, market_regime=final_market_regime
             )
 
+        scanned_recs_dicts = [r.to_dict() if hasattr(r, "to_dict") else r for r in scanned_recs]
+
         buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
         watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
         hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
@@ -1596,7 +1580,7 @@ def run_pipeline(
             "universe_info": universe_info,
             "market": final_market_regime,
             "summary": summary,
-            "recommendations": scanned_recs,
+            "recommendations": scanned_recs_dicts,
         }
 
         market_payload = {
@@ -1798,6 +1782,8 @@ def generate_historical_report(
             scanned_recs, market_regime=final_market_regime
         )
 
+    scanned_recs_dicts = [r.to_dict() if hasattr(r, "to_dict") else r for r in scanned_recs]
+
     buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
     watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
     hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
@@ -1828,7 +1814,7 @@ def generate_historical_report(
         "universe_info": universe_info,
         "market": final_market_regime,
         "summary": summary,
-        "recommendations": scanned_recs,
+        "recommendations": scanned_recs_dicts,
     }
 
     market_payload = {

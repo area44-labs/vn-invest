@@ -10,6 +10,7 @@ Returns null values if data is insufficient.
 """
 
 import math
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -138,13 +139,15 @@ def calculate_t25_risk_metrics(
 
 
 def normalize_universe_liquidity_scores(
-    scanned_recommendations: list[dict],
+    scanned_recommendations: list[Any],
     market_regime: str | dict | None = None,
-) -> list[dict]:
+) -> list[Any]:
     """Compute 0-100 percentile rank for liquidity_score across all stocks in universe at same point in time.
 
     Also updates risk_adjusted_score using the finalized liquidity_score and explicitly provided market_regime.
+    Supports both Recommendation domain objects and legacy dict recommendations seamlessly.
     """
+    from scripts.domain.recommendation import Recommendation
     from scripts.lib.recommendation import VALID_MARKET_REGIMES, calculate_risk_adjusted_score
 
     regime_str = None
@@ -158,52 +161,101 @@ def normalize_universe_liquidity_scores(
             f"Invalid or missing market regime: '{market_regime}'. Must be one of {VALID_MARKET_REGIMES}"
         )
 
-    # Only include non-None, positive avg_value_20d from valid symbols in denominator
+    # Convert list to mutable copies/references for processing
+    recs_out = list(scanned_recommendations)
+
     valid_recs_indices = []
     values = []
-    for idx, r in enumerate(scanned_recommendations):
-        # Exclude failed/insufficient symbols from liquidity denominator
-        if r.get("data_quality") == "INSUFFICIENT":
-            if r.get("risk_metrics"):
-                r["risk_metrics"]["liquidity_score"] = None
-            r["risk_adjusted_score"] = None
+    for idx, r in enumerate(recs_out):
+        dq = r.data_quality if isinstance(r, Recommendation) else r.get("data_quality")
+        if dq == "INSUFFICIENT":
+            if isinstance(r, Recommendation):
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
+            else:
+                if r.get("risk_metrics"):
+                    r["risk_metrics"]["liquidity_score"] = None
+                r["risk_adjusted_score"] = None
             continue
 
-        val = _safe_float(r.get("risk_metrics", {}).get("avg_value_20d"))
+        if isinstance(r, Recommendation):
+            avg_val = r.risk_metrics.avg_value_20d if r.risk_metrics else None
+        else:
+            avg_val = (
+                r.get("risk_metrics", {}).get("avg_value_20d")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
+
+        val = _safe_float(avg_val)
         if val is not None and val > 0:
             values.append(val)
             valid_recs_indices.append(idx)
         else:
-            r.get("risk_metrics", {})["liquidity_score"] = None
-            r["risk_adjusted_score"] = None
+            if isinstance(r, Recommendation):
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
+            else:
+                if isinstance(r.get("risk_metrics"), dict):
+                    r["risk_metrics"]["liquidity_score"] = None
+                r["risk_adjusted_score"] = None
 
     if not values:
-        for r in scanned_recommendations:
-            if r.get("risk_metrics"):
-                r["risk_metrics"]["liquidity_score"] = None
-            r["risk_adjusted_score"] = None
-        return scanned_recommendations
+        for idx, r in enumerate(recs_out):
+            if isinstance(r, Recommendation):
+                recs_out[idx] = r.with_liquidity_score(
+                    liquidity_score=None, risk_adjusted_score=None
+                )
+            else:
+                if isinstance(r.get("risk_metrics"), dict):
+                    r["risk_metrics"]["liquidity_score"] = None
+                r["risk_adjusted_score"] = None
+        return recs_out
 
     s_values = pd.Series(values)
-    # Compute percentile rank (0 to 100)
     ranks = (s_values.rank(pct=True) * 100.0).round(1)
 
     for list_pos, rec_idx in enumerate(valid_recs_indices):
-        r = scanned_recommendations[rec_idx]
+        r = recs_out[rec_idx]
         liq_score = float(ranks.iloc[list_pos])
-        r["risk_metrics"]["liquidity_score"] = liq_score
 
-        # Re-calculate risk_adjusted_score with populated liquidity_score using explicit market_regime
-        if r.get("signal_score") is not None:
+        if isinstance(r, Recommendation):
+            sig_score = r.signal_score
+            vol_60d = r.risk_metrics.volatility_60d if r.risk_metrics else None
+            mdd = r.risk_metrics.max_drawdown if r.risk_metrics else None
+        else:
+            sig_score = r.get("signal_score")
+            vol_60d = (
+                r.get("risk_metrics", {}).get("volatility_60d")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
+            mdd = (
+                r.get("risk_metrics", {}).get("max_drawdown")
+                if isinstance(r.get("risk_metrics"), dict)
+                else None
+            )
+
+        if sig_score is not None:
             final_adj = calculate_risk_adjusted_score(
-                signal_score=r["signal_score"],
+                signal_score=sig_score,
                 regime=regime_str,
-                volatility_60d=r["risk_metrics"].get("volatility_60d"),
-                max_drawdown=r["risk_metrics"].get("max_drawdown"),
+                volatility_60d=vol_60d,
+                max_drawdown=mdd,
                 liquidity_score=liq_score,
             )
-            r["risk_adjusted_score"] = final_adj
         else:
-            r["risk_adjusted_score"] = None
+            final_adj = None
 
-    return scanned_recommendations
+        if isinstance(r, Recommendation):
+            recs_out[rec_idx] = r.with_liquidity_score(
+                liquidity_score=liq_score, risk_adjusted_score=final_adj
+            )
+        else:
+            if isinstance(r.get("risk_metrics"), dict):
+                r["risk_metrics"]["liquidity_score"] = liq_score
+            r["risk_adjusted_score"] = final_adj
+
+    return recs_out

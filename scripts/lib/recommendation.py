@@ -14,6 +14,7 @@ Raw provider data may be retained for diagnostics only.
 
 import math
 
+from scripts.domain import Recommendation, RiskAssessment, TradePlan
 from scripts.lib.features import calculate_multi_timeframe_features
 from scripts.lib.risk import calculate_t25_risk_metrics
 from scripts.lib.vietnam_market import (
@@ -27,12 +28,6 @@ from scripts.lib.vietnam_market import (
 SIGNAL_MODEL_VERSION = "2.0"
 
 # Centralized component weights for VN Invest Signal Engine.
-# Rationale:
-# - Trend (30%): Primary direction vector based on price relative to moving averages (MA20, MA50).
-# - Momentum (25%): RSI and MACD indicator confirmation evaluating move strength and momentum decay.
-# - Volume (15%): Volume ratio confirming institutional participation vs lack of market liquidity.
-# - Relative Strength (15%): Performance relative to benchmark (VN-Index) over 20 sessions.
-# - Divergence (15%): Multi-timeframe bullish/bearish divergence signals indicating potential trend reversals.
 SIGNAL_WEIGHTS = {
     "trend": 0.30,
     "momentum": 0.25,
@@ -41,8 +36,6 @@ SIGNAL_WEIGHTS = {
     "divergence": 0.15,
 }
 
-# Timeframe weights for divergence component scoring.
-# Rationale: Short-to-intermediate timeframes (1D, 1W) take precedence over monthly (1M) setups.
 DIVERGENCE_TIMEFRAME_WEIGHTS = {
     "1D": 0.50,
     "1W": 0.30,
@@ -235,9 +228,9 @@ def calculate_divergence_score(tf_summary: dict | None) -> float | None:
         elif bearish and not bullish:
             tf_score = 10.0
         elif bullish and bearish:
-            tf_score = 40.0  # Conflict penalty
+            tf_score = 40.0
         else:
-            tf_score = 50.0  # Neutral
+            tf_score = 50.0
 
         weight = DIVERGENCE_TIMEFRAME_WEIGHTS[tf_label] / total_tf_weight
         tf_scores.append(tf_score * weight)
@@ -253,11 +246,7 @@ def calculate_signal_score(
     relative_strength_score: float | None,
     divergence_score: float | None,
 ) -> tuple[float | None, dict[str, float | None], str]:
-    """Combine component scores into final deterministic signal_score (0 to 100).
-
-    Uses renormalized available component weights when data is partially missing.
-    Returns (signal_score, score_components, data_quality).
-    """
+    """Combine component scores into final deterministic signal_score (0 to 100)."""
     components = {
         "trend": trend_score,
         "momentum": momentum_score,
@@ -290,15 +279,7 @@ def calculate_confidence(
     risk_metrics: dict,
     rsi: float | None = None,
 ) -> float:
-    """Calculate deterministic confidence score (0.10 to 0.95) based on data quality, dispersion/agreement, and risk indicators.
-
-    Note on Semantics:
-    The returned confidence value is a deterministic heuristic / model-confidence score,
-    not a statistically calibrated probability. It is derived from explicit rules combining
-    data availability, signal component agreement, volatility/drawdown bounds, and RSI extremes.
-    The same inputs produce the exact same confidence value. A confidence of 0.80 must NOT be
-    interpreted as an 80% statistical probability or win rate for the recommendation.
-    """
+    """Calculate deterministic confidence score (0.10 to 0.95)."""
     if data_quality == "INSUFFICIENT":
         return 0.10
 
@@ -310,7 +291,6 @@ def calculate_confidence(
         variance = sum((s - mean_score) ** 2 for s in available_scores) / len(available_scores)
         std_dev = math.sqrt(variance)
 
-        # High agreement (std_dev < 12.0) increases confidence; strong dispersion (std_dev > 22.0) decreases confidence.
         if std_dev < 12.0:
             base_conf += 0.10
         elif std_dev < 18.0:
@@ -385,18 +365,7 @@ def classify_action(
     raw_close: float | None = None,
     raw_ma20: float | None = None,
 ) -> str:
-    """Classify action deterministically based on signal_score, market regime, and price filters.
-
-    Rules are complete, mutually exclusive, and bounded:
-    - PANIC regime => AVOID
-    - signal_score is None => AVOID
-    - signal_score < 35.0 => AVOID (if BEAR/PANIC) else SELL
-    - signal_score >= 75.0 => BUY (if STRONG_BULL/BULL & close > ma20) else WATCH
-    - signal_score >= 65.0 => BUY (if DEFENSIVE/BULL/STRONG_BULL & close > ma20) else WATCH
-    - signal_score >= 55.0 => WATCH
-    - signal_score >= 45.0 => HOLD
-    - 35.0 <= signal_score < 45.0 => SELL
-    """
+    """Classify action deterministically based on signal_score, market regime, and price filters."""
     if regime == "PANIC" or signal_score is None:
         return "AVOID"
 
@@ -441,9 +410,17 @@ def generate_recommendation(
     prop_net_buy_bn: float = 0.0,
     data_as_of: str | None = None,
     data_source: str | None = None,
-) -> dict:
+) -> Recommendation:
     """Generate a single stock recommendation object for VN Invest Signal Engine v2.0."""
-    ex = exchange.upper() if exchange else "HOSE"
+    comp_clean = (
+        company_name.strip()
+        if (isinstance(company_name, str) and company_name.strip())
+        else f"Company {symbol}"
+    )
+    sec_clean = sector.strip() if (isinstance(sector, str) and sector.strip()) else "General"
+    ex_clean = (
+        exchange.strip().upper() if (isinstance(exchange, str) and exchange.strip()) else "HOSE"
+    )
 
     val_res = validate_ohlcv_data(df_stock, symbol)
     df_clean = val_res["clean_df"]
@@ -452,63 +429,63 @@ def generate_recommendation(
     )
 
     if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
-        return {
-            "symbol": symbol,
-            "company_name": company_name,
-            "exchange": ex,
-            "sector": sector,
-            "action": "AVOID",
-            "model_version": SIGNAL_MODEL_VERSION,
-            "data_quality": "INSUFFICIENT",
-            "data_quality_issues": val_res["issues"],
-            "data_as_of": stock_data_as_of,
-            "data_source": data_source,
-            "signal_score": None,
-            "risk_adjusted_score": None,
-            "score_components": {
+        return Recommendation(
+            symbol=symbol,
+            company_name=comp_clean,
+            exchange=ex_clean,
+            sector=sec_clean,
+            action="AVOID",
+            model_version=SIGNAL_MODEL_VERSION,
+            data_quality="INSUFFICIENT",
+            data_quality_issues=tuple(val_res["issues"]),
+            data_as_of=stock_data_as_of,
+            data_source=data_source,
+            signal_score=None,
+            risk_adjusted_score=None,
+            score_components={
                 "trend": None,
                 "momentum": None,
                 "volume": None,
                 "relative_strength": None,
                 "divergence": None,
             },
-            "confidence": 0.10,
-            "risk_level": None,
-            "expected_return": {
+            confidence=0.10,
+            risk_level=None,
+            expected_return={
                 "expected_return_5d": None,
                 "expected_return_10d": None,
                 "expected_return_20d": None,
             },
-            "risk_metrics": {
-                "var_t25": None,
-                "es_t25": None,
-                "volatility_60d": None,
-                "max_drawdown": None,
-                "liquidity_score": None,
-            },
-            "trade_plan": {
-                "current_price": None,
-                "entry_low": None,
-                "entry_high": None,
-                "stop_loss": None,
-                "tp1": None,
-                "tp2": None,
-                "risk_reward": None,
-                "position_percent": 0.0,
-            },
-            "reasons": ["Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."],
-            "warnings": ["Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."],
-            "invalidation": ["Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."],
-            "divergence": {
+            risk_metrics=RiskAssessment(
+                var_t25=None,
+                es_t25=None,
+                volatility_60d=None,
+                max_drawdown=None,
+                liquidity_score=None,
+            ),
+            trade_plan=TradePlan(
+                current_price=None,
+                entry_low=None,
+                entry_high=None,
+                stop_loss=None,
+                tp1=None,
+                tp2=None,
+                risk_reward=None,
+                position_percent=0.0,
+            ),
+            reasons=("Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu.",),
+            warnings=("Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo.",),
+            invalidation=("Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích.",),
+            divergence={
                 "1H": "NONE",
                 "1D": "NONE",
                 "1W": "NONE",
                 "1M": "NONE",
             },
-        }
+        )
 
     df_d, tf_summary = calculate_multi_timeframe_features(df_clean)
-    risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex)
+    risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex_clean)
 
     raw_close = _safe_float(df_d["close"].iloc[-1])
     raw_ma20 = _safe_float(df_d["ma20"].iloc[-1])
@@ -526,7 +503,6 @@ def generate_recommendation(
         else None
     )
 
-    # Relative strength vs VN-Index benchmark (strictly using clean benchmark OHLCV data)
     rs_diff = None
     df_vnindex_clean = None
     if df_vnindex is not None and not df_vnindex.empty:
@@ -548,7 +524,6 @@ def generate_recommendation(
             vn_ret_20 = (vn_c1 - vn_c0) / vn_c0
             rs_diff = stock_ret_20 - vn_ret_20
 
-    # Component scores calculation
     trend_score = calculate_trend_score(raw_close, raw_ma20, raw_ma50)
     momentum_score = calculate_momentum_score(rsi, macd_hist, prev_macd_hist)
     volume_score = calculate_volume_score(vol_ratio)
@@ -563,7 +538,6 @@ def generate_recommendation(
         divergence_score=div_score,
     )
 
-    # Textual explainability reasons and warnings
     reasons = []
     warnings = []
 
@@ -620,7 +594,6 @@ def generate_recommendation(
     regime = market_regime_info.get("regime", "DEFENSIVE")
     action = classify_action(score, regime, raw_close, raw_ma20)
 
-    # Calculate Confidence
     confidence = calculate_confidence(
         data_quality=data_quality,
         components=score_components,
@@ -640,7 +613,6 @@ def generate_recommendation(
     else:
         risk_level = None
 
-    # Price is already in canonical VND/share
     current_price_vnd = round(raw_close, 0) if raw_close is not None else 0.0
     lowest_5d = float(df_d["low"].tail(5).min()) if not df_d.empty else raw_close
 
@@ -655,13 +627,15 @@ def generate_recommendation(
             raw_close * 0.93,
         )
         sl_p = min(sl_raw, raw_close * 0.99)
-        sl_p = clamp_price_limits(sl_p, raw_close, ex)
+        sl_p = clamp_price_limits(sl_p, raw_close, ex_clean)
         risk_amt = max(raw_close - sl_p, raw_close * 0.03)
 
-        entry_low_p = round_tick_size(raw_close, ex)
-        entry_high_p = clamp_price_limits(max(entry_low_p, raw_close * 1.02), raw_close, ex)
-        tp1_p = clamp_price_limits(max(entry_high_p, raw_close + 2.0 * risk_amt), raw_close, ex)
-        tp2_p = clamp_price_limits(max(tp1_p, raw_close + 3.0 * risk_amt), raw_close, ex)
+        entry_low_p = round_tick_size(raw_close, ex_clean)
+        entry_high_p = clamp_price_limits(max(entry_low_p, raw_close * 1.02), raw_close, ex_clean)
+        tp1_p = clamp_price_limits(
+            max(entry_high_p, raw_close + 2.0 * risk_amt), raw_close, ex_clean
+        )
+        tp2_p = clamp_price_limits(max(tp1_p, raw_close + 3.0 * risk_amt), raw_close, ex_clean)
 
         rr_num = round((tp1_p - raw_close) / risk_amt, 2) if risk_amt > 0 else 1.0
 
@@ -718,7 +692,6 @@ def generate_recommendation(
         "expected_return_20d": None,
     }
 
-    # Calculate risk-adjusted score
     risk_adjusted_score = calculate_risk_adjusted_score(
         signal_score=score,
         regime=regime,
@@ -747,27 +720,48 @@ def generate_recommendation(
     if val_res["status"] == "PARTIAL" and final_data_quality == "SUFFICIENT":
         final_data_quality = "PARTIAL"
 
-    return {
-        "symbol": symbol,
-        "company_name": company_name,
-        "exchange": ex,
-        "sector": sector,
-        "action": action,
-        "model_version": SIGNAL_MODEL_VERSION,
-        "data_quality": final_data_quality,
-        "data_quality_issues": val_res["issues"],
-        "data_as_of": stock_data_as_of,
-        "data_source": data_source,
-        "signal_score": score,
-        "risk_adjusted_score": risk_adjusted_score,
-        "score_components": score_components,
-        "confidence": confidence,
-        "risk_level": risk_level,
-        "expected_return": expected_return,
-        "risk_metrics": risk_metrics,
-        "trade_plan": trade_plan,
-        "reasons": reasons,
-        "warnings": warnings,
-        "invalidation": invalidation,
-        "divergence": div_mapping,
-    }
+    risk_assessment = RiskAssessment(
+        var_t25=risk_metrics.get("var_t25"),
+        es_t25=risk_metrics.get("es_t25"),
+        volatility_60d=risk_metrics.get("volatility_60d"),
+        max_drawdown=risk_metrics.get("max_drawdown"),
+        liquidity_score=risk_metrics.get("liquidity_score"),
+        avg_value_20d=risk_metrics.get("avg_value_20d"),
+        risk_level=risk_level,
+    )
+
+    trade_plan_obj = TradePlan(
+        current_price=trade_plan.get("current_price"),
+        entry_low=trade_plan.get("entry_low"),
+        entry_high=trade_plan.get("entry_high"),
+        stop_loss=trade_plan.get("stop_loss"),
+        tp1=trade_plan.get("tp1"),
+        tp2=trade_plan.get("tp2"),
+        risk_reward=trade_plan.get("risk_reward"),
+        position_percent=trade_plan.get("position_percent", 0.0),
+    )
+
+    return Recommendation(
+        symbol=symbol,
+        company_name=comp_clean,
+        exchange=ex_clean,
+        sector=sec_clean,
+        action=action,
+        model_version=SIGNAL_MODEL_VERSION,
+        data_quality=final_data_quality,
+        data_quality_issues=tuple(val_res["issues"]),
+        data_as_of=stock_data_as_of,
+        data_source=data_source,
+        signal_score=score,
+        risk_adjusted_score=risk_adjusted_score,
+        score_components=score_components,
+        confidence=confidence,
+        risk_level=risk_level,
+        expected_return=expected_return,
+        risk_metrics=risk_assessment,
+        trade_plan=trade_plan_obj,
+        reasons=tuple(reasons),
+        warnings=tuple(warnings),
+        invalidation=tuple(invalidation),
+        divergence=div_mapping,
+    )
