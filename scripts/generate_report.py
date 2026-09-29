@@ -34,8 +34,8 @@ from scripts.data_provider import (
     aggregate_provider_performance,
     detect_duplicate_operations,
 )
-from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
+from scripts.domain import PipelineResult
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.monitoring import (
     evaluate_performance_regression,
