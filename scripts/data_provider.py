@@ -3,6 +3,12 @@
 Isolates external market-data providers (such as vnstock) behind a clean boundary,
 normalizes units into internal canonical format, and validates canonical OHLCV data
 before passing it to the quantitative engine.
+
+Technical Dependency Boundary Note:
+The upstream market-data provider (vnstock) explicitly produces pandas.DataFrame objects
+and declares pandas in its dependency contract. pandas is maintained as the authoritative
+data engine across the quantitative backend to preserve compatibility with vnstock API
+and reproducible lockfile (uv.lock) requirements.
 """
 
 import logging
