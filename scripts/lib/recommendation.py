@@ -14,6 +14,7 @@ Raw provider data may be retained for diagnostics only.
 
 import math
 
+from scripts.domain import Recommendation, RiskAssessment, TradePlan
 from scripts.lib.features import calculate_multi_timeframe_features
 from scripts.lib.risk import calculate_t25_risk_metrics
 from scripts.lib.vietnam_market import (
@@ -452,60 +453,60 @@ def generate_recommendation(
     )
 
     if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
-        return {
-            "symbol": symbol,
-            "company_name": company_name,
-            "exchange": ex,
-            "sector": sector,
-            "action": "AVOID",
-            "model_version": SIGNAL_MODEL_VERSION,
-            "data_quality": "INSUFFICIENT",
-            "data_quality_issues": val_res["issues"],
-            "data_as_of": stock_data_as_of,
-            "data_source": data_source,
-            "signal_score": None,
-            "risk_adjusted_score": None,
-            "score_components": {
+        return Recommendation(
+            symbol=symbol,
+            company_name=company_name,
+            exchange=ex,
+            sector=sector,
+            action="AVOID",
+            model_version=SIGNAL_MODEL_VERSION,
+            data_quality="INSUFFICIENT",
+            data_quality_issues=tuple(val_res["issues"]),
+            data_as_of=stock_data_as_of,
+            data_source=data_source,
+            signal_score=None,
+            risk_adjusted_score=None,
+            score_components={
                 "trend": None,
                 "momentum": None,
                 "volume": None,
                 "relative_strength": None,
                 "divergence": None,
             },
-            "confidence": 0.10,
-            "risk_level": None,
-            "expected_return": {
+            confidence=0.10,
+            risk_level=None,
+            expected_return={
                 "expected_return_5d": None,
                 "expected_return_10d": None,
                 "expected_return_20d": None,
             },
-            "risk_metrics": {
-                "var_t25": None,
-                "es_t25": None,
-                "volatility_60d": None,
-                "max_drawdown": None,
-                "liquidity_score": None,
-            },
-            "trade_plan": {
-                "current_price": None,
-                "entry_low": None,
-                "entry_high": None,
-                "stop_loss": None,
-                "tp1": None,
-                "tp2": None,
-                "risk_reward": None,
-                "position_percent": 0.0,
-            },
-            "reasons": ["Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."],
-            "warnings": ["Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."],
-            "invalidation": ["Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."],
-            "divergence": {
+            risk_metrics=RiskAssessment(
+                var_t25=None,
+                es_t25=None,
+                volatility_60d=None,
+                max_drawdown=None,
+                liquidity_score=None,
+            ),
+            trade_plan=TradePlan(
+                current_price=None,
+                entry_low=None,
+                entry_high=None,
+                stop_loss=None,
+                tp1=None,
+                tp2=None,
+                risk_reward=None,
+                position_percent=0.0,
+            ),
+            reasons=("Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu.",),
+            warnings=("Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo.",),
+            invalidation=("Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích.",),
+            divergence={
                 "1H": "NONE",
                 "1D": "NONE",
                 "1W": "NONE",
                 "1M": "NONE",
             },
-        }
+        )
 
     df_d, tf_summary = calculate_multi_timeframe_features(df_clean)
     risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex)
@@ -747,27 +748,48 @@ def generate_recommendation(
     if val_res["status"] == "PARTIAL" and final_data_quality == "SUFFICIENT":
         final_data_quality = "PARTIAL"
 
-    return {
-        "symbol": symbol,
-        "company_name": company_name,
-        "exchange": ex,
-        "sector": sector,
-        "action": action,
-        "model_version": SIGNAL_MODEL_VERSION,
-        "data_quality": final_data_quality,
-        "data_quality_issues": val_res["issues"],
-        "data_as_of": stock_data_as_of,
-        "data_source": data_source,
-        "signal_score": score,
-        "risk_adjusted_score": risk_adjusted_score,
-        "score_components": score_components,
-        "confidence": confidence,
-        "risk_level": risk_level,
-        "expected_return": expected_return,
-        "risk_metrics": risk_metrics,
-        "trade_plan": trade_plan,
-        "reasons": reasons,
-        "warnings": warnings,
-        "invalidation": invalidation,
-        "divergence": div_mapping,
-    }
+    risk_assessment = RiskAssessment(
+        var_t25=risk_metrics.get("var_t25"),
+        es_t25=risk_metrics.get("es_t25"),
+        volatility_60d=risk_metrics.get("volatility_60d"),
+        max_drawdown=risk_metrics.get("max_drawdown"),
+        liquidity_score=risk_metrics.get("liquidity_score"),
+        avg_value_20d=risk_metrics.get("avg_value_20d"),
+        risk_level=risk_level,
+    )
+
+    trade_plan_obj = TradePlan(
+        current_price=trade_plan.get("current_price"),
+        entry_low=trade_plan.get("entry_low"),
+        entry_high=trade_plan.get("entry_high"),
+        stop_loss=trade_plan.get("stop_loss"),
+        tp1=trade_plan.get("tp1"),
+        tp2=trade_plan.get("tp2"),
+        risk_reward=trade_plan.get("risk_reward"),
+        position_percent=trade_plan.get("position_percent", 0.0),
+    )
+
+    return Recommendation(
+        symbol=symbol,
+        company_name=company_name,
+        exchange=ex,
+        sector=sector,
+        action=action,
+        model_version=SIGNAL_MODEL_VERSION,
+        data_quality=final_data_quality,
+        data_quality_issues=tuple(val_res["issues"]),
+        data_as_of=stock_data_as_of,
+        data_source=data_source,
+        signal_score=score,
+        risk_adjusted_score=risk_adjusted_score,
+        score_components=score_components,
+        confidence=confidence,
+        risk_level=risk_level,
+        expected_return=expected_return,
+        risk_metrics=risk_assessment,
+        trade_plan=trade_plan_obj,
+        reasons=tuple(reasons),
+        warnings=tuple(warnings),
+        invalidation=tuple(invalidation),
+        divergence=div_mapping,
+    )
