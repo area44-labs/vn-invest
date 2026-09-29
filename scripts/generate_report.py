@@ -35,7 +35,7 @@ from scripts.data_provider import (
     detect_duplicate_operations,
 )
 from scripts.domain import PipelineResult
-from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
+from scripts.lib.backtest import _parse_canonical_date
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.monitoring import (
     evaluate_performance_regression,
@@ -51,6 +51,11 @@ from scripts.lib.vietnam_market import (
     get_historical_data,
     validate_temporal_integrity,
 )
+from scripts.pipeline import (
+    ProductionPipeline,
+    generate_historical_report,
+    run_pipeline,
+)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -60,6 +65,52 @@ logger = logging.getLogger(__name__)
 SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
 PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
 GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
+
+__all__ = [
+    "ROOT_DIR",
+    "SCHEMA_PATH",
+    "PERFORMANCE_SCHEMA_PATH",
+    "GENERATED_DIR",
+    "PipelineResult",
+    "UniverseProvider",
+    "get_historical_data",
+    "get_clean_ohlcv_data",
+    "validate_temporal_integrity",
+    "detect_market_regime",
+    "generate_recommendation",
+    "normalize_universe_liquidity_scores",
+    "SIGNAL_MODEL_VERSION",
+    "DEFAULT_UPDATE_THROTTLE_DELAY",
+    "is_recoverable_category",
+    "evaluate_production_monitoring",
+    "evaluate_performance_regression",
+    "evaluate_provider_budget",
+    "ProductionPipeline",
+    "run_pipeline",
+    "generate_historical_report",
+    "ArtifactLock",
+    "ArtifactLockError",
+    "ArtifactTransaction",
+    "ArtifactTransactionError",
+    "PerformanceTracker",
+    "load_schema",
+    "load_performance_schema",
+    "validate_performance_payload",
+    "validate_journal_metadata",
+    "recover_transaction_state",
+    "recover_interrupted_publish",
+    "publish_artifacts_atomically",
+    "save_json_files",
+    "find_payload_integrity_issues",
+    "validate_final_payload_integrity",
+    "build_universe_audit",
+    "canonicalize_report_for_reproducibility",
+    "load_universe_snapshot",
+    "load_historical_ohlcv",
+    "load_history_index",
+    "update_history_index",
+    "main",
+]
 
 
 def load_performance_schema() -> dict:
@@ -332,7 +383,6 @@ def recover_transaction_state(target_dir: str) -> None:
     backup_exists = os.path.exists(backup_dir)
 
     if stage == "STAGING":
-        # Required cleanup: remove transaction's staging dir, preserve target
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
@@ -359,7 +409,6 @@ def recover_transaction_state(target_dir: str) -> None:
                     f"Required cleanup failed restoring backup in stage BACKUP: {err}"
                 ) from err
 
-        # Remove transaction staging dir
         if staging_exists:
             try:
                 shutil.rmtree(staging_dir)
@@ -371,7 +420,6 @@ def recover_transaction_state(target_dir: str) -> None:
                     f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
                 ) from err
 
-        # Optional cleanup: remove backup if target exists
         if target_exists and backup_exists:
             try:
                 shutil.rmtree(backup_dir)
@@ -415,7 +463,6 @@ def recover_transaction_state(target_dir: str) -> None:
                 )
 
     elif stage == "CLEANUP":
-        # Required safety check: target must exist and be valid before removing backup
         if not target_exists:
             if backup_exists:
                 logger.info(
@@ -464,7 +511,6 @@ def recover_transaction_state(target_dir: str) -> None:
                     "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
                 )
 
-    # Conclusively safe -> remove state file
     try:
         os.remove(state_file)
     except OSError as err:
@@ -589,11 +635,7 @@ def recover_interrupted_publish(target_dir: str | None = None) -> None:
 
 
 def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
-    """Publish multiple JSON artifacts atomically using single-writer lock and explicit lifecycle transaction.
-
-    `artifacts` is a mapping from relative path (e.g. 'recommendations.json', 'history/2026-03-31.json')
-    to dictionary payload data.
-    """
+    """Publish multiple JSON artifacts atomically using single-writer lock and explicit lifecycle transaction."""
     if target_dir is None:
         target_dir = GENERATED_DIR
 
@@ -632,7 +674,6 @@ def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | N
                         "Failed cleaning up staging directory during rollback: %s", r_err
                     )
 
-            # Preserve transaction state journal if target was not conclusively restored
             if target_restored:
                 txn.clear_state()
             else:
@@ -664,7 +705,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
     issues = []
 
-    # 1. JSON Schema validation
     if schema:
         try:
             jsonschema.validate(instance=payload, schema=schema)
@@ -674,7 +714,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
         except (jsonschema.SchemaError, TypeError, ValueError) as err:
             issues.append(f"JSON Schema validation error: {err}")
 
-    # Helper recursive walker for type, NaN/Inf, non-serializable objects, and string representations
     def _walk_check(obj, path=""):
         if obj is None:
             return
@@ -700,7 +739,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
 
     _walk_check(payload)
 
-    # 2. Date and metadata consistency checks
     data_as_of = payload.get("data_as_of")
     source_date = payload.get("source_date")
     generated_at = payload.get("generated_at")
@@ -730,7 +768,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
             if u_size is not None and (not isinstance(u_size, int) or u_size < 0):
                 issues.append(f"universe_info.universe_size invalid: {u_size}")
 
-    # 3. Recommendations & Summary verification
     recs = payload.get("recommendations")
     if isinstance(recs, list):
         summary = payload.get("summary")
@@ -776,7 +813,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
             rec_as_of = rec.get("data_as_of")
             dq = rec.get("data_quality")
 
-            # Check required core fields
             for req_f in ("symbol", "company_name", "exchange", "sector", "action"):
                 if rec.get(req_f) is None:
                     issues.append(f"Recommendation [{sym}] required field '{req_f}' cannot be None")
@@ -786,7 +822,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
                     f"Recommendation [{sym}] data_as_of ({rec_as_of}) does not match top-level data_as_of ({data_as_of})"
                 )
 
-            # Insufficient data quality invariant checks
             if dq == "INSUFFICIENT":
                 if rec.get("signal_score") is not None:
                     issues.append(
@@ -802,7 +837,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
                         f"Recommendation [{sym}] with INSUFFICIENT data quality has non-null liquidity_score"
                     )
 
-            # Score & Metric range validation
             for sc_key in ("signal_score", "risk_adjusted_score"):
                 val = rec.get(sc_key)
                 if val is not None and (
@@ -848,7 +882,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
                         f"Recommendation [{sym}] 'position_percent' value {pos} out of range [0.0, 100.0]"
                     )
 
-    # 4. Market object validation
     mkt = payload.get("market")
     if isinstance(mkt, dict):
         m_conf = mkt.get("confidence")
@@ -1044,908 +1077,8 @@ def validate_final_payload_integrity(
     return []
 
 
-def run_pipeline(
-    update_data: bool = False, tracker: PerformanceTracker | None = None
-) -> tuple[dict, dict, dict]:
-    """Execute market data pipeline following strict dependency order:
-
-    1. Fetch VN-Index benchmark & stock universe EOD history
-    2. Calculate Market Breadth across universe
-    3. Calculate Final Market Regime
-    4. Generate Stock Recommendations using the Final Market Regime
-    5. Compute Universe Percentile Liquidity Scores
-    """
-    if tracker is None:
-        tracker = PerformanceTracker()
-
-    VnstockDataProvider.reset_global_call_history()
-    t_pipeline_start = time.perf_counter()
-    pipeline_status = "SUCCESS"
-
-    generated_at = datetime.now(UTC).isoformat()
-    use_cache = not update_data
-
-    try:
-        provider = UniverseProvider()
-        raw_candidate_stocks = provider.candidates
-        universe_info = provider.get_info()
-
-        if not raw_candidate_stocks:
-            raise RuntimeError(
-                "Candidate universe is empty. Cannot generate report on empty universe."
-            )
-
-        # 1. Normalize and deduplicate candidate stock symbols first
-        unique_candidate_stocks = []
-        seen_candidate_syms = set()
-        for item in raw_candidate_stocks:
-            if isinstance(item, dict) and item.get("symbol"):
-                sym_u = str(item["symbol"]).strip().upper()
-                if sym_u and sym_u not in seen_candidate_syms:
-                    seen_candidate_syms.add(sym_u)
-                    item_copy = dict(item)
-                    item_copy["symbol"] = sym_u
-                    unique_candidate_stocks.append(item_copy)
-
-        candidate_stocks = unique_candidate_stocks
-
-        if not candidate_stocks:
-            raise RuntimeError("Candidate universe contains no valid symbols.")
-
-        # 2. Derive expected_symbols strictly from the normalized/deduplicated candidate universe + mandatory benchmarks
-        expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"] for item in candidate_stocks}
-
-        throttle = DEFAULT_UPDATE_THROTTLE_DELAY if update_data else 0.0
-        processed_symbols = set()
-        invalid_symbols = set()
-        insufficient_history_symbols = set()
-        failed_symbols = set()
-        exclusions_map = {}
-
-        logger.info("Step 1: Fetching VN-Index benchmark & stock universe EOD history...")
-
-        with tracker.measure_stage("benchmark_fetch"):
-            tracker.record_request("VNINDEX")
-            try:
-                df_vnindex_raw, vn_source, _vn_warns = get_historical_data(
-                    "VNINDEX",
-                    max_retries=2 if update_data else 1,
-                    use_cache_only=use_cache,
-                    throttle_delay=throttle,
-                )
-                df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
-
-                if (
-                    vn_source
-                    in (
-                        "PROVIDER_FAILURE",
-                        "PROVIDER_ERROR",
-                        "EXPLICITLY_INVALID",
-                        "INVALID_SYMBOL",
-                        "INSUFFICIENT_HISTORICAL_DATA",
-                    )
-                    or df_vnindex_clean.empty
-                    or vnindex_val.get("status") == "INSUFFICIENT"
-                ):
-                    failed_symbols.add("VNINDEX")
-                    cat = (
-                        "INSUFFICIENT_HISTORICAL_DATA"
-                        if (
-                            vn_source == "INSUFFICIENT_HISTORICAL_DATA"
-                            or vnindex_val.get("status") == "INSUFFICIENT"
-                        )
-                        else "PROVIDER_FAILURE"
-                    )
-                    exclusions_map["VNINDEX"] = {
-                        "symbol": "VNINDEX",
-                        "stage": "BENCHMARK_FETCH",
-                        "category": cat,
-                        "status": "FAILED",
-                        "reason": f"Benchmark VNINDEX check failed (source={vn_source}, status={vnindex_val.get('status')})",
-                        "latest_date": vnindex_val.get("latest_date"),
-                        "expected_date": None,
-                        "processed": False,
-                        "recoverable": is_recoverable_category(cat),
-                    }
-                else:
-                    processed_symbols.add("VNINDEX")
-            except ProviderRateLimitError:
-                failed_symbols.add("VNINDEX")
-                exclusions_map["VNINDEX"] = {
-                    "symbol": "VNINDEX",
-                    "stage": "BENCHMARK_FETCH",
-                    "category": "RATE_LIMIT",
-                    "status": "FAILED",
-                    "reason": "Provider rate limit encountered fetching VNINDEX",
-                    "latest_date": None,
-                    "expected_date": None,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("RATE_LIMIT"),
-                }
-                raise
-            except (RuntimeError, ValueError, TypeError, OSError, KeyError, AttributeError) as exc:
-                logger.error("Exception fetching VNINDEX: %s", exc)
-                failed_symbols.add("VNINDEX")
-                exclusions_map["VNINDEX"] = {
-                    "symbol": "VNINDEX",
-                    "stage": "BENCHMARK_FETCH",
-                    "category": "PROVIDER_FAILURE",
-                    "status": "FAILED",
-                    "reason": f"Exception fetching VNINDEX: {type(exc).__name__}",
-                    "latest_date": None,
-                    "expected_date": None,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-                }
-                df_vnindex_raw = pd.DataFrame()
-                df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_raw, "VNINDEX")
-
-            # Market-level data_as_of is derived strictly from validated VN-Index benchmark OHLCV dataset.
-            data_as_of = vnindex_val.get("latest_date")
-            source_date = data_as_of  # Backward compatibility alias
-            data_source = vn_source if not df_vnindex_clean.empty else None
-
-            tracker.record_request("VN30")
-            try:
-                df_vn30_raw, vn30_source, _ = get_historical_data(
-                    "VN30",
-                    max_retries=2 if update_data else 1,
-                    use_cache_only=use_cache,
-                    throttle_delay=throttle,
-                )
-                df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
-
-                if (
-                    vn30_source
-                    in (
-                        "PROVIDER_FAILURE",
-                        "PROVIDER_ERROR",
-                        "EXPLICITLY_INVALID",
-                        "INVALID_SYMBOL",
-                        "INSUFFICIENT_HISTORICAL_DATA",
-                    )
-                    or df_vn30_clean.empty
-                    or vn30_val.get("status") == "INSUFFICIENT"
-                ):
-                    failed_symbols.add("VN30")
-                    cat = (
-                        "INSUFFICIENT_HISTORICAL_DATA"
-                        if (
-                            vn30_source == "INSUFFICIENT_HISTORICAL_DATA"
-                            or vn30_val.get("status") == "INSUFFICIENT"
-                        )
-                        else "PROVIDER_FAILURE"
-                    )
-                    exclusions_map["VN30"] = {
-                        "symbol": "VN30",
-                        "stage": "BENCHMARK_FETCH",
-                        "category": cat,
-                        "status": "FAILED",
-                        "reason": f"Benchmark VN30 check failed (source={vn30_source}, status={vn30_val.get('status')})",
-                        "latest_date": vn30_val.get("latest_date"),
-                        "expected_date": data_as_of,
-                        "processed": False,
-                        "recoverable": is_recoverable_category(cat),
-                    }
-                else:
-                    processed_symbols.add("VN30")
-            except ProviderRateLimitError:
-                failed_symbols.add("VN30")
-                exclusions_map["VN30"] = {
-                    "symbol": "VN30",
-                    "stage": "BENCHMARK_FETCH",
-                    "category": "RATE_LIMIT",
-                    "status": "FAILED",
-                    "reason": "Provider rate limit encountered fetching VN30",
-                    "latest_date": None,
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("RATE_LIMIT"),
-                }
-                raise
-            except (RuntimeError, ValueError, TypeError, OSError, KeyError, AttributeError) as exc:
-                logger.error("Exception fetching VN30: %s", exc)
-                failed_symbols.add("VN30")
-                exclusions_map["VN30"] = {
-                    "symbol": "VN30",
-                    "stage": "BENCHMARK_FETCH",
-                    "category": "PROVIDER_FAILURE",
-                    "status": "FAILED",
-                    "reason": f"Exception fetching VN30: {type(exc).__name__}",
-                    "latest_date": None,
-                    "expected_date": data_as_of,
-                    "processed": False,
-                    "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-                }
-                df_vn30_raw = pd.DataFrame()
-                df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_raw, "VN30")
-
-        stock_data_map = {}
-        stock_dates_map = {}
-
-        with tracker.measure_stage("stock_fetch"):
-            for idx, item in enumerate(candidate_stocks):
-                sym = item["symbol"].upper()
-                tracker.record_request(sym)
-                try:
-                    df_stock, tag, warns = get_historical_data(
-                        sym,
-                        max_retries=1,
-                        use_cache_only=use_cache,
-                        throttle_delay=throttle,
-                        target_date=data_as_of if update_data else None,
-                    )
-                    stock_data_map[sym] = (df_stock, tag, warns)
-
-                    df_clean_stock, stock_val = get_clean_ohlcv_data(df_stock, sym)
-                    stock_dates_map[sym] = stock_val.get("latest_date")
-
-                    if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
-                        failed_symbols.add(sym)
-                        cat = (
-                            "EXPLICITLY_INVALID"
-                            if tag == "EXPLICITLY_INVALID"
-                            else "PROVIDER_FAILURE"
-                        )
-                        exclusions_map[sym] = {
-                            "symbol": sym,
-                            "stage": "STOCK_FETCH",
-                            "category": cat,
-                            "status": "FAILED",
-                            "reason": f"Provider tag {tag} for symbol {sym}",
-                            "latest_date": stock_dates_map.get(sym),
-                            "expected_date": data_as_of,
-                            "processed": False,
-                            "recoverable": is_recoverable_category(cat),
-                        }
-                    elif tag == "INVALID_SYMBOL":
-                        invalid_symbols.add(sym)
-                        exclusions_map[sym] = {
-                            "symbol": sym,
-                            "stage": "STOCK_FETCH",
-                            "category": "INVALID_SYMBOL",
-                            "status": "INVALID",
-                            "reason": f"Invalid stock symbol {sym}",
-                            "latest_date": stock_dates_map.get(sym),
-                            "expected_date": data_as_of,
-                            "processed": False,
-                            "recoverable": is_recoverable_category("INVALID_SYMBOL"),
-                        }
-                    elif df_stock is None or df_stock.empty or df_clean_stock.empty:
-                        failed_symbols.add(sym)
-                        exclusions_map[sym] = {
-                            "symbol": sym,
-                            "stage": "STOCK_FETCH",
-                            "category": "OTHER_VALIDATION_FAILURE",
-                            "status": "FAILED",
-                            "reason": f"Empty OHLCV dataset for {sym}",
-                            "latest_date": stock_dates_map.get(sym),
-                            "expected_date": data_as_of,
-                            "processed": False,
-                            "recoverable": is_recoverable_category("OTHER_VALIDATION_FAILURE"),
-                        }
-                    elif (
-                        tag == "INSUFFICIENT_HISTORICAL_DATA"
-                        or stock_val.get("status") == "INSUFFICIENT"
-                    ):
-                        insufficient_history_symbols.add(sym)
-                        exclusions_map[sym] = {
-                            "symbol": sym,
-                            "stage": "STOCK_FETCH",
-                            "category": "INSUFFICIENT_HISTORICAL_DATA",
-                            "status": "INSUFFICIENT",
-                            "reason": f"Insufficient historical sessions for {sym}",
-                            "latest_date": stock_dates_map.get(sym),
-                            "expected_date": data_as_of,
-                            "processed": False,
-                            "recoverable": is_recoverable_category("INSUFFICIENT_HISTORICAL_DATA"),
-                        }
-                    else:
-                        processed_symbols.add(sym)
-                except ProviderRateLimitError:
-                    failed_symbols.add(sym)
-                    exclusions_map[sym] = {
-                        "symbol": sym,
-                        "stage": "STOCK_FETCH",
-                        "category": "RATE_LIMIT",
-                        "status": "FAILED",
-                        "reason": f"Provider rate limit encountered fetching {sym}",
-                        "latest_date": None,
-                        "expected_date": data_as_of,
-                        "processed": False,
-                        "recoverable": is_recoverable_category("RATE_LIMIT"),
-                    }
-                    raise
-                except (
-                    RuntimeError,
-                    ValueError,
-                    TypeError,
-                    OSError,
-                    KeyError,
-                    AttributeError,
-                ) as exc:
-                    logger.error("Exception fetching %s: %s", sym, exc)
-                    failed_symbols.add(sym)
-                    exclusions_map[sym] = {
-                        "symbol": sym,
-                        "stage": "STOCK_FETCH",
-                        "category": "PROVIDER_FAILURE",
-                        "status": "FAILED",
-                        "reason": f"Exception fetching {sym}: {type(exc).__name__}",
-                        "latest_date": None,
-                        "expected_date": data_as_of,
-                        "processed": False,
-                        "recoverable": is_recoverable_category("PROVIDER_FAILURE"),
-                    }
-                    stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
-                    stock_dates_map[sym] = None
-
-        with tracker.measure_stage("temporal_validation"):
-            temporal_res = validate_temporal_integrity(
-                data_as_of=data_as_of,
-                stock_dates_map={
-                    s: stock_dates_map[s] for s in processed_symbols if s not in ("VNINDEX", "VN30")
-                },
-                reference_date=generated_at,
-                strict_date_match=update_data,
-            )
-
-            if not temporal_res["is_valid"]:
-                logger.warning("Temporal integrity validation failure: %s", temporal_res["issues"])
-                temporal_invalid_syms = (
-                    temporal_res["future_symbols"]
-                    | temporal_res["stale_symbols"]
-                    | temporal_res["missing_date_symbols"]
-                )
-                for sym in temporal_invalid_syms:
-                    processed_symbols.discard(sym)
-                    failed_symbols.add(sym)
-                    exclusions_map[sym] = {
-                        "symbol": sym,
-                        "stage": "TEMPORAL_VALIDATION",
-                        "category": "TEMPORAL_INVALID",
-                        "status": "FAILED",
-                        "reason": f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})",
-                        "latest_date": stock_dates_map.get(sym),
-                        "expected_date": data_as_of,
-                        "processed": False,
-                        "recoverable": is_recoverable_category("TEMPORAL_INVALID"),
-                    }
-                    # Replace stock data with empty DataFrame and tag as EXPLICITLY_INVALID so downstream calculations exclude it
-                    stock_data_map[sym] = (
-                        pd.DataFrame(),
-                        "EXPLICITLY_INVALID",
-                        [
-                            f"[{sym}] Vi phạm tính toàn vẹn thời gian relative to VNINDEX data_as_of ({data_as_of})"
-                        ],
-                    )
-
-        missing_symbols = expected_symbols - (
-            processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
-        )
-        for sym in missing_symbols:
-            exclusions_map[sym] = {
-                "symbol": sym,
-                "stage": "UNIVERSE_DISCOVERY",
-                "category": "UNIVERSE_INCOMPLETE",
-                "status": "MISSING",
-                "reason": f"Symbol {sym} missing from scan results",
-                "latest_date": None,
-                "expected_date": data_as_of,
-                "processed": False,
-                "recoverable": is_recoverable_category("UNIVERSE_INCOMPLETE"),
-            }
-
-        universe_audit = build_universe_audit(
-            expected_symbols=expected_symbols,
-            processed_symbols=processed_symbols,
-            invalid_symbols=invalid_symbols,
-            insufficient_history_symbols=insufficient_history_symbols,
-            failed_symbols=failed_symbols,
-            missing_symbols=missing_symbols,
-            exclusions_map=exclusions_map,
-            update_data=update_data,
-        )
-
-        failed_stage = universe_audit["failed_stage"]
-        pipeline_status = universe_audit["status"]
-        diagnostics_list = universe_audit["diagnostics"]
-
-        if update_data and (
-            expected_symbols != (processed_symbols | invalid_symbols)
-            or failed_symbols
-            or insufficient_history_symbols
-            or missing_symbols
-            or not temporal_res["is_valid"]
-        ):
-            err_msg = (
-                f"Incomplete universe scan in update mode: stage={failed_stage}, "
-                f"status={pipeline_status}. "
-                f"Expected: {len(expected_symbols)}, Processed: {len(processed_symbols)}, "
-                f"Invalid: {len(invalid_symbols)}, Insufficient History: {len(insufficient_history_symbols)}, "
-                f"Failed: {len(failed_symbols)}, Missing: {len(missing_symbols)}. "
-                f"Temporal issues: {temporal_res['issues']}. "
-                f"Processed symbols: {sorted(processed_symbols)}. "
-                f"Invalid symbols: {sorted(invalid_symbols)}. "
-                f"Insufficient history symbols: {sorted(insufficient_history_symbols)}. "
-                f"Failed symbols: {sorted(failed_symbols)}. "
-                f"Missing symbols: {sorted(missing_symbols)}."
-            )
-            logger.error(err_msg)
-            logger.error("Per-symbol failure diagnostics (%d):", len(diagnostics_list))
-            for diag in diagnostics_list:
-                logger.error(
-                    "  - [%s] stage=%s category=%s status=%s reason=%s",
-                    diag["symbol"],
-                    diag["stage"],
-                    diag["category"],
-                    diag["status"],
-                    diag["reason"],
-                )
-            exc = RuntimeError(err_msg)
-            exc.universe_audit = universe_audit
-            raise exc
-
-        logger.info("Step 2: Calculating Market Breadth...")
-        with tracker.measure_stage("market_calculation"):
-            bullish_count = 0
-            valid_breadth_denom = 0
-            for sym in candidate_stocks:
-                s_name = sym["symbol"]
-                if s_name in processed_symbols:
-                    df_st, _, _ = stock_data_map[s_name]
-                    df_c_st, st_val = get_clean_ohlcv_data(df_st, s_name)
-                    if (
-                        st_val["status"] == "SUFFICIENT"
-                        and not df_c_st.empty
-                        and len(df_c_st) >= 20
-                    ):
-                        valid_breadth_denom += 1
-                        c = df_c_st["close"].iloc[-1]
-                        ma20 = df_c_st["close"].tail(20).mean()
-                        if c > ma20:
-                            bullish_count += 1
-
-            breadth_ratio = (
-                round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
-            )
-
-        logger.info("Step 3: Calculating Final Market Regime...")
-        with tracker.measure_stage("regime_calculation"):
-            final_market_regime = detect_market_regime(
-                df_vnindex=df_vnindex_clean,
-                df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-                breadth_ratio=breadth_ratio,
-            )
-
-        logger.info("Step 4: Generating Stock Recommendations using Final Market Regime...")
-        with tracker.measure_stage("recommendation_calculation"):
-            scanned_recs = []
-            for item in candidate_stocks:
-                sym = item["symbol"]
-                comp = item["companyName"]
-                sec = item["sector"]
-                ex = item.get("exchange", "HOSE")
-
-                df_stock, tag, _ = stock_data_map[sym]
-                if sym in processed_symbols:
-                    df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
-                    df_stock_input = df_clean_stock
-                else:
-                    df_stock_input = pd.DataFrame()
-
-                rec = generate_recommendation(
-                    symbol=sym,
-                    company_name=comp,
-                    sector=sec,
-                    exchange=ex,
-                    df_stock=df_stock_input,
-                    market_regime_info=final_market_regime,
-                    df_vnindex=df_vnindex_clean,
-                    data_as_of=data_as_of,
-                    data_source=tag if not df_stock_input.empty else None,
-                )
-                scanned_recs.append(rec)
-
-        logger.info("Step 5: Computing Universe Percentile Liquidity Scores...")
-        with tracker.measure_stage("risk_calculation"):
-            scanned_recs = normalize_universe_liquidity_scores(
-                scanned_recs, market_regime=final_market_regime
-            )
-
-        scanned_recs_dicts = [r.to_dict() if hasattr(r, "to_dict") else r for r in scanned_recs]
-
-        buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
-        watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
-        hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
-        sell_cnt = sum(1 for r in scanned_recs if r["action"] == "SELL")
-        avoid_cnt = sum(1 for r in scanned_recs if r["action"] == "AVOID")
-
-        summary = {
-            "total_scanned": len(scanned_recs),
-            "buy_count": buy_cnt,
-            "watch_count": watch_cnt,
-            "hold_count": hold_cnt,
-            "sell_count": sell_cnt,
-            "avoid_count": avoid_cnt,
-        }
-
-        recommendations_payload = {
-            "schema_version": "2.0",
-            "signal_model_version": SIGNAL_MODEL_VERSION,
-            "generated_at": generated_at,
-            "data_as_of": data_as_of,
-            "source_date": source_date,
-            "data_source": data_source,
-            "universe_info": universe_info,
-            "market": final_market_regime,
-            "summary": summary,
-            "recommendations": scanned_recs_dicts,
-        }
-
-        market_payload = {
-            "data_as_of": data_as_of,
-            "source_date": source_date,
-            "generated_at": generated_at,
-            "data_source": data_source,
-            "universe_info": universe_info,
-            "market": final_market_regime,
-            "summary": summary,
-        }
-
-        history_payload = recommendations_payload
-
-        pipeline_elapsed = time.perf_counter() - t_pipeline_start
-        performance_data = tracker.get_performance_payload(
-            pipeline_elapsed=pipeline_elapsed,
-            pipeline_status=pipeline_status,
-        )
-
-        universe_audit["performance"] = performance_data
-
-        return PipelineResult(
-            recommendations_payload,
-            market_payload,
-            history_payload,
-            df_vnindex=df_vnindex_clean,
-            df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-            universe_audit=universe_audit,
-        )
-    except Exception as exc:
-        pipeline_status = "FAILED"
-        pipeline_elapsed = time.perf_counter() - t_pipeline_start
-        performance_data = tracker.get_performance_payload(
-            pipeline_elapsed=pipeline_elapsed,
-            pipeline_status=pipeline_status,
-        )
-        if hasattr(exc, "universe_audit") and isinstance(exc.universe_audit, dict):
-            exc.universe_audit["performance"] = performance_data
-        else:
-            if "expected_symbols" in locals():
-                audit_partial = build_universe_audit(
-                    expected_symbols=expected_symbols,
-                    processed_symbols=locals().get("processed_symbols", set()),
-                    invalid_symbols=locals().get("invalid_symbols", set()),
-                    insufficient_history_symbols=locals().get(
-                        "insufficient_history_symbols", set()
-                    ),
-                    failed_symbols=locals().get("failed_symbols", set()),
-                    missing_symbols=locals().get("missing_symbols", set()),
-                    exclusions_map=locals().get("exclusions_map", {}),
-                    update_data=update_data,
-                    performance_data=performance_data,
-                )
-                exc.universe_audit = audit_partial
-            else:
-                exc.universe_audit = {"performance": performance_data}
-        raise
-
-
-def generate_historical_report(
-    data_as_of: str,
-    universe_stock_map: dict[str, pd.DataFrame],
-    df_vnindex: pd.DataFrame,
-    df_vn30: pd.DataFrame | None = None,
-    candidate_metadata: list[dict] | None = None,
-    data_source: str = "explicit_historical_input",
-    reference_date: str | None = None,
-    tracker: PerformanceTracker | None = None,
-) -> PipelineResult:
-    """Generate a point-in-time historical report for explicit target date T.
-
-    Fail-Closed Principles:
-    - data_as_of must be explicit canonical YYYY-MM-DD.
-    - Historical datasets are strictly sliced <= T via get_as_of_dataset.
-    - Future rows (> T), unsorted dates, duplicate dates, or malformed OHLCV cause immediate failure.
-    - The target evaluation date T must exist in df_vnindex (raises ValueError if absent).
-    - Reuses production quantitative scoring, market regime detection, risk, and trade plan functions.
-    """
-    if tracker is None:
-        tracker = PerformanceTracker()
-
-    t_pipeline_start = time.perf_counter()
-    pipeline_status = "SUCCESS"
-
-    canonical_as_of = _parse_canonical_date(data_as_of)
-    generated_at = reference_date if reference_date is not None else datetime.now(UTC).isoformat()
-
-    if candidate_metadata is None or not isinstance(candidate_metadata, list):
-        raise TypeError("candidate_metadata must be a list of candidate stock dicts")
-    if not candidate_metadata:
-        raise ValueError("candidate_metadata cannot be empty")
-
-    if not isinstance(universe_stock_map, dict):
-        raise TypeError("universe_stock_map must be a dictionary mapping symbols to DataFrames")
-
-    with tracker.measure_stage("benchmark_fetch"):
-        tracker.record_request("VNINDEX")
-        df_vnindex_as_of = get_as_of_dataset(df_vnindex, canonical_as_of)
-        df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
-
-        if df_vnindex_clean.empty or vnindex_val.get("latest_date") != canonical_as_of:
-            raise ValueError(
-                f"Requested historical evaluation date '{canonical_as_of}' is absent from benchmark VNINDEX historical data"
-            )
-
-        df_vn30_clean = None
-        vn30_val = {"status": "INSUFFICIENT"}
-        if df_vn30 is not None:
-            tracker.record_request("VN30")
-            df_vn30_as_of = get_as_of_dataset(df_vn30, canonical_as_of)
-            df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
-
-    clean_stock_as_of_map = {}
-    seen_candidate_symbols = set()
-
-    with tracker.measure_stage("stock_fetch"):
-        for idx, item in enumerate(candidate_metadata):
-            if not isinstance(item, dict):
-                raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
-            sym = item.get("symbol")
-            if not sym or not isinstance(sym, str):
-                raise ValueError(
-                    f"Candidate metadata item at index {idx} missing valid symbol string"
-                )
-
-            sym_upper = sym.upper()
-            tracker.record_request(sym_upper)
-            if sym_upper in seen_candidate_symbols:
-                raise ValueError(
-                    f"Duplicate candidate stock symbol '{sym_upper}' in candidate_metadata"
-                )
-            seen_candidate_symbols.add(sym_upper)
-
-            if sym_upper not in universe_stock_map:
-                raise ValueError(
-                    f"Candidate stock symbol '{sym_upper}' is missing from universe_stock_map"
-                )
-
-            df_stock_raw = universe_stock_map[sym_upper]
-            if df_stock_raw is not None and not df_stock_raw.empty:
-                df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
-                df_stock_clean, _stock_val = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
-            else:
-                df_stock_clean = pd.DataFrame()
-
-            clean_stock_as_of_map[sym_upper] = df_stock_clean
-
-    with tracker.measure_stage("temporal_validation"):
-        pass
-
-    with tracker.measure_stage("market_calculation"):
-        bullish_count = 0
-        valid_breadth_denom = 0
-        for sym_upper, df_stock_clean in clean_stock_as_of_map.items():
-            if not df_stock_clean.empty and len(df_stock_clean) >= 20:
-                valid_breadth_denom += 1
-                c = df_stock_clean["close"].iloc[-1]
-                ma20 = df_stock_clean["close"].tail(20).mean()
-                if c > ma20:
-                    bullish_count += 1
-
-        breadth_ratio = (
-            round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
-        )
-
-    with tracker.measure_stage("regime_calculation"):
-        final_market_regime = detect_market_regime(
-            df_vnindex=df_vnindex_clean,
-            df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-            breadth_ratio=breadth_ratio,
-        )
-
-    with tracker.measure_stage("recommendation_calculation"):
-        scanned_recs = []
-        for item in candidate_metadata:
-            sym = item["symbol"].upper()
-            comp = item["companyName"]
-            sec = item["sector"]
-            ex = item.get("exchange", "HOSE")
-
-            df_stock_clean = clean_stock_as_of_map[sym]
-
-            rec = generate_recommendation(
-                symbol=sym,
-                company_name=comp,
-                sector=sec,
-                exchange=ex,
-                df_stock=df_stock_clean,
-                market_regime_info=final_market_regime,
-                df_vnindex=df_vnindex_clean,
-                data_as_of=canonical_as_of,
-                data_source=data_source,
-            )
-            scanned_recs.append(rec)
-
-    with tracker.measure_stage("risk_calculation"):
-        scanned_recs = normalize_universe_liquidity_scores(
-            scanned_recs, market_regime=final_market_regime
-        )
-
-    scanned_recs_dicts = [r.to_dict() if hasattr(r, "to_dict") else r for r in scanned_recs]
-
-    buy_cnt = sum(1 for r in scanned_recs if r["action"] == "BUY")
-    watch_cnt = sum(1 for r in scanned_recs if r["action"] == "WATCH")
-    hold_cnt = sum(1 for r in scanned_recs if r["action"] == "HOLD")
-    sell_cnt = sum(1 for r in scanned_recs if r["action"] == "SELL")
-    avoid_cnt = sum(1 for r in scanned_recs if r["action"] == "AVOID")
-
-    summary = {
-        "total_scanned": len(scanned_recs),
-        "buy_count": buy_cnt,
-        "watch_count": watch_cnt,
-        "hold_count": hold_cnt,
-        "sell_count": sell_cnt,
-        "avoid_count": avoid_cnt,
-    }
-
-    universe_info = {
-        "universe_type": "HISTORICAL_SNAPSHOT",
-        "universe_size": len(candidate_metadata),
-    }
-
-    recommendations_payload = {
-        "schema_version": "2.0",
-        "signal_model_version": SIGNAL_MODEL_VERSION,
-        "generated_at": generated_at,
-        "data_as_of": canonical_as_of,
-        "source_date": canonical_as_of,
-        "data_source": data_source,
-        "universe_info": universe_info,
-        "market": final_market_regime,
-        "summary": summary,
-        "recommendations": scanned_recs_dicts,
-    }
-
-    market_payload = {
-        "data_as_of": canonical_as_of,
-        "source_date": canonical_as_of,
-        "generated_at": generated_at,
-        "data_source": data_source,
-        "universe_info": universe_info,
-        "market": final_market_regime,
-        "summary": summary,
-    }
-
-    history_payload = recommendations_payload
-
-    with tracker.measure_stage("payload_validation"):
-        validate_final_payload_integrity(recommendations_payload, schema=None)
-        validate_final_payload_integrity(market_payload, schema=None)
-
-    expected_symbols = {"VNINDEX", "VN30"} | {item["symbol"].upper() for item in candidate_metadata}
-    processed_symbols = set()
-    invalid_symbols = set()
-    insufficient_history_symbols = set()
-    failed_symbols = set()
-    exclusions_map = {}
-
-    if not df_vnindex_clean.empty and vnindex_val.get("latest_date") == canonical_as_of:
-        processed_symbols.add("VNINDEX")
-    else:
-        failed_symbols.add("VNINDEX")
-        exclusions_map["VNINDEX"] = {
-            "symbol": "VNINDEX",
-            "stage": "BENCHMARK_FETCH",
-            "category": "INSUFFICIENT_HISTORICAL_DATA",
-            "status": "FAILED",
-            "reason": f"Benchmark VNINDEX data missing for canonical_as_of {canonical_as_of}",
-            "latest_date": vnindex_val.get("latest_date"),
-            "expected_date": canonical_as_of,
-            "processed": False,
-            "recoverable": False,
-        }
-
-    if (
-        df_vn30_clean is not None
-        and not df_vn30_clean.empty
-        and vn30_val.get("status") != "INSUFFICIENT"
-    ):
-        processed_symbols.add("VN30")
-    else:
-        failed_symbols.add("VN30")
-        exclusions_map["VN30"] = {
-            "symbol": "VN30",
-            "stage": "BENCHMARK_FETCH",
-            "category": "INSUFFICIENT_HISTORICAL_DATA",
-            "status": "FAILED",
-            "reason": f"Benchmark VN30 data missing or insufficient for canonical_as_of {canonical_as_of}",
-            "latest_date": vn30_val.get("latest_date") if df_vn30 is not None else None,
-            "expected_date": canonical_as_of,
-            "processed": False,
-            "recoverable": False,
-        }
-
-    for item in candidate_metadata:
-        sym_upper = item["symbol"].upper()
-        df_st = clean_stock_as_of_map.get(sym_upper)
-        if df_st is not None and not df_st.empty:
-            processed_symbols.add(sym_upper)
-        else:
-            insufficient_history_symbols.add(sym_upper)
-            exclusions_map[sym_upper] = {
-                "symbol": sym_upper,
-                "stage": "STOCK_FETCH",
-                "category": "INSUFFICIENT_HISTORICAL_DATA",
-                "status": "INSUFFICIENT",
-                "reason": f"Historical data missing or insufficient for candidate {sym_upper} at {canonical_as_of}",
-                "latest_date": None,
-                "expected_date": canonical_as_of,
-                "processed": False,
-                "recoverable": False,
-            }
-
-    missing_symbols = expected_symbols - (
-        processed_symbols | invalid_symbols | insufficient_history_symbols | failed_symbols
-    )
-    for sym in missing_symbols:
-        exclusions_map[sym] = {
-            "symbol": sym,
-            "stage": "UNIVERSE_DISCOVERY",
-            "category": "UNIVERSE_INCOMPLETE",
-            "status": "MISSING",
-            "reason": f"Symbol {sym} missing from historical snapshot",
-            "latest_date": None,
-            "expected_date": canonical_as_of,
-            "processed": False,
-            "recoverable": False,
-        }
-
-    pipeline_elapsed = time.perf_counter() - t_pipeline_start
-    performance_data = tracker.get_performance_payload(
-        pipeline_elapsed=pipeline_elapsed,
-        pipeline_status=pipeline_status,
-    )
-
-    universe_audit = build_universe_audit(
-        expected_symbols=expected_symbols,
-        processed_symbols=processed_symbols,
-        invalid_symbols=invalid_symbols,
-        insufficient_history_symbols=insufficient_history_symbols,
-        failed_symbols=failed_symbols,
-        missing_symbols=missing_symbols,
-        exclusions_map=exclusions_map,
-        update_data=False,
-        performance_data=performance_data,
-    )
-
-    return PipelineResult(
-        recommendations_payload,
-        market_payload,
-        history_payload,
-        df_vnindex=df_vnindex_clean,
-        df_vn30=df_vn30_clean if vn30_val["status"] != "INSUFFICIENT" else None,
-        universe_audit=universe_audit,
-    )
-
-
 def canonicalize_report_for_reproducibility(report_payload: dict) -> dict:
-    """Return a canonical copy of report payload with runtime metadata excluded/normalized.
-
-    Runtime metadata excluded for quantitative reproducibility comparison:
-    - generated_at
-    - universe_info.scanned_at (if present)
-    """
+    """Return a canonical copy of report payload with runtime metadata excluded/normalized."""
     if not isinstance(report_payload, dict):
         raise TypeError("report_payload must be a dictionary")
 
@@ -2271,9 +1404,11 @@ def main():
             df_vn30=df_vn30_raw,
             candidate_metadata=candidate_stocks,
             data_source="explicit_historical_input",
+            generated_dir=GENERATED_DIR,
         )
 
-        recs_data, _, history_data = pipeline_res
+        recs_data = pipeline_res[0]
+        history_data = pipeline_res[2]
 
         logger.info("Validating historical recommendations payload & integrity...")
         try:
@@ -2322,91 +1457,100 @@ def main():
             logger.error("Existing generated report files have been preserved and not overwritten.")
             raise SystemExit(1) from exc
 
-        recs_data, market_data, history_data = pipeline_res
-        df_vnindex_clean = pipeline_res.df_vnindex
-        df_vn30_clean = pipeline_res.df_vn30
+        recs_data = pipeline_res[0]
+        market_data = pipeline_res[1]
+        history_data = pipeline_res[2]
+        df_vnindex_clean = getattr(pipeline_res, "df_vnindex", None)
+        df_vn30_clean = getattr(pipeline_res, "df_vn30", None)
 
-        logger.info("Executing production pipeline monitoring...")
-        try:
-            with tracker.measure_stage("monitoring"):
-                in_mem_artifacts = {
-                    "recommendations.json": recs_data,
-                    "market.json": market_data,
-                }
-                data_as_of_peek = recs_data.get("data_as_of")
-                if data_as_of_peek:
-                    in_mem_artifacts[f"history/{data_as_of_peek}.json"] = history_data
-                    # Peek history index in memory
-                    index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-                    try:
-                        idx_data = load_history_index(index_path)
-                        dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
-                    except ValueError, TypeError, OSError:
-                        dates = []
-                    if data_as_of_peek not in dates:
-                        dates = list(dates) + [data_as_of_peek]
-                        dates.sort(reverse=True)
-                    in_mem_artifacts["history/index.json"] = {
-                        "last_updated": datetime.now(UTC).isoformat(),
-                        "total_reports": len(dates),
-                        "dates": dates,
-                    }
-
-                monitoring_result = evaluate_production_monitoring(
-                    generated_dir=GENERATED_DIR,
-                    recommendations_payload=recs_data,
-                    market_payload=market_data,
-                    df_vnindex=df_vnindex_clean,
-                    df_vn30=df_vn30_clean,
-                    universe_audit=getattr(pipeline_res, "universe_audit", None),
-                    in_memory_artifacts=in_mem_artifacts,
-                )
-        except Exception:
-            perf_payload = tracker.get_performance_payload(
-                pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
-                pipeline_status="FAILED",
-            )
-            if hasattr(pipeline_res, "universe_audit") and isinstance(
-                pipeline_res.universe_audit, dict
-            ):
-                pipeline_res.universe_audit["performance"] = perf_payload
-            raise
-
-        monitoring_dict = monitoring_result.to_dict()
-
-        logger.info("Validating ALL report payloads & output integrity...")
-        try:
-            with tracker.measure_stage("payload_validation"):
-                validate_final_payload_integrity(recs_data, schema=schema)
-                validate_final_payload_integrity(market_data, schema=None)
-                if history_data is not recs_data:
-                    validate_final_payload_integrity(history_data, schema=schema)
-                validate_final_payload_integrity(monitoring_dict, schema=None)
-        except ValueError as exc:
-            logger.error("Report payload integrity validation failed: %s", exc)
-            logger.error("Existing generated report files have been preserved and not overwritten.")
-            raise SystemExit(1) from exc
-
-        logger.info("JSON Schema & output integrity validation passed for all payloads!")
-
-        performance_data = tracker.get_performance_payload(
-            pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
-            pipeline_status="SUCCESS",
-        )
-        if "metrics" not in monitoring_dict or not isinstance(monitoring_dict["metrics"], dict):
-            monitoring_dict["metrics"] = {}
-
-        if hasattr(pipeline_res, "universe_audit") and isinstance(
-            pipeline_res.universe_audit, dict
+        if (
+            hasattr(pipeline_res, "monitoring_result")
+            and getattr(pipeline_res, "monitoring_result", None) is not None
         ):
-            pipeline_res.universe_audit["performance"] = performance_data
-            monitoring_dict["metrics"]["universe_audit"] = pipeline_res.universe_audit
+            monitoring_result = pipeline_res.monitoring_result
+            monitoring_dict = pipeline_res.monitoring_dict
+        else:
+            logger.info("Executing production pipeline monitoring...")
+            try:
+                with tracker.measure_stage("monitoring"):
+                    in_mem_artifacts = {
+                        "recommendations.json": recs_data,
+                        "market.json": market_data,
+                    }
+                    data_as_of_peek = recs_data.get("data_as_of")
+                    if data_as_of_peek:
+                        in_mem_artifacts[f"history/{data_as_of_peek}.json"] = history_data
+                        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
+                        try:
+                            idx_data = load_history_index(index_path)
+                            dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
+                        except ValueError, TypeError, OSError:
+                            dates = []
+                        if data_as_of_peek not in dates:
+                            dates = list(dates) + [data_as_of_peek]
+                            dates.sort(reverse=True)
+                        in_mem_artifacts["history/index.json"] = {
+                            "last_updated": datetime.now(UTC).isoformat(),
+                            "total_reports": len(dates),
+                            "dates": dates,
+                        }
 
-        monitoring_dict["metrics"]["performance"] = performance_data
+                    monitoring_result = evaluate_production_monitoring(
+                        generated_dir=GENERATED_DIR,
+                        recommendations_payload=recs_data,
+                        market_payload=market_data,
+                        df_vnindex=df_vnindex_clean,
+                        df_vn30=df_vn30_clean,
+                        universe_audit=getattr(pipeline_res, "universe_audit", None),
+                        in_memory_artifacts=in_mem_artifacts,
+                    )
+            except Exception:
+                perf_payload = tracker.get_performance_payload(
+                    pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
+                    pipeline_status="FAILED",
+                )
+                if hasattr(pipeline_res, "universe_audit") and isinstance(
+                    getattr(pipeline_res, "universe_audit", None), dict
+                ):
+                    pipeline_res.universe_audit["performance"] = perf_payload
+                raise
+
+            monitoring_dict = monitoring_result.to_dict()
+
+            logger.info("Validating ALL report payloads & output integrity...")
+            try:
+                with tracker.measure_stage("payload_validation"):
+                    validate_final_payload_integrity(recs_data, schema=schema)
+                    validate_final_payload_integrity(market_data, schema=None)
+                    if history_data is not recs_data:
+                        validate_final_payload_integrity(history_data, schema=schema)
+                    validate_final_payload_integrity(monitoring_dict, schema=None)
+            except ValueError as exc:
+                logger.error("Report payload integrity validation failed: %s", exc)
+                logger.error(
+                    "Existing generated report files have been preserved and not overwritten."
+                )
+                raise SystemExit(1) from exc
+
+            logger.info("JSON Schema & output integrity validation passed for all payloads!")
+
+            performance_data = tracker.get_performance_payload(
+                pipeline_elapsed=time.perf_counter() - tracker.t_pipeline_start,
+                pipeline_status="SUCCESS",
+            )
+            if "metrics" not in monitoring_dict or not isinstance(monitoring_dict["metrics"], dict):
+                monitoring_dict["metrics"] = {}
+
+            if hasattr(pipeline_res, "universe_audit") and isinstance(
+                getattr(pipeline_res, "universe_audit", None), dict
+            ):
+                pipeline_res.universe_audit["performance"] = performance_data
+                monitoring_dict["metrics"]["universe_audit"] = pipeline_res.universe_audit
+
+            monitoring_dict["metrics"]["performance"] = performance_data
 
         data_as_of = recs_data.get("data_as_of")
 
-        # Evaluate monitoring status BEFORE publishing any artifacts
         logger.info("Production monitoring status: %s", monitoring_result.overall_status)
         if monitoring_result.overall_status == "FAIL":
             logger.error(
@@ -2414,7 +1558,6 @@ def main():
             )
             raise SystemExit(1)
 
-        # Build full payload dictionary for atomic publication
         artifacts_to_publish = {
             "recommendations.json": recs_data,
             "market.json": market_data,
@@ -2423,7 +1566,6 @@ def main():
 
         if data_as_of:
             artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = history_data
-            # Calculate updated history index payload in memory
             index_path = os.path.join(GENERATED_DIR, "history", "index.json")
             index_data = load_history_index(index_path)
             history_dates = index_data.get("dates", [])
@@ -2448,17 +1590,6 @@ def main():
         logger.info("Outputs written to generated/:")
         logger.info("  - recommendations.json (%d items)", len(recs_data["recommendations"]))
         logger.info("  - market.json (Regime: %s)", recs_data["market"]["regime"])
-        logger.info("  - monitoring.json (Status: %s)", monitoring_result.overall_status)
-        if data_as_of:
-            logger.info("  - history/%s.json", data_as_of)
-            logger.info("  - history/index.json")
-
-        logger.info("Production monitoring status: %s", monitoring_result.overall_status)
-        if monitoring_result.overall_status == "FAIL":
-            logger.error("Production update rejected due to monitoring failure.")
-            raise SystemExit(1)
-        elif monitoring_result.overall_status in ("WARN", "WARNING"):
-            logger.warning("Production monitoring produced a warning.")
 
 
 if __name__ == "__main__":

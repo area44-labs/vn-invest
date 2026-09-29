@@ -1,0 +1,165 @@
+{
+  "schema_version": "2.0",
+  "signal_model_version": "2.0",
+  "generated_at": "2025-03-01T23:59:59Z",
+  "data_as_of": "2025-01-20",
+  "source_date": "2025-01-20",
+  "data_source": "explicit_historical_input",
+  "universe_info": {
+    "universe_type": "HISTORICAL_SNAPSHOT",
+    "universe_size": 2
+  },
+  "market": {
+    "regime": "STRONG_BULL",
+    "regime_score": 85.0,
+    "confidence": 0.6,
+    "metrics": {
+      "vnindex_value": 1209.7,
+      "vnindex_change_pct": 0.04,
+      "vn30_change_pct": 0.04,
+      "market_breadth_ratio": 1.0,
+      "volatility": 0.0,
+      "volume_20d_ratio": 1.0
+    }
+  },
+  "summary": {
+    "total_scanned": 2,
+    "buy_count": 0,
+    "watch_count": 2,
+    "hold_count": 0,
+    "sell_count": 0,
+    "avoid_count": 0
+  },
+  "recommendations": [
+    {
+      "symbol": "VNM",
+      "company_name": "Vinamilk",
+      "exchange": "HOSE",
+      "sector": "Consumer Goods",
+      "action": "WATCH",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2025-01-20",
+      "data_source": "explicit_historical_input",
+      "signal_score": 62.8,
+      "risk_adjusted_score": 63.5,
+      "score_components": {
+        "trend": 80.0,
+        "momentum": 35.0,
+        "volume": 50.0,
+        "relative_strength": 100.0,
+        "divergence": 50.0
+      },
+      "confidence": 0.62,
+      "risk_level": "LOW",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": 0.0193,
+        "es_t25": 0.0192,
+        "volatility_60d": 0.004,
+        "max_drawdown": 0.0,
+        "liquidity_score": 75.0,
+        "avg_value_20d": 0.01
+      },
+      "trade_plan": {
+        "current_price": 80.0,
+        "entry_low": 80.0,
+        "entry_high": 80.0,
+        "stop_loss": 80.0,
+        "tp1": 80.0,
+        "tp2": 90.0,
+        "risk_reward": 0.13,
+        "position_percent": 10.0
+      },
+      "reasons": [
+        "Giá đóng cửa (80 VNĐ) nằm trên đường xu hướng MA20 (75 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (75 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.7%)."
+      ],
+      "warnings": [
+        "RSI (100.0) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
+      ],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 80 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (75) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "FPT",
+      "company_name": "FPT Corporation",
+      "exchange": "HOSE",
+      "sector": "Technology",
+      "action": "WATCH",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2025-01-20",
+      "data_source": "explicit_historical_input",
+      "signal_score": 59.8,
+      "risk_adjusted_score": 60.4,
+      "score_components": {
+        "trend": 80.0,
+        "momentum": 35.0,
+        "volume": 50.0,
+        "relative_strength": 80.0,
+        "divergence": 50.0
+      },
+      "confidence": 0.7,
+      "risk_level": "LOW",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": 0.0109,
+        "es_t25": 0.0109,
+        "volatility_60d": 0.0012,
+        "max_drawdown": 0.0,
+        "liquidity_score": 75.0,
+        "avg_value_20d": 0.01
+      },
+      "trade_plan": {
+        "current_price": 140.0,
+        "entry_low": 140.0,
+        "entry_high": 140.0,
+        "stop_loss": 140.0,
+        "tp1": 150.0,
+        "tp2": 150.0,
+        "risk_reward": 2.46,
+        "position_percent": 10.0
+      },
+      "reasons": [
+        "Giá đóng cửa (140 VNĐ) nằm trên đường xu hướng MA20 (135 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (135 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.5%)."
+      ],
+      "warnings": [
+        "RSI (100.0) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
+      ],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 140 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (135) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    }
+  ]
+}

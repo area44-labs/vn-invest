@@ -1,0 +1,159 @@
+{
+  "schema_version": "2.0",
+  "signal_model_version": "2.0",
+  "generated_at": "2026-09-29T16:02:34.224469+00:00",
+  "data_as_of": "2025-01-30",
+  "source_date": "2025-01-30",
+  "data_source": "explicit_historical_input",
+  "universe_info": {
+    "universe_type": "HISTORICAL_SNAPSHOT",
+    "universe_size": 2
+  },
+  "market": {
+    "regime": "STRONG_BULL",
+    "regime_score": 80.0,
+    "confidence": 0.6,
+    "metrics": {
+      "vnindex_value": 1214.7,
+      "vnindex_change_pct": 0.04,
+      "vn30_change_pct": 0.04,
+      "market_breadth_ratio": 0.5,
+      "volatility": 0.0,
+      "volume_20d_ratio": 1.0
+    }
+  },
+  "summary": {
+    "total_scanned": 2,
+    "buy_count": 0,
+    "watch_count": 0,
+    "hold_count": 0,
+    "sell_count": 0,
+    "avoid_count": 2
+  },
+  "recommendations": [
+    {
+      "symbol": "VNM",
+      "company_name": "Vinamilk",
+      "exchange": "HOSE",
+      "sector": "Consumer Goods",
+      "action": "AVOID",
+      "model_version": "2.0",
+      "data_quality": "INSUFFICIENT",
+      "data_quality_issues": [
+        "insufficient_history"
+      ],
+      "data_as_of": "2025-01-30",
+      "data_source": "explicit_historical_input",
+      "signal_score": null,
+      "risk_adjusted_score": null,
+      "score_components": {
+        "trend": null,
+        "momentum": null,
+        "volume": null,
+        "relative_strength": null,
+        "divergence": null
+      },
+      "confidence": 0.1,
+      "risk_level": null,
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": null,
+        "es_t25": null,
+        "volatility_60d": null,
+        "max_drawdown": null,
+        "liquidity_score": null
+      },
+      "trade_plan": {
+        "current_price": null,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."
+      ],
+      "warnings": [
+        "Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."
+      ],
+      "invalidation": [
+        "Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "FPT",
+      "company_name": "FPT Corp",
+      "exchange": "HOSE",
+      "sector": "Technology",
+      "action": "AVOID",
+      "model_version": "2.0",
+      "data_quality": "INSUFFICIENT",
+      "data_quality_issues": [
+        "insufficient_history"
+      ],
+      "data_as_of": "2025-01-30",
+      "data_source": "explicit_historical_input",
+      "signal_score": null,
+      "risk_adjusted_score": null,
+      "score_components": {
+        "trend": null,
+        "momentum": null,
+        "volume": null,
+        "relative_strength": null,
+        "divergence": null
+      },
+      "confidence": 0.1,
+      "risk_level": null,
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": null,
+        "es_t25": null,
+        "volatility_60d": null,
+        "max_drawdown": null,
+        "liquidity_score": null
+      },
+      "trade_plan": {
+        "current_price": null,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."
+      ],
+      "warnings": [
+        "Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."
+      ],
+      "invalidation": [
+        "Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    }
+  ]
+}
