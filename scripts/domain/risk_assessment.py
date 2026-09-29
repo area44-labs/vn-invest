@@ -1,7 +1,7 @@
 """Domain contract for Risk Assessment metrics and risk levels."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Any, Self
 
 VALID_RISK_LEVELS = {"LOW", "MEDIUM", "HIGH"}

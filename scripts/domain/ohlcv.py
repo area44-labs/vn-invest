@@ -1,7 +1,7 @@
 """Domain contract for OHLCV candlestick market data."""
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Any, Self
 
 
