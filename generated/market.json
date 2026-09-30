@@ -1,31 +1,31 @@
 {
-  "data_as_of": "2026-09-20",
-  "source_date": "2026-09-20",
-  "generated_at": "2026-09-29T16:02:51.708710+00:00",
+  "data_as_of": "2026-09-28",
+  "source_date": "2026-09-28",
+  "generated_at": "2026-09-28T14:17:18.037142+00:00",
   "data_source": "REAL_DATA",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
     "universe_size": 42
   },
   "market": {
-    "regime": "PANIC",
-    "regime_score": 15.0,
-    "confidence": 0.6,
+    "regime": "BEAR",
+    "regime_score": 27.0,
+    "confidence": 0.85,
     "metrics": {
-      "vnindex_value": 1000.0,
-      "vnindex_change_pct": 0.0,
-      "vn30_change_pct": 0.0,
-      "market_breadth_ratio": 0.0,
-      "volatility": 0.0,
-      "volume_20d_ratio": 1.0
+      "vnindex_value": 1780.68,
+      "vnindex_change_pct": -0.25,
+      "vn30_change_pct": -0.83,
+      "market_breadth_ratio": 0.29,
+      "volatility": 0.146,
+      "volume_20d_ratio": 1.3
     }
   },
   "summary": {
     "total_scanned": 42,
     "buy_count": 0,
-    "watch_count": 0,
-    "hold_count": 0,
-    "sell_count": 0,
-    "avoid_count": 42
+    "watch_count": 13,
+    "hold_count": 5,
+    "sell_count": 6,
+    "avoid_count": 18
   }
 }
