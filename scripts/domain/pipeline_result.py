@@ -7,7 +7,7 @@ class PipelineResult(tuple):
     """Immutable domain representation of a pipeline execution result.
 
     Preserves 3-element tuple unpacking backward compatibility `(recs_payload, market_payload, history_payload)`
-    while exposing benchmark DataFrames and universe audit diagnostic attributes.
+    while exposing benchmark DataFrames, universe audit diagnostics, and monitoring attributes.
     """
 
     def __new__(
@@ -18,6 +18,8 @@ class PipelineResult(tuple):
         df_vnindex: Any = None,
         df_vn30: Any = None,
         universe_audit: dict | None = None,
+        monitoring_result: Any = None,
+        monitoring_dict: dict | None = None,
     ) -> Self:
         obj = super().__new__(cls, (recs_data, market_data, history_data))
         obj.recommendations_payload = recs_data
@@ -26,6 +28,8 @@ class PipelineResult(tuple):
         obj.df_vnindex = df_vnindex
         obj.df_vn30 = df_vn30
         obj.universe_audit = universe_audit
+        obj.monitoring_result = monitoring_result
+        obj.monitoring_dict = monitoring_dict
         return obj
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,4 +41,6 @@ class PipelineResult(tuple):
         }
         if self.universe_audit:
             res["universe_audit"] = self.universe_audit
+        if self.monitoring_dict:
+            res["monitoring"] = self.monitoring_dict
         return res

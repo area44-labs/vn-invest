@@ -144,6 +144,30 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def _make_fake_execute(self, payload):
+        from scripts.domain import PipelineResult
+        from scripts.pipeline import ArtifactPublishingStage, MonitoringStage
+
+        def fake_execute(context):
+            context.recommendations_payload = payload
+            context.market_payload = payload.get("market")
+            context.history_payload = payload
+            context.data_as_of = payload.get("data_as_of")
+            context.df_vnindex_clean = None
+            context.df_vn30_clean = None
+            context.universe_audit = {}
+            MonitoringStage().execute(context)
+            ArtifactPublishingStage().execute(context)
+            return PipelineResult(
+                context.recommendations_payload,
+                context.market_payload,
+                context.history_payload,
+                monitoring_result=context.monitoring_result,
+                monitoring_dict=context.monitoring_dict,
+            )
+
+        return fake_execute
+
     def test_a_monitoring_pass_succeeds(self):
         """1. Monitoring PASS -> pipeline succeeds, monitoring status is PASS, process exits 0."""
         mock_mon = MagicMock()
@@ -158,7 +182,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
 
         with (
             patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch("scripts.generate_report.run_pipeline", return_value=self.mock_res),
+            patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(self.valid_payload),
+            ),
             patch(
                 "scripts.generate_report.evaluate_production_monitoring",
                 return_value=mock_mon,
@@ -188,7 +215,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
 
         with (
             patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch("scripts.generate_report.run_pipeline", return_value=self.mock_res),
+            patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(self.valid_payload),
+            ),
             patch(
                 "scripts.generate_report.evaluate_production_monitoring",
                 return_value=mock_mon,
@@ -218,7 +248,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
 
         with (
             patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch("scripts.generate_report.run_pipeline", return_value=self.mock_res),
+            patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(self.valid_payload),
+            ),
             patch(
                 "scripts.generate_report.evaluate_production_monitoring",
                 return_value=mock_mon,
@@ -293,15 +326,12 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
         invalid_payload = copy.deepcopy(self.valid_payload)
         invalid_payload["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
 
-        bad_res = MockPipelineResult(
-            invalid_payload,
-            invalid_payload.get("market"),
-            invalid_payload,
-        )
-
         with (
             patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch("scripts.generate_report.run_pipeline", return_value=bad_res),
+            patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(invalid_payload),
+            ),
             patch("sys.argv", ["generate_report.py"]),
         ):
             with self.assertRaises(SystemExit) as cm:
