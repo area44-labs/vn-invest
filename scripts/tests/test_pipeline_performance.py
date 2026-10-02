@@ -881,6 +881,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             context.market_payload = payload["market"]
             context.history_payload = payload
             context.data_as_of = payload["data_as_of"]
+            if not context.reference_date:
+                context.reference_date = payload["data_as_of"]
             context.df_vnindex_clean = df_vnindex
             context.df_vn30_clean = df_vn30
             context.universe_audit = audit

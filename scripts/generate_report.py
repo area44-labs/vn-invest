@@ -21,7 +21,7 @@ import math
 import os
 import shutil
 import time
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any, Self
 
@@ -30,9 +30,6 @@ import pandas as pd
 
 from scripts.data_provider import (
     ProviderRateLimitError,
-    VnstockDataProvider,
-    aggregate_provider_performance,
-    detect_duplicate_operations,
 )
 from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date
@@ -52,7 +49,9 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 from scripts.pipeline import (
+    PerformanceTracker,
     ProductionPipeline,
+    build_universe_audit,
     generate_historical_report,
     run_pipeline,
 )
@@ -907,149 +906,6 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
                 issues.append(f"Market breadth ratio {mb} out of range [0.0, 1.0]")
 
     return issues
-
-
-class PerformanceTracker:
-    """Deterministic structured performance timer and diagnostics collector."""
-
-    def __init__(self):
-        self.t_pipeline_start = time.perf_counter()
-        self.stages: list[dict[str, Any]] = []
-        self.symbol_requests: dict[str, int] = {}
-
-    def record_request(self, symbol: str) -> None:
-        if symbol:
-            sym_u = str(symbol).strip().upper()
-            self.symbol_requests[sym_u] = self.symbol_requests.get(sym_u, 0) + 1
-
-    def record_stage(
-        self, stage: str, elapsed_seconds: float, status: str = "SUCCESS"
-    ) -> dict[str, Any]:
-        record = {
-            "stage": stage,
-            "elapsed_seconds": round(max(0.0, elapsed_seconds), 4),
-            "status": status,
-        }
-        self.stages.append(record)
-        return record
-
-    @contextmanager
-    def measure_stage(self, stage: str):
-        t0 = time.perf_counter()
-        status = "SUCCESS"
-        try:
-            yield
-        except Exception:
-            status = "FAILED"
-            raise
-        finally:
-            elapsed = time.perf_counter() - t0
-            self.record_stage(stage, elapsed, status)
-
-    def get_performance_payload(
-        self,
-        pipeline_elapsed: float | None = None,
-        pipeline_status: str = "SUCCESS",
-        call_history: list[dict] | None = None,
-    ) -> dict[str, Any]:
-        if call_history is None:
-            call_history = VnstockDataProvider.get_global_call_history()
-
-        provider_summary = aggregate_provider_performance(call_history)
-        duplicates = detect_duplicate_operations(call_history, self.symbol_requests)
-
-        stages_list = []
-        if pipeline_elapsed is not None:
-            stages_list.append(
-                {
-                    "stage": "pipeline",
-                    "elapsed_seconds": round(max(0.0, pipeline_elapsed), 4),
-                    "status": pipeline_status,
-                }
-            )
-
-        stages_list.extend(self.stages)
-
-        payload = {
-            "stages": stages_list,
-            "provider": provider_summary,
-            "duplicate_operations": duplicates,
-        }
-
-        payload["regression"] = evaluate_performance_regression(payload)
-        payload["budget"] = evaluate_provider_budget(payload)
-
-        validate_performance_payload(payload)
-        return payload
-
-
-def build_universe_audit(
-    expected_symbols: set[str] | list[str],
-    processed_symbols: set[str] | list[str],
-    invalid_symbols: set[str] | list[str],
-    insufficient_history_symbols: set[str] | list[str],
-    failed_symbols: set[str] | list[str],
-    missing_symbols: set[str] | list[str],
-    exclusions_map: dict[str, dict[str, Any]],
-    update_data: bool = False,
-    performance_data: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Build deterministic production universe_audit dictionary from pipeline sets and exclusions map."""
-    s_expected = set(expected_symbols)
-    s_processed = set(processed_symbols)
-    s_invalid = set(invalid_symbols)
-    s_insufficient = set(insufficient_history_symbols)
-    s_failed = set(failed_symbols)
-    s_missing = set(missing_symbols)
-
-    failed_stage = None
-    if "VNINDEX" in s_failed or "VN30" in s_failed:
-        failed_stage = "BENCHMARK_FETCH"
-    elif any(e.get("stage") == "TEMPORAL_VALIDATION" for e in exclusions_map.values()):
-        failed_stage = "TEMPORAL_VALIDATION"
-    elif any(e.get("stage") == "STOCK_FETCH" for e in exclusions_map.values()):
-        failed_stage = "STOCK_FETCH"
-    elif s_missing:
-        failed_stage = "UNIVERSE_DISCOVERY"
-
-    pipeline_status = "SUCCESS"
-    if failed_stage is not None:
-        pipeline_status = "FAILED" if update_data else "DEGRADED"
-
-    diagnostics_list = [exclusions_map[s] for s in sorted(exclusions_map.keys())]
-
-    universe_summary = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_count": len(s_expected),
-        "processed_count": len(s_processed),
-        "invalid_count": len(s_invalid),
-        "insufficient_history_count": len(s_insufficient),
-        "failed_count": len(s_failed),
-        "missing_count": len(s_missing),
-        "diagnostic_count": len(diagnostics_list),
-    }
-
-    audit = {
-        "status": pipeline_status,
-        "failed_stage": failed_stage,
-        "expected_symbols": sorted(s_expected),
-        "processed_symbols": sorted(s_processed),
-        "invalid_symbols": sorted(s_invalid),
-        "insufficient_history_symbols": sorted(s_insufficient),
-        "failed_symbols": sorted(s_failed),
-        "missing_symbols": sorted(s_missing),
-        "counts": universe_summary,
-        "summary": universe_summary,
-        "exclusions": diagnostics_list,
-        "diagnostics": diagnostics_list,
-    }
-
-    if performance_data is not None:
-        validate_performance_payload(performance_data)
-        audit["performance"] = performance_data
-
-    return audit
 
 
 def validate_final_payload_integrity(
