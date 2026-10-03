@@ -1,4 +1,4 @@
-# README.md - VN Invest
+# VN Invest
 
 [![GitHub Pages](https://github.com/area44-labs/vn-invest/actions/workflows/pages.yml/badge.svg)](https://area44-labs.github.io/vn-invest/)
 
@@ -71,11 +71,3 @@ vp build                 # Build kiểm tra SSG Prerender
 - **`Daily Data Update` (`.github/workflows/daily-update.yml`)**: Tự động chạy pipeline cập nhật dữ liệu EOD lúc 11:00 UTC (18:00 ICT) từ Thứ 2 đến Thứ 6.
 - **`Lint & Format` (`.github/workflows/lint-format.yml`)**: Tự động sửa lỗi safe và format code Python (Ruff) và Frontend (Vite+).
 - **`GitHub Pages` (`.github/workflows/pages.yml`)**: Build và deploy ứng dụng tĩnh React SSG lên GitHub Pages.
-
----
-
-## 4. Tài Liệu Chi Tiết Cần Bổ Sung
-
-Mọi quy tắc vận hành chi tiết, cấu trúc dữ liệu, anti-lookahead invariants, monitoring/drift contracts, và quy trình xử lý lỗi cho AI Agent được quy định tại:
-
-- **[AGENTS.md](AGENTS.md)**: Hướng dẫn kỹ thuật và quy tắc vận hành cho AI Agent.
