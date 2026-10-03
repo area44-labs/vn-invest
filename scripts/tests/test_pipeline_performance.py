@@ -698,9 +698,9 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
                 "scripts.pipeline.validation.PERFORMANCE_SCHEMA_PATH",
                 "/non/existent/path/performance.schema.json",
             ),
+            self.assertRaises(FileNotFoundError),
         ):
-            with self.assertRaises(FileNotFoundError):
-                validate_performance_payload(payload)
+            validate_performance_payload(payload)
 
     def test_missing_required_fields_fail_schema_validation(self):
         import jsonschema
