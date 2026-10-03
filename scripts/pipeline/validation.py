@@ -90,7 +90,7 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     if data_as_of:
         try:
             _parse_canonical_date(data_as_of)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             issues.append(
                 f"Invalid YYYY-MM-DD date format for top-level data_as_of: '{data_as_of}'"
             )

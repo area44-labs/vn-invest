@@ -184,6 +184,7 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
     def test_pipeline_stage_to_stage_state_propagation(self):
         """Verify sequential stage execution propagates context state seamlessly."""
+
         class StageA(PipelineStage):
             @property
             def name(self) -> str:
