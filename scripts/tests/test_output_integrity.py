@@ -358,7 +358,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=self._make_fake_execute(valid_p),
                 ),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py"]),
@@ -415,7 +415,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=self._make_fake_execute(valid_p),
                 ),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py"]),
@@ -494,7 +494,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=self._make_fake_execute(valid_p),
                 ),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("os.replace", side_effect=failing_os_replace),
@@ -622,7 +622,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=self._make_fake_execute(valid_p),
                 ),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py"]),

@@ -90,9 +90,9 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame(), "PROVIDER_FAILURE", []
 
         with (
-            patch("scripts.generate_report.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.generate_report.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
             ),
         ):
             mock_provider = mock_provider_cls.return_value
@@ -265,9 +265,9 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame(), "PROVIDER_FAILURE", ["Mock provider failure"]
 
         with (
-            patch("scripts.generate_report.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.generate_report.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
             ),
         ):
             mock_provider = mock_provider_cls.return_value

@@ -907,8 +907,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             calculate_risk_adjusted_score(signal_score=80.0, regime="UNKNOWN")
 
-    @patch("scripts.generate_report.get_historical_data")
-    @patch("scripts.generate_report.detect_market_regime")
+    @patch("scripts.pipeline.stages.get_historical_data")
+    @patch("scripts.pipeline.stages.detect_market_regime")
     def test_run_pipeline_market_regime_propagation(self, mock_detect, mock_get_hist):
         """Integration test verifying canonical market regime flow in run_pipeline().
 

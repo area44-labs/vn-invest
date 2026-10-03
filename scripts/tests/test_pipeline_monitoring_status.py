@@ -187,7 +187,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
                 side_effect=self._make_fake_execute(self.valid_payload),
             ),
             patch(
-                "scripts.generate_report.evaluate_production_monitoring",
+                "scripts.pipeline.stages.evaluate_production_monitoring",
                 return_value=mock_mon,
             ),
             patch("sys.argv", ["generate_report.py"]),
@@ -220,7 +220,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
                 side_effect=self._make_fake_execute(self.valid_payload),
             ),
             patch(
-                "scripts.generate_report.evaluate_production_monitoring",
+                "scripts.pipeline.stages.evaluate_production_monitoring",
                 return_value=mock_mon,
             ),
             patch("sys.argv", ["generate_report.py"]),
@@ -253,7 +253,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
                 side_effect=self._make_fake_execute(self.valid_payload),
             ),
             patch(
-                "scripts.generate_report.evaluate_production_monitoring",
+                "scripts.pipeline.stages.evaluate_production_monitoring",
                 return_value=mock_mon,
             ),
             patch("sys.argv", ["generate_report.py"]),

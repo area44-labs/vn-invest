@@ -730,9 +730,9 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch("scripts.generate_report.run_pipeline", return_value=mock_result),
-                patch("scripts.generate_report.jsonschema.validate", return_value=None),
+                patch("jsonschema.validate", return_value=None),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
@@ -875,7 +875,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
-                    "scripts.generate_report.get_historical_data",
+                    "scripts.pipeline.stages.get_historical_data",
                     side_effect=mock_get_historical_data,
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
@@ -917,7 +917,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
             return valid_df, "REAL_DATA", []
 
         with patch(
-            "scripts.generate_report.get_historical_data",
+            "scripts.pipeline.stages.get_historical_data",
             side_effect=mock_get_historical_data,
         ):
             with self.assertRaises(RuntimeError) as ctx:
@@ -970,7 +970,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         def mock_get_hist(sym, **kwargs):
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1022,10 +1022,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
-                    "scripts.generate_report.UniverseProvider._get_candidates",
+                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1037,10 +1037,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
-                    "scripts.generate_report.UniverseProvider._get_candidates",
+                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx_exit:
@@ -1074,7 +1074,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1109,7 +1109,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1176,7 +1176,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1199,10 +1199,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         with (
             patch(
-                "scripts.generate_report.UniverseProvider._get_candidates",
+                "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _, _ = pipeline_res
@@ -1218,11 +1218,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         with (
             patch(
-                "scripts.generate_report.UniverseProvider._get_candidates",
+                "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
             patch(
-                "scripts.generate_report.get_historical_data",
+                "scripts.pipeline.stages.get_historical_data",
                 side_effect=mock_get_hist_with_failure,
             ),
         ):
@@ -1246,7 +1246,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Empty response from provider"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1267,7 +1267,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 raise RuntimeError(f"Processing error on {sym}")
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1287,7 +1287,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 raise ProviderRateLimitError("Quota exceeded", cooldown_seconds=30, symbol=sym)
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(ProviderRateLimitError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1316,7 +1316,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1340,7 +1340,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed fetch"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1371,7 +1371,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1393,7 +1393,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["API network error"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1415,7 +1415,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1433,7 +1433,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1468,7 +1468,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1490,7 +1490,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["VNINDEX connection timeout"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1507,7 +1507,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["VN30 connection timeout"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1544,10 +1544,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
-                patch("scripts.generate_report.jsonschema.validate", return_value=None),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch("jsonschema.validate", return_value=None),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
@@ -1600,10 +1600,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
-                    "scripts.generate_report.UniverseProvider._get_candidates",
+                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1637,7 +1637,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1671,7 +1671,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1707,7 +1707,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
                 with (
                     patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                    patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                    patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                     patch("sys.argv", ["generate_report.py", "--update"]),
                 ):
                     with self.assertRaises(SystemExit) as ctx:
@@ -1733,10 +1733,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         with (
             patch(
-                "scripts.generate_report.UniverseProvider._get_candidates",
+                "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
@@ -1758,7 +1758,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["Fetch failed"]
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1799,7 +1799,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -2001,7 +2001,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             # Stocks are all stale (2026-08-15 vs VNINDEX 2026-08-25)
             return stale_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -2014,7 +2014,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         target_date = valid_df["time"].max()
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
             recs_data, market_data, _ = run_pipeline(update_data=True)
 
@@ -2087,7 +2087,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -2111,7 +2111,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             calls_set.add(symbol)
             return valid_df, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             run_pipeline(update_data=True)
 
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once

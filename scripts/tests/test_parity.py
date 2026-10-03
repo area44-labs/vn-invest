@@ -147,10 +147,10 @@ class TestProductionHistoricalParity(unittest.TestCase):
         """Run production and historical report generation with identical raw PIT data."""
         with (
             patch(
-                "scripts.generate_report.get_historical_data",
+                "scripts.pipeline.stages.get_historical_data",
                 side_effect=self._mock_get_historical_data,
             ),
-            patch("scripts.generate_report.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = mock_provider_cls.return_value
             mock_provider.candidates = copy.deepcopy(self.candidate_metadata)

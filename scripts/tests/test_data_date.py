@@ -70,7 +70,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 return df_vnindex, "REAL_DATA", []
             return df_stock_earlier, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
@@ -92,7 +92,7 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
             payload, _, _ = run_pipeline(update_data=False)
 
@@ -148,7 +148,7 @@ class TestDataDateSemantics(unittest.TestCase):
                 return df_stock_sync, "REAL_DATA", []
             return df_stock_lagging, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
@@ -172,9 +172,9 @@ class TestDataDateSemantics(unittest.TestCase):
         """2. When data_as_of is None, monitoring fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
-            patch("scripts.generate_report.get_historical_data") as mock_get_hist,
-            patch("scripts.generate_report.publish_artifacts_atomically") as mock_publish,
-            patch("scripts.generate_report.update_history_index") as mock_update_index,
+            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
+            patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_publish,
+            patch("scripts.pipeline.stages.load_history_index") as mock_update_index,
         ):
             mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
 
@@ -206,7 +206,7 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (historical_df, "REAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -325,7 +325,7 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
                 return df_vnindex, "REAL_DATA", []
             return df_stale_stock, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
@@ -399,8 +399,8 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             return df_future_stock, "REAL_DATA", []
 
         with (
-            patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
-            patch("scripts.generate_report.save_json_files") as mock_save,
+            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+            patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_save,
         ):
             with patch("sys.argv", ["generate_report.py", "--update"]):
                 with self.assertRaises(SystemExit) as ctx:
@@ -423,7 +423,7 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -444,7 +444,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
             recs_payload, _mkt_payload, history_payload = run_pipeline(update_data=False)
 
@@ -475,7 +475,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -498,7 +498,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -519,7 +519,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -530,7 +530,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
         """Verify provider metadata (data_source) reflects actual provider boundary result."""
         empty_df = pd.DataFrame()
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -549,7 +549,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -573,7 +573,7 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )  # latest date = 2026-09-20
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -610,7 +610,7 @@ class TestProductionDataFreshness(unittest.TestCase):
                 return df_stale, "REAL_DATA", []
             return df_vnindex, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("FPT", str(ctx.exception))
@@ -646,7 +646,7 @@ class TestProductionDataFreshness(unittest.TestCase):
                 return df_stale, "REAL_DATA", []
             return df_vnindex, "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=side_effect):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("SSI", str(ctx.exception))
@@ -671,7 +671,7 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
             recs, _, _ = run_pipeline(update_data=True)
 
@@ -758,7 +758,7 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.generate_report.get_historical_data") as mock_get_hist:
+        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
             mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
             recs, _, _ = run_pipeline(update_data=True)
 
@@ -819,7 +819,7 @@ class TestProductionDataFreshness(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=side_effect),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
