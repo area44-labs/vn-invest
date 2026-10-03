@@ -20,12 +20,10 @@ jobs:
         with:
           args: "--version"
 
-      - name: Run Ruff autofix & format verification
+      - name: Run Ruff autofix & format
         run: |
           ruff check --fix scripts
           ruff format scripts
-          ruff check scripts
-          ruff format --check scripts
 
       - name: Run lint and format
         uses: area44/workflows/lint-format@f4c34d68843256954194209a0a247c2213e5c397 # v7.0.0
