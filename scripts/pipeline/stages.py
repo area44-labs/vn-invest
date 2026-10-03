@@ -3,7 +3,7 @@
 import abc
 import logging
 import os
-from typing import Any
+import time
 
 import pandas as pd
 
@@ -21,23 +21,10 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 from scripts.pipeline.context import PipelineContext
+from scripts.pipeline.publishing import load_history_index, publish_artifacts_atomically
+from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
 
 logger = logging.getLogger(__name__)
-
-
-def _get_helper(name: str, fallback: Any = None) -> Any:
-    """Resolve helper from scripts.generate_report if available, else fallback."""
-    import sys
-
-    mod = sys.modules.get("scripts.generate_report")
-    if mod and hasattr(mod, name):
-        return getattr(mod, name)
-    if fallback is not None:
-        return fallback
-    globals_dict = globals()
-    if name in globals_dict:
-        return globals_dict[name]
-    raise AttributeError(f"Helper '{name}' not found")
 
 
 class PipelineStage(abc.ABC):
@@ -65,8 +52,7 @@ class DataAcquisitionStage(PipelineStage):
             return
 
         VnstockDataProvider.reset_global_call_history()
-        provider_cls = _get_helper("UniverseProvider", fallback=UniverseProvider)
-        context.provider = provider_cls()
+        context.provider = UniverseProvider()
         context.raw_candidate_stocks = context.provider.candidates
         context.universe_info = context.provider.get_info()
 
@@ -98,13 +84,11 @@ class DataAcquisitionStage(PipelineStage):
         }
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
-        get_hist_func = _get_helper("get_historical_data", fallback=get_historical_data)
-
         # Fetch VNINDEX benchmark
         with context.tracker.measure_stage("benchmark_fetch"):
             context.tracker.record_request("VNINDEX")
             try:
-                raw_df, source, _ = get_hist_func(
+                raw_df, source, _ = get_historical_data(
                     "VNINDEX",
                     max_retries=2 if context.update_data else 1,
                     use_cache_only=bool(context.use_cache),
@@ -143,7 +127,7 @@ class DataAcquisitionStage(PipelineStage):
             # Fetch VN30 benchmark
             context.tracker.record_request("VN30")
             try:
-                raw_df, source, _ = get_hist_func(
+                raw_df, source, _ = get_historical_data(
                     "VN30",
                     max_retries=2 if context.update_data else 1,
                     use_cache_only=bool(context.use_cache),
@@ -180,7 +164,7 @@ class DataAcquisitionStage(PipelineStage):
                 sym = item["symbol"].upper()
                 context.tracker.record_request(sym)
                 try:
-                    df_stock, tag, warns = get_hist_func(
+                    df_stock, tag, warns = get_historical_data(
                         sym,
                         max_retries=1,
                         use_cache_only=bool(context.use_cache),
@@ -627,8 +611,6 @@ class MarketAnalysisStage(PipelineStage):
         return "market_analysis"
 
     def execute(self, context: PipelineContext) -> None:
-        detect_regime_func = _get_helper("detect_market_regime", fallback=detect_market_regime)
-
         if context.is_historical:
             with context.tracker.measure_stage("market_calculation"):
                 bullish_count = 0
@@ -648,7 +630,7 @@ class MarketAnalysisStage(PipelineStage):
                 )
 
             with context.tracker.measure_stage("regime_calculation"):
-                context.final_market_regime = detect_regime_func(
+                context.final_market_regime = detect_market_regime(
                     df_vnindex=context.df_vnindex_clean,
                     df_vn30=context.df_vn30_clean
                     if context.vn30_val.get("status") != "INSUFFICIENT"
@@ -681,7 +663,7 @@ class MarketAnalysisStage(PipelineStage):
             )
 
         with context.tracker.measure_stage("regime_calculation"):
-            context.final_market_regime = detect_regime_func(
+            context.final_market_regime = detect_market_regime(
                 df_vnindex=context.df_vnindex_clean,
                 df_vn30=context.df_vn30_clean
                 if context.vn30_val.get("status") != "INSUFFICIENT"
@@ -698,8 +680,6 @@ class SignalRecommendationGenerationStage(PipelineStage):
         return "signal_recommendation_generation"
 
     def execute(self, context: PipelineContext) -> None:
-        generate_rec_func = _get_helper("generate_recommendation", fallback=generate_recommendation)
-
         if context.is_historical:
             with context.tracker.measure_stage("recommendation_calculation"):
                 scanned_recs = []
@@ -713,7 +693,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
                         0
                     ]
 
-                    rec = generate_rec_func(
+                    rec = generate_recommendation(
                         symbol=sym,
                         company_name=comp,
                         sector=sec,
@@ -743,7 +723,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
                 else:
                     df_stock_input = pd.DataFrame()
 
-                rec = generate_rec_func(
+                rec = generate_recommendation(
                     symbol=sym,
                     company_name=comp,
                     sector=sec,
@@ -766,12 +746,8 @@ class RiskTradePlanStage(PipelineStage):
         return "risk_trade_plan"
 
     def execute(self, context: PipelineContext) -> None:
-        normalize_liq_func = _get_helper(
-            "normalize_universe_liquidity_scores", fallback=normalize_universe_liquidity_scores
-        )
-
         with context.tracker.measure_stage("risk_calculation"):
-            context.scanned_recs = normalize_liq_func(
+            context.scanned_recs = normalize_universe_liquidity_scores(
                 context.scanned_recs, market_regime=context.final_market_regime
             )
 
@@ -786,9 +762,7 @@ class PerformanceStage(PipelineStage):
         return "performance"
 
     def execute(self, context: PipelineContext) -> None:
-        from scripts.pipeline.tracker import _perf_counter
-
-        context.pipeline_elapsed = _perf_counter() - context.tracker.t_pipeline_start
+        context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
         pipeline_status = context.universe_audit.get("status", "SUCCESS")
 
         context.performance_data = context.tracker.get_performance_payload(
@@ -807,38 +781,20 @@ class MonitoringStage(PipelineStage):
         return "monitoring"
 
     def execute(self, context: PipelineContext) -> None:
-        from scripts.generate_report import (
-            load_history_index,
-            load_schema,
-            validate_final_payload_integrity,
-        )
-
-        load_schema_func = _get_helper("load_schema", fallback=load_schema)
-        schema = load_schema_func()
-
-        val_integrity_func = _get_helper(
-            "validate_final_payload_integrity", fallback=validate_final_payload_integrity
-        )
+        schema = load_schema()
 
         if context.is_historical:
             with context.tracker.measure_stage("payload_validation"):
-                val_integrity_func(context.recommendations_payload, schema=schema)
-                val_integrity_func(context.market_payload, schema=None)
+                validate_final_payload_integrity(context.recommendations_payload, schema=schema)
+                validate_final_payload_integrity(context.market_payload, schema=None)
 
-            from scripts.pipeline.tracker import _perf_counter
-
-            context.pipeline_elapsed = _perf_counter() - context.tracker.t_pipeline_start
+            context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
             context.performance_data = context.tracker.get_performance_payload(
                 pipeline_elapsed=context.pipeline_elapsed,
                 pipeline_status=context.universe_audit.get("status", "SUCCESS"),
             )
             context.universe_audit["performance"] = context.performance_data
             return
-
-        eval_monitoring_func = _get_helper(
-            "evaluate_production_monitoring", fallback=evaluate_production_monitoring
-        )
-        load_index_func = _get_helper("load_history_index", fallback=load_history_index)
 
         with context.tracker.measure_stage("monitoring"):
             in_mem_artifacts = {
@@ -850,7 +806,7 @@ class MonitoringStage(PipelineStage):
                 in_mem_artifacts[f"history/{data_as_of_peek}.json"] = context.history_payload
                 index_path = os.path.join(context.generated_dir, "history", "index.json")
                 try:
-                    idx_data = load_index_func(index_path)
+                    idx_data = load_history_index(index_path)
                     dates = idx_data.get("dates", []) if isinstance(idx_data, dict) else []
                 except ValueError, TypeError, OSError, AttributeError:
                     dates = []
@@ -863,7 +819,7 @@ class MonitoringStage(PipelineStage):
                     "dates": dates,
                 }
 
-            context.monitoring_result = eval_monitoring_func(
+            context.monitoring_result = evaluate_production_monitoring(
                 generated_dir=context.generated_dir,
                 recommendations_payload=context.recommendations_payload,
                 market_payload=context.market_payload,
@@ -877,15 +833,13 @@ class MonitoringStage(PipelineStage):
         context.monitoring_dict = context.monitoring_result.to_dict()
 
         with context.tracker.measure_stage("payload_validation"):
-            val_integrity_func(context.recommendations_payload, schema=schema)
-            val_integrity_func(context.market_payload, schema=None)
+            validate_final_payload_integrity(context.recommendations_payload, schema=schema)
+            validate_final_payload_integrity(context.market_payload, schema=None)
             if context.history_payload is not context.recommendations_payload:
-                val_integrity_func(context.history_payload, schema=schema)
-            val_integrity_func(context.monitoring_dict, schema=None)
+                validate_final_payload_integrity(context.history_payload, schema=schema)
+            validate_final_payload_integrity(context.monitoring_dict, schema=None)
 
-        from scripts.pipeline.tracker import _perf_counter
-
-        context.pipeline_elapsed = _perf_counter() - context.tracker.t_pipeline_start
+        context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
         context.performance_data = context.tracker.get_performance_payload(
             pipeline_elapsed=context.pipeline_elapsed,
             pipeline_status=context.universe_audit.get("status", "SUCCESS"),
@@ -919,21 +873,11 @@ class ArtifactPublishingStage(PipelineStage):
             )
             raise SystemExit(1)
 
-        from scripts.generate_report import (
-            load_history_index,
-            publish_artifacts_atomically,
-        )
-
-        load_index_func = _get_helper("load_history_index", fallback=load_history_index)
-        publish_func = _get_helper(
-            "publish_artifacts_atomically", fallback=publish_artifacts_atomically
-        )
-
         data_as_of = context.data_as_of
 
         if context.is_historical:
             index_path = os.path.join(context.generated_dir, "history", "index.json")
-            index_data = load_index_func(index_path)
+            index_data = load_history_index(index_path)
             history_dates = index_data.get("dates", [])
             if data_as_of and data_as_of not in history_dates:
                 history_dates = list(history_dates)
@@ -951,7 +895,7 @@ class ArtifactPublishingStage(PipelineStage):
             }
             context.artifacts_to_publish = historical_artifacts
             if context.publish_artifacts:
-                publish_func(historical_artifacts, target_dir=context.generated_dir)
+                publish_artifacts_atomically(historical_artifacts, target_dir=context.generated_dir)
             return
 
         context.artifacts_to_publish = {
@@ -965,7 +909,7 @@ class ArtifactPublishingStage(PipelineStage):
                 context.history_payload
             )
             index_path = os.path.join(context.generated_dir, "history", "index.json")
-            index_data = load_index_func(index_path)
+            index_data = load_history_index(index_path)
             history_dates = index_data.get("dates", [])
             if data_as_of not in history_dates:
                 history_dates = list(history_dates)
@@ -983,7 +927,9 @@ class ArtifactPublishingStage(PipelineStage):
             )
 
         if context.publish_artifacts:
-            publish_func(context.artifacts_to_publish, target_dir=context.generated_dir)
+            publish_artifacts_atomically(
+                context.artifacts_to_publish, target_dir=context.generated_dir
+            )
 
 
 __all__ = [

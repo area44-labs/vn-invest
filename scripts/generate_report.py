@@ -1,36 +1,13 @@
-"""Generate Report Script for VN Invest v2.
-
-Command line usage:
-    python scripts/generate_report.py
-    python scripts/generate_report.py --update
-    python scripts/generate_report.py --as-of 2025-01-20 --universe-snapshot history/snapshot.json --historical-ohlcv data/
-
-Outputs:
-    generated/recommendations.json
-    generated/market.json
-    generated/history/index.json
-    generated/history/YYYY-MM-DD.json
-"""
+"""CLI entry point for VN Invest v2 report generator."""
 
 import argparse
-import copy
-import fcntl
-import json
 import logging
-import math
 import os
-import shutil
-import time
-from contextlib import suppress
-from datetime import UTC, datetime
-from typing import Any, Self
+from typing import Any
 
-import jsonschema
 import pandas as pd
 
-from scripts.data_provider import (
-    ProviderRateLimitError,
-)
+from scripts.data_provider import ProviderRateLimitError
 from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
@@ -38,6 +15,8 @@ from scripts.lib.monitoring import (
     evaluate_performance_regression,
     evaluate_production_monitoring,
     evaluate_provider_budget,
+    load_performance_schema,
+    validate_performance_payload,
 )
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
@@ -49,21 +28,33 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 from scripts.pipeline import (
+    GENERATED_DIR,
+    PERFORMANCE_SCHEMA_PATH,
+    ROOT_DIR,
+    SCHEMA_PATH,
+    ArtifactLock,
+    ArtifactLockError,
+    ArtifactTransaction,
+    ArtifactTransactionError,
     PerformanceTracker,
     ProductionPipeline,
     build_universe_audit,
+    find_payload_integrity_issues,
     generate_historical_report,
+    load_history_index,
+    load_schema,
+    publish_artifacts_atomically,
+    recover_interrupted_publish,
+    recover_transaction_state,
     run_pipeline,
+    save_json_files,
+    update_history_index,
+    validate_final_payload_integrity,
+    validate_journal_metadata,
 )
-
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
-
-SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
-PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
-GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 
 __all__ = [
     "DEFAULT_UPDATE_THROTTLE_DELAY",
@@ -112,831 +103,12 @@ __all__ = [
 ]
 
 
-def load_performance_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
-    if not os.path.exists(PERFORMANCE_SCHEMA_PATH):
-        raise FileNotFoundError(f"Performance schema file not found at '{PERFORMANCE_SCHEMA_PATH}'")
-    with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
-    """Validate canonical performance object structure and schema.
-
-    Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
-    """
-    if not isinstance(performance_data, dict):
-        raise TypeError(
-            f"Performance payload must be a dict, got {type(performance_data).__name__}"
-        )
-
-    if schema is None:
-        schema = load_performance_schema()
-
-    jsonschema.validate(instance=performance_data, schema=schema)
-
-
-class ArtifactLockError(RuntimeError):
-    """Raised when artifact directory lock cannot be acquired."""
-
-
-class ArtifactTransactionError(RuntimeError):
-    """Raised when artifact publishing transaction fails."""
-
-
-class ArtifactLock:
-    """Single-writer lock for artifact directory modifications.
-
-    Uses OS-level fcntl.flock on POSIX platforms combined with process metadata
-    for crash-resilient mutual exclusion and stale lock handling.
-    """
-
-    def __init__(self, target_dir: str, timeout: float = 0.0):
-        self.target_dir = os.path.abspath(target_dir)
-        parent_dir = os.path.dirname(self.target_dir)
-        dir_name = os.path.basename(self.target_dir)
-        self.lock_path = os.path.join(parent_dir, f".{dir_name}.lock")
-        self.fd: Any = None
-        self.is_acquired = False
-        self.timeout = timeout
-
-    def acquire(self) -> Self:
-        if self.is_acquired:
-            return self
-
-        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
-        start_time = time.time()
-
-        while True:
-            try:
-                fd = open(self.lock_path, "a+", encoding="utf-8")  # noqa: SIM115
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                self.fd = fd
-                self.is_acquired = True
-                self._write_metadata()
-                return self
-            except (BlockingIOError, OSError) as err:
-                if "fd" in locals() and fd:
-                    with suppress(OSError):
-                        fd.close()
-
-                holder_info = self._read_lock_metadata()
-                if self._is_stale(holder_info):
-                    logger.debug("Lock file metadata refers to a non-existent process PID")
-
-                if time.time() - start_time >= self.timeout:
-                    pid = holder_info.get("pid") if holder_info else None
-                    pid_str = f" (PID {pid})" if pid and isinstance(pid, int) else ""
-                    raise ArtifactLockError(
-                        f"Artifact directory '{self.target_dir}' is locked by another process{pid_str}"
-                    ) from err
-
-                time.sleep(0.05)
-
-    def release(self) -> None:
-        if self.is_acquired and self.fd is not None:
-            with suppress(OSError):
-                fcntl.flock(self.fd, fcntl.LOCK_UN)
-            with suppress(OSError):
-                self.fd.close()
-            self.fd = None
-            self.is_acquired = False
-
-    def __enter__(self) -> Self:
-        return self.acquire()
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.release()
-
-    def _write_metadata(self) -> None:
-        if self.fd is not None:
-            try:
-                self.fd.seek(0)
-                self.fd.truncate()
-                meta = {
-                    "pid": os.getpid(),
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "target_dir": self.target_dir,
-                }
-                json.dump(meta, self.fd)
-                self.fd.flush()
-            except (OSError, TypeError, ValueError) as err:
-                logger.debug("Non-fatal error writing lock metadata: %s", err)
-
-    def _read_lock_metadata(self) -> dict | None:
-        try:
-            if os.path.exists(self.lock_path):
-                with open(self.lock_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as err:
-            logger.debug("Non-fatal error reading lock metadata: %s", err)
-        return None
-
-    def _is_stale(self, holder_info: dict | None) -> bool:
-        if not holder_info or "pid" not in holder_info:
-            return True
-        pid = holder_info.get("pid")
-        if not isinstance(pid, int):
-            return True
-        try:
-            os.kill(pid, 0)
-            return False  # Process is alive
-        except ProcessLookupError, OSError:
-            return True  # Process is dead
-
-
-def validate_journal_metadata(state_file: str, target_dir: str) -> dict | None:
-    """Validate transaction journal metadata strictly against expected target environment.
-
-    Raises ArtifactTransactionError if journal is corrupt, has invalid paths, or mismatched target.
-    Returns parsed journal dict if valid, or None if state_file does not exist.
-    """
-    if not os.path.exists(state_file):
-        return None
-
-    target_dir = os.path.abspath(target_dir)
-    parent_dir = os.path.dirname(target_dir)
-    dir_name = os.path.basename(target_dir)
-
-    try:
-        with open(state_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as err:
-        logger.error(
-            "Transaction journal file '%s' is corrupt or malformed JSON: %s", state_file, err
-        )
-        raise ArtifactTransactionError(
-            f"Transaction journal file '{state_file}' is corrupt or malformed JSON: {err}"
-        ) from err
-
-    if not isinstance(data, dict):
-        logger.error("Transaction journal root in '%s' is not a JSON object", state_file)
-        raise ArtifactTransactionError(
-            f"Transaction journal root in '{state_file}' is not a JSON object"
-        )
-
-    required_fields = ("txn_id", "stage", "target_dir", "staging_dir", "backup_dir")
-    missing = [f for f in required_fields if f not in data or not isinstance(data[f], str)]
-    if missing:
-        logger.error(
-            "Transaction journal '%s' is missing required string fields: %s", state_file, missing
-        )
-        raise ArtifactTransactionError(
-            f"Transaction journal '{state_file}' is missing required string fields: {missing}"
-        )
-
-    valid_stages = ("STAGING", "BACKUP", "COMMIT", "CLEANUP")
-    if data["stage"] not in valid_stages:
-        logger.error("Transaction journal '%s' has unknown stage: '%s'", state_file, data["stage"])
-        raise ArtifactTransactionError(
-            f"Transaction journal '{state_file}' has unknown stage: '{data['stage']}'"
-        )
-
-    j_target = os.path.abspath(data["target_dir"])
-    if j_target != target_dir:
-        logger.error(
-            "Transaction journal '%s' target_dir mismatch: journal specifies '%s', expected '%s'",
-            state_file,
-            j_target,
-            target_dir,
-        )
-        raise ArtifactTransactionError(
-            f"Transaction journal '{state_file}' target_dir mismatch: expected '{target_dir}', got '{j_target}'"
-        )
-
-    j_staging = os.path.abspath(data["staging_dir"])
-    j_backup = os.path.abspath(data["backup_dir"])
-    txn_id = data["txn_id"]
-
-    expected_staging_name = f"{dir_name}_staging_{txn_id}"
-    expected_backup = os.path.join(parent_dir, f"{dir_name}_bak")
-
-    # Path escape and structure checks
-    if (
-        os.path.dirname(j_staging) != parent_dir
-        or os.path.basename(j_staging) != expected_staging_name
-    ):
-        logger.error(
-            "Transaction journal '%s' staging_dir '%s' is invalid or escapes parent directory",
-            state_file,
-            j_staging,
-        )
-        raise ArtifactTransactionError(
-            f"Transaction journal '{state_file}' staging_dir '{j_staging}' is invalid or escapes parent directory"
-        )
-
-    if os.path.dirname(j_backup) != parent_dir or j_backup != expected_backup:
-        logger.error(
-            "Transaction journal '%s' backup_dir '%s' is invalid or escapes parent directory",
-            state_file,
-            j_backup,
-        )
-        raise ArtifactTransactionError(
-            f"Transaction journal '{state_file}' backup_dir '{j_backup}' is invalid or escapes parent directory"
-        )
-
-    return data
-
-
-def recover_transaction_state(target_dir: str) -> None:
-    """Recover target_dir from interrupted atomic transaction deterministically and idempotently."""
-    target_dir = os.path.abspath(target_dir)
-    parent_dir = os.path.dirname(target_dir)
-    dir_name = os.path.basename(target_dir)
-
-    state_file = os.path.join(parent_dir, f".{dir_name}_txn.json")
-    journal = validate_journal_metadata(state_file, target_dir)
-
-    target_exists = os.path.exists(target_dir)
-
-    # 1. No journal present: conservative filesystem recovery if unambiguous
-    if journal is None:
-        bak_dir = os.path.join(parent_dir, f"{dir_name}_bak")
-        bak_exists = os.path.exists(bak_dir)
-
-        if not target_exists and bak_exists:
-            logger.info(
-                "Restoring target directory '%s' from fallback backup '%s'...", target_dir, bak_dir
-            )
-            try:
-                os.replace(bak_dir, target_dir)
-            except Exception as err:
-                logger.critical("Required cleanup failed restoring target from backup: %s", err)
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed restoring target from backup: {err}"
-                ) from err
-        elif target_exists and bak_exists:
-            # Optional cleanup
-            try:
-                shutil.rmtree(bak_dir)
-            except (OSError, shutil.Error) as err:
-                logger.warning("Optional cleanup of fallback backup '%s' failed: %s", bak_dir, err)
-        return
-
-    # 2. Valid journal present
-    stage = journal["stage"]
-    staging_dir = os.path.abspath(journal["staging_dir"])
-    backup_dir = os.path.abspath(journal["backup_dir"])
-
-    staging_exists = os.path.exists(staging_dir)
-    backup_exists = os.path.exists(backup_dir)
-
-    if stage == "STAGING":
-        if staging_exists:
-            try:
-                shutil.rmtree(staging_dir)
-            except Exception as err:
-                logger.error(
-                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
-                )
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
-                ) from err
-
-    elif stage == "BACKUP":
-        if not target_exists and backup_exists:
-            logger.info(
-                "Restoring target '%s' from backup '%s' (stage=BACKUP)...", target_dir, backup_dir
-            )
-            try:
-                os.replace(backup_dir, target_dir)
-                target_exists = True
-                backup_exists = False
-            except Exception as err:
-                logger.critical("Required cleanup failed restoring backup in stage BACKUP: %s", err)
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed restoring backup in stage BACKUP: {err}"
-                ) from err
-
-        if staging_exists:
-            try:
-                shutil.rmtree(staging_dir)
-            except Exception as err:
-                logger.error(
-                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
-                )
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
-                ) from err
-
-        if target_exists and backup_exists:
-            try:
-                shutil.rmtree(backup_dir)
-                backup_exists = False
-            except (OSError, shutil.Error) as err:
-                logger.warning(
-                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
-                )
-
-    elif stage == "COMMIT":
-        if not target_exists and backup_exists:
-            logger.info("Restoring backup '%s' to '%s' (stage=COMMIT)...", backup_dir, target_dir)
-            try:
-                os.replace(backup_dir, target_dir)
-                target_exists = True
-                backup_exists = False
-            except Exception as err:
-                logger.critical("Required cleanup failed restoring backup in stage COMMIT: %s", err)
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed restoring backup in stage COMMIT: {err}"
-                ) from err
-
-        if staging_exists:
-            try:
-                shutil.rmtree(staging_dir)
-            except Exception as err:
-                logger.error(
-                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
-                )
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
-                ) from err
-
-        if target_exists and backup_exists:
-            try:
-                shutil.rmtree(backup_dir)
-                backup_exists = False
-            except (OSError, shutil.Error) as err:
-                logger.warning(
-                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
-                )
-
-    elif stage == "CLEANUP":
-        if not target_exists:
-            if backup_exists:
-                logger.info(
-                    "Restoring target '%s' from backup '%s' during CLEANUP recovery...",
-                    target_dir,
-                    backup_dir,
-                )
-                try:
-                    os.replace(backup_dir, target_dir)
-                    target_exists = True
-                    backup_exists = False
-                except Exception as err:
-                    logger.critical(
-                        "Required cleanup failed restoring backup in stage CLEANUP: %s", err
-                    )
-                    raise ArtifactTransactionError(
-                        f"Required cleanup failed restoring backup in stage CLEANUP: {err}"
-                    ) from err
-            else:
-                logger.critical(
-                    "CRITICAL: Neither target_dir '%s' nor backup_dir '%s' exists during CLEANUP recovery!",
-                    target_dir,
-                    backup_dir,
-                )
-                raise ArtifactTransactionError(
-                    f"CRITICAL: Neither target_dir '{target_dir}' nor backup_dir '{backup_dir}' exists during CLEANUP recovery!"
-                )
-
-        if staging_exists:
-            try:
-                shutil.rmtree(staging_dir)
-            except Exception as err:
-                logger.error(
-                    "Required cleanup failed removing staging dir '%s': %s", staging_dir, err
-                )
-                raise ArtifactTransactionError(
-                    f"Required cleanup failed removing staging dir '{staging_dir}': {err}"
-                ) from err
-
-        if backup_exists:
-            try:
-                shutil.rmtree(backup_dir)
-                backup_exists = False
-            except (OSError, shutil.Error) as err:
-                logger.warning(
-                    "Optional cleanup failed removing backup dir '%s': %s", backup_dir, err
-                )
-
-    try:
-        os.remove(state_file)
-    except OSError as err:
-        logger.warning("Failed removing transaction state file '%s': %s", state_file, err)
-
-
-class ArtifactTransaction:
-    """Manages explicit artifact publishing lifecycle: STAGING -> BACKUP -> COMMIT -> CLEANUP.
-
-    Ensures target_dir is always in a valid state and recovery is deterministic.
-    """
-
-    def __init__(self, target_dir: str | None = None, txn_id: str | None = None):
-        self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
-        self.parent_dir = os.path.dirname(self.target_dir)
-        self.dir_name = os.path.basename(self.target_dir)
-
-        self.txn_id = txn_id or f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}_{os.getpid()}"
-        self.staging_dir = os.path.join(self.parent_dir, f"{self.dir_name}_staging_{self.txn_id}")
-        self.backup_dir = os.path.join(self.parent_dir, f"{self.dir_name}_bak")
-        self.state_path = os.path.join(self.parent_dir, f".{self.dir_name}_txn.json")
-        self.stage = "INIT"
-
-    def update_state(self, stage: str) -> None:
-        self.stage = stage
-        state_data = {
-            "txn_id": self.txn_id,
-            "stage": stage,
-            "target_dir": self.target_dir,
-            "staging_dir": self.staging_dir,
-            "backup_dir": self.backup_dir,
-            "pid": os.getpid(),
-            "updated_at": datetime.now(UTC).isoformat(),
-        }
-        tmp_state = f"{self.state_path}.tmp"
-        try:
-            with open(tmp_state, "w", encoding="utf-8") as f:
-                json.dump(state_data, f, indent=2)
-            os.replace(tmp_state, self.state_path)
-        except Exception as err:
-            logger.error("Failed writing transaction state metadata: %s", err)
-            raise ArtifactTransactionError(
-                f"Failed writing transaction state metadata: {err}"
-            ) from err
-
-    def clear_state(self) -> None:
-        if os.path.exists(self.state_path):
-            with suppress(OSError):
-                os.remove(self.state_path)
-
-    def recover(self) -> None:
-        """Deterministic, idempotent transaction recovery."""
-        recover_transaction_state(self.target_dir)
-
-    def execute_publish(self, artifacts: dict[str, dict]) -> None:
-        """Execute full atomic publish transaction with explicit lifecycle stages."""
-        self.recover()
-
-        # Step 1: STAGING
-        self.update_state("STAGING")
-        os.makedirs(self.staging_dir, exist_ok=True)
-
-        if os.path.exists(self.target_dir):
-            for item in os.listdir(self.target_dir):
-                s_item = os.path.join(self.target_dir, item)
-                d_item = os.path.join(self.staging_dir, item)
-                if os.path.isdir(s_item):
-                    shutil.copytree(s_item, d_item)
-                else:
-                    shutil.copy2(s_item, d_item)
-
-        for rel_path, data in artifacts.items():
-            out_path = os.path.join(self.staging_dir, rel_path)
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.write("\n")
-
-        # Step 2: BACKUP
-        self.update_state("BACKUP")
-        if os.path.exists(self.backup_dir):
-            shutil.rmtree(self.backup_dir, ignore_errors=True)
-
-        if os.path.exists(self.target_dir):
-            os.replace(self.target_dir, self.backup_dir)
-
-        # Step 3: COMMIT
-        self.update_state("COMMIT")
-        os.replace(self.staging_dir, self.target_dir)
-
-        # Step 4: CLEANUP
-        self.update_state("CLEANUP")
-        if os.path.exists(self.backup_dir):
-            shutil.rmtree(self.backup_dir, ignore_errors=True)
-        if os.path.exists(self.staging_dir):
-            shutil.rmtree(self.staging_dir, ignore_errors=True)
-
-        self.clear_state()
-
-
-def save_json_files(relative_path: str, data: dict):
-    """Save JSON data atomically to generated/ under lock."""
-    with ArtifactLock(GENERATED_DIR):
-        p = os.path.join(GENERATED_DIR, relative_path)
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        tmp_p = f"{p}.tmp"
-        with open(tmp_p, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.replace(tmp_p, p)
-
-
-def recover_interrupted_publish(target_dir: str | None = None) -> None:
-    """Recover target_dir from interrupted atomic publish under single-writer lock."""
-    if target_dir is None:
-        target_dir = GENERATED_DIR
-
-    target_dir = os.path.abspath(target_dir)
-
-    with ArtifactLock(target_dir):
-        recover_transaction_state(target_dir)
-
-
-def publish_artifacts_atomically(artifacts: dict[str, dict], target_dir: str | None = None) -> None:
-    """Publish multiple JSON artifacts atomically using single-writer lock and explicit lifecycle transaction."""
-    if target_dir is None:
-        target_dir = GENERATED_DIR
-
-    target_dir = os.path.abspath(target_dir)
-
-    with ArtifactLock(target_dir):
-        txn = ArtifactTransaction(target_dir)
-        try:
-            txn.execute_publish(artifacts)
-        except Exception as exc:
-            logger.error(
-                "Atomic artifact publishing failed during directory staging/swap: stage=%s artifact=ALL operation=publish category=OUTPUT_VALIDATION_FAILURE reason=%s",
-                txn.stage,
-                exc,
-            )
-            rollback_errors: list[str] = []
-
-            target_restored = os.path.exists(target_dir)
-            if not target_restored and os.path.exists(txn.backup_dir):
-                try:
-                    os.replace(txn.backup_dir, target_dir)
-                    target_restored = True
-                except (OSError, shutil.Error) as r_err:
-                    logger.critical(
-                        "Failed restoring target directory from backup during rollback: %s", r_err
-                    )
-                    rollback_errors.append(
-                        f"Failed restoring target directory from backup: {r_err}"
-                    )
-
-            if os.path.exists(txn.staging_dir):
-                try:
-                    shutil.rmtree(txn.staging_dir, ignore_errors=True)
-                except (OSError, shutil.Error) as r_err:
-                    logger.warning(
-                        "Failed cleaning up staging directory during rollback: %s", r_err
-                    )
-
-            if target_restored:
-                txn.clear_state()
-            else:
-                logger.warning(
-                    "Preserving transaction state file '%s' and backup '%s' for future recovery because rollback failed to restore target",
-                    txn.state_path,
-                    txn.backup_dir,
-                )
-
-            if rollback_errors or not target_restored:
-                err_msg = "; ".join(rollback_errors) if rollback_errors else "Target not restored"
-                logger.critical(
-                    "CRITICAL: Directory-level atomic artifact rollback failed: %s", err_msg
-                )
-                raise RuntimeError(
-                    f"CRITICAL: Directory-level atomic artifact publish rollback failed: {err_msg}"
-                ) from exc
-
-            raise
-
-
-def load_schema():
-    """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
-    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> list[str]:
-    """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
-    issues = []
-
-    if schema:
-        try:
-            jsonschema.validate(instance=payload, schema=schema)
-        except jsonschema.ValidationError as err:
-            path_str = "/".join(str(p) for p in err.path)
-            issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
-        except (jsonschema.SchemaError, TypeError, ValueError) as err:
-            issues.append(f"JSON Schema validation error: {err}")
-
-    def _walk_check(obj, path=""):
-        if obj is None:
-            return
-        loc = path if path else "root"
-        obj_type_mod = getattr(type(obj), "__module__", "")
-        if obj_type_mod.startswith(("numpy", "pandas")):
-            issues.append(f"Non-serializable {type(obj).__name__} scalar/object at {loc}")
-
-        if isinstance(obj, float):
-            if math.isnan(obj):
-                issues.append(f"NaN floating point value at {loc}")
-            elif math.isinf(obj):
-                issues.append(f"Infinity floating point value at {loc}")
-        elif isinstance(obj, str):
-            if obj.lower() in ("nan", "infinity", "-infinity", "inf", "-inf"):
-                issues.append(f"Invalid numeric string representation '{obj}' at {loc}")
-        elif isinstance(obj, dict):
-            for k, v in obj.items():
-                _walk_check(v, f"{path}.{k}" if path else str(k))
-        elif isinstance(obj, (list, tuple)):
-            for idx, item in enumerate(obj):
-                _walk_check(item, f"{path}[{idx}]")
-
-    _walk_check(payload)
-
-    data_as_of = payload.get("data_as_of")
-    source_date = payload.get("source_date")
-    generated_at = payload.get("generated_at")
-
-    if "source_date" in payload and data_as_of != source_date:
-        issues.append(
-            f"Date inconsistency: top-level data_as_of ({data_as_of}) != source_date ({source_date})"
-        )
-
-    if data_as_of:
-        try:
-            _parse_canonical_date(data_as_of)
-        except ValueError, TypeError:
-            issues.append(
-                f"Invalid YYYY-MM-DD date format for top-level data_as_of: '{data_as_of}'"
-            )
-
-    if generated_at is not None and (not isinstance(generated_at, str) or not generated_at):
-        issues.append("generated_at must be a non-empty string")
-
-    universe_info = payload.get("universe_info")
-    if universe_info is not None:
-        if not isinstance(universe_info, dict):
-            issues.append("universe_info must be an object")
-        else:
-            u_size = universe_info.get("universe_size")
-            if u_size is not None and (not isinstance(u_size, int) or u_size < 0):
-                issues.append(f"universe_info.universe_size invalid: {u_size}")
-
-    recs = payload.get("recommendations")
-    if isinstance(recs, list):
-        summary = payload.get("summary")
-        if isinstance(summary, dict):
-            actual_counts = {
-                "total_scanned": len(recs),
-                "buy_count": sum(
-                    1 for r in recs if isinstance(r, dict) and r.get("action") == "BUY"
-                ),
-                "watch_count": sum(
-                    1 for r in recs if isinstance(r, dict) and r.get("action") == "WATCH"
-                ),
-                "hold_count": sum(
-                    1 for r in recs if isinstance(r, dict) and r.get("action") == "HOLD"
-                ),
-                "sell_count": sum(
-                    1 for r in recs if isinstance(r, dict) and r.get("action") == "SELL"
-                ),
-                "avoid_count": sum(
-                    1 for r in recs if isinstance(r, dict) and r.get("action") == "AVOID"
-                ),
-            }
-            for k, expected_val in summary.items():
-                if k in actual_counts and expected_val != actual_counts[k]:
-                    issues.append(
-                        f"Summary mismatch for '{k}': summary specifies {expected_val}, "
-                        f"but actual recommendation count is {actual_counts[k]}"
-                    )
-
-            if universe_info is not None and isinstance(universe_info, dict):
-                u_size = universe_info.get("universe_size")
-                if u_size is not None and u_size != len(recs):
-                    issues.append(
-                        f"Universe info size ({u_size}) does not match recommendations count ({len(recs)})"
-                    )
-
-        for idx, rec in enumerate(recs):
-            if not isinstance(rec, dict):
-                issues.append(f"Recommendation item at index {idx} is not a dictionary")
-                continue
-
-            sym = rec.get("symbol", f"index_{idx}")
-            rec_as_of = rec.get("data_as_of")
-            dq = rec.get("data_quality")
-
-            for req_f in ("symbol", "company_name", "exchange", "sector", "action"):
-                if rec.get(req_f) is None:
-                    issues.append(f"Recommendation [{sym}] required field '{req_f}' cannot be None")
-
-            if data_as_of and rec_as_of and rec_as_of != data_as_of:
-                issues.append(
-                    f"Recommendation [{sym}] data_as_of ({rec_as_of}) does not match top-level data_as_of ({data_as_of})"
-                )
-
-            if dq == "INSUFFICIENT":
-                if rec.get("signal_score") is not None:
-                    issues.append(
-                        f"Recommendation [{sym}] with INSUFFICIENT data quality has non-null signal_score"
-                    )
-                if rec.get("risk_adjusted_score") is not None:
-                    issues.append(
-                        f"Recommendation [{sym}] with INSUFFICIENT data quality has non-null risk_adjusted_score"
-                    )
-                rm = rec.get("risk_metrics")
-                if isinstance(rm, dict) and rm.get("liquidity_score") is not None:
-                    issues.append(
-                        f"Recommendation [{sym}] with INSUFFICIENT data quality has non-null liquidity_score"
-                    )
-
-            for sc_key in ("signal_score", "risk_adjusted_score"):
-                val = rec.get(sc_key)
-                if val is not None and (
-                    not isinstance(val, (int, float))
-                    or isinstance(val, bool)
-                    or not (0.0 <= val <= 100.0)
-                ):
-                    issues.append(
-                        f"Recommendation [{sym}] '{sc_key}' value {val} out of range [0.0, 100.0]"
-                    )
-
-            conf = rec.get("confidence")
-            if conf is not None and (
-                not isinstance(conf, (int, float))
-                or isinstance(conf, bool)
-                or not (0.0 <= conf <= 1.0)
-            ):
-                issues.append(
-                    f"Recommendation [{sym}] 'confidence' value {conf} out of range [0.0, 1.0]"
-                )
-
-            rm = rec.get("risk_metrics")
-            if isinstance(rm, dict):
-                liq = rm.get("liquidity_score")
-                if liq is not None and (
-                    not isinstance(liq, (int, float))
-                    or isinstance(liq, bool)
-                    or not (0.0 <= liq <= 100.0)
-                ):
-                    issues.append(
-                        f"Recommendation [{sym}] 'liquidity_score' value {liq} out of range [0.0, 100.0]"
-                    )
-
-            tp = rec.get("trade_plan")
-            if isinstance(tp, dict):
-                pos = tp.get("position_percent")
-                if pos is not None and (
-                    not isinstance(pos, (int, float))
-                    or isinstance(pos, bool)
-                    or not (0.0 <= pos <= 100.0)
-                ):
-                    issues.append(
-                        f"Recommendation [{sym}] 'position_percent' value {pos} out of range [0.0, 100.0]"
-                    )
-
-    mkt = payload.get("market")
-    if isinstance(mkt, dict):
-        m_conf = mkt.get("confidence")
-        if m_conf is not None and (
-            not isinstance(m_conf, (int, float))
-            or isinstance(m_conf, bool)
-            or not (0.0 <= m_conf <= 1.0)
-        ):
-            issues.append(f"Market 'confidence' value {m_conf} out of range [0.0, 1.0]")
-        m_score = mkt.get("regime_score")
-        if m_score is not None and (
-            not isinstance(m_score, (int, float))
-            or isinstance(m_score, bool)
-            or not (0.0 <= m_score <= 100.0)
-        ):
-            issues.append(f"Market 'regime_score' value {m_score} out of range [0.0, 100.0]")
-        m_metrics = mkt.get("metrics")
-        if isinstance(m_metrics, dict):
-            mb = m_metrics.get("market_breadth_ratio")
-            if mb is not None and (
-                not isinstance(mb, (int, float)) or isinstance(mb, bool) or not (0.0 <= mb <= 1.0)
-            ):
-                issues.append(f"Market breadth ratio {mb} out of range [0.0, 1.0]")
-
-    return issues
-
-
-def validate_final_payload_integrity(
-    payload: dict, schema: dict | None = None, payload_name: str = "payload"
-) -> list[dict]:
-    """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
-    issues = find_payload_integrity_issues(payload, schema)
-    if issues:
-        diagnostics = [
-            {
-                "stage": "OUTPUT_VALIDATION",
-                "category": "OUTPUT_VALIDATION_FAILURE",
-                "payload": payload_name,
-                "status": "FAIL",
-                "reason": iss,
-            }
-            for iss in issues
-        ]
-        err_msg = "\n".join(f"  - [{diag['payload']}] {diag['reason']}" for diag in diagnostics)
-        exc = ValueError(
-            f"Final payload integrity validation failed with {len(issues)} issue(s) at stage OUTPUT_VALIDATION:\n{err_msg}"
-        )
-        exc.diagnostics = diagnostics
-        raise exc
-    return []
-
-
 def canonicalize_report_for_reproducibility(report_payload: dict) -> dict:
     """Return a canonical copy of report payload with runtime metadata excluded/normalized."""
     if not isinstance(report_payload, dict):
         raise TypeError("report_payload must be a dictionary")
+
+    import copy
 
     report_copy = copy.deepcopy(report_payload)
     report_copy.pop("generated_at", None)
@@ -949,6 +121,8 @@ def canonicalize_report_for_reproducibility(report_payload: dict) -> dict:
 
 def load_universe_snapshot(snapshot_path: str) -> list[dict]:
     """Load and validate an explicit historical candidate universe snapshot JSON file."""
+    import json
+
     if not snapshot_path or not isinstance(snapshot_path, str):
         raise TypeError("universe_snapshot path must be a non-empty string")
 
@@ -1034,6 +208,8 @@ def load_historical_ohlcv(
     ohlcv_path_or_dir: str, required_symbols: list[str]
 ) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, pd.DataFrame | None]:
     """Load explicit historical OHLCV data for stock universe and benchmark indices."""
+    import json
+
     if not ohlcv_path_or_dir or not isinstance(ohlcv_path_or_dir, str):
         raise TypeError("historical_ohlcv path must be a non-empty string")
 
@@ -1132,75 +308,6 @@ def load_historical_ohlcv(
     return universe_stock_map, df_vnindex, df_vn30
 
 
-def load_history_index(index_path: str | None = None) -> dict:
-    """Load and validate history index file (history/index.json)."""
-    if index_path is None:
-        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-
-    try:
-        with open(index_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return {"dates": []}
-    except json.JSONDecodeError as err:
-        raise ValueError(f"Failed to load history index '{index_path}': invalid JSON") from err
-    except (PermissionError, OSError) as err:
-        raise OSError(f"Failed to read history index '{index_path}': {err}") from err
-
-    if not isinstance(data, dict):
-        raise TypeError(
-            f"Invalid history index structure in '{index_path}': expected object root, got {type(data).__name__}"
-        )
-
-    if "dates" not in data:
-        raise ValueError(
-            f"Invalid history index structure in '{index_path}': missing required 'dates' field"
-        )
-
-    dates = data["dates"]
-    if not isinstance(dates, list):
-        raise TypeError(
-            f"Invalid history index structure in '{index_path}': 'dates' field must be a list"
-        )
-
-    if not all(isinstance(d, str) for d in dates):
-        raise TypeError(
-            f"Invalid history index structure in '{index_path}': all items in 'dates' must be strings"
-        )
-
-    return data
-
-
-def update_history_index(data_date: str | None, index_path: str | None = None):
-    """Maintain history/index.json with list of available historical dates."""
-    if not data_date:
-        return
-
-    if index_path is None:
-        index_path = os.path.join(GENERATED_DIR, "history", "index.json")
-
-    index_data = load_history_index(index_path)
-    history_dates = index_data.get("dates", [])
-
-    if data_date not in history_dates:
-        history_dates = list(history_dates)
-        history_dates.append(data_date)
-        history_dates.sort(reverse=True)
-
-    index_payload = {
-        "last_updated": datetime.now(UTC).isoformat(),
-        "total_reports": len(history_dates),
-        "dates": history_dates,
-    }
-
-    relative_path = (
-        os.path.relpath(index_path, GENERATED_DIR)
-        if index_path.startswith(GENERATED_DIR)
-        else os.path.join("history", "index.json")
-    )
-    save_json_files(relative_path, index_payload)
-
-
 def main():
     recover_interrupted_publish(GENERATED_DIR)
     parser = argparse.ArgumentParser(description="VN Invest Report Generator v2")
@@ -1282,6 +389,7 @@ def main():
             pipeline_res = run_pipeline(
                 update_data=args.update,
                 tracker=tracker,
+                generated_dir=GENERATED_DIR,
                 publish_artifacts=True,
             )
         except (ProviderRateLimitError, RuntimeError) as exc:

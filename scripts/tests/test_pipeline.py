@@ -1,4 +1,4 @@
-"""Unit tests for ProductionPipeline and pipeline stage execution order."""
+"""Unit tests for ProductionPipeline, PipelineContext, and pipeline stage execution order."""
 
 import tempfile
 import unittest
@@ -23,6 +23,7 @@ from scripts.pipeline import (
     generate_historical_report,
     run_pipeline,
 )
+from scripts.pipeline.tracker import PerformanceTracker
 
 
 class MockStage(PipelineStage):
@@ -38,6 +39,184 @@ class MockStage(PipelineStage):
 
     def execute(self, context: PipelineContext) -> None:
         self.execution_log.append(self._name)
+
+
+class TestPipelineContextContractAndLifecycle(unittest.TestCase):
+    """Verify PipelineContext contract, typing, lifecycle semantics, and state management helpers."""
+
+    def test_pipeline_context_defaults_and_construction(self):
+        """Verify default PipelineContext initialization, decoupled tracker, and attribute defaults."""
+        ctx = PipelineContext()
+
+        self.assertFalse(ctx.update_data)
+        self.assertFalse(ctx.publish_artifacts)
+        self.assertTrue(ctx.use_cache)
+        self.assertEqual(ctx.throttle, 0.0)
+        self.assertEqual(ctx.generated_dir, "")
+        self.assertIsNone(ctx.reference_date)
+        self.assertIsNotNone(ctx.generated_at)
+
+        # Context does NOT instantiate PerformanceTracker directly
+        self.assertIsNone(ctx.tracker)
+        self.assertEqual(len(ctx.expected_symbols), 0)
+        self.assertEqual(len(ctx.processed_symbols), 0)
+        self.assertEqual(len(ctx.exclusions_map), 0)
+
+        # Update mode defaults use_cache to False
+        ctx_update = PipelineContext(update_data=True)
+        self.assertFalse(ctx_update.use_cache)
+
+    def test_pipeline_runner_initializes_context_tracker(self):
+        """Verify ProductionPipeline manages PerformanceTracker lifecycle when context.tracker is None."""
+        ctx = PipelineContext()
+        self.assertIsNone(ctx.tracker)
+
+        pipeline = ProductionPipeline(stages=[MockStage("noop", [])])
+        pipeline.execute(ctx)
+
+        self.assertIsInstance(ctx.tracker, PerformanceTracker)
+
+    def test_pipeline_context_lifecycle_semantics(self):
+        """Verify reference_date, generated_at, data_as_of, and use_cache lifecycle semantics."""
+        # reference_date sets generated_at when generated_at is omitted
+        ctx = PipelineContext(reference_date="2026-09-01")
+        self.assertEqual(ctx.reference_date, "2026-09-01")
+        self.assertEqual(ctx.generated_at, "2026-09-01")
+
+        # Explicit generated_at is preserved
+        ctx_explicit = PipelineContext(
+            reference_date="2026-09-01", generated_at="2026-09-01T12:00:00Z"
+        )
+        self.assertEqual(ctx_explicit.generated_at, "2026-09-01T12:00:00Z")
+
+        # Explicit use_cache is preserved regardless of update_data
+        ctx_cache = PipelineContext(update_data=True, use_cache=True)
+        self.assertTrue(ctx_cache.use_cache)
+
+        # Tracker passed explicitly is preserved
+        custom_tracker = PerformanceTracker()
+        ctx_tracker = PipelineContext(tracker=custom_tracker)
+        self.assertIs(ctx_tracker.tracker, custom_tracker)
+
+    def test_pipeline_context_add_exclusion_helper(self):
+        """Verify add_exclusion helper updates status sets and exclusions_map accurately."""
+        ctx = PipelineContext()
+
+        ctx.add_exclusion(
+            symbol="AAA",
+            stage="FETCH",
+            category="RATE_LIMIT",
+            status="FAILED",
+            reason="Cooldown",
+            latest_date="2026-08-30",
+            expected_date="2026-09-01",
+        )
+        self.assertIn("AAA", ctx.failed_symbols)
+        self.assertIn("AAA", ctx.exclusions_map)
+        self.assertEqual(ctx.exclusions_map["AAA"]["category"], "RATE_LIMIT")
+
+        ctx.add_exclusion(
+            symbol="BBB",
+            stage="FETCH",
+            category="INVALID_SYMBOL",
+            status="INVALID",
+            reason="Unrecognized symbol",
+        )
+        self.assertIn("BBB", ctx.invalid_symbols)
+
+        ctx.add_exclusion(
+            symbol="CCC",
+            stage="FETCH",
+            category="INSUFFICIENT_HISTORICAL_DATA",
+            status="INSUFFICIENT",
+            reason="Short history",
+        )
+        self.assertIn("CCC", ctx.insufficient_history_symbols)
+
+        ctx.add_exclusion(
+            symbol="DDD",
+            stage="UNIVERSE_DISCOVERY",
+            category="UNIVERSE_INCOMPLETE",
+            status="MISSING",
+            reason="Not found",
+        )
+        self.assertIn("DDD", ctx.missing_symbols)
+
+    def test_pipeline_context_update_universe_audit_helper(self):
+        """Verify update_universe_audit constructs valid universe_audit payload."""
+        ctx = PipelineContext(update_data=False)
+        ctx.expected_symbols = {"VNINDEX", "VN30", "AAA", "BBB"}
+        ctx.processed_symbols = {"VNINDEX", "VN30", "AAA"}
+        ctx.add_exclusion(
+            symbol="BBB",
+            stage="STOCK_FETCH",
+            category="INSUFFICIENT_HISTORICAL_DATA",
+            status="INSUFFICIENT",
+            reason="Insufficient sessions",
+        )
+
+        audit = ctx.update_universe_audit()
+        self.assertEqual(audit["status"], "DEGRADED")
+        self.assertEqual(audit["counts"]["processed_count"], 3)
+        self.assertEqual(audit["counts"]["insufficient_history_count"], 1)
+        self.assertIn("BBB", audit["insufficient_history_symbols"])
+
+    def test_pipeline_context_build_payloads_helper(self):
+        """Verify build_payloads constructs recommendations, market, and history payloads."""
+        ctx = PipelineContext(reference_date="2026-09-01")
+        ctx.data_as_of = "2026-09-01"
+        ctx.data_source = "REAL_DATA"
+        ctx.final_market_regime = {"regime": "STRONG_BULL"}
+        ctx.scanned_recs = [
+            {"symbol": "AAA", "action": "BUY"},
+            {"symbol": "BBB", "action": "WATCH"},
+        ]
+
+        recs_payload, market_payload, history_payload = ctx.build_payloads()
+
+        self.assertEqual(recs_payload["data_as_of"], "2026-09-01")
+        self.assertEqual(recs_payload["summary"]["total_scanned"], 2)
+        self.assertEqual(recs_payload["summary"]["buy_count"], 1)
+        self.assertEqual(recs_payload["summary"]["watch_count"], 1)
+
+        self.assertEqual(market_payload["market"]["regime"], "STRONG_BULL")
+        self.assertIs(history_payload, recs_payload)
+
+    def test_pipeline_stage_to_stage_state_propagation(self):
+        """Verify sequential stage execution propagates context state seamlessly."""
+        class StageA(PipelineStage):
+            @property
+            def name(self) -> str:
+                return "stage_a"
+
+            def execute(self, context: PipelineContext) -> None:
+                context.candidate_stocks = [{"symbol": "AAA"}]
+                context.expected_symbols = {"VNINDEX", "VN30", "AAA"}
+
+        class StageB(PipelineStage):
+            @property
+            def name(self) -> str:
+                return "stage_b"
+
+            def execute(self, context: PipelineContext) -> None:
+                context.processed_symbols = set(context.expected_symbols)
+                context.scanned_recs = [{"symbol": "AAA", "action": "BUY"}]
+
+        class StageC(PipelineStage):
+            @property
+            def name(self) -> str:
+                return "stage_c"
+
+            def execute(self, context: PipelineContext) -> None:
+                context.build_payloads()
+
+        pipeline = ProductionPipeline(stages=[StageA(), StageB(), StageC()])
+        context = PipelineContext()
+        pipeline.execute(context)
+
+        self.assertEqual(len(context.candidate_stocks), 1)
+        self.assertEqual(context.summary["buy_count"], 1)
+        self.assertIn("recommendations", context.recommendations_payload)
 
 
 class TestPipelineStageOrderAndConstruction(unittest.TestCase):
@@ -141,8 +320,8 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.generate_report.get_historical_data") as mock_get_hist,
-            patch("scripts.generate_report.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
+            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.candidates = [
@@ -205,7 +384,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
 
     def test_empty_candidate_universe_raises_runtime_error(self):
         """Verify empty candidate universe halts data acquisition with RuntimeError."""
-        with patch("scripts.generate_report.UniverseProvider") as mock_provider_cls:
+        with patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls:
             mock_provider = MagicMock()
             mock_provider.candidates = []
             mock_provider_cls.return_value = mock_provider
@@ -219,8 +398,8 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
         empty_df = pd.DataFrame()
         with (
-            patch("scripts.generate_report.UniverseProvider") as mock_provider_cls,
-            patch("scripts.generate_report.get_historical_data") as mock_get_hist,
+            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
         ):
             mock_provider = MagicMock()
             mock_provider.candidates = [
@@ -243,10 +422,7 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
 
     def test_monitoring_stage_enforces_json_schema_validation(self):
         """Verify MonitoringStage enforces schema validation and raises ValueError on invalid payload."""
-        from scripts.generate_report import PerformanceTracker
-
-        context = PipelineContext()
-        context.tracker = PerformanceTracker()
+        context = PipelineContext(tracker=PerformanceTracker())
         context.recommendations_payload = {
             "schema_version": "2.0",
             "signal_model_version": "2.0.0",

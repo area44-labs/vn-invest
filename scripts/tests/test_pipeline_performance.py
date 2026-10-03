@@ -106,14 +106,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
 
-    @patch("scripts.generate_report.time.perf_counter")
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("time.perf_counter")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_get_hist, mock_perf):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
 
+        import itertools
+
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
-        mock_perf.side_effect = [10.0 + (i * 0.1) for i in range(200)]
+        counter = itertools.count(10.0, 0.01)
+        mock_perf.side_effect = lambda: next(counter)
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
@@ -159,14 +162,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                 self.assertIsInstance(record["elapsed_seconds"], (int, float))
                 self.assertIn(record["status"], ("SUCCESS", "FAILED"))
 
-    @patch("scripts.generate_report.time.perf_counter")
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("time.perf_counter")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_2_stage_ordering_is_deterministic(self, mock_get_hist, mock_perf):
         """2. Stage ordering in performance payload is strictly deterministic."""
 
+        import itertools
+
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
-        mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
+        counter = itertools.count(1.0, 0.05)
+        mock_perf.side_effect = lambda: next(counter)
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
@@ -354,7 +360,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertEqual(duplicates[0]["successful_calls"], 2)
         self.assertEqual(duplicates[0]["failed_calls"], 0)
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_9_instrumentation_does_not_change_pipeline_output(self, mock_get_hist):
         """9. Performance instrumentation produces identical quantitative report structure."""
         valid_df = make_valid_canonical_df(25)
@@ -370,7 +376,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertEqual(market1["market"]["regime"], market2["market"]["regime"])
         self.assertEqual(len(recs1["recommendations"]), len(recs2["recommendations"]))
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_10_instrumentation_does_not_alter_recommendation_results(self, mock_get_hist):
         """10. Recommendations and signals are 100% identical with instrumentation."""
         valid_df = make_valid_canonical_df(25)
@@ -388,7 +394,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             self.assertEqual(r1.get("signal_score"), r2.get("signal_score"))
             self.assertEqual(r1.get("risk_adjusted_score"), r2.get("risk_adjusted_score"))
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_11_instrumentation_does_not_alter_monitoring_status(self, mock_get_hist):
         """11. Production monitoring status is unchanged by performance tracking."""
         from scripts.lib.monitoring import evaluate_production_monitoring
@@ -429,7 +435,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             mon_dict = mon_res.to_dict()
             self.assertIn("performance", mon_dict["metrics"])
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_12_provider_failure_remains_fail_closed(self, mock_get_hist):
         """12. Provider failure remains fail-closed and attaches performance diagnostics."""
         mock_get_hist.side_effect = RuntimeError("Provider offline")
@@ -446,7 +452,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         failed_stages = [s for s in audit["performance"]["stages"] if s["status"] == "FAILED"]
         self.assertGreater(len(failed_stages), 0)
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_13_rate_limit_behavior_remains_unchanged(self, mock_get_hist):
         """13. Rate limit handling remains unchanged and raises ProviderRateLimitError loudly."""
         mock_get_hist.side_effect = ProviderRateLimitError(
@@ -462,7 +468,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertIsNotNone(audit)
         self.assertIn("performance", audit)
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_14_canonical_date_freshness_remains_enforced(self, mock_get_hist):
         """14. Temporal integrity / canonical date freshness rules remain strictly enforced."""
         vnindex_df = make_valid_canonical_df(25, start_date="2026-08-01")
@@ -511,9 +517,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_content, initial_content)
 
-    @patch("scripts.generate_report.evaluate_production_monitoring")
-    @patch("scripts.generate_report.time.perf_counter")
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.evaluate_production_monitoring")
+    @patch("time.perf_counter")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_16_monitoring_elapsed_time_corresponds_to_mocked_execution(
         self, mock_get_hist, mock_perf, mock_eval_mon
     ):
@@ -630,8 +636,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertNotIn("monitoring", stages)
         self.assertIn("payload_validation", stages)
 
-    @patch("scripts.generate_report.time.perf_counter")
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("time.perf_counter")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_get_hist, mock_perf):
         """21. Main pipeline stage ordering matches expected canonical order strictly."""
 
@@ -677,14 +683,24 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         payload = make_valid_performance_payload()
         validate_performance_payload(payload)
 
-    @patch(
-        "scripts.generate_report.PERFORMANCE_SCHEMA_PATH",
-        "/non/existent/path/performance.schema.json",
-    )
     def test_missing_performance_schema_file_fails_closed(self):
         payload = make_valid_performance_payload()
-        with self.assertRaises(FileNotFoundError):
-            validate_performance_payload(payload)
+        with (
+            patch(
+                "scripts.lib.monitoring.DEFAULT_PERFORMANCE_SCHEMA_PATH",
+                "/non/existent/path/performance.schema.json",
+            ),
+            patch(
+                "scripts.pipeline.constants.PERFORMANCE_SCHEMA_PATH",
+                "/non/existent/path/performance.schema.json",
+            ),
+            patch(
+                "scripts.pipeline.validation.PERFORMANCE_SCHEMA_PATH",
+                "/non/existent/path/performance.schema.json",
+            ),
+        ):
+            with self.assertRaises(FileNotFoundError):
+                validate_performance_payload(payload)
 
     def test_missing_required_fields_fail_schema_validation(self):
         import jsonschema

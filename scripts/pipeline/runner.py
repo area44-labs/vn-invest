@@ -5,6 +5,7 @@ import os
 import time
 from typing import Any
 
+from scripts.pipeline.constants import GENERATED_DIR
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.result import PipelineResult
 from scripts.pipeline.stages import (
@@ -19,23 +20,9 @@ from scripts.pipeline.stages import (
     SignalRecommendationGenerationStage,
     UniverseValidationStage,
 )
+from scripts.pipeline.tracker import PerformanceTracker
 
 logger = logging.getLogger(__name__)
-
-
-def _get_helper(name: str, fallback: Any = None) -> Any:
-    """Resolve helper from scripts.generate_report if available, else fallback."""
-    import sys
-
-    mod = sys.modules.get("scripts.generate_report")
-    if mod and hasattr(mod, name):
-        return getattr(mod, name)
-    if fallback is not None:
-        return fallback
-    globals_dict = globals()
-    if name in globals_dict:
-        return globals_dict[name]
-    raise AttributeError(f"Helper '{name}' not found")
 
 
 class ProductionPipeline:
@@ -59,15 +46,11 @@ class ProductionPipeline:
 
     def execute(self, context: PipelineContext) -> PipelineResult:
         """Run all pipeline stages sequentially against context."""
-        from scripts.generate_report import GENERATED_DIR, PerformanceTracker, build_universe_audit
-
-        perf_tracker_cls = _get_helper("PerformanceTracker", fallback=PerformanceTracker)
         if context.tracker is None:
-            context.tracker = perf_tracker_cls()
+            context.tracker = PerformanceTracker()
 
         if not context.generated_dir:
-            gen_dir = _get_helper("GENERATED_DIR", fallback=GENERATED_DIR)
-            context.generated_dir = os.path.abspath(gen_dir)
+            context.generated_dir = os.path.abspath(GENERATED_DIR)
 
         t_pipeline_start = time.perf_counter()
 
@@ -99,20 +82,8 @@ class ProductionPipeline:
                 exc.universe_audit["performance"] = performance_data
             else:
                 if context.expected_symbols:
-                    build_audit_func = _get_helper(
-                        "build_universe_audit", fallback=build_universe_audit
-                    )
-                    audit_partial = build_audit_func(
-                        expected_symbols=context.expected_symbols,
-                        processed_symbols=context.processed_symbols,
-                        invalid_symbols=context.invalid_symbols,
-                        insufficient_history_symbols=context.insufficient_history_symbols,
-                        failed_symbols=context.failed_symbols,
-                        missing_symbols=context.missing_symbols,
-                        exclusions_map=context.exclusions_map,
-                        update_data=context.update_data,
-                        performance_data=performance_data,
-                    )
+                    context.performance_data = performance_data
+                    audit_partial = context.update_universe_audit()
                     exc.universe_audit = audit_partial
                 else:
                     exc.universe_audit = {"performance": performance_data}
@@ -126,10 +97,8 @@ def run_pipeline(
     publish_artifacts: bool = False,
 ) -> PipelineResult:
     """Execute standard production pipeline."""
-    from scripts.generate_report import GENERATED_DIR
-
     if generated_dir is None:
-        generated_dir = _get_helper("GENERATED_DIR", fallback=GENERATED_DIR)
+        generated_dir = GENERATED_DIR
 
     context = PipelineContext(
         update_data=update_data,
@@ -162,10 +131,8 @@ def generate_historical_report(
     if not isinstance(universe_stock_map, dict):
         raise TypeError("universe_stock_map must be a dictionary mapping symbols to DataFrames")
 
-    from scripts.generate_report import GENERATED_DIR
-
     if generated_dir is None:
-        generated_dir = _get_helper("GENERATED_DIR", fallback=GENERATED_DIR)
+        generated_dir = GENERATED_DIR
 
     combined_stock_map = dict(universe_stock_map)
     combined_stock_map["VNINDEX"] = df_vnindex

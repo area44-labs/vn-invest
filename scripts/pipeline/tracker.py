@@ -16,21 +16,11 @@ from scripts.lib.monitoring import (
 )
 
 
-def _perf_counter() -> float:
-    """Get perf_counter, respecting mocks on scripts.generate_report.time.perf_counter if active."""
-    import sys
-
-    mod = sys.modules.get("scripts.generate_report")
-    if mod and hasattr(mod, "time") and hasattr(mod.time, "perf_counter"):
-        return mod.time.perf_counter()
-    return time.perf_counter()
-
-
 class PerformanceTracker:
     """Deterministic structured performance timer and diagnostics collector."""
 
     def __init__(self):
-        self.t_pipeline_start = _perf_counter()
+        self.t_pipeline_start = time.perf_counter()
         self.stages: list[dict[str, Any]] = []
         self.symbol_requests: dict[str, int] = {}
 
@@ -52,7 +42,7 @@ class PerformanceTracker:
 
     @contextmanager
     def measure_stage(self, stage: str):
-        t0 = _perf_counter()
+        t0 = time.perf_counter()
         status = "SUCCESS"
         try:
             yield
@@ -60,7 +50,7 @@ class PerformanceTracker:
             status = "FAILED"
             raise
         finally:
-            elapsed = _perf_counter() - t0
+            elapsed = time.perf_counter() - t0
             self.record_stage(stage, elapsed, status)
 
     def get_performance_payload(

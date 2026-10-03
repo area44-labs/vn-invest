@@ -11,7 +11,6 @@ from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
 from scripts.lib.vietnam_market import UniverseProvider
 from scripts.pipeline.audit import build_universe_audit
-from scripts.pipeline.tracker import PerformanceTracker
 
 
 @dataclass
@@ -86,8 +85,8 @@ class PipelineContext:
     temporal_res: dict[str, Any] = field(default_factory=dict)
     universe_audit: dict[str, Any] = field(default_factory=dict)
 
-    # 6. Performance tracking
-    tracker: PerformanceTracker = field(default_factory=PerformanceTracker)
+    # 6. Performance tracking (owned by pipeline/runner or test harness)
+    tracker: Any = None
     pipeline_elapsed: float = 0.0
     performance_data: dict[str, Any] = field(default_factory=dict)
 
@@ -107,9 +106,6 @@ class PipelineContext:
                 self.generated_at = self.reference_date
             else:
                 self.generated_at = datetime.now(UTC).isoformat()
-
-        if self.tracker is None:
-            self.tracker = PerformanceTracker()
 
     def add_exclusion(
         self,
