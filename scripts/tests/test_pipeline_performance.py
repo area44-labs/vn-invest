@@ -106,7 +106,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
 
-    @patch("time.perf_counter")
+    @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.pipeline.stages.get_historical_data")
     def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_get_hist, mock_perf):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
@@ -162,7 +162,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                 self.assertIsInstance(record["elapsed_seconds"], (int, float))
                 self.assertIn(record["status"], ("SUCCESS", "FAILED"))
 
-    @patch("time.perf_counter")
+    @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.pipeline.stages.get_historical_data")
     def test_2_stage_ordering_is_deterministic(self, mock_get_hist, mock_perf):
         """2. Stage ordering in performance payload is strictly deterministic."""
@@ -518,7 +518,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             self.assertEqual(saved_content, initial_content)
 
     @patch("scripts.pipeline.stages.evaluate_production_monitoring")
-    @patch("time.perf_counter")
+    @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.pipeline.stages.get_historical_data")
     def test_16_monitoring_elapsed_time_corresponds_to_mocked_execution(
         self, mock_get_hist, mock_perf, mock_eval_mon
@@ -636,7 +636,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertNotIn("monitoring", stages)
         self.assertIn("payload_validation", stages)
 
-    @patch("time.perf_counter")
+    @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.pipeline.stages.get_historical_data")
     def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_get_hist, mock_perf):
         """21. Main pipeline stage ordering matches expected canonical order strictly."""
