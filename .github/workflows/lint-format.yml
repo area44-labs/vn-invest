@@ -20,7 +20,7 @@ jobs:
         with:
           args: "--version"
 
-      - name: Run Ruff autofix & format
+      - name: Run Ruff
         run: |
           ruff check --fix scripts
           ruff format scripts

@@ -79,4 +79,3 @@ vp build                 # Build kiểm tra SSG Prerender
 Mọi quy tắc vận hành chi tiết, cấu trúc dữ liệu, anti-lookahead invariants, monitoring/drift contracts, và quy trình xử lý lỗi cho AI Agent được quy định tại:
 
 - **[AGENTS.md](AGENTS.md)**: Hướng dẫn kỹ thuật và quy tắc vận hành cho AI Agent.
-- **`docs/architecture/`**: Kiến trúc chi tiết và refactoring roadmap.
