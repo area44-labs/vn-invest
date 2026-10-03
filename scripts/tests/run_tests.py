@@ -8,10 +8,6 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.tests import enforce_network_isolation
-
-enforce_network_isolation()
-
 
 def filter_suite(suite: unittest.TestSuite) -> unittest.TestSuite:
     """Filter out frontend SSG HTML tests when build artifacts (dist/client) are absent."""
@@ -30,6 +26,10 @@ def filter_suite(suite: unittest.TestSuite) -> unittest.TestSuite:
 
 
 if __name__ == "__main__":
+    from scripts.tests import enforce_network_isolation
+
+    enforce_network_isolation()
+
     loader = unittest.TestLoader()
     raw_suite = loader.discover(
         start_dir=os.path.dirname(os.path.abspath(__file__)), pattern="test_*.py"
