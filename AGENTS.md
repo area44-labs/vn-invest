@@ -4,61 +4,71 @@ Tài liệu này quy định các nguyên tắc, quy trình và chiến lược 
 
 ---
 
-## 1. Nguyên Tắc Cốt Lõi & Kiến Trúc Hệ Thống
+## 1. Định Hướng Repository & Định Hướng Codebase
 
-- **Phân Tách Hoàn Toàn (Separation of Concerns)**:
-  - **Python Backend (`scripts/`)**: Đảm nhiệm toàn bộ tính toán định lượng (chỉ báo kỹ thuật, điểm tín hiệu Signal Score, định giá rủi ro T+2.5, nhận diện thị trường Market Regime, backtest portfolio, monitoring & drift).
-  - **React Frontend (`src/`)**: Chỉ hiển thị dữ liệu tĩnh SSG, tuyệt đối không tính toán chỉ số tài chính ở frontend.
-- **Data Contract Strictness**: Mọi dữ liệu xuất ra `generated/` phải tuân thủ nghiêm ngặt JSON Schema tại `schemas/recommendations.schema.json` và `schemas/performance.schema.json`.
-- **An Toàn Temporal Isolation (Anti-Lookahead)**: Tất cả tính toán lịch sử/backtest tại ngày $T$ chỉ được truy cập dữ liệu $\le T$. Tuyệt đối không để lộ dữ liệu tương lai ($> T$).
-- **Fail-Closed & Safe Fallbacks**: Khi dữ liệu bị thiếu, hỏng hoặc không đủ lịch sử, hệ thống phải báo lỗi rõ ràng hoặc trả về trạng thái không khả thi (`None` / `INSUFFICIENT`), không tự ý sửa dữ liệu hoặc điền 0 vào dữ liệu thiếu.
-
----
-
-## 2. Chiến Lược Làm Việc Nhanh & Thông Minh (Fast & Smart Execution)
-
-### A. Luôn dùng `--frozen` với `uv run` (Quan trọng)
-
-Để tránh mất thời gian tìm kiếm dependency từ internet hoặc gặp lỗi mạng/timeout:
-
-```bash
-# ĐÚNG: Chạy cực nhanh bằng lockfile đã ghim
-uv run --frozen python -m unittest scripts/tests/test_domain.py
-uv run --frozen ruff check scripts
-
-# SAI: Không dùng --frozen có thể gây nghẽn resolution
-uv run python ...
-```
-
-### B. Quy Trình Kiểm Thử Mục Tiêu (Targeted Testing Strategy)
-
-Khi sửa đổi một module, hãy chạy unit test của module đó trước để nhận feedback tức thì (chỉ mất vài mili-giây):
-
-- **Sửa Domain / Data Models**: `uv run --frozen python -m unittest scripts/tests/test_domain.py`
-- **Sửa Recommendation / Signals**: `uv run --frozen python -m unittest scripts/tests/test_recommendation.py`
-- **Sửa Pipeline Execution / Stages**: `uv run --frozen python -m unittest scripts/tests/test_pipeline.py`
-- **Sửa Backtest / Execution Costs**: `uv run --frozen python -m unittest scripts/tests/test_portfolio_backtest.py`
-- **Sửa Risk & T+2.5 Metrics**: `uv run --frozen python -m unittest scripts/tests/test_risk.py`
-- **Sửa Drift / Monitoring**: `uv run --frozen python -m unittest scripts/tests/test_monitoring.py` `scripts/tests/test_drift_monitoring.py`
+- **Data Provider & Validation**: `scripts/data_provider.py` & `scripts/lib/vietnam_market.py`
+  - Kết nối Vnstock API, kiểm định dữ liệu OHLCV (canonical validation) và xử lý rate limit/cooldown.
+- **Domain Contracts**: `scripts/domain/` (`ohlcv.py`, `recommendation.py`, `trade_plan.py`, `risk_assessment.py`, `universe.py`, `pipeline_result.py`)
+  - Định nghĩa các frozen dataclass bất biến cho pipeline.
+- **Pipeline Execution Path**: `scripts/pipeline/` (`runner.py`, `stages.py`, `context.py`, `validation.py`, `publishing.py`)
+  - Luồng thực thi qua 9 giai đoạn: `DataAcquisitionStage` -> `DataValidationStage` -> `UniverseValidationStage` -> `MarketAnalysisStage` -> `SignalRecommendationGenerationStage` -> `RiskTradePlanStage` -> `PerformanceStage` -> `MonitoringStage` -> `ArtifactPublishingStage`.
+- **Quantitative Engine Core**: `scripts/lib/`
+  - `recommendation.py`: Công thức Signal Score & Khuyến nghị.
+  - `risk.py`: Mô hình rủi ro T+2.5 (VaR, ES, Max Drawdown).
+  - `regime.py`: Nhận diện trạng thái thị trường VNINDEX.
+  - `backtest.py` & `portfolio_backtest.py`: Khung kiểm thử lịch sử & danh mục đầu tư.
+  - `monitoring.py`: Giám sát vận hành pipeline & kiểm tra data/model drift.
+  - `config.py`: Lưu trữ tham số định lượng cố định.
+- **Generated Artifacts**: `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/index.json`)
+- **React SSG Frontend**: `src/` (TanStack Start + Vite+)
 
 ---
 
-## 3. Quy Trình Pre-Commit & Verification
+## 2. Chiến Lược Làm Việc Nhanh & Thông Minh (Fast Agent Workflow)
 
-Trước khi hoàn tất công việc, Agent **bắt buộc** thực hiện các bước kiểm tra theo thứ tự:
+Để tránh lãng phí thời gian chạy lại toàn bộ pipeline hoặc bị ngắt kết nối/timeout do network test:
+
+1. **Xác định lớp bị ảnh hưởng**: Thu hẹp phạm vi thay đổi (Domain, Quantitative Engine, Pipeline, Monitoring, hay Frontend).
+2. **Đọc mã nguồn & bài test liên quan**: Hiểu rõ contract, schema và invariant hiện có.
+3. **Luôn dùng `--frozen` với `uv run`**:
+   ```bash
+   uv sync --frozen
+   uv run --frozen python -m unittest scripts/tests/test_domain.py
+   ```
+4. **Quy Trình Kiểm Thử Mục Tiêu (Targeted Testing First)**:
+   - **Sửa Domain / Models**: `uv run --frozen python -m unittest scripts/tests/test_domain.py`
+   - **Sửa Recommendation / Signals**: `uv run --frozen python -m unittest scripts/tests/test_recommendation.py`
+   - **Sửa Pipeline Execution / Stages**: `uv run --frozen python -m unittest scripts/tests/test_pipeline.py`
+   - **Sửa Backtest / Execution Costs**: `uv run --frozen python -m unittest scripts/tests/test_portfolio_backtest.py`
+   - **Sửa Risk & T+2.5 Metrics**: `uv run --frozen python -m unittest scripts/tests/test_risk.py`
+   - **Sửa Drift / Monitoring**: `uv run --frozen python -m unittest scripts/tests/test_monitoring.py` `scripts/tests/test_drift_monitoring.py`
+5. **Chạy Lệnh Test Suite Chuẩn Của CI**:
+   Sau khi hoàn tất thay đổi nhỏ, chạy bộ test suite chuẩn tương đương CI:
+   ```bash
+   uv run --frozen python scripts/tests/run_tests.py
+   ```
+   _Lưu ý:_ `scripts/tests/run_tests.py` chứa logic tự động bỏ qua bài test SSG HTML (`TestSSGStaticHTML`) khi chưa build frontend `dist/client/index.html`, tránh gây lỗi false-positive.
+
+---
+
+## 3. Lệnh Chuẩn Duy Nhất & Quy Trình Verification
 
 ### A. Kiểm Tra Backend (Python 3.14)
 
-1. **Linting & Formatting**:
+1. **Đồng bộ Dependency**:
+   ```bash
+   uv sync --frozen
+   ```
+2. **Linting & Formatting**:
    ```bash
    uv run --frozen ruff check scripts
    uv run --frozen ruff format --check scripts
    ```
-2. **Chạy Bộ Test Suite Toàn Diện**:
+3. **Chạy Bộ Test Suite Toàn Diện (CI Entry Point)**:
    ```bash
-   uv run --frozen python -m unittest discover -s scripts/tests
+   uv run --frozen python scripts/tests/run_tests.py
    ```
-3. **Chạy Thử Pipeline Sinh Báo Cáo Tĩnh**:
+4. **Chạy Thử Pipeline Sinh Báo Cáo Tĩnh**:
    ```bash
    uv run --frozen python scripts/generate_report.py
    ```
@@ -67,39 +77,35 @@ Trước khi hoàn tất công việc, Agent **bắt buộc** thực hiện các
 
 1. **Kiểm tra Linting & Formatting**:
    ```bash
-   vp check # Hoặc pnpm check
+   pnpm check # Hoặc vp check
    ```
 2. **Build Kiểm Tra SSG Prerender**:
    ```bash
-   vp build # Hoặc pnpm build
+   pnpm build # Hoặc vp build
    ```
 
 ---
 
-## 4. Bản Đồ Codebase (Quick Navigation Map)
+## 4. Ràng Buộc Vận Hành & Quy Tắc Pipeline
 
-- **Domain Contracts**: `scripts/domain/` (`ohlcv.py`, `recommendation.py`, `trade_plan.py`, `risk_assessment.py`, `universe.py`, `pipeline_result.py`) - Cấu trúc dữ liệu frozen bất biến.
-- **Pipeline Architecture**: `scripts/pipeline/` (`runner.py`, `stages.py`, `context.py`, `validation.py`, `publishing.py`) - Chứa 9 giai đoạn thực thi tuần hoàn của pipeline.
-- **Quantitative Engine Core**: `scripts/lib/`
-  - `recommendation.py`: Công thức tính Signal Score & Khuyến nghị.
-  - `risk.py`: Mô hình rủi ro T+2.5, VaR, ES, Max Drawdown.
-  - `regime.py`: Nhận diện trạng thái thị trường VNINDEX.
-  - `backtest.py` & `portfolio_backtest.py`: Khung kiểm thử lịch sử & danh mục đầu tư.
-  - `monitoring.py`: Giám sát vận hành pipeline & kiểm tra data/model drift.
-  - `config.py`: Lưu trữ toàn bộ tham số định lượng cố định.
-- **Data Provider**: `scripts/data_provider.py` & `scripts/lib/vietnam_market.py` - Kết nối Vnstock & kiểm định dữ liệu OHLCV.
+- **Giới Hạn Tần Suất Dữ Liệu (Vnstock Rate Limits)**: Vnstock có rate limit. Lỗi rate limit không được coi là lỗi tạm thời vô hại. Hệ thống phải tôn trọng cooldown/retry delay và không được tự ý bỏ throttle delay (`DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s`).
+- **An Toàn Cập Nhật Dữ Liệu (Update Pipeline Safety)**: `--update` phải hoàn tất thu thập đủ dữ liệu bắt buộc trước khi sinh và xuất bản báo cáo. Khi gặp lỗi, hệ thống phải fail-closed và giữ nguyên các artifact hợp lệ đã có trên đĩa.
+- **Độ Tươi Dữ Liệu & Anti-Lookahead**: `data_as_of` tính theo ngày giao dịch gần nhất của chỉ số VNINDEX. Mọi tính toán định lượng hoặc backtest tại mốc $T$ tuyệt đối không truy cập dữ liệu $> T$.
+- **Hợp Đồng Giám Sát (Monitoring & Drift Contracts)**: Chỉ các báo cáo lịch sử đạt tỷ lệ bao phủ (`processed_ratio >= 0.80`) mới được đưa vào baseline so sánh drift. Khi không đủ baseline qualified, hệ thống gắn trạng thái `INSUFFICIENT` và phát cảnh báo (`WARNING`), phân biệt rõ ràng giữa thiếu dữ liệu và data/model drift thực sự.
 
 ---
 
-## 5. Chính Sách Phụ Thuộc (Dependency Policy)
+## 5. Quy Tắc Quyết Định Của Agent (Agent Decision Rules)
 
-- Python runtime: **Python >= 3.14**, quản lý gói bằng `uv` với file khóa `uv.lock`.
-- Backend dependencies chính: `pandas==3.0.6`, `numpy==2.5.3`, `vnstock==4.0.2`.
-- Frontend toolchain: `vite-plus` (`vp`), `pnpm` (pnpm@12.8.1).
+- **Đơn Giản Tối Đa**: Ưu tiên giải pháp tối giản nhất thỏa mãn contract hiện có. Không tái cấu trúc kiến trúc đang hoạt động khi chỉ cần sửa đổi mục tiêu.
+- **Không Sửa Dữ Liệu Tự Động**: Không tự ý điền 0 hoặc chế tạo dữ liệu giả khi dữ liệu thiếu/hỏng.
+- **Không Nới Lỏng Schema**: Tuyệt đối không nới lỏng JSON Schema validation để làm bài test pass.
+- **Không Sửa Tay Artifacts**: Không chỉnh sửa trực tiếp các file trong `generated/` trừ khi nhiệm vụ yêu cầu cụ thể.
+- **Nguồn Sự Thật Dependency**: `pyproject.toml` và `uv.lock` là nguồn sự thật duy nhất cho dependency backend. Không sử dụng các hướng dẫn `pip install` cũ không tương thích với `uv`.
 
 ---
 
-<!-- vnai-bootstrap | auto-generated -->
+<!-- vnai-bootstrap | auto-generated (Reference only) -->
 
 # Vnstock Vibe Onboarding
 
