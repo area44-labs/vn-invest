@@ -4,33 +4,76 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+import pandas as pd
+
+from scripts.domain import Recommendation
+from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
+from scripts.lib.monitoring import PipelineMonitoringResult
+from scripts.lib.vietnam_market import UniverseProvider
+from scripts.pipeline.audit import build_universe_audit
+
 
 @dataclass
 class PipelineContext:
     """Holds runtime configuration, state, datasets, and execution outputs across pipeline stages."""
 
+    # 1. Configuration
     update_data: bool = False
     publish_artifacts: bool = False
-    tracker: Any = None
     generated_dir: str = ""
-    reference_date: str | None = None
-
-    # Historical execution parameters
-    is_historical: bool = False
-    historical_data_as_of: str | None = None
-    universe_stock_map: dict[str, Any] | None = None
-    candidate_metadata: list[dict[str, Any]] | None = None
-
-    # Calculated & runtime attributes
-    generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    use_cache: bool = True
+    use_cache: bool | None = None
     throttle: float = 0.0
 
-    provider: Any = None
+    # Execution timestamps & reference date
+    reference_date: str | None = None
+    generated_at: str | None = None
+
+    # 2. Historical execution parameters
+    is_historical: bool = False
+    historical_data_as_of: str | None = None
+    universe_stock_map: dict[str, pd.DataFrame | None] | None = None
+    candidate_metadata: list[dict[str, Any]] | None = None
+
+    # 3. Data acquisition state & providers
+    provider: UniverseProvider | None = None
     raw_candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
     candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
     universe_info: dict[str, Any] = field(default_factory=dict)
 
+    # Benchmark raw & clean datasets
+    df_vnindex_raw: pd.DataFrame | None = None
+    df_vnindex_clean: pd.DataFrame | None = None
+    vnindex_val: dict[str, Any] = field(default_factory=dict)
+    vn_source: str | None = None
+
+    df_vn30_raw: pd.DataFrame | None = None
+    df_vn30_clean: pd.DataFrame | None = None
+    vn30_val: dict[str, Any] = field(default_factory=dict)
+    vn30_source: str | None = None
+
+    # Stock datasets map: symbol -> (df_stock, tag, warnings)
+    stock_data_map: dict[str, tuple[pd.DataFrame, str | None, list[str]]] = field(
+        default_factory=dict
+    )
+    stock_dates_map: dict[str, str | None] = field(default_factory=dict)
+
+    # 4. Derived & calculated quantitative attributes
+    data_as_of: str | None = None
+    source_date: str | None = None
+    data_source: str | None = None
+
+    breadth_ratio: float = 0.50
+    final_market_regime: dict[str, Any] | None = None
+
+    scanned_recs: list[Recommendation | Any] = field(default_factory=list)
+    scanned_recs_dicts: list[dict[str, Any]] = field(default_factory=list)
+    summary: dict[str, Any] = field(default_factory=dict)
+
+    recommendations_payload: dict[str, Any] = field(default_factory=dict)
+    market_payload: dict[str, Any] = field(default_factory=dict)
+    history_payload: dict[str, Any] = field(default_factory=dict)
+
+    # 5. Validation & Audit
     expected_symbols: set[str] = field(default_factory=set)
     processed_symbols: set[str] = field(default_factory=set)
     invalid_symbols: set[str] = field(default_factory=set)
@@ -39,49 +82,135 @@ class PipelineContext:
     missing_symbols: set[str] = field(default_factory=set)
     exclusions_map: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    df_vnindex_raw: Any = None
-    df_vnindex_clean: Any = None
-    vnindex_val: dict[str, Any] = field(default_factory=dict)
-    vn_source: Any = None
-
-    data_as_of: str | None = None
-    source_date: str | None = None
-    data_source: str | None = None
-
-    df_vn30_raw: Any = None
-    df_vn30_clean: Any = None
-    vn30_val: dict[str, Any] = field(default_factory=dict)
-    vn30_source: Any = None
-
-    stock_data_map: dict[str, tuple[Any, Any, Any]] = field(default_factory=dict)
-    stock_dates_map: dict[str, str | None] = field(default_factory=dict)
-
     temporal_res: dict[str, Any] = field(default_factory=dict)
     universe_audit: dict[str, Any] = field(default_factory=dict)
 
-    breadth_ratio: float = 0.50
-    final_market_regime: dict[str, Any] | None = None
-
-    scanned_recs: list[Any] = field(default_factory=list)
-    scanned_recs_dicts: list[dict[str, Any]] = field(default_factory=list)
-    summary: dict[str, Any] = field(default_factory=dict)
-
-    recommendations_payload: dict[str, Any] = field(default_factory=dict)
-    market_payload: dict[str, Any] = field(default_factory=dict)
-    history_payload: dict[str, Any] = field(default_factory=dict)
-
+    # 6. Performance tracking (owned by pipeline/runner or test harness)
+    tracker: Any = None
     pipeline_elapsed: float = 0.0
     performance_data: dict[str, Any] = field(default_factory=dict)
 
-    monitoring_result: Any = None
+    # 7. Production monitoring
+    monitoring_result: PipelineMonitoringResult | None = None
     monitoring_dict: dict[str, Any] = field(default_factory=dict)
 
+    # 8. Output artifacts
     artifacts_to_publish: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self):
-        self.use_cache = not self.update_data
-        if self.reference_date:
-            self.generated_at = self.reference_date
+        if self.use_cache is None:
+            self.use_cache = not self.update_data
+
+        if self.generated_at is None:
+            if self.reference_date:
+                self.generated_at = self.reference_date
+            else:
+                self.generated_at = datetime.now(UTC).isoformat()
+
+    def add_exclusion(
+        self,
+        symbol: str,
+        stage: str,
+        category: str,
+        status: str,
+        reason: str,
+        latest_date: str | None = None,
+        expected_date: str | None = None,
+        processed: bool = False,
+    ) -> None:
+        """Record a symbol exclusion diagnostic in exclusions_map and update target status set."""
+        sym_u = symbol.upper()
+        if status == "FAILED":
+            self.failed_symbols.add(sym_u)
+        elif status == "INVALID":
+            self.invalid_symbols.add(sym_u)
+        elif status == "INSUFFICIENT":
+            self.insufficient_history_symbols.add(sym_u)
+        elif status == "MISSING":
+            self.missing_symbols.add(sym_u)
+
+        self.exclusions_map[sym_u] = {
+            "symbol": sym_u,
+            "stage": stage,
+            "category": category,
+            "status": status,
+            "reason": reason,
+            "latest_date": latest_date,
+            "expected_date": expected_date,
+            "processed": processed,
+            "recoverable": is_recoverable_category(category),
+        }
+
+    def update_universe_audit(self) -> dict[str, Any]:
+        """Construct and assign universe_audit dictionary from context sets and exclusions."""
+        audit = build_universe_audit(
+            expected_symbols=self.expected_symbols,
+            processed_symbols=self.processed_symbols,
+            invalid_symbols=self.invalid_symbols,
+            insufficient_history_symbols=self.insufficient_history_symbols,
+            failed_symbols=self.failed_symbols,
+            missing_symbols=self.missing_symbols,
+            exclusions_map=self.exclusions_map,
+            update_data=self.update_data,
+            performance_data=self.performance_data or None,
+        )
+        self.universe_audit = audit
+        return audit
+
+    def build_payloads(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Assemble recommendations, market, and history JSON payloads from context state."""
+        self.scanned_recs_dicts = [
+            r.to_dict() if hasattr(r, "to_dict") else r for r in self.scanned_recs
+        ]
+
+        buy_cnt = sum(1 for r in self.scanned_recs if r["action"] == "BUY")
+        watch_cnt = sum(1 for r in self.scanned_recs if r["action"] == "WATCH")
+        hold_cnt = sum(1 for r in self.scanned_recs if r["action"] == "HOLD")
+        sell_cnt = sum(1 for r in self.scanned_recs if r["action"] == "SELL")
+        avoid_cnt = sum(1 for r in self.scanned_recs if r["action"] == "AVOID")
+
+        self.summary = {
+            "total_scanned": len(self.scanned_recs),
+            "buy_count": buy_cnt,
+            "watch_count": watch_cnt,
+            "hold_count": hold_cnt,
+            "sell_count": sell_cnt,
+            "avoid_count": avoid_cnt,
+        }
+
+        if self.is_historical:
+            u_info = {
+                "universe_type": "HISTORICAL_SNAPSHOT",
+                "universe_size": len(self.candidate_metadata or []),
+            }
+        else:
+            u_info = self.universe_info
+
+        self.recommendations_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": SIGNAL_MODEL_VERSION,
+            "generated_at": self.generated_at,
+            "data_as_of": self.data_as_of,
+            "source_date": self.source_date,
+            "data_source": self.data_source,
+            "universe_info": u_info,
+            "market": self.final_market_regime,
+            "summary": self.summary,
+            "recommendations": self.scanned_recs_dicts,
+        }
+
+        self.market_payload = {
+            "data_as_of": self.data_as_of,
+            "source_date": self.source_date,
+            "generated_at": self.generated_at,
+            "data_source": self.data_source,
+            "universe_info": u_info,
+            "market": self.final_market_regime,
+            "summary": self.summary,
+        }
+
+        self.history_payload = self.recommendations_payload
+        return self.recommendations_payload, self.market_payload, self.history_payload
 
 
 __all__ = ["PipelineContext"]

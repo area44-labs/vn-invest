@@ -52,9 +52,11 @@ DEFAULT_PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance
 
 
 def load_performance_schema(
-    schema_path: str = DEFAULT_PERFORMANCE_SCHEMA_PATH,
+    schema_path: str | None = None,
 ) -> dict:
     """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
+    if schema_path is None:
+        schema_path = DEFAULT_PERFORMANCE_SCHEMA_PATH
     if not os.path.exists(schema_path):
         raise FileNotFoundError(f"Performance schema file not found at '{schema_path}'")
     with open(schema_path, "r", encoding="utf-8") as f:
