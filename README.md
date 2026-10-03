@@ -27,7 +27,7 @@
                      ▼
 ┌─────────────────────────────────────────┐
 │   React Frontend (TanStack Start SSG)   │
-│   Published to GitHub Pages / Vercel    │
+│     Published to GitHub Pages / Vercel  │
 └─────────────────────────────────────────┘
 ```
 
@@ -71,7 +71,7 @@
 ### Yêu Cầu Môi Trường:
 
 - **Python**: `>= 3.14` (Quản lý môi trường và dependency bằng `uv`)
-- **Node.js / Package Manager**: `pnpm` (`pnpm@12.8.1`)
+- **Frontend Toolchain**: `vite-plus` (`vp`)
 
 ### Các Lệnh Chuẩn Duy Nhất (Authoritative Commands):
 
@@ -81,8 +81,8 @@
 # Cài đặt / đồng bộ dependency Python theo lockfile
 uv sync --frozen
 
-# Cài đặt dependency Frontend
-pnpm install
+# Cài đặt dependency Frontend (Vite+)
+vp install
 ```
 
 #### B. Kiểm Thử Hệ Thống (Testing):
@@ -98,12 +98,14 @@ uv run --frozen python -m unittest scripts/tests/test_domain.py
 #### C. Linting & Formatting:
 
 ```bash
-# Kiểm tra & sửa lỗi code Python
+# Kiểm tra & sửa lỗi code Python (Ruff)
+uv run --frozen ruff check --fix scripts
+uv run --frozen ruff format scripts
 uv run --frozen ruff check scripts
 uv run --frozen ruff format --check scripts
 
 # Kiểm tra & sửa lỗi Frontend (Vite+)
-pnpm check
+vp check --fix
 ```
 
 #### D. Chạy Pipeline & Sinh Báo Cáo:
@@ -120,10 +122,10 @@ uv run --frozen python scripts/generate_report.py --update
 
 ```bash
 # Preview môi trường phát triển
-pnpm dev
+vp dev
 
 # Build kiểm tra SSG Prerender
-pnpm build
+vp build
 ```
 
 ---
@@ -132,7 +134,7 @@ pnpm build
 
 - **`Tests` (`.github/workflows/tests.yml`)**: Chạy bộ test suite Python bằng lệnh `uv run --frozen python scripts/tests/run_tests.py` trên Python 3.14 khi có thay đổi trong `scripts/` hoặc `pyproject.toml` / `uv.lock`.
 - **`Daily Data Update` (`.github/workflows/daily-update.yml`)**: Tự động chạy `uv run --frozen python scripts/generate_report.py --update` vào 11:00 UTC (18:00 ICT) từ Thứ 2 đến Thứ 6 để thu thập dữ liệu EOD sau giờ đóng cửa.
-- **`Lint & Format` (`.github/workflows/lint-format.yml`)**: Tự động kiểm tra và format code Python với Ruff.
+- **`Lint & Format` (`.github/workflows/lint-format.yml`)**: Tự động kiểm tra, sửa lỗi safe và verify format/lint code Python (Ruff) và Frontend (Vite+).
 - **`GitHub Pages` (`.github/workflows/pages.yml`)**: Build và deploy trang web tĩnh React SSG lên GitHub Pages.
 
 ---
