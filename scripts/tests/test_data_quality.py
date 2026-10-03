@@ -439,7 +439,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
                 return invalid_df, "EXPLICITLY_INVALID", ["nan_values"]
             return make_valid_df(25), "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -455,7 +455,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
                 return invalid_df, "EXPLICITLY_INVALID", ["negative_volume"]
             return make_valid_df(25), "REAL_DATA", []
 
-        with patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -487,7 +487,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -521,10 +521,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.get_historical_data", side_effect=mock_get_hist),
-                patch("scripts.generate_report.jsonschema.validate", return_value=None),
+                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch("jsonschema.validate", return_value=None),
                 patch(
-                    "scripts.generate_report.evaluate_production_monitoring",
+                    "scripts.pipeline.stages.evaluate_production_monitoring",
                     return_value=mock_mon_res,
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),

@@ -768,7 +768,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
-    @patch("scripts.generate_report.get_historical_data")
+    @patch("scripts.pipeline.stages.get_historical_data")
     def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(
         self, mock_get_hist
     ):
