@@ -58,6 +58,13 @@ class TestDataFlowConsistency(unittest.TestCase):
     """Test suite for pipeline data flow consistency and downstream calculations."""
 
     def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+
         self.tmp_dir = tempfile.mkdtemp()
         self.as_of_date = "2025-01-30"  # 30 days from 2025-01-01
         self.schema = load_schema()
@@ -68,6 +75,7 @@ class TestDataFlowConsistency(unittest.TestCase):
         self.df_fpt = create_synthetic_ohlcv("2025-01-01", 30, base_price=130000.0)
 
     def tearDown(self):
+        patch.stopall()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_insufficient_clean_history_symbol_categorization(self):

@@ -271,8 +271,31 @@ class TestMarketCleanDataBoundary(unittest.TestCase):
         pd.testing.assert_frame_equal(df_vn30_raw, copy_vn30)
 
 
+SMALL_TEST_UNIVERSE = [
+    {"symbol": "ACB", "companyName": "ACB Bank", "sector": "Banking", "exchange": "HOSE"},
+    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
+    {"symbol": "HPG", "companyName": "Hoa Phat", "sector": "Steel", "exchange": "HOSE"},
+]
+
+
 class TestHardenedPerSymbolDataValidation(unittest.TestCase):
     """Deterministic offline test suite for per-symbol OHLCV validation (15 required core scenarios)."""
+
+    def setUp(self):
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
+
+    def tearDown(self):
+        patch.stopall()
 
     def test_1_valid_ohlcv_returns_real_data(self):
         """1. Valid OHLCV DataFrame -> 'REAL_DATA' tag."""
@@ -434,7 +457,8 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_df = make_valid_df(25)
         invalid_df.loc[10, "close"] = None
 
-        def mock_fetch(sym, **kwargs):
+        def mock_fetch(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VNINDEX":
                 return invalid_df
             return make_valid_df(25)
@@ -453,7 +477,8 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_df = make_valid_df(25)
         invalid_df.loc[5, "volume"] = -100
 
-        def mock_fetch(sym, **kwargs):
+        def mock_fetch(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VN30":
                 return invalid_df
             return make_valid_df(25)
@@ -479,7 +504,8 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_stock_df = make_valid_df(25)
         invalid_stock_df.loc[8, "close"] = None
 
-        def mock_fetch(sym, **kwargs):
+        def mock_fetch(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "ACB":
                 return invalid_stock_df
             return valid_df
@@ -517,7 +543,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
         valid_df = make_valid_df(25)
 
-        def mock_fetch(sym, **kwargs):
+        def mock_fetch(symbol=None, **kwargs):
             return valid_df
 
         mock_mon_res = MagicMock()

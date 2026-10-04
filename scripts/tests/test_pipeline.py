@@ -381,7 +381,23 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
             self.assertEqual(market["data_as_of"], "2025-01-20")
 
 
+SINGLE_STOCK_UNIVERSE = [
+    {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}
+]
+
+
 class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
+    def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+
+    def tearDown(self):
+        patch.stopall()
+
     """Verify error handling and failure behavior compatibility."""
 
     def test_empty_candidate_universe_raises_runtime_error(self):

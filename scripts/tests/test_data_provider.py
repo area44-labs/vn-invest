@@ -769,14 +769,33 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 self.assertEqual(ctx3.exception.code, 1)
 
 
+SMALL_TEST_UNIVERSE = [
+    {"symbol": "ACB", "companyName": "ACB Bank", "sector": "Banking", "exchange": "HOSE"},
+    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
+    {"symbol": "HPG", "companyName": "Hoa Phat", "sector": "Steel", "exchange": "HOSE"},
+]
+
+
 class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
     """Focused tests for rate-limit recovery, universe scan continuity, and fail-closed report generation."""
 
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -932,8 +951,20 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -943,7 +974,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
         with patch(
@@ -984,9 +1015,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 ]
                 return iter(filtered)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "MISSING_SYM":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
+                raise RuntimeError("Failed to fetch MISSING_SYM")
             return valid_df
 
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
@@ -1045,9 +1077,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Provider connection error"]
+                raise RuntimeError(f"[{sym}] Provider connection error")
             return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1087,14 +1120,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         invalid_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                # Return empty DataFrame with tag INVALID_SYMBOL (genuinely invalid symbol)
-                return (
-                    pd.DataFrame(),
-                    "INVALID_SYMBOL",
-                    [f"[{sym}] Invalid symbol"],
-                )
+                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
             return valid_df
 
         with patch(
@@ -1160,11 +1189,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_candidate:
-                # Valid symbol but insufficient historical rows (< 20 rows)
-                short_df = make_valid_canonical_df(5)
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+                return make_valid_canonical_df(5)
             return valid_df
 
         with patch(
@@ -1188,7 +1216,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         # Create candidate list with duplicate FPT
         duplicate_candidates = list(candidates) + [candidates[0]]
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
         with (
@@ -1208,9 +1236,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         # Verify that if another symbol fails, duplicate FPT does NOT compensate for the failed symbol
         failed_sym = candidates[1]["symbol"].upper()
 
-        def mock_get_hist_with_failure(sym, **kwargs):
+        def mock_get_hist_with_failure(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_sym:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Provider failed"]
+                raise RuntimeError("Provider failed")
             return valid_df
 
         with (
@@ -1237,10 +1266,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         empty_candidate = candidates[1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == empty_candidate:
-                # Return empty DataFrame with tag PROVIDER_FAILURE (unclassified empty / provider error)
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Empty response from provider"]
+                return pd.DataFrame()
             return valid_df
 
         with patch(
@@ -1262,7 +1291,8 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         unprocessed_candidate = candidates[-1]["symbol"].upper()
 
         # Simulate exception raised for the last candidate so it's not processed successfully
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == unprocessed_candidate:
                 raise RuntimeError(f"Processing error on {sym}")
             return valid_df
@@ -1285,7 +1315,8 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         rate_limit_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == rate_limit_candidate:
                 raise ProviderRateLimitError("Quota exceeded", cooldown_seconds=30, symbol=sym)
             return valid_df
@@ -1309,17 +1340,14 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         failed_candidate = candidates[1]["symbol"].upper()
         insufficient_candidate = candidates[2]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                return pd.DataFrame(), "INVALID_SYMBOL", ["Invalid symbol"]
+                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Timeout error"]
+                raise RuntimeError("Timeout error")
             if sym == insufficient_candidate:
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
+                return make_valid_canonical_df(5)
             return valid_df
 
         with patch(
@@ -1344,9 +1372,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed fetch"]
+                raise RuntimeError("Failed fetch")
             return valid_df
 
         with patch(
@@ -1374,13 +1403,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_candidate:
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
+                return make_valid_canonical_df(5)
             return valid_df
 
         with patch(
@@ -1403,9 +1429,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["API network error"]
+                raise RuntimeError("API network error")
             return valid_df
 
         with patch(
@@ -1428,9 +1455,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
         short_df = make_valid_canonical_df(5)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VNINDEX":
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+                return short_df
             return valid_df
 
         with patch(
@@ -1449,9 +1477,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
         short_df = make_valid_canonical_df(5)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VN30":
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+                return short_df
             return valid_df
 
         with patch(
@@ -1469,13 +1498,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "ACB":
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
+                return make_valid_canonical_df(5)
             return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1512,9 +1538,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VNINDEX":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["VNINDEX connection timeout"]
+                raise RuntimeError("VNINDEX connection timeout")
             return valid_df
 
         with patch(
@@ -1532,9 +1559,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VN30":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["VN30 connection timeout"]
+                raise RuntimeError("VN30 connection timeout")
             return valid_df
 
         with patch(
@@ -1553,8 +1581,20 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -1564,7 +1604,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
         mock_mon_res = MagicMock()
@@ -1621,9 +1661,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "MISSING_SYM":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
+                raise RuntimeError("Failed to fetch MISSING_SYM")
             return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1662,9 +1703,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_symbol = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failed_symbol}] Connection error"]
+                raise RuntimeError(f"[{failed_symbol}] Connection error")
             return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1699,9 +1741,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_symbol = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_symbol:
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
+                return short_df
             return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1733,9 +1776,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
 
         def make_mock_get_hist(bench_target):
-            def mock_get_hist(sym, **kwargs):
+            def mock_get_hist(symbol=None, **kwargs):
+                sym = symbol or kwargs.get("sym")
                 if sym == bench_target:
-                    return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{bench_target}] Fetch failed"]
+                    raise RuntimeError(f"[{bench_target}] Fetch failed")
                 return valid_df
 
             return mock_get_hist
@@ -1774,9 +1818,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         duplicate_candidates = list(candidates) + [candidates[0]]
         failing_symbol = candidates[1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failing_symbol}] Connection error"]
+                raise RuntimeError(f"[{failing_symbol}] Connection error")
             return valid_df
 
         with (
@@ -1804,9 +1849,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failing_symbol = candidates[-1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Fetch failed"]
+                raise RuntimeError("Fetch failed")
             return valid_df
 
         with patch(
@@ -1826,15 +1872,16 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
         candidates = UniverseProvider().candidates
-        # Let first 5 symbols succeed (calculating bullish_count, MA20, etc.), but 6th symbol fails
-        failing_symbol = candidates[5]["symbol"].upper()
+        # Let first 1 symbol succeed (calculating bullish_count, MA20, etc.), but 2nd symbol fails
+        failing_symbol = candidates[1]["symbol"].upper()
 
         processed_count = 0
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             nonlocal processed_count
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed mid-universe"]
+                raise RuntimeError("Failed mid-universe")
             if sym not in ("VNINDEX", "VN30"):
                 processed_count += 1
             return valid_df
@@ -1878,8 +1925,20 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
@@ -2144,7 +2203,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
             def mock_get_hist(symbol, **kwargs):
                 if symbol == "ACB":
-                    return pd.DataFrame(), "PROVIDER_FAILURE", ["ACB fetch failed"]
+                    raise RuntimeError("ACB fetch failed")
                 return make_valid_canonical_df(25)
 
             with (
