@@ -75,6 +75,11 @@ def make_valid_performance_payload():
     }
 
 
+SINGLE_STOCK_UNIVERSE = [
+    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"}
+]
+
+
 def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
     """Construct a valid canonical EOD OHLCV DataFrame."""
     dates = pd.date_range(start=start_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
@@ -100,8 +105,17 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+        self.univ_patcher.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()

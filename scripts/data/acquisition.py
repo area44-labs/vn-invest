@@ -113,11 +113,16 @@ class MarketDataAcquirer:
             except Exception as e:  # noqa: BLE001
                 logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
                 err_msg = str(e)
+                src_tag = "PROVIDER_FAILURE"
+                if "INVALID_SYMBOL" in err_msg:
+                    src_tag = "INVALID_SYMBOL"
+                elif "EXPLICITLY_INVALID" in err_msg:
+                    src_tag = "EXPLICITLY_INVALID"
                 return RawMarketDataPayload(
                     symbol=sym,
                     raw_df=pd.DataFrame(),
                     provider_name=provider_name,
-                    source_tag="PROVIDER_FAILURE",
+                    source_tag=src_tag,
                     warnings=(f"[{sym}] Failed to acquire market data from provider: {e}",),
                     error=err_msg,
                 )
