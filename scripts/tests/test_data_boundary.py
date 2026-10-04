@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from scripts.data.acquisition import (
-    ExplicitlyInvalidDataError,
     InvalidSymbolError,
     RawMarketDataPayload,
     acquire_raw_market_data,
