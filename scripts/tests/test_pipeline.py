@@ -1,5 +1,6 @@
 """Unit tests for ProductionPipeline, PipelineContext, and pipeline stage execution order."""
 
+import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -480,18 +481,64 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
             self.assertIn("monitoring.json", context.artifacts_to_publish)
 
     def test_artifact_publishing_stage_rejects_monitoring_failure(self):
-        """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True."""
+        """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True and logs failed checks."""
+        mock_check = MagicMock()
+        mock_check.check_name = "drift_market_payload_temporal_safety"
+        mock_check.status = "FAIL"
+        mock_check.measured_value = "Missing date"
+        mock_check.expected_condition = "Valid data_as_of"
+        mock_check.message = "Explicit standalone market_payload missing required data_as_of date field"
+
         mock_monitoring_res = MagicMock()
         mock_monitoring_res.overall_status = "FAIL"
+        mock_monitoring_res.checks = [mock_check]
 
         context = PipelineContext(publish_artifacts=True)
         context.monitoring_result = mock_monitoring_res
 
         stage = ArtifactPublishingStage()
-        with self.assertRaises(SystemExit) as cm:
-            stage.execute(context)
+        with self.assertLogs("scripts.pipeline.stages", level="ERROR") as cm_logs:
+            with self.assertRaises(SystemExit) as cm:
+                stage.execute(context)
 
         self.assertEqual(cm.exception.code, 1)
+        logged_text = "\n".join(cm_logs.output)
+        self.assertIn("Production update rejected due to monitoring failure.", logged_text)
+        self.assertIn("Failed monitoring check count: 1", logged_text)
+        self.assertIn("drift_market_payload_temporal_safety", logged_text)
+        self.assertIn("Explicit standalone market_payload missing required data_as_of date field", logged_text)
+
+    def test_atomic_rejection_preserves_disk_artifacts_byte_for_byte(self):
+        """Verify atomic rejection when monitoring fails preserves existing disk artifacts byte-for-byte."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rec_path = os.path.join(tmpdir, "recommendations.json")
+            original_content = '{"original": "data"}'
+            with open(rec_path, "w", encoding="utf-8") as f:
+                f.write(original_content)
+
+            mock_check = MagicMock()
+            mock_check.check_name = "test_check"
+            mock_check.status = "FAIL"
+            mock_check.measured_value = 0
+            mock_check.expected_condition = "1"
+            mock_check.message = "Failed check reason"
+
+            mock_monitoring_res = MagicMock()
+            mock_monitoring_res.overall_status = "FAIL"
+            mock_monitoring_res.checks = [mock_check]
+
+            context = PipelineContext(publish_artifacts=True, generated_dir=tmpdir)
+            context.monitoring_result = mock_monitoring_res
+            context.recommendations_payload = {"new": "payload"}
+
+            stage = ArtifactPublishingStage()
+            with self.assertRaises(SystemExit):
+                stage.execute(context)
+
+            with open(rec_path, "r", encoding="utf-8") as f:
+                current_content = f.read()
+
+            self.assertEqual(current_content, original_content)
 
 
 if __name__ == "__main__":

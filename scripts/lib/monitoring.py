@@ -3270,8 +3270,6 @@ def evaluate_production_monitoring(
 
     if market_payload is None:
         market_payload = recommendations_payload.get("market", {})
-    elif "market" in market_payload and isinstance(market_payload["market"], dict):
-        market_payload = market_payload["market"]
 
     # 2. Schema validation check
     checks.append(check_schema_validation(recommendations_payload, schema_path=s_path))
@@ -3315,6 +3313,15 @@ def evaluate_production_monitoring(
             for s in insuf_list
         ]
 
+        perf_fallback = (
+            recommendations_payload.get("performance")
+            if isinstance(recommendations_payload, dict)
+            and "performance" in recommendations_payload
+            else None
+        )
+        if perf_fallback is None:
+            perf_fallback = create_default_performance_payload()
+
         universe_audit = {
             "expected_symbols": exp_list,
             "processed_symbols": proc_list,
@@ -3331,10 +3338,7 @@ def evaluate_production_monitoring(
                 "missing_count": 0,
             },
             "exclusions": ex_list,
-            "performance": recommendations_payload.get("performance")
-            if isinstance(recommendations_payload, dict)
-            and "performance" in recommendations_payload
-            else None,
+            "performance": perf_fallback,
         }
 
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)

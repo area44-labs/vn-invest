@@ -194,6 +194,42 @@ class TestProductionMonitoring(unittest.TestCase):
             "performance": self.healthy_performance,
         }
 
+    def test_run_37162713439_reproduction_does_not_fail_monitoring(self):
+        """Verify that standard production market_payload structure with data_as_of passes monitoring without false positive FAIL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            market_payload = copy.deepcopy(self.healthy_market)
+            market_payload["data_as_of"] = "2026-09-17"
+
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(market_payload, f)
+
+            baseline_dates = [f"2026-09-{16 - i:02d}" for i in range(5)]
+            index_dates = ["2026-09-17"] + baseline_dates
+            with open(os.path.join(hist_dir, "index.json"), "w") as f:
+                json.dump({"dates": index_dates}, f)
+
+            for d in index_dates:
+                b_payload = copy.deepcopy(self.healthy_payload)
+                b_payload["data_as_of"] = d
+                with open(os.path.join(hist_dir, f"{d}.json"), "w") as f:
+                    json.dump(b_payload, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=market_payload,
+                reference_date=self.reference_date,
+            )
+
+            failed_checks = [c for c in res.checks if c.status == "FAIL"]
+            self.assertEqual(len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}")
+            self.assertIn(res.overall_status, ("PASS", "WARNING"))
+
     def test_healthy_production_data_passes(self):
         """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""
         with tempfile.TemporaryDirectory() as tmpdir:
