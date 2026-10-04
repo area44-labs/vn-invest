@@ -781,11 +781,15 @@ def get_historical_data(
         provider=provider_inst,
     )
 
-    if payload.source_tag in ("PROVIDER_FAILURE", "EXPLICITLY_INVALID") and (payload.raw_df is None or payload.raw_df.empty):
+    if payload.source_tag in ("PROVIDER_FAILURE", "EXPLICITLY_INVALID") and (
+        payload.raw_df is None or payload.raw_df.empty
+    ):
         return (
             pd.DataFrame(),
             payload.source_tag,
-            list(payload.warnings) if payload.warnings else [f"[{sym}] Failed to fetch historical data"],
+            list(payload.warnings)
+            if payload.warnings
+            else [f"[{sym}] Failed to fetch historical data"],
         )
 
     # 2. Normalization boundary
@@ -797,7 +801,11 @@ def get_historical_data(
     # 3. Validation boundary
     validated_data = validate_canonical_market_data(canonical_data)
 
-    df_out = validated_data.to_df() if validated_data.records else (payload.raw_df if payload.raw_df is not None else pd.DataFrame())
+    df_out = (
+        validated_data.to_df()
+        if validated_data.records
+        else (payload.raw_df if payload.raw_df is not None else pd.DataFrame())
+    )
     source_tag = validated_data.source_tag or payload.source_tag
     issues = list(validated_data.data_quality.issues) if validated_data.data_quality else []
 

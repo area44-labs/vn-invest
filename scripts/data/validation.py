@@ -5,7 +5,7 @@ and temporal consistency contracts. Invalid canonical market data fails closed.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import ClassVar
 
 import numpy as np
@@ -102,7 +102,12 @@ class CanonicalMarketValidator:
             close_s = pd.to_numeric(df["close"], errors="coerce")
             vol_s = pd.to_numeric(df["volume"], errors="coerce")
 
-            if (open_s <= 0).any() or (high_s <= 0).any() or (low_s <= 0).any() or (close_s <= 0).any():
+            if (
+                (open_s <= 0).any()
+                or (high_s <= 0).any()
+                or (low_s <= 0).any()
+                or (close_s <= 0).any()
+            ):
                 issues.append("non_positive_prices")
 
             if (vol_s < 0).any():
@@ -127,8 +132,8 @@ class CanonicalMarketValidator:
 
         if reference_date and latest_record_date:
             try:
-                ref_dt = datetime.strptime(reference_date, "%Y-%m-%d")
-                lat_dt = datetime.strptime(latest_record_date, "%Y-%m-%d")
+                ref_dt = datetime.strptime(reference_date, "%Y-%m-%d").replace(tzinfo=UTC)
+                lat_dt = datetime.strptime(latest_record_date, "%Y-%m-%d").replace(tzinfo=UTC)
                 if lat_dt > ref_dt:
                     issues.append(f"future_dated_record: {latest_record_date} > {reference_date}")
                 elif (ref_dt - lat_dt).days > max_staleness_days:
@@ -136,7 +141,11 @@ class CanonicalMarketValidator:
             except ValueError:
                 issues.append("unparseable_reference_date")
 
-        provider_failure_issues = {"empty_dataset", "missing_required_columns", "missing_date_column"}
+        provider_failure_issues = {
+            "empty_dataset",
+            "missing_required_columns",
+            "missing_date_column",
+        }
         corruption_issues = {
             "invalid_date_values",
             "duplicate_dates",
@@ -147,7 +156,9 @@ class CanonicalMarketValidator:
         }
 
         has_provider_failure = any(iss in provider_failure_issues for iss in issues)
-        has_corruption = any(iss in corruption_issues for iss in issues) or any("future_dated" in iss for iss in issues)
+        has_corruption = any(iss in corruption_issues for iss in issues) or any(
+            "future_dated" in iss for iss in issues
+        )
 
         if has_provider_failure or canonical_data.source_tag == "PROVIDER_FAILURE":
             source_tag = "PROVIDER_FAILURE"
@@ -166,7 +177,9 @@ class CanonicalMarketValidator:
         dq = DataQuality(
             status=dq_status,
             issues=tuple(issues),
-            valid_row_count=len(df) if dq_status == "SUFFICIENT" or source_tag == "INSUFFICIENT_HISTORICAL_DATA" else 0,
+            valid_row_count=len(df)
+            if dq_status == "SUFFICIENT" or source_tag == "INSUFFICIENT_HISTORICAL_DATA"
+            else 0,
             latest_date=latest_record_date,
             data_as_of=canonical_data.data_as_of or latest_record_date,
             data_source=source_tag,

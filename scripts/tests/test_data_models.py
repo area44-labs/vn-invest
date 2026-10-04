@@ -13,7 +13,9 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
     """Test CanonicalMarketData model contracts and boundaries."""
 
     def test_basic_instantiation(self):
-        rec = OHLCVData(date="2025-01-02", open=100.0, high=105.0, low=99.0, close=102.0, volume=1000.0)
+        rec = OHLCVData(
+            date="2025-01-02", open=100.0, high=105.0, low=99.0, close=102.0, volume=1000.0
+        )
         cmd = CanonicalMarketData(
             symbol="fpt",
             records=(rec,),
@@ -58,7 +60,9 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
         self.assertEqual(df_out["close"].iloc[-1], 106.0)
 
     def test_to_dict_and_from_dict_roundtrip(self):
-        rec = OHLCVData(date="2025-01-02", open=100.0, high=105.0, low=99.0, close=102.0, volume=1000.0)
+        rec = OHLCVData(
+            date="2025-01-02", open=100.0, high=105.0, low=99.0, close=102.0, volume=1000.0
+        )
         dq = DataQuality(status="SUFFICIENT", valid_row_count=1)
         cmd = CanonicalMarketData(
             symbol="HPG",

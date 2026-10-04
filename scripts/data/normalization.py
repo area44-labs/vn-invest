@@ -70,13 +70,17 @@ class MarketDataNormalizer:
         df_norm["date"] = df_norm["date"].astype(str).str.split(" ").str[0].str.split("T").str[0]
 
         # Convert numeric columns
-        numeric_cols = [c for c in ["open", "high", "low", "close", "volume", "vwap"] if c in df_norm.columns]
+        numeric_cols = [
+            c for c in ["open", "high", "low", "close", "volume", "vwap"] if c in df_norm.columns
+        ]
         for col in numeric_cols:
             df_norm[col] = pd.to_numeric(df_norm[col], errors="coerce")
 
         # Price unit normalization (stocks in thousand_VND/share -> VND/share)
         if source_price_unit == "thousand_VND/share" and sym not in self.INDEX_SYMBOLS:
-            price_cols = [c for c in ["open", "high", "low", "close", "vwap"] if c in df_norm.columns]
+            price_cols = [
+                c for c in ["open", "high", "low", "close", "vwap"] if c in df_norm.columns
+            ]
             for col in price_cols:
                 # Check if prices appear to be in thousand VND (< 5000 average) to prevent double scaling
                 mean_p = df_norm[col].dropna().mean()

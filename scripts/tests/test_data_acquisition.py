@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload, acquire_raw_market_data
+from scripts.data.acquisition import (
+    MarketDataAcquirer,
+    RawMarketDataPayload,
+    acquire_raw_market_data,
+)
 from scripts.data_provider import ProviderRateLimitError
 
 

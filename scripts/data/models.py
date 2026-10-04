@@ -163,7 +163,7 @@ class CanonicalMarketData:
                     volume=vol_v,
                 )
                 records.append(rec)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 has_record_error = True
                 break
 

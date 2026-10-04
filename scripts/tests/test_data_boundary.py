@@ -119,7 +119,9 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
             breadth_ratio=0.8,
         )
         self.assertIsNotNone(regime_info)
-        self.assertIn(regime_info.get("regime"), ["STRONG_BULL", "BULL", "NEUTRAL", "BEAR", "PANIC"])
+        self.assertIn(
+            regime_info.get("regime"), ["STRONG_BULL", "BULL", "NEUTRAL", "BEAR", "PANIC"]
+        )
 
         # Generate recommendation using canonical fixture DataFrame
         rec = generate_recommendation(
