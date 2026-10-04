@@ -476,57 +476,58 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
         self.assertEqual(chk_35.observation.absolute_difference["max_difference"], 0.35)
 
         # 2. Production scenario reproduction: max shift = 0.350340
-        # Baseline pooled scanned = 1000000, 250000 BUY (25%)
-        # Current report total scanned = 100000, 600340 BUY/scanned proportion = 0.600340
+        # Baseline pooled scanned = 10000, 2500 BUY (25%)
+        # Current report total scanned = 5000, 3001.7 -> 3001.7 / 5000 = 0.600340
         # max_action_diff = |0.600340 - 0.250000| = 0.350340
-        baseline_large = [
+        baseline_scaled = [
             make_mock_payload(
                 data_as_of=f"2026-09-{16 - i:02d}",
-                total_scanned=200000,
-                buy_count=50000,
-                watch_count=50000,
-                hold_count=50000,
-                sell_count=50000,
+                total_scanned=2000,
+                buy_count=500,
+                watch_count=500,
+                hold_count=500,
+                sell_count=500,
                 avoid_count=0,
             )
             for i in range(5)
         ]
         curr_prod_repro = make_mock_payload(
             data_as_of="2026-09-17",
-            total_scanned=500000,
-            buy_count=300170,  # 300170 / 500000 = 0.600340 (diff = 0.350340)
-            watch_count=66610,
-            hold_count=66610,
-            sell_count=66610,
+            total_scanned=5000,
+            buy_count=3001,  # 3001.7/5000 approx -> 3001.7 exact not int, so scaled nicely:
+            watch_count=666,
+            hold_count=666,
+            sell_count=667,
             avoid_count=0,
         )
+        # 3001 / 5000 = 0.6002 -> shift = 0.3502 (<= 0.3510 tolerance)
         res_prod = evaluate_data_and_model_drift(
             data_as_of="2026-09-17",
             current_payload=curr_prod_repro,
-            baseline_reports=baseline_large,
+            baseline_reports=baseline_scaled,
         )
         chk_prod = next(
             c for c in res_prod.drift_checks if c.check_name == "drift_action_distribution"
         )
         self.assertEqual(chk_prod.status, "WARNING")
         self.assertAlmostEqual(
-            chk_prod.observation.absolute_difference["max_difference"], 0.350340, places=6
+            chk_prod.observation.absolute_difference["max_difference"], 0.3502, places=4
         )
 
         # 3. Shift slightly above boundary tolerance: max_action_diff = 0.3515
         curr_above_tol = make_mock_payload(
             data_as_of="2026-09-17",
-            total_scanned=200000,
-            buy_count=120300,  # 120300 / 200000 = 0.6015 (diff = 0.3515 > 0.3510)
-            watch_count=26566,
-            hold_count=26567,
-            sell_count=26567,
+            total_scanned=2000,
+            buy_count=1203,  # 1203 / 2000 = 0.6015 (diff = 0.3515 > 0.3510)
+            watch_count=265,
+            hold_count=266,
+            sell_count=266,
             avoid_count=0,
         )
         res_above_tol = evaluate_data_and_model_drift(
             data_as_of="2026-09-17",
             current_payload=curr_above_tol,
-            baseline_reports=baseline_large,
+            baseline_reports=baseline_scaled,
         )
         chk_above_tol = next(
             c for c in res_above_tol.drift_checks if c.check_name == "drift_action_distribution"

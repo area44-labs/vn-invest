@@ -7,7 +7,11 @@ import time
 
 import pandas as pd
 
-from scripts.data_provider import ProviderRateLimitError, VnstockDataProvider
+from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
+from scripts.data.normalization import normalize_raw_market_data
+from scripts.data.providers import VnstockMarketProvider
+from scripts.data.validation import validate_canonical_market_data
+from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
@@ -17,7 +21,6 @@ from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     get_clean_ohlcv_data,
-    get_historical_data,
     validate_temporal_integrity,
 )
 from scripts.pipeline.context import PipelineContext
@@ -41,7 +44,7 @@ class PipelineStage(abc.ABC):
 
 
 class DataAcquisitionStage(PipelineStage):
-    """Stage 1: Acquire raw market data for benchmarks and candidate stock universe."""
+    """Stage 1: Acquire raw market data for benchmarks and candidate stock universe via MarketDataAcquirer."""
 
     @property
     def name(self) -> str:
@@ -51,7 +54,7 @@ class DataAcquisitionStage(PipelineStage):
         if context.is_historical:
             return
 
-        VnstockDataProvider.reset_global_call_history()
+        VnstockMarketProvider.reset_global_call_history()
         context.provider = UniverseProvider()
         context.raw_candidate_stocks = context.provider.candidates
         context.universe_info = context.provider.get_info()
@@ -84,25 +87,22 @@ class DataAcquisitionStage(PipelineStage):
         }
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
-        # Fetch VNINDEX benchmark
+        acquirer = MarketDataAcquirer(
+            provider=context.market_data_provider or VnstockMarketProvider()
+        )
+
+        # Fetch VNINDEX benchmark payload
         with context.tracker.measure_stage("benchmark_fetch"):
             context.tracker.record_request("VNINDEX")
             try:
-                raw_df, source, _ = get_historical_data(
+                payload_vnindex = acquirer.acquire(
                     "VNINDEX",
                     max_retries=2 if context.update_data else 1,
-                    use_cache_only=bool(context.use_cache),
                     throttle_delay=context.throttle,
                 )
-                context.df_vnindex_raw = raw_df
-                context.vn_source = source
-
-                df_clean_vn, vn_val = get_clean_ohlcv_data(raw_df, "VNINDEX")
-                context.df_vnindex_clean = df_clean_vn
-                context.vnindex_val = vn_val
-                context.data_as_of = vn_val.get("latest_date")
-                context.source_date = context.data_as_of
-                context.data_source = source if not df_clean_vn.empty else None
+                context.raw_vnindex_payload = payload_vnindex
+                context.df_vnindex_raw = payload_vnindex.raw_df
+                context.vn_source = payload_vnindex.source_tag
             except ProviderRateLimitError:
                 context.add_exclusion(
                     symbol="VNINDEX",
@@ -121,20 +121,27 @@ class DataAcquisitionStage(PipelineStage):
                     status="FAILED",
                     reason=f"Exception fetching VNINDEX: {type(exc).__name__}",
                 )
+                context.raw_vnindex_payload = RawMarketDataPayload(
+                    symbol="VNINDEX",
+                    raw_df=pd.DataFrame(),
+                    provider_name=acquirer._get_provider().provider_name,
+                    source_tag="PROVIDER_FAILURE",
+                    error=str(exc),
+                )
                 context.df_vnindex_raw = pd.DataFrame()
                 context.vn_source = "PROVIDER_FAILURE"
 
-            # Fetch VN30 benchmark
+            # Fetch VN30 benchmark payload
             context.tracker.record_request("VN30")
             try:
-                raw_df, source, _ = get_historical_data(
+                payload_vn30 = acquirer.acquire(
                     "VN30",
                     max_retries=2 if context.update_data else 1,
-                    use_cache_only=bool(context.use_cache),
                     throttle_delay=context.throttle,
                 )
-                context.df_vn30_raw = raw_df
-                context.vn30_source = source
+                context.raw_vn30_payload = payload_vn30
+                context.df_vn30_raw = payload_vn30.raw_df
+                context.vn30_source = payload_vn30.source_tag
             except ProviderRateLimitError:
                 context.add_exclusion(
                     symbol="VN30",
@@ -155,23 +162,34 @@ class DataAcquisitionStage(PipelineStage):
                     reason=f"Exception fetching VN30: {type(exc).__name__}",
                     expected_date=context.data_as_of,
                 )
+                context.raw_vn30_payload = RawMarketDataPayload(
+                    symbol="VN30",
+                    raw_df=pd.DataFrame(),
+                    provider_name=acquirer._get_provider().provider_name,
+                    source_tag="PROVIDER_FAILURE",
+                    error=str(exc),
+                )
                 context.df_vn30_raw = pd.DataFrame()
                 context.vn30_source = "PROVIDER_FAILURE"
 
-        # Fetch candidate stocks
+        # Fetch candidate stocks raw payloads
         with context.tracker.measure_stage("stock_fetch"):
             for item in context.candidate_stocks:
                 sym = item["symbol"].upper()
                 context.tracker.record_request(sym)
                 try:
-                    df_stock, tag, warns = get_historical_data(
+                    payload_stock = acquirer.acquire(
                         sym,
                         max_retries=1,
-                        use_cache_only=bool(context.use_cache),
                         throttle_delay=context.throttle,
                         target_date=context.data_as_of if context.update_data else None,
                     )
-                    context.stock_data_map[sym] = (df_stock, tag, warns)
+                    context.raw_stock_payloads[sym] = payload_stock
+                    context.stock_data_map[sym] = (
+                        payload_stock.raw_df,
+                        payload_stock.source_tag,
+                        list(payload_stock.warnings),
+                    )
                 except ProviderRateLimitError:
                     context.add_exclusion(
                         symbol=sym,
@@ -199,11 +217,19 @@ class DataAcquisitionStage(PipelineStage):
                         reason=f"Exception fetching {sym}: {type(exc).__name__}",
                         expected_date=context.data_as_of,
                     )
+                    err_payload = RawMarketDataPayload(
+                        symbol=sym,
+                        raw_df=pd.DataFrame(),
+                        provider_name="vnstock",
+                        source_tag="PROVIDER_FAILURE",
+                        error=str(exc),
+                    )
+                    context.raw_stock_payloads[sym] = err_payload
                     context.stock_data_map[sym] = (pd.DataFrame(), "PROVIDER_FAILURE", [str(exc)])
 
 
 class DataValidationStage(PipelineStage):
-    """Stage 2: Clean and validate OHLCV structure and temporal integrity."""
+    """Stage 2: Clean and validate canonical OHLCV structure and temporal integrity via validate_canonical_market_data."""
 
     @property
     def name(self) -> str:
@@ -214,10 +240,20 @@ class DataValidationStage(PipelineStage):
             self._execute_historical(context)
             return
 
-        # Validate VNINDEX
-        df_clean_vn, vn_val = get_clean_ohlcv_data(context.df_vnindex_raw, "VNINDEX")
+        # 1. Normalize and Validate VNINDEX via canonical boundary
+        raw_vn_payload = context.raw_vnindex_payload or RawMarketDataPayload(
+            symbol="VNINDEX",
+            raw_df=context.df_vnindex_raw,
+            source_tag=context.vn_source or "REAL_DATA",
+        )
+        cmd_vn = normalize_raw_market_data(raw_vn_payload)
+        v_vn = validate_canonical_market_data(cmd_vn, reference_date=context.generated_at)
+
+        df_clean_vn = v_vn.to_df()
+        vn_val = v_vn.data_quality.to_dict() if v_vn.data_quality else {}
         context.df_vnindex_clean = df_clean_vn
         context.vnindex_val = vn_val
+        context.vn_source = v_vn.source_tag
 
         if (
             context.vn_source
@@ -250,14 +286,24 @@ class DataValidationStage(PipelineStage):
         else:
             context.processed_symbols.add("VNINDEX")
 
-        context.data_as_of = vn_val.get("latest_date")
+        context.data_as_of = vn_val.get("latest_date") or v_vn.data_as_of
         context.source_date = context.data_as_of
         context.data_source = context.vn_source if not df_clean_vn.empty else None
 
-        # Validate VN30
-        df_clean_vn30, vn30_val = get_clean_ohlcv_data(context.df_vn30_raw, "VN30")
+        # 2. Normalize and Validate VN30 via canonical boundary
+        raw_vn30_payload = context.raw_vn30_payload or RawMarketDataPayload(
+            symbol="VN30",
+            raw_df=context.df_vn30_raw,
+            source_tag=context.vn30_source or "REAL_DATA",
+        )
+        cmd_vn30 = normalize_raw_market_data(raw_vn30_payload)
+        v_vn30 = validate_canonical_market_data(cmd_vn30, reference_date=context.generated_at)
+
+        df_clean_vn30 = v_vn30.to_df()
+        vn30_val = v_vn30.data_quality.to_dict() if v_vn30.data_quality else {}
         context.df_vn30_clean = df_clean_vn30
         context.vn30_val = vn30_val
+        context.vn30_source = v_vn30.source_tag
 
         if (
             context.vn30_source
@@ -291,10 +337,30 @@ class DataValidationStage(PipelineStage):
         else:
             context.processed_symbols.add("VN30")
 
-        # Validate candidate stocks
-        for sym, (df_stock, tag, warns) in context.stock_data_map.items():
-            df_clean_stock, stock_val = get_clean_ohlcv_data(df_stock, sym)
-            context.stock_dates_map[sym] = stock_val.get("latest_date")
+        # 3. Normalize and Validate Candidate Stock Universe via canonical boundary
+        for item in context.candidate_stocks:
+            sym = item["symbol"].upper()
+            raw_st_payload = context.raw_stock_payloads.get(sym) or RawMarketDataPayload(
+                symbol=sym,
+                raw_df=context.stock_data_map.get(sym, (pd.DataFrame(), None, []))[0],
+                source_tag=context.stock_data_map.get(sym, (pd.DataFrame(), "REAL_DATA", []))[1]
+                or "REAL_DATA",
+            )
+            cmd_st = normalize_raw_market_data(
+                raw_st_payload, explicit_data_as_of=context.data_as_of
+            )
+            v_st = validate_canonical_market_data(cmd_st, reference_date=context.generated_at)
+
+            df_clean_stock = v_st.to_df()
+            stock_val = v_st.data_quality.to_dict() if v_st.data_quality else {}
+            tag = v_st.source_tag
+
+            context.stock_dates_map[sym] = stock_val.get("latest_date") or v_st.data_as_of
+            context.stock_data_map[sym] = (
+                df_clean_stock,
+                tag,
+                list(v_st.data_quality.issues) if v_st.data_quality else [],
+            )
 
             if tag in ("PROVIDER_FAILURE", "PROVIDER_ERROR", "EXPLICITLY_INVALID"):
                 cat = "EXPLICITLY_INVALID" if tag == "EXPLICITLY_INVALID" else "PROVIDER_FAILURE"
@@ -317,7 +383,7 @@ class DataValidationStage(PipelineStage):
                     latest_date=context.stock_dates_map.get(sym),
                     expected_date=context.data_as_of,
                 )
-            elif df_stock is None or df_stock.empty or df_clean_stock.empty:
+            elif df_clean_stock.empty:
                 context.add_exclusion(
                     symbol=sym,
                     stage="STOCK_FETCH",
@@ -391,7 +457,12 @@ class DataValidationStage(PipelineStage):
                 context.universe_stock_map.get("VNINDEX") if context.universe_stock_map else None
             )
             df_vnindex_as_of = get_as_of_dataset(df_vnindex_raw, canonical_as_of)
-            df_vnindex_clean, vnindex_val = get_clean_ohlcv_data(df_vnindex_as_of, "VNINDEX")
+            payload_vnindex = RawMarketDataPayload(
+                symbol="VNINDEX", raw_df=df_vnindex_as_of, source_tag="REAL_DATA"
+            )
+            v_vnindex = validate_canonical_market_data(normalize_raw_market_data(payload_vnindex))
+            df_vnindex_clean = v_vnindex.to_df()
+            vnindex_val = v_vnindex.data_quality.to_dict() if v_vnindex.data_quality else {}
 
             if df_vnindex_clean.empty or vnindex_val.get("latest_date") != canonical_as_of:
                 raise ValueError(
@@ -409,7 +480,12 @@ class DataValidationStage(PipelineStage):
             if df_vn30_raw is not None:
                 context.tracker.record_request("VN30")
                 df_vn30_as_of = get_as_of_dataset(df_vn30_raw, canonical_as_of)
-                df_vn30_clean, vn30_val = get_clean_ohlcv_data(df_vn30_as_of, "VN30")
+                payload_vn30 = RawMarketDataPayload(
+                    symbol="VN30", raw_df=df_vn30_as_of, source_tag="REAL_DATA"
+                )
+                v_vn30 = validate_canonical_market_data(normalize_raw_market_data(payload_vn30))
+                df_vn30_clean = v_vn30.to_df()
+                vn30_val = v_vn30.data_quality.to_dict() if v_vn30.data_quality else {}
 
             context.df_vn30_clean = df_vn30_clean
             context.vn30_val = vn30_val
@@ -446,7 +522,13 @@ class DataValidationStage(PipelineStage):
                 df_stock_raw = context.universe_stock_map[sym_upper]
                 if df_stock_raw is not None and not df_stock_raw.empty:
                     df_stock_as_of = get_as_of_dataset(df_stock_raw, canonical_as_of)
-                    df_stock_clean, _stock_val = get_clean_ohlcv_data(df_stock_as_of, sym_upper)
+                    payload_st = RawMarketDataPayload(
+                        symbol=sym_upper, raw_df=df_stock_as_of, source_tag="REAL_DATA"
+                    )
+                    v_st = validate_canonical_market_data(
+                        normalize_raw_market_data(payload_st, explicit_data_as_of=canonical_as_of)
+                    )
+                    df_stock_clean = v_st.to_df()
                 else:
                     df_stock_clean = pd.DataFrame()
 

@@ -58,6 +58,13 @@ class TestDataFlowConsistency(unittest.TestCase):
     """Test suite for pipeline data flow consistency and downstream calculations."""
 
     def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+
         self.tmp_dir = tempfile.mkdtemp()
         self.as_of_date = "2025-01-30"  # 30 days from 2025-01-01
         self.schema = load_schema()
@@ -68,6 +75,7 @@ class TestDataFlowConsistency(unittest.TestCase):
         self.df_fpt = create_synthetic_ohlcv("2025-01-01", 30, base_price=130000.0)
 
     def tearDown(self):
+        patch.stopall()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_insufficient_clean_history_symbol_categorization(self):
@@ -79,20 +87,20 @@ class TestDataFlowConsistency(unittest.TestCase):
             {"symbol": "AAA", "companyName": "AAA Corp", "sector": "Materials", "exchange": "HOSE"}
         ]
 
-        def mock_get_historical_data(sym, **_kwargs):
-            if sym == "VNINDEX":
-                return self.df_vnindex, "REAL_DATA", []
-            if sym == "VN30":
-                return self.df_vn30, "REAL_DATA", []
-            if sym == "AAA":
-                # Provider mistakenly returned tag REAL_DATA, but df has only 10 rows
-                return clean_10_df, "REAL_DATA", []
-            return pd.DataFrame(), "PROVIDER_FAILURE", []
+        def mock_fetch_ohlcv(symbol, **_kwargs):
+            if symbol == "VNINDEX":
+                return self.df_vnindex
+            if symbol == "VN30":
+                return self.df_vn30
+            if symbol == "AAA":
+                return clean_10_df
+            return pd.DataFrame()
 
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value
@@ -257,17 +265,18 @@ class TestDataFlowConsistency(unittest.TestCase):
             {"symbol": "FAILED_SYM", "companyName": "Failed", "sector": "Tech", "exchange": "HOSE"}
         ]
 
-        def mock_get_historical_data(sym, **_kwargs):
-            if sym == "VNINDEX":
-                return self.df_vnindex, "REAL_DATA", []
-            if sym == "VN30":
-                return self.df_vn30, "REAL_DATA", []
-            return pd.DataFrame(), "PROVIDER_FAILURE", ["Mock provider failure"]
+        def mock_fetch_ohlcv(symbol, **_kwargs):
+            if symbol == "VNINDEX":
+                return self.df_vnindex
+            if symbol == "VN30":
+                return self.df_vn30
+            return pd.DataFrame()
 
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value

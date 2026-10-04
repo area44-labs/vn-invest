@@ -7,18 +7,14 @@ Explicitly tags data sources: REAL_DATA or INSUFFICIENT_HISTORICAL_DATA.
 
 import logging
 import os
-import time
+import time  # noqa: F401
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
 from scripts.data_provider import (
-    ProviderRateLimitError,
     VnstockDataProvider,
-    can_recover_rate_limit,
-    increment_rate_limit_recovery_count,
-    reset_circuit_breaker,
 )
 from scripts.lib.config import (
     MAX_BENCHMARK_FUTURE_DAYS,
@@ -763,82 +759,52 @@ def get_historical_data(
     max_rate_limit_retries: int = 3,
     target_date: str | None = None,
 ):
-    """Fetch real historical EOD OHLCV data for a given symbol via provider boundary."""
+    """Fetch real historical EOD OHLCV data for a given symbol via data boundary pipeline.
+
+    Flow: provider → acquisition → normalization → validation → canonical output
+    """
+    from scripts.data.acquisition import acquire_raw_market_data
+    from scripts.data.normalization import normalize_raw_market_data
+    from scripts.data.providers.vnstock import VnstockMarketProvider
+    from scripts.data.validation import validate_canonical_market_data
+
     sym = normalize_symbol(symbol)
-    if not start_date or not end_date:
-        now_dt = datetime.now(UTC)
-        end_date = now_dt.strftime("%Y-%m-%d")
-        start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
+    provider_inst = VnstockDataProvider()
 
-    for rate_limit_attempt in range(max_rate_limit_retries + 1):
-        if throttle_delay > 0:
-            time.sleep(throttle_delay)
+    # 1. Acquisition boundary via MarketDataProvider interface
+    payload = acquire_raw_market_data(
+        symbol=sym,
+        start_date=start_date,
+        end_date=end_date,
+        max_retries=max_retries,
+        throttle_delay=throttle_delay,
+        max_rate_limit_retries=max_rate_limit_retries,
+        target_date=target_date,
+        provider=VnstockMarketProvider(provider_instance=provider_inst),
+    )
 
-        try:
-            provider = VnstockDataProvider()
-            df_out = provider.fetch_ohlcv(
-                symbol=sym,
-                start_date=start_date,
-                end_date=end_date,
-                max_retries=max_retries,
-                target_date=target_date,
-            )
-            val_res = validate_ohlcv_data(df_out, sym)
-            issues = val_res["issues"]
-            if any(
-                iss in issues
-                for iss in ["empty_dataframe", "missing_required_columns", "missing_date_column"]
-            ):
-                source_tag = "PROVIDER_FAILURE"
-            elif any(iss in DATA_CORRUPTION_ISSUES for iss in issues):
-                source_tag = "EXPLICITLY_INVALID"
-            elif "insufficient_history" in issues or val_res.get("valid_row_count", 0) < 20:
-                source_tag = "INSUFFICIENT_HISTORICAL_DATA"
-            else:
-                source_tag = "REAL_DATA"
-            return df_out, source_tag, val_res["issues"]
-        except ProviderRateLimitError as exc:
-            if can_recover_rate_limit() and rate_limit_attempt < max_rate_limit_retries:
-                cooldown = exc.cooldown_seconds if exc.cooldown_seconds is not None else 30
-                increment_rate_limit_recovery_count()
-                logger.warning(
-                    "Provider rate limit encountered for '%s'. Waiting %d seconds (attempt %d/%d) before retrying...",
-                    sym,
-                    cooldown,
-                    rate_limit_attempt + 1,
-                    max_rate_limit_retries,
-                )
-                time.sleep(cooldown)
-                reset_circuit_breaker()
-                continue
+    if payload.source_tag in ("PROVIDER_FAILURE", "EXPLICITLY_INVALID") and (
+        payload.raw_df is None or payload.raw_df.empty
+    ):
+        return (
+            pd.DataFrame(),
+            payload.source_tag,
+            list(payload.warnings)
+            if payload.warnings
+            else [f"[{sym}] Failed to fetch historical data"],
+        )
 
-            logger.error(
-                "Provider rate-limit error encountered while fetching '%s' and recovery budget/attempts exhausted. Re-raising loudly.",
-                sym,
-            )
-            raise
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Data fetch failed for '%s' via provider boundary: %s", sym, e)
-            from scripts.data_provider import CanonicalOHLCVError
+    # 2. Normalization boundary
+    canonical_data = normalize_raw_market_data(
+        payload=payload,
+        explicit_data_as_of=target_date,
+    )
 
-            err_msg = str(e)
-            if isinstance(e, CanonicalOHLCVError) or any(
-                p in err_msg.lower()
-                for p in [
-                    "ohlc",
-                    "nan",
-                    "infinite",
-                    "non-positive",
-                    "negative volume",
-                    "duplicate date",
-                    "unsorted date",
-                ]
-            ):
-                source_tag = "EXPLICITLY_INVALID"
-            else:
-                source_tag = "PROVIDER_FAILURE"
-            return (
-                pd.DataFrame(),
-                source_tag,
-                [f"[{sym}] Không thể lấy dữ liệu lịch sử thực tế từ vnstock: {e}"],
-            )
+    # 3. Validation boundary
+    validated_data = validate_canonical_market_data(canonical_data)
+
+    df_out = validated_data.to_df()
+    source_tag = validated_data.source_tag or payload.source_tag
+    issues = list(validated_data.data_quality.issues) if validated_data.data_quality else []
+
+    return df_out, source_tag, issues

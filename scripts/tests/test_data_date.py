@@ -22,8 +22,30 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 
+SINGLE_STOCK_UNIVERSE = [
+    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"},
+    {"symbol": "SSI", "companyName": "SSI Securities", "sector": "Securities", "exchange": "HOSE"},
+    {"symbol": "ACB", "companyName": "ACB Bank", "sector": "Banking", "exchange": "HOSE"},
+]
+
 
 class TestDataDateSemantics(unittest.TestCase):
+    def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+        self.univ_patcher.start()
+
+    def tearDown(self):
+        patch.stopall()
+
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
         """1. extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
         df_unsorted = pd.DataFrame(
@@ -67,10 +89,13 @@ class TestDataDateSemantics(unittest.TestCase):
 
         def side_effect(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
-            return df_stock_earlier, "REAL_DATA", []
+                return df_vnindex
+            return df_stock_earlier
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
@@ -92,8 +117,10 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_valid
             payload, _, _ = run_pipeline(update_data=False)
 
             self.assertEqual(payload["data_as_of"], payload["source_date"])
@@ -143,12 +170,15 @@ class TestDataDateSemantics(unittest.TestCase):
         # Varying stock dates: half on 2026-09-25, half on 2026-09-24
         def side_effect(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
+                return df_vnindex
             if hash(symbol) % 2 == 0:
-                return df_stock_sync, "REAL_DATA", []
-            return df_stock_lagging, "REAL_DATA", []
+                return df_stock_sync
+            return df_stock_lagging
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
@@ -172,11 +202,11 @@ class TestDataDateSemantics(unittest.TestCase):
         """2. When data_as_of is None, monitoring fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
-            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
+            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
             patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_publish,
             patch("scripts.pipeline.stages.load_history_index") as mock_update_index,
         ):
-            mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
+            mock_fetch.return_value = empty_df
 
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
             self.assertIsNone(recs_payload["data_as_of"])
@@ -206,8 +236,10 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (historical_df, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = historical_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["data_as_of"], "2025-01-30")
@@ -258,6 +290,22 @@ class TestDataDateSemantics(unittest.TestCase):
 
 
 class TestTemporalIntegrityValidation(unittest.TestCase):
+    def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+        self.univ_patcher.start()
+
+    def tearDown(self):
+        patch.stopall()
+
     """Dedicated test suite for validate_temporal_integrity & pipeline temporal contracts."""
 
     def test_valid_synchronized_vnindex_and_stocks_success(self):
@@ -322,10 +370,13 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
 
         def mock_get_hist(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
-            return df_stale_stock, "REAL_DATA", []
+                return df_vnindex
+            return df_stale_stock
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
@@ -395,11 +446,14 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
 
         def mock_get_hist(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
-            return df_future_stock, "REAL_DATA", []
+                return df_vnindex
+            return df_future_stock
 
         with (
-            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
             patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_save,
         ):
             with patch("sys.argv", ["generate_report.py", "--update"]):
@@ -423,14 +477,32 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
             self.assertEqual(mkt["data_as_of"], "2026-09-20")
 
 
 class TestReportProvenanceMetadata(unittest.TestCase):
+    def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+        self.univ_patcher.start()
+
+    def tearDown(self):
+        patch.stopall()
+
     def test_top_level_provenance_metadata_presence(self):
         """Verify report payload contains all required provenance metadata fields."""
         df_vnindex = pd.DataFrame(
@@ -444,8 +516,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_vnindex
             recs_payload, _mkt_payload, history_payload = run_pipeline(update_data=False)
 
             required_provenance_fields = [
@@ -475,8 +549,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             gen_at_str = recs_payload["generated_at"]
@@ -498,8 +574,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["schema_version"], "2.0")
@@ -519,8 +597,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["data_as_of"], "2026-09-20")
@@ -530,8 +610,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
         """Verify provider metadata (data_source) reflects actual provider boundary result."""
         empty_df = pd.DataFrame()
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (empty_df, "INSUFFICIENT_HISTORICAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = empty_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             self.assertIsNone(recs_payload["data_source"])
@@ -549,8 +631,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_vnindex, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             schema = load_schema()
@@ -558,6 +642,22 @@ class TestReportProvenanceMetadata(unittest.TestCase):
 
 
 class TestProductionDataFreshness(unittest.TestCase):
+    def setUp(self):
+        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
+        self.sleep_patcher1.start()
+        self.sleep_patcher2.start()
+        self.sleep_patcher3.start()
+        self.univ_patcher.start()
+
+    def tearDown(self):
+        patch.stopall()
+
     """Deterministic offline unit tests verifying production data freshness rules."""
 
     def test_1_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
@@ -573,8 +673,10 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )  # latest date = 2026-09-20
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_valid, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
             self.assertEqual(mkt["data_as_of"], "2026-09-20")
@@ -605,12 +707,15 @@ class TestProductionDataFreshness(unittest.TestCase):
 
         def side_effect(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
+                return df_vnindex
             if symbol == "FPT":
-                return df_stale, "REAL_DATA", []
-            return df_vnindex, "REAL_DATA", []
+                return df_stale
+            return df_vnindex
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("FPT", str(ctx.exception))
@@ -641,12 +746,15 @@ class TestProductionDataFreshness(unittest.TestCase):
 
         def side_effect(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
+                return df_vnindex
             if symbol == "SSI":
-                return df_stale, "REAL_DATA", []
-            return df_vnindex, "REAL_DATA", []
+                return df_stale
+            return df_vnindex
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("SSI", str(ctx.exception))
@@ -671,8 +779,10 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -758,8 +868,10 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (df_stock, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
+            mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -797,10 +909,10 @@ class TestProductionDataFreshness(unittest.TestCase):
 
         def side_effect(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return df_vnindex, "REAL_DATA", []
+                return df_vnindex
             if symbol == "FPT":
-                return df_stale, "REAL_DATA", []
-            return df_vnindex, "REAL_DATA", []
+                return df_stale
+            return df_vnindex
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
@@ -819,7 +931,10 @@ class TestProductionDataFreshness(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=side_effect),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=side_effect,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:

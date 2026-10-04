@@ -133,22 +133,22 @@ class TestProductionHistoricalParity(unittest.TestCase):
             },
         ]
 
-    def _mock_get_historical_data(self, symbol, **kwargs):
+    def _mock_fetch_ohlcv(self, symbol, **kwargs):
         sym = symbol.upper()
         if sym == "VNINDEX":
-            return self.raw_vnindex.copy(), "mock_source", []
+            return self.raw_vnindex.copy()
         if sym == "VN30":
-            return self.raw_vn30.copy(), "mock_source", []
+            return self.raw_vn30.copy()
         if sym in self.raw_universe_map:
-            return self.raw_universe_map[sym].copy(), "mock_source", []
-        return pd.DataFrame(), "mock_source", ["missing_symbol"]
+            return self.raw_universe_map[sym].copy()
+        return pd.DataFrame()
 
     def _run_both_pipelines(self, reference_date: str = "2025-03-01T10:00:00Z"):
         """Run production and historical report generation with identical raw PIT data."""
         with (
             patch(
-                "scripts.pipeline.stages.get_historical_data",
-                side_effect=self._mock_get_historical_data,
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=self._mock_fetch_ohlcv,
             ),
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
         ):

@@ -769,14 +769,33 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 self.assertEqual(ctx3.exception.code, 1)
 
 
+SMALL_TEST_UNIVERSE = [
+    {"symbol": "ACB", "companyName": "ACB Bank", "sector": "Banking", "exchange": "HOSE"},
+    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
+    {"symbol": "HPG", "companyName": "Hoa Phat", "sector": "Steel", "exchange": "HOSE"},
+]
+
+
 class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
     """Focused tests for rate-limit recovery, universe scan continuity, and fail-closed report generation."""
 
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -842,22 +861,10 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failing_sym = candidates[0]["symbol"]
 
-        def mock_get_historical_data(
-            sym,
-            start_date=None,
-            end_date=None,
-            max_retries=2,
-            use_cache_only=False,
-            allow_synthetic=False,
-            throttle_delay=0.0,
-        ):
-            if sym == failing_sym:
-                return (
-                    pd.DataFrame(),
-                    "PROVIDER_FAILURE",
-                    [f"[{sym}] Failed to fetch data"],
-                )
-            return valid_df, "REAL_DATA", []
+        def mock_get_historical_data(symbol, **kwargs):
+            if symbol == failing_sym:
+                return pd.DataFrame()
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -875,7 +882,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
                 patch(
-                    "scripts.pipeline.stages.get_historical_data",
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                     side_effect=mock_get_historical_data,
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
@@ -899,25 +906,13 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_historical_data(
-            sym,
-            start_date=None,
-            end_date=None,
-            max_retries=2,
-            use_cache_only=False,
-            allow_synthetic=False,
-            throttle_delay=0.0,
-        ):
-            if sym == "VN30":
-                return (
-                    pd.DataFrame(),
-                    "PROVIDER_FAILURE",
-                    ["[VN30] Failed to fetch data"],
-                )
-            return valid_df, "REAL_DATA", []
+        def mock_get_historical_data(symbol, **kwargs):
+            if symbol == "VN30":
+                return pd.DataFrame()
+            return valid_df
 
         with patch(
-            "scripts.pipeline.stages.get_historical_data",
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_historical_data,
         ):
             with self.assertRaises(RuntimeError) as ctx:
@@ -956,8 +951,20 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -967,10 +974,13 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
-            return valid_df, "REAL_DATA", []
+        def mock_get_hist(symbol=None, **kwargs):
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1005,10 +1015,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 ]
                 return iter(filtered)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "MISSING_SYM":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("Failed to fetch MISSING_SYM")
+            return valid_df
 
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
 
@@ -1025,7 +1036,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1040,7 +1054,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx_exit:
@@ -1060,10 +1077,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Provider connection error"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError(f"[{sym}] Provider connection error")
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1074,7 +1092,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1099,17 +1120,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         invalid_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                # Return empty DataFrame with tag INVALID_SYMBOL (genuinely invalid symbol)
-                return (
-                    pd.DataFrame(),
-                    "INVALID_SYMBOL",
-                    [f"[{sym}] Invalid symbol"],
-                )
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1169,14 +1189,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_candidate:
-                # Valid symbol but insufficient historical rows (< 20 rows)
-                short_df = make_valid_canonical_df(5)
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
-            return valid_df, "REAL_DATA", []
+                return make_valid_canonical_df(5)
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1194,15 +1216,18 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         # Create candidate list with duplicate FPT
         duplicate_candidates = list(candidates) + [candidates[0]]
 
-        def mock_get_hist(sym, **kwargs):
-            return valid_df, "REAL_DATA", []
+        def mock_get_hist(symbol=None, **kwargs):
+            return valid_df
 
         with (
             patch(
                 "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _, _ = pipeline_res
@@ -1211,10 +1236,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         # Verify that if another symbol fails, duplicate FPT does NOT compensate for the failed symbol
         failed_sym = candidates[1]["symbol"].upper()
 
-        def mock_get_hist_with_failure(sym, **kwargs):
+        def mock_get_hist_with_failure(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_sym:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Provider failed"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("Provider failed")
+            return valid_df
 
         with (
             patch(
@@ -1222,7 +1248,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return_value=duplicate_candidates,
             ),
             patch(
-                "scripts.pipeline.stages.get_historical_data",
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=mock_get_hist_with_failure,
             ),
         ):
@@ -1240,13 +1266,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         empty_candidate = candidates[1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == empty_candidate:
-                # Return empty DataFrame with tag PROVIDER_FAILURE (unclassified empty / provider error)
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Empty response from provider"]
-            return valid_df, "REAL_DATA", []
+                return pd.DataFrame()
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1262,12 +1291,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         unprocessed_candidate = candidates[-1]["symbol"].upper()
 
         # Simulate exception raised for the last candidate so it's not processed successfully
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == unprocessed_candidate:
                 raise RuntimeError(f"Processing error on {sym}")
-            return valid_df, "REAL_DATA", []
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1282,12 +1315,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         rate_limit_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == rate_limit_candidate:
                 raise ProviderRateLimitError("Quota exceeded", cooldown_seconds=30, symbol=sym)
-            return valid_df, "REAL_DATA", []
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(ProviderRateLimitError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1303,20 +1340,20 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         failed_candidate = candidates[1]["symbol"].upper()
         insufficient_candidate = candidates[2]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                return pd.DataFrame(), "INVALID_SYMBOL", ["Invalid symbol"]
+                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Timeout error"]
+                raise RuntimeError("Timeout error")
             if sym == insufficient_candidate:
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
-            return valid_df, "REAL_DATA", []
+                return make_valid_canonical_df(5)
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1335,12 +1372,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed fetch"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("Failed fetch")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1362,16 +1403,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_candidate:
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
-            return valid_df, "REAL_DATA", []
+                return make_valid_canonical_df(5)
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1388,12 +1429,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_candidate = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_candidate:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["API network error"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("API network error")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1410,12 +1455,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
         short_df = make_valid_canonical_df(5)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VNINDEX":
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
-            return valid_df, "REAL_DATA", []
+                return short_df
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1428,12 +1477,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
         short_df = make_valid_canonical_df(5)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VN30":
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
-            return valid_df, "REAL_DATA", []
+                return short_df
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1445,14 +1498,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "ACB":
-                return (
-                    make_valid_canonical_df(5),
-                    "INSUFFICIENT_HISTORICAL_DATA",
-                    ["insufficient_history"],
-                )
-            return valid_df, "REAL_DATA", []
+                return make_valid_canonical_df(5)
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1468,7 +1518,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1485,12 +1538,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VNINDEX":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["VNINDEX connection timeout"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("VNINDEX connection timeout")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1502,12 +1559,16 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "VN30":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["VN30 connection timeout"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("VN30 connection timeout")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1520,8 +1581,20 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
     def setUp(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -1531,8 +1604,8 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
 
-        def mock_get_hist(sym, **kwargs):
-            return valid_df, "REAL_DATA", []
+        def mock_get_hist(symbol=None, **kwargs):
+            return valid_df
 
         mock_mon_res = MagicMock()
         mock_mon_res.overall_status = "PASS"
@@ -1544,7 +1617,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("jsonschema.validate", return_value=None),
                 patch(
                     "scripts.pipeline.stages.evaluate_production_monitoring",
@@ -1585,10 +1661,11 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         dynamic_candidates = DynamicCandidatesList(extra_candidates, "MISSING_SYM")
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == "MISSING_SYM":
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed to fetch MISSING_SYM"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("Failed to fetch MISSING_SYM")
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1603,7 +1680,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1623,10 +1703,11 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failed_symbol = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failed_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failed_symbol}] Connection error"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError(f"[{failed_symbol}] Connection error")
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1637,7 +1718,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1657,10 +1741,11 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         insufficient_symbol = candidates[0]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == insufficient_symbol:
-                return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
-            return valid_df, "REAL_DATA", []
+                return short_df
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1671,7 +1756,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1688,10 +1776,11 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         valid_df = make_valid_canonical_df(25)
 
         def make_mock_get_hist(bench_target):
-            def mock_get_hist(sym, **kwargs):
+            def mock_get_hist(symbol=None, **kwargs):
+                sym = symbol or kwargs.get("sym")
                 if sym == bench_target:
-                    return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{bench_target}] Fetch failed"]
-                return valid_df, "REAL_DATA", []
+                    raise RuntimeError(f"[{bench_target}] Fetch failed")
+                return valid_df
 
             return mock_get_hist
 
@@ -1707,7 +1796,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
                 with (
                     patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                    patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                    patch(
+                        "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                        side_effect=mock_get_hist,
+                    ),
                     patch("sys.argv", ["generate_report.py", "--update"]),
                 ):
                     with self.assertRaises(SystemExit) as ctx:
@@ -1726,17 +1818,21 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         duplicate_candidates = list(candidates) + [candidates[0]]
         failing_symbol = candidates[1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{failing_symbol}] Connection error"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError(f"[{failing_symbol}] Connection error")
+            return valid_df
 
         with (
             patch(
                 "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
@@ -1753,12 +1849,16 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         candidates = UniverseProvider().candidates
         failing_symbol = candidates[-1]["symbol"].upper()
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Fetch failed"]
-            return valid_df, "REAL_DATA", []
+                raise RuntimeError("Fetch failed")
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1772,18 +1872,19 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
         valid_df = make_valid_canonical_df(25)
         candidates = UniverseProvider().candidates
-        # Let first 5 symbols succeed (calculating bullish_count, MA20, etc.), but 6th symbol fails
-        failing_symbol = candidates[5]["symbol"].upper()
+        # Let first 1 symbol succeed (calculating bullish_count, MA20, etc.), but 2nd symbol fails
+        failing_symbol = candidates[1]["symbol"].upper()
 
         processed_count = 0
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_get_hist(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("sym")
             nonlocal processed_count
             if sym == failing_symbol:
-                return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed mid-universe"]
+                raise RuntimeError("Failed mid-universe")
             if sym not in ("VNINDEX", "VN30"):
                 processed_count += 1
-            return valid_df, "REAL_DATA", []
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -1799,7 +1900,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1821,8 +1925,20 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
+        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
+        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
+        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
+        self.sleep_p1.start()
+        self.sleep_p2.start()
+        self.sleep_p3.start()
+        self.univ_p.start()
 
     def tearDown(self):
+        patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
@@ -1997,11 +2113,14 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
         def mock_get_hist(symbol, **kwargs):
             if symbol in ("VNINDEX", "VN30"):
-                return canonical_df, "REAL_DATA", []
+                return canonical_df
             # Stocks are all stale (2026-08-15 vs VNINDEX 2026-08-25)
-            return stale_df, "REAL_DATA", []
+            return stale_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -2014,8 +2133,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         target_date = valid_df["time"].max()
 
-        with patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist:
-            mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_get_hist:
+            mock_get_hist.return_value = valid_df
             recs_data, market_data, _ = run_pipeline(update_data=True)
 
             self.assertEqual(market_data["data_as_of"], target_date)
@@ -2082,12 +2203,15 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
             def mock_get_hist(symbol, **kwargs):
                 if symbol == "ACB":
-                    return pd.DataFrame(), "PROVIDER_FAILURE", ["ACB fetch failed"]
-                return make_valid_canonical_df(25), "REAL_DATA", []
+                    raise RuntimeError("ACB fetch failed")
+                return make_valid_canonical_df(25)
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -2109,9 +2233,12 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         def mock_get_hist(symbol, **kwargs):
             call_counts[symbol] = call_counts.get(symbol, 0) + 1
             calls_set.add(symbol)
-            return valid_df, "REAL_DATA", []
+            return valid_df
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             run_pipeline(update_data=True)
 
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once
