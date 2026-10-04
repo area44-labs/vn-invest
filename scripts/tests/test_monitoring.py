@@ -214,6 +214,7 @@ class TestProductionMonitoring(unittest.TestCase):
         norm_standalone = normalize_market_payload(standalone, data_as_of="2026-09-28")
         self.assertEqual(norm_standalone["data_as_of"], "2026-09-28")
         self.assertEqual(norm_standalone["market"]["regime"], "BEAR")
+        self.assertNotIn("data_as_of", norm_standalone["market"])
 
         # 2. Flat inner market dict with top-level data_as_of
         flat = {
@@ -241,6 +242,21 @@ class TestProductionMonitoring(unittest.TestCase):
         norm_none = normalize_market_payload(None, data_as_of="2026-09-28")
         self.assertEqual(norm_none["data_as_of"], "2026-09-28")
         self.assertEqual(norm_none["market"], {})
+
+        # 5. Nested market.data_as_of differs from authoritative top-level data_as_of
+        conflicting = {
+            "data_as_of": "2026-09-28",
+            "market": {
+                "data_as_of": "2026-09-15",
+                "regime": "BEAR",
+                "confidence": 0.85,
+                "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+            },
+        }
+        norm_conflicting = normalize_market_payload(conflicting, data_as_of="2026-09-28")
+        self.assertEqual(norm_conflicting["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_conflicting["market"]["regime"], "BEAR")
+        self.assertNotIn("data_as_of", norm_conflicting["market"])
 
     def test_missing_performance_data_fails_closed(self):
         """Verify missing performance data in universe_audit fails closed with FAIL status rather than defaulting to PASS."""

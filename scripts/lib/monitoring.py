@@ -525,7 +525,8 @@ def normalize_market_payload(market_payload: Any, data_as_of: str | None = None)
         inner_market = dict(market_payload["market"])
     else:
         inner_market = dict(market_payload)
-        inner_market.pop("data_as_of", None)
+
+    inner_market.pop("data_as_of", None)
 
     return {
         "data_as_of": resolved_date,
