@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from scripts.data.providers.base import MarketDataProvider
 from scripts.data_provider import VnstockDataProvider
+from scripts.data.providers.base import MarketDataProvider
 
 
 class VnstockMarketProvider(MarketDataProvider):

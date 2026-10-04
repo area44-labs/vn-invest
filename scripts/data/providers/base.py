@@ -1,7 +1,6 @@
 """Base contract for market data providers."""
 
 import abc
-
 import pandas as pd
 
 

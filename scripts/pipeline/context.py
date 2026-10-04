@@ -36,9 +36,15 @@ class PipelineContext:
 
     # 3. Data acquisition state & providers
     provider: UniverseProvider | None = None
+    market_data_provider: Any | None = None
     raw_candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
     candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
     universe_info: dict[str, Any] = field(default_factory=dict)
+
+    # Raw acquisition payloads
+    raw_vnindex_payload: Any | None = None
+    raw_vn30_payload: Any | None = None
+    raw_stock_payloads: dict[str, Any] = field(default_factory=dict)
 
     # Benchmark raw & clean datasets
     df_vnindex_raw: pd.DataFrame | None = None
