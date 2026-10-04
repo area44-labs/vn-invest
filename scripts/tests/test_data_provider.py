@@ -946,7 +946,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         def mock_get_hist(sym, **kwargs):
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1001,7 +1004,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1016,7 +1022,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx_exit:
@@ -1050,7 +1059,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
             ):
                 with self.assertRaises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
@@ -1085,7 +1097,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _market_data, _ = pipeline_res
             self.assertIn("recommendations", recs_data)
@@ -1152,7 +1167,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1178,7 +1196,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _, _ = pipeline_res
@@ -1222,7 +1243,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", [f"[{sym}] Empty response from provider"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1243,7 +1267,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 raise RuntimeError(f"Processing error on {sym}")
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1263,7 +1290,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 raise ProviderRateLimitError("Quota exceeded", cooldown_seconds=30, symbol=sym)
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(ProviderRateLimitError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1292,7 +1322,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1316,7 +1349,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["Failed fetch"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1347,7 +1383,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 )
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1369,7 +1408,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["API network error"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1391,7 +1433,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1409,7 +1454,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return short_df, "INSUFFICIENT_HISTORICAL_DATA", ["insufficient_history"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1444,7 +1492,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1466,7 +1517,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["VNINDEX connection timeout"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1483,7 +1537,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["VN30 connection timeout"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1520,7 +1577,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("jsonschema.validate", return_value=None),
                 patch(
                     "scripts.pipeline.stages.evaluate_production_monitoring",
@@ -1579,7 +1639,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                     "scripts.pipeline.stages.UniverseProvider._get_candidates",
                     return_value=dynamic_candidates,
                 ),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1613,7 +1676,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1647,7 +1713,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1683,7 +1752,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
                 with (
                     patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                    patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                    patch(
+                        "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                        side_effect=mock_get_hist,
+                    ),
                     patch("sys.argv", ["generate_report.py", "--update"]),
                 ):
                     with self.assertRaises(SystemExit) as ctx:
@@ -1712,7 +1784,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 "scripts.pipeline.stages.UniverseProvider._get_candidates",
                 return_value=duplicate_candidates,
             ),
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
@@ -1734,7 +1809,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 return pd.DataFrame(), "PROVIDER_FAILURE", ["Fetch failed"]
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1775,7 +1853,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -1977,7 +2058,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             # Stocks are all stale (2026-08-15 vs VNINDEX 2026-08-25)
             return stale_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -1990,8 +2074,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         target_date = valid_df["time"].max()
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_get_hist:
-            mock_get_hist.return_value = (valid_df)
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_get_hist:
+            mock_get_hist.return_value = valid_df
             recs_data, market_data, _ = run_pipeline(update_data=True)
 
             self.assertEqual(market_data["data_as_of"], target_date)
@@ -2063,7 +2149,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -2087,7 +2176,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             calls_set.add(symbol)
             return valid_df
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             run_pipeline(update_data=True)
 
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once

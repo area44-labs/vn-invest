@@ -70,7 +70,10 @@ class TestDataDateSemantics(unittest.TestCase):
                 return df_vnindex
             return df_stock_earlier
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
@@ -92,7 +95,9 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_valid
             payload, _, _ = run_pipeline(update_data=False)
 
@@ -148,7 +153,10 @@ class TestDataDateSemantics(unittest.TestCase):
                 return df_stock_sync
             return df_stock_lagging
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
             self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
@@ -206,7 +214,9 @@ class TestDataDateSemantics(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = historical_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -325,7 +335,10 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
                 return df_vnindex
             return df_stale_stock
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
@@ -399,7 +412,10 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             return df_future_stock
 
         with (
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_get_hist),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            ),
             patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_save,
         ):
             with patch("sys.argv", ["generate_report.py", "--update"]):
@@ -423,7 +439,9 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -444,7 +462,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_vnindex
             recs_payload, _mkt_payload, history_payload = run_pipeline(update_data=False)
 
@@ -475,7 +495,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -498,7 +520,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -519,7 +543,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -530,7 +556,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
         """Verify provider metadata (data_source) reflects actual provider boundary result."""
         empty_df = pd.DataFrame()
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = empty_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -549,7 +577,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
@@ -573,7 +603,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )  # latest date = 2026-09-20
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
             self.assertEqual(recs["data_as_of"], "2026-09-20")
@@ -610,7 +642,10 @@ class TestProductionDataFreshness(unittest.TestCase):
                 return df_stale
             return df_vnindex
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("FPT", str(ctx.exception))
@@ -646,7 +681,10 @@ class TestProductionDataFreshness(unittest.TestCase):
                 return df_stale
             return df_vnindex
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=side_effect):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=side_effect,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
             self.assertIn("SSI", str(ctx.exception))
@@ -671,7 +709,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
@@ -758,7 +798,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             }
         )
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch:
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        ) as mock_fetch:
             mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
@@ -819,7 +861,10 @@ class TestProductionDataFreshness(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=side_effect),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=side_effect,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:

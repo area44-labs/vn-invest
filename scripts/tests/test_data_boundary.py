@@ -109,9 +109,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         self.assertIn("recommendations", ctx.recommendations_payload)
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_production_acquisition_stage_uses_market_data_acquirer(
-        self, mock_fetch_ohlcv
-    ):
+    def test_production_acquisition_stage_uses_market_data_acquirer(self, mock_fetch_ohlcv):
         """Verify DataAcquisitionStage in production uses MarketDataAcquirer and provider boundary."""
         mock_provider = MagicMock()
         mock_provider.provider_name = "mock_provider"

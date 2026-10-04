@@ -91,7 +91,8 @@ class TestDataFlowConsistency(unittest.TestCase):
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch_ohlcv
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value
@@ -266,7 +267,8 @@ class TestDataFlowConsistency(unittest.TestCase):
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch_ohlcv
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value

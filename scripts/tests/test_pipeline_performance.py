@@ -108,7 +108,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_fetch_ohlcv, mock_perf):
+    def test_1_every_required_pipeline_stage_produces_timing_record(
+        self, mock_fetch_ohlcv, mock_perf
+    ):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
 
         import itertools

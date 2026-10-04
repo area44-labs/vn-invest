@@ -439,7 +439,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
                 return invalid_df
             return make_valid_df(25)
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_fetch,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -455,7 +458,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
                 return invalid_df
             return make_valid_df(25)
 
-        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch):
+        with patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_fetch,
+        ):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -487,7 +493,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_fetch,
+                ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -521,7 +530,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+                patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_fetch,
+                ),
                 patch("jsonschema.validate", return_value=None),
                 patch(
                     "scripts.pipeline.stages.evaluate_production_monitoring",
