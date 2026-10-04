@@ -9,7 +9,6 @@ import pandas as pd
 
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
 from scripts.data.normalization import normalize_raw_market_data
-from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError, VnstockDataProvider
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
