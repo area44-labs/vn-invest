@@ -104,6 +104,19 @@ class TestMarketDataAcquisitionBoundary(unittest.TestCase):
         self.assertEqual(payload.failure_type, "PROVIDER_FAILURE")
         self.assertEqual(payload.source_tag, "PROVIDER_FAILURE")
 
+    def test_unstructured_exception_message_does_not_infer_explicitly_invalid(self):
+        """Regression test: An exception containing string 'EXPLICITLY_INVALID' without structured failure_type is classified as PROVIDER_FAILURE."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+        mock_provider.fetch_ohlcv.side_effect = RuntimeError(
+            "Fetch failed with EXPLICITLY_INVALID error message"
+        )
+
+        payload = acquire_raw_market_data("FPT", provider=mock_provider)
+
+        self.assertEqual(payload.failure_type, "PROVIDER_FAILURE")
+        self.assertEqual(payload.source_tag, "PROVIDER_FAILURE")
+
     def test_structured_exceptions_classified_correctly(self):
         """Structured InvalidSymbolError and ExplicitlyInvalidDataError are classified accurately."""
         mock_provider = MagicMock()

@@ -12,7 +12,13 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from scripts.data.providers import MarketDataProvider, VnstockMarketProvider
+from scripts.data.providers import (
+    AcquisitionError,
+    ExplicitlyInvalidDataError,
+    InvalidSymbolError,
+    MarketDataProvider,
+    VnstockMarketProvider,
+)
 from scripts.data_provider import (
     ProviderRateLimitError,
     can_recover_rate_limit,
@@ -21,24 +27,6 @@ from scripts.data_provider import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class AcquisitionError(Exception):
-    """Base exception for market data acquisition errors."""
-
-    failure_type: str = "PROVIDER_FAILURE"
-
-
-class InvalidSymbolError(AcquisitionError):
-    """Exception raised when a symbol is invalid or not found by market data provider."""
-
-    failure_type: str = "INVALID_SYMBOL"
-
-
-class ExplicitlyInvalidDataError(AcquisitionError):
-    """Exception raised when provider market data is corrupt or explicitly invalid."""
-
-    failure_type: str = "EXPLICITLY_INVALID"
 
 
 @dataclass(frozen=True)
@@ -183,3 +171,13 @@ def acquire_raw_market_data(
         max_rate_limit_retries=max_rate_limit_retries,
         target_date=target_date,
     )
+
+
+__all__ = [
+    "AcquisitionError",
+    "ExplicitlyInvalidDataError",
+    "InvalidSymbolError",
+    "MarketDataAcquirer",
+    "RawMarketDataPayload",
+    "acquire_raw_market_data",
+]

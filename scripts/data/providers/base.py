@@ -5,6 +5,24 @@ import abc
 import pandas as pd
 
 
+class AcquisitionError(Exception):
+    """Base exception for market data acquisition and provider errors."""
+
+    failure_type: str = "PROVIDER_FAILURE"
+
+
+class InvalidSymbolError(AcquisitionError):
+    """Exception raised when a symbol is invalid or not found by market data provider."""
+
+    failure_type: str = "INVALID_SYMBOL"
+
+
+class ExplicitlyInvalidDataError(AcquisitionError):
+    """Exception raised when provider market data is corrupt or explicitly invalid."""
+
+    failure_type: str = "EXPLICITLY_INVALID"
+
+
 class MarketDataProvider(abc.ABC):
     """Abstract interface defining external market data provider contract."""
 
