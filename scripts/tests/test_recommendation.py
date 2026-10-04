@@ -907,9 +907,9 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             calculate_risk_adjusted_score(signal_score=80.0, regime="UNKNOWN")
 
-    @patch("scripts.pipeline.stages.get_historical_data")
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     @patch("scripts.pipeline.stages.detect_market_regime")
-    def test_run_pipeline_market_regime_propagation(self, mock_detect, mock_get_hist):
+    def test_run_pipeline_market_regime_propagation(self, mock_detect, mock_fetch_ohlcv):
         """Integration test verifying canonical market regime flow in run_pipeline().
 
         Flow: detect_market_regime() -> generate_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_score.
@@ -930,7 +930,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
                 "volume": [500000] * n,
             }
         )
-        mock_get_hist.return_value = (df_sample, "OK", [])
+        mock_fetch_ohlcv.return_value = df_sample
 
         # 1. Market regime detected as STRONG_BULL
         mock_detect.return_value = {

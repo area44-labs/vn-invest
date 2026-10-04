@@ -434,12 +434,12 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_df = make_valid_df(25)
         invalid_df.loc[10, "close"] = None
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_fetch(sym, **kwargs):
             if sym == "VNINDEX":
-                return invalid_df, "EXPLICITLY_INVALID", ["nan_values"]
-            return make_valid_df(25), "REAL_DATA", []
+                return invalid_df
+            return make_valid_df(25)
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -450,12 +450,12 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_df = make_valid_df(25)
         invalid_df.loc[5, "volume"] = -100
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_fetch(sym, **kwargs):
             if sym == "VN30":
-                return invalid_df, "EXPLICITLY_INVALID", ["negative_volume"]
-            return make_valid_df(25), "REAL_DATA", []
+                return invalid_df
+            return make_valid_df(25)
 
-        with patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist):
+        with patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch):
             with self.assertRaises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
@@ -473,10 +473,10 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
         invalid_stock_df = make_valid_df(25)
         invalid_stock_df.loc[8, "close"] = None
 
-        def mock_get_hist(sym, **kwargs):
+        def mock_fetch(sym, **kwargs):
             if sym == "ACB":
-                return invalid_stock_df, "EXPLICITLY_INVALID", ["nan_values"]
-            return valid_df, "REAL_DATA", []
+                return invalid_stock_df
+            return valid_df
 
         with tempfile.TemporaryDirectory() as tmpdir:
             generated_dir = Path(tmpdir) / "generated"
@@ -487,7 +487,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
                 with self.assertRaises(SystemExit) as ctx:
@@ -508,8 +508,8 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
         valid_df = make_valid_df(25)
 
-        def mock_get_hist(sym, **kwargs):
-            return valid_df, "REAL_DATA", []
+        def mock_fetch(sym, **kwargs):
+            return valid_df
 
         mock_mon_res = MagicMock()
         mock_mon_res.overall_status = "PASS"
@@ -521,7 +521,7 @@ class TestHardenedPerSymbolDataValidation(unittest.TestCase):
 
             with (
                 patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.pipeline.stages.get_historical_data", side_effect=mock_get_hist),
+                patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
                 patch("jsonschema.validate", return_value=None),
                 patch(
                     "scripts.pipeline.stages.evaluate_production_monitoring",

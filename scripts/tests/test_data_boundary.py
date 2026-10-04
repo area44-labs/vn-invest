@@ -108,11 +108,11 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         risk_stage.execute(ctx)
         self.assertIn("recommendations", ctx.recommendations_payload)
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_production_acquisition_stage_does_not_call_get_historical_data(
-        self, mock_get_historical_data
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_production_acquisition_stage_uses_market_data_acquirer(
+        self, mock_fetch_ohlcv
     ):
-        """Verify DataAcquisitionStage in production uses MarketDataAcquirer and never calls get_historical_data directly."""
+        """Verify DataAcquisitionStage in production uses MarketDataAcquirer and provider boundary."""
         mock_provider = MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.return_value = pd.DataFrame(
@@ -134,8 +134,6 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         acq_stage = DataAcquisitionStage()
         acq_stage.execute(ctx)
 
-        # get_historical_data MUST NOT be called from production DataAcquisitionStage
-        mock_get_historical_data.assert_not_called()
         self.assertTrue(mock_provider.fetch_ohlcv.called)
 
     def test_provider_replacement_via_interface(self):

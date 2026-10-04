@@ -21,7 +21,6 @@ from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     get_clean_ohlcv_data,
-    get_historical_data,  # noqa: F401 - Re-exported for test mock patch targets
     validate_temporal_integrity,
 )
 from scripts.pipeline.context import PipelineContext

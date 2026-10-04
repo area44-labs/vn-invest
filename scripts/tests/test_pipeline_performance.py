@@ -107,14 +107,14 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         VnstockDataProvider.reset_global_call_history()
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_get_hist, mock_perf):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_1_every_required_pipeline_stage_produces_timing_record(self, mock_fetch_ohlcv, mock_perf):
         """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
 
         import itertools
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(10.0, 0.01)
         mock_perf.side_effect = lambda: next(counter)
 
@@ -163,14 +163,14 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                 self.assertIn(record["status"], ("SUCCESS", "FAILED"))
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_2_stage_ordering_is_deterministic(self, mock_get_hist, mock_perf):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_2_stage_ordering_is_deterministic(self, mock_fetch_ohlcv, mock_perf):
         """2. Stage ordering in performance payload is strictly deterministic."""
 
         import itertools
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(1.0, 0.05)
         mock_perf.side_effect = lambda: next(counter)
 
@@ -360,11 +360,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertEqual(duplicates[0]["successful_calls"], 2)
         self.assertEqual(duplicates[0]["failed_calls"], 0)
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_9_instrumentation_does_not_change_pipeline_output(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_9_instrumentation_does_not_change_pipeline_output(self, mock_fetch_ohlcv):
         """9. Performance instrumentation produces identical quantitative report structure."""
         valid_df = make_valid_canonical_df(25)
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
 
         res_uninstrumented = run_pipeline(update_data=False)
         res_instrumented = run_pipeline(update_data=False, tracker=PerformanceTracker())
@@ -376,11 +376,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertEqual(market1["market"]["regime"], market2["market"]["regime"])
         self.assertEqual(len(recs1["recommendations"]), len(recs2["recommendations"]))
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_10_instrumentation_does_not_alter_recommendation_results(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_10_instrumentation_does_not_alter_recommendation_results(self, mock_fetch_ohlcv):
         """10. Recommendations and signals are 100% identical with instrumentation."""
         valid_df = make_valid_canonical_df(25)
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
 
         res1 = run_pipeline(update_data=False)
         res2 = run_pipeline(update_data=False, tracker=PerformanceTracker())
@@ -394,13 +394,13 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             self.assertEqual(r1.get("signal_score"), r2.get("signal_score"))
             self.assertEqual(r1.get("risk_adjusted_score"), r2.get("risk_adjusted_score"))
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_11_instrumentation_does_not_alter_monitoring_status(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_11_instrumentation_does_not_alter_monitoring_status(self, mock_fetch_ohlcv):
         """11. Production monitoring status is unchanged by performance tracking."""
         from scripts.lib.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
 
         res = run_pipeline(update_data=False)
 
@@ -435,10 +435,10 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             mon_dict = mon_res.to_dict()
             self.assertIn("performance", mon_dict["metrics"])
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_12_provider_failure_remains_fail_closed(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_12_provider_failure_remains_fail_closed(self, mock_fetch_ohlcv):
         """12. Provider failure remains fail-closed and attaches performance diagnostics."""
-        mock_get_hist.side_effect = RuntimeError("Provider offline")
+        mock_fetch_ohlcv.side_effect = RuntimeError("Provider offline")
 
         tracker = PerformanceTracker()
         with self.assertRaises(RuntimeError) as ctx:
@@ -452,10 +452,10 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         failed_stages = [s for s in audit["performance"]["stages"] if s["status"] == "FAILED"]
         self.assertGreater(len(failed_stages), 0)
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_13_rate_limit_behavior_remains_unchanged(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_13_rate_limit_behavior_remains_unchanged(self, mock_fetch_ohlcv):
         """13. Rate limit handling remains unchanged and raises ProviderRateLimitError loudly."""
-        mock_get_hist.side_effect = ProviderRateLimitError(
+        mock_fetch_ohlcv.side_effect = ProviderRateLimitError(
             "Quota exceeded for FPT", cooldown_seconds=30, symbol="FPT"
         )
 
@@ -468,18 +468,18 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertIsNotNone(audit)
         self.assertIn("performance", audit)
 
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_14_canonical_date_freshness_remains_enforced(self, mock_get_hist):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_14_canonical_date_freshness_remains_enforced(self, mock_fetch_ohlcv):
         """14. Temporal integrity / canonical date freshness rules remain strictly enforced."""
         vnindex_df = make_valid_canonical_df(25, start_date="2026-08-01")
         stale_df = make_valid_canonical_df(10, start_date="2026-08-01")  # Stale relative to VNINDEX
 
         def side_effect(symbol, **kwargs):
             if symbol == "VNINDEX" or symbol == "VN30":
-                return vnindex_df, "REAL_DATA", []
-            return stale_df, "REAL_DATA", []
+                return vnindex_df
+            return stale_df
 
-        mock_get_hist.side_effect = side_effect
+        mock_fetch_ohlcv.side_effect = side_effect
 
         with self.assertRaises(RuntimeError) as ctx:
             run_pipeline(update_data=True)
@@ -519,15 +519,15 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
 
     @patch("scripts.pipeline.stages.evaluate_production_monitoring")
     @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.pipeline.stages.get_historical_data")
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_16_monitoring_elapsed_time_corresponds_to_mocked_execution(
-        self, mock_get_hist, mock_perf, mock_eval_mon
+        self, mock_fetch_ohlcv, mock_perf, mock_eval_mon
     ):
         """16. Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
         from unittest.mock import MagicMock
 
         valid_df = make_valid_canonical_df(25)
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
 
         mock_mon_result = MagicMock()
         mock_mon_result.overall_status = "PASS"
@@ -637,12 +637,12 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.assertIn("payload_validation", stages)
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.pipeline.stages.get_historical_data")
-    def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_get_hist, mock_perf):
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+    def test_21_stage_ordering_in_main_flow_remains_unchanged(self, mock_fetch_ohlcv, mock_perf):
         """21. Main pipeline stage ordering matches expected canonical order strictly."""
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
         with (
@@ -768,14 +768,14 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
-    @patch("scripts.pipeline.stages.get_historical_data")
+    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(
-        self, mock_get_hist
+        self, mock_fetch_ohlcv
     ):
         from scripts.lib.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
-        mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+        mock_fetch_ohlcv.return_value = valid_df
 
         res = run_pipeline(update_data=False)
         audit_perf = res.universe_audit.get("performance")

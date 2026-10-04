@@ -79,20 +79,19 @@ class TestDataFlowConsistency(unittest.TestCase):
             {"symbol": "AAA", "companyName": "AAA Corp", "sector": "Materials", "exchange": "HOSE"}
         ]
 
-        def mock_get_historical_data(sym, **_kwargs):
-            if sym == "VNINDEX":
-                return self.df_vnindex, "REAL_DATA", []
-            if sym == "VN30":
-                return self.df_vn30, "REAL_DATA", []
-            if sym == "AAA":
-                # Provider mistakenly returned tag REAL_DATA, but df has only 10 rows
-                return clean_10_df, "REAL_DATA", []
-            return pd.DataFrame(), "PROVIDER_FAILURE", []
+        def mock_fetch_ohlcv(symbol, **_kwargs):
+            if symbol == "VNINDEX":
+                return self.df_vnindex
+            if symbol == "VN30":
+                return self.df_vn30
+            if symbol == "AAA":
+                return clean_10_df
+            return pd.DataFrame()
 
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch_ohlcv
             ),
         ):
             mock_provider = mock_provider_cls.return_value
@@ -257,17 +256,17 @@ class TestDataFlowConsistency(unittest.TestCase):
             {"symbol": "FAILED_SYM", "companyName": "Failed", "sector": "Tech", "exchange": "HOSE"}
         ]
 
-        def mock_get_historical_data(sym, **_kwargs):
-            if sym == "VNINDEX":
-                return self.df_vnindex, "REAL_DATA", []
-            if sym == "VN30":
-                return self.df_vn30, "REAL_DATA", []
-            return pd.DataFrame(), "PROVIDER_FAILURE", ["Mock provider failure"]
+        def mock_fetch_ohlcv(symbol, **_kwargs):
+            if symbol == "VNINDEX":
+                return self.df_vnindex
+            if symbol == "VN30":
+                return self.df_vn30
+            return pd.DataFrame()
 
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
             patch(
-                "scripts.pipeline.stages.get_historical_data", side_effect=mock_get_historical_data
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch_ohlcv
             ),
         ):
             mock_provider = mock_provider_cls.return_value

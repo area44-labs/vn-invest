@@ -322,7 +322,7 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
+            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
@@ -332,7 +332,7 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
             mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
             mock_provider_cls.return_value = mock_provider
 
-            mock_get_hist.return_value = (valid_df, "REAL_DATA", [])
+            mock_fetch.return_value = valid_df
 
             res = run_pipeline(update_data=False, generated_dir=tmpdir)
 
@@ -401,7 +401,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
         empty_df = pd.DataFrame()
         with (
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
-            patch("scripts.pipeline.stages.get_historical_data") as mock_get_hist,
+            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
         ):
             mock_provider = MagicMock()
             mock_provider.candidates = [
@@ -410,7 +410,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
             mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
             mock_provider_cls.return_value = mock_provider
 
-            mock_get_hist.return_value = (empty_df, "PROVIDER_FAILURE", ["Error"])
+            mock_fetch.return_value = empty_df
 
             with self.assertRaises(RuntimeError) as cm:
                 run_pipeline(update_data=True)
