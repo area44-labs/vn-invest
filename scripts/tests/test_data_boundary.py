@@ -6,6 +6,7 @@ and fail-closed behavior on malformed/temporal data.
 """
 
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
@@ -16,6 +17,15 @@ from scripts.data.providers.base import MarketDataProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
+from scripts.pipeline.context import PipelineContext
+from scripts.pipeline.stages import (
+    DataAcquisitionStage,
+    DataValidationStage,
+    MarketAnalysisStage,
+    RiskTradePlanStage,
+    SignalRecommendationGenerationStage,
+)
+from scripts.pipeline.tracker import PerformanceTracker
 
 
 class FakeCustomMarketProvider(MarketDataProvider):
@@ -59,6 +69,74 @@ class FakeCustomMarketProvider(MarketDataProvider):
 
 class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
     """Test data boundary contracts, malformed field handling, and provider replacement."""
+
+    def test_production_pipeline_execution_with_fake_provider(self):
+        """Production pipeline stages execute through provider -> acquisition -> normalization -> validation -> quantitative using FakeCustomMarketProvider."""
+        ctx = PipelineContext()
+        ctx.tracker = PerformanceTracker()
+        ctx.market_data_provider = FakeCustomMarketProvider()
+        ctx.update_data = False
+
+        # Stage 1: Acquisition
+        acq_stage = DataAcquisitionStage()
+        acq_stage.execute(ctx)
+
+        self.assertIsNotNone(ctx.raw_vnindex_payload)
+        self.assertEqual(ctx.raw_vnindex_payload.provider_name, "custom_synthetic_provider")
+        self.assertEqual(ctx.raw_vn30_payload.provider_name, "custom_synthetic_provider")
+        self.assertIn("FPT", ctx.raw_stock_payloads)
+        self.assertEqual(ctx.raw_stock_payloads["FPT"].provider_name, "custom_synthetic_provider")
+
+        # Stage 2: Validation
+        val_stage = DataValidationStage()
+        val_stage.execute(ctx)
+
+        self.assertIsNotNone(ctx.df_vnindex_clean)
+        self.assertFalse(ctx.df_vnindex_clean.empty)
+        self.assertEqual(ctx.vnindex_val.get("status"), "SUFFICIENT")
+
+        # Stage 4 & 5: Quantitative
+        mkt_stage = MarketAnalysisStage()
+        mkt_stage.execute(ctx)
+        self.assertIsNotNone(ctx.final_market_regime)
+
+        sig_stage = SignalRecommendationGenerationStage()
+        sig_stage.execute(ctx)
+        self.assertTrue(len(ctx.scanned_recs) > 0)
+
+        risk_stage = RiskTradePlanStage()
+        risk_stage.execute(ctx)
+        self.assertIn("recommendations", ctx.recommendations_payload)
+
+    @patch("scripts.pipeline.stages.get_historical_data")
+    def test_production_acquisition_stage_does_not_call_get_historical_data(
+        self, mock_get_historical_data
+    ):
+        """Verify DataAcquisitionStage in production uses MarketDataAcquirer and never calls get_historical_data directly."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+        mock_provider.fetch_ohlcv.return_value = pd.DataFrame(
+            {
+                "time": [f"2025-01-{i:02d}" for i in range(1, 25)],
+                "open": [100.0] * 24,
+                "high": [105.0] * 24,
+                "low": [99.0] * 24,
+                "close": [102.0] * 24,
+                "volume": [1000.0] * 24,
+            }
+        )
+
+        ctx = PipelineContext()
+        ctx.tracker = PerformanceTracker()
+        ctx.market_data_provider = mock_provider
+        ctx.update_data = False
+
+        acq_stage = DataAcquisitionStage()
+        acq_stage.execute(ctx)
+
+        # get_historical_data MUST NOT be called from production DataAcquisitionStage
+        mock_get_historical_data.assert_not_called()
+        self.assertTrue(mock_provider.fetch_ohlcv.called)
 
     def test_provider_replacement_via_interface(self):
         """Provider replacement: replacing provider with FakeCustomMarketProvider without modifying acquisition or quantitative layer."""

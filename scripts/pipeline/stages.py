@@ -9,8 +9,9 @@ import pandas as pd
 
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
 from scripts.data.normalization import normalize_raw_market_data
+from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
-from scripts.data_provider import ProviderRateLimitError, VnstockDataProvider
+from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
@@ -54,7 +55,7 @@ class DataAcquisitionStage(PipelineStage):
         if context.is_historical:
             return
 
-        VnstockDataProvider.reset_global_call_history()
+        VnstockMarketProvider.reset_global_call_history()
         context.provider = UniverseProvider()
         context.raw_candidate_stocks = context.provider.candidates
         context.universe_info = context.provider.get_info()
@@ -87,32 +88,22 @@ class DataAcquisitionStage(PipelineStage):
         }
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
+        acquirer = MarketDataAcquirer(
+            provider=context.market_data_provider or VnstockMarketProvider()
+        )
+
         # Fetch VNINDEX benchmark payload
         with context.tracker.measure_stage("benchmark_fetch"):
             context.tracker.record_request("VNINDEX")
             try:
-                if context.market_data_provider:
-                    acquirer = MarketDataAcquirer(provider=context.market_data_provider)
-                    payload_vnindex = acquirer.acquire(
-                        "VNINDEX",
-                        max_retries=2 if context.update_data else 1,
-                        throttle_delay=context.throttle,
-                    )
-                    raw_df, source = payload_vnindex.raw_df, payload_vnindex.source_tag
-                else:
-                    payload_vnindex = None
-                    raw_df, source, _ = get_historical_data(
-                        "VNINDEX",
-                        max_retries=2 if context.update_data else 1,
-                        use_cache_only=bool(context.use_cache),
-                        throttle_delay=context.throttle,
-                    )
-
-                context.raw_vnindex_payload = payload_vnindex or RawMarketDataPayload(
-                    symbol="VNINDEX", raw_df=raw_df, source_tag=source
+                payload_vnindex = acquirer.acquire(
+                    "VNINDEX",
+                    max_retries=2 if context.update_data else 1,
+                    throttle_delay=context.throttle,
                 )
-                context.df_vnindex_raw = raw_df
-                context.vn_source = source
+                context.raw_vnindex_payload = payload_vnindex
+                context.df_vnindex_raw = payload_vnindex.raw_df
+                context.vn_source = payload_vnindex.source_tag
             except ProviderRateLimitError:
                 context.add_exclusion(
                     symbol="VNINDEX",
@@ -134,7 +125,7 @@ class DataAcquisitionStage(PipelineStage):
                 context.raw_vnindex_payload = RawMarketDataPayload(
                     symbol="VNINDEX",
                     raw_df=pd.DataFrame(),
-                    provider_name="vnstock",
+                    provider_name=acquirer._get_provider().provider_name,
                     source_tag="PROVIDER_FAILURE",
                     error=str(exc),
                 )
@@ -144,28 +135,14 @@ class DataAcquisitionStage(PipelineStage):
             # Fetch VN30 benchmark payload
             context.tracker.record_request("VN30")
             try:
-                if context.market_data_provider:
-                    acquirer = MarketDataAcquirer(provider=context.market_data_provider)
-                    payload_vn30 = acquirer.acquire(
-                        "VN30",
-                        max_retries=2 if context.update_data else 1,
-                        throttle_delay=context.throttle,
-                    )
-                    raw_df, source = payload_vn30.raw_df, payload_vn30.source_tag
-                else:
-                    payload_vn30 = None
-                    raw_df, source, _ = get_historical_data(
-                        "VN30",
-                        max_retries=2 if context.update_data else 1,
-                        use_cache_only=bool(context.use_cache),
-                        throttle_delay=context.throttle,
-                    )
-
-                context.raw_vn30_payload = payload_vn30 or RawMarketDataPayload(
-                    symbol="VN30", raw_df=raw_df, source_tag=source
+                payload_vn30 = acquirer.acquire(
+                    "VN30",
+                    max_retries=2 if context.update_data else 1,
+                    throttle_delay=context.throttle,
                 )
-                context.df_vn30_raw = raw_df
-                context.vn30_source = source
+                context.raw_vn30_payload = payload_vn30
+                context.df_vn30_raw = payload_vn30.raw_df
+                context.vn30_source = payload_vn30.source_tag
             except ProviderRateLimitError:
                 context.add_exclusion(
                     symbol="VN30",
@@ -189,7 +166,7 @@ class DataAcquisitionStage(PipelineStage):
                 context.raw_vn30_payload = RawMarketDataPayload(
                     symbol="VN30",
                     raw_df=pd.DataFrame(),
-                    provider_name="vnstock",
+                    provider_name=acquirer._get_provider().provider_name,
                     source_tag="PROVIDER_FAILURE",
                     error=str(exc),
                 )
@@ -202,33 +179,18 @@ class DataAcquisitionStage(PipelineStage):
                 sym = item["symbol"].upper()
                 context.tracker.record_request(sym)
                 try:
-                    if context.market_data_provider:
-                        acquirer = MarketDataAcquirer(provider=context.market_data_provider)
-                        payload_stock = acquirer.acquire(
-                            sym,
-                            max_retries=1,
-                            throttle_delay=context.throttle,
-                            target_date=context.data_as_of if context.update_data else None,
-                        )
-                        df_stock, tag, warns = (
-                            payload_stock.raw_df,
-                            payload_stock.source_tag,
-                            list(payload_stock.warnings),
-                        )
-                    else:
-                        payload_stock = None
-                        df_stock, tag, warns = get_historical_data(
-                            sym,
-                            max_retries=1,
-                            use_cache_only=bool(context.use_cache),
-                            throttle_delay=context.throttle,
-                            target_date=context.data_as_of if context.update_data else None,
-                        )
-
-                    context.raw_stock_payloads[sym] = payload_stock or RawMarketDataPayload(
-                        symbol=sym, raw_df=df_stock, source_tag=tag, warnings=tuple(warns)
+                    payload_stock = acquirer.acquire(
+                        sym,
+                        max_retries=1,
+                        throttle_delay=context.throttle,
+                        target_date=context.data_as_of if context.update_data else None,
                     )
-                    context.stock_data_map[sym] = (df_stock, tag, warns)
+                    context.raw_stock_payloads[sym] = payload_stock
+                    context.stock_data_map[sym] = (
+                        payload_stock.raw_df,
+                        payload_stock.source_tag,
+                        list(payload_stock.warnings),
+                    )
                 except ProviderRateLimitError:
                     context.add_exclusion(
                         symbol=sym,

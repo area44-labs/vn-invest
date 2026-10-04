@@ -162,7 +162,7 @@ class CanonicalMarketValidator:
 
         has_provider_failure = any(iss in provider_failure_issues for iss in issues)
         has_corruption = any(iss in corruption_issues for iss in issues) or any(
-            "future_dated" in iss for iss in issues
+            "future_dated" in iss or "nan_values" in iss or "inf_values" in iss for iss in issues
         )
 
         if canonical_data.source_tag == "INVALID_SYMBOL":

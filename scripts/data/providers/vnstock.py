@@ -18,6 +18,11 @@ class VnstockMarketProvider(MarketDataProvider):
     def provider_name(self) -> str:
         return "vnstock"
 
+    @classmethod
+    def reset_global_call_history(cls) -> None:
+        """Reset process-wide provider call history and rate-limit state."""
+        VnstockDataProvider.reset_global_call_history()
+
     def fetch_ohlcv(
         self,
         symbol: str,
