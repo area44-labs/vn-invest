@@ -227,7 +227,9 @@ class TestProductionMonitoring(unittest.TestCase):
             )
 
             failed_checks = [c for c in res.checks if c.status == "FAIL"]
-            self.assertEqual(len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}")
+            self.assertEqual(
+                len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}"
+            )
             self.assertIn(res.overall_status, ("PASS", "WARNING"))
 
     def test_healthy_production_data_passes(self):

@@ -487,7 +487,9 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
         mock_check.status = "FAIL"
         mock_check.measured_value = "Missing date"
         mock_check.expected_condition = "Valid data_as_of"
-        mock_check.message = "Explicit standalone market_payload missing required data_as_of date field"
+        mock_check.message = (
+            "Explicit standalone market_payload missing required data_as_of date field"
+        )
 
         mock_monitoring_res = MagicMock()
         mock_monitoring_res.overall_status = "FAIL"
@@ -508,7 +510,9 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
         self.assertIn("Production update rejected due to monitoring failure.", logged_text)
         self.assertIn("Failed monitoring check count: 1", logged_text)
         self.assertIn("drift_market_payload_temporal_safety", logged_text)
-        self.assertIn("Explicit standalone market_payload missing required data_as_of date field", logged_text)
+        self.assertIn(
+            "Explicit standalone market_payload missing required data_as_of date field", logged_text
+        )
 
     def test_atomic_rejection_preserves_disk_artifacts_byte_for_byte(self):
         """Verify atomic rejection when monitoring fails preserves existing disk artifacts byte-for-byte."""
