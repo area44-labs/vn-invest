@@ -8,7 +8,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.tests import enforce_network_isolation  # noqa: E402
+from scripts.tests import enforce_network_isolation
 
 enforce_network_isolation()
 
