@@ -497,9 +497,11 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
         context.monitoring_result = mock_monitoring_res
 
         stage = ArtifactPublishingStage()
-        with self.assertLogs("scripts.pipeline.stages", level="ERROR") as cm_logs:
-            with self.assertRaises(SystemExit) as cm:
-                stage.execute(context)
+        with (
+            self.assertLogs("scripts.pipeline.stages", level="ERROR") as cm_logs,
+            self.assertRaises(SystemExit) as cm,
+        ):
+            stage.execute(context)
 
         self.assertEqual(cm.exception.code, 1)
         logged_text = "\n".join(cm_logs.output)
