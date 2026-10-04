@@ -132,16 +132,7 @@ class MarketDataAcquirer:
             except Exception as e:  # noqa: BLE001
                 logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
                 err_msg = str(e)
-                exc_failure_type = getattr(e, "failure_type", None)
-                if not exc_failure_type:
-                    err_upper = err_msg.upper()
-                    if "INVALID_SYMBOL" in err_upper or "INVALID SYMBOL" in err_upper:
-                        exc_failure_type = "INVALID_SYMBOL"
-                    elif "EXPLICITLY_INVALID" in err_upper:
-                        exc_failure_type = "EXPLICITLY_INVALID"
-                    else:
-                        exc_failure_type = "PROVIDER_FAILURE"
-
+                exc_failure_type = getattr(e, "failure_type", None) or "PROVIDER_FAILURE"
                 src_tag = (
                     "INVALID_SYMBOL"
                     if exc_failure_type == "INVALID_SYMBOL"

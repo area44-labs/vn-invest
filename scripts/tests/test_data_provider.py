@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from vnai.beam.quota import RateLimitExceeded
 
+from scripts.data.acquisition import InvalidSymbolError
 from scripts.data_provider import (
     CanonicalOHLCVError,
     ProviderRateLimitError,
@@ -1123,7 +1124,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         def mock_get_hist(symbol=None, **kwargs):
             sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
+                raise InvalidSymbolError(f"Invalid symbol [{sym}]")
             return valid_df
 
         with patch(
@@ -1343,7 +1344,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         def mock_get_hist(symbol=None, **kwargs):
             sym = symbol or kwargs.get("sym")
             if sym == invalid_candidate:
-                raise RuntimeError(f"INVALID_SYMBOL: Invalid symbol [{sym}]")
+                raise InvalidSymbolError(f"Invalid symbol [{sym}]")
             if sym == failed_candidate:
                 raise RuntimeError("Timeout error")
             if sym == insufficient_candidate:

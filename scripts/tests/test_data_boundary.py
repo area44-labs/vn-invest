@@ -166,9 +166,11 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
             }
         )
         cmd_invalid_ohlc = CanonicalMarketData.from_df("FPT", invalid_ohlc_df)
+        self.assertEqual(cmd_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
         v_invalid_ohlc = validate_canonical_market_data(cmd_invalid_ohlc)
-        self.assertIn("invalid_ohlc_relationship", v_invalid_ohlc.data_quality.issues)
         self.assertEqual(v_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
+        self.assertEqual(v_invalid_ohlc.data_quality.status, "INSUFFICIENT")
+        self.assertEqual(len(v_invalid_ohlc.records), 0)
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_production_acquisition_stage_uses_market_data_acquirer(self, mock_fetch_ohlcv):
@@ -253,7 +255,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
 
         self.assertEqual(validated.source_tag, "PROVIDER_FAILURE")
         self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
-        self.assertIn("missing_required_columns", validated.data_quality.issues)
+        self.assertEqual(len(validated.records), 0)
 
     def test_temporal_mismatch_fails_closed(self):
         """Record date in future relative to reference_date fails closed."""

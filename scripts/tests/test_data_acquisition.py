@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from scripts.data.acquisition import (
+    ExplicitlyInvalidDataError,
+    InvalidSymbolError,
     MarketDataAcquirer,
     RawMarketDataPayload,
     acquire_raw_market_data,
@@ -85,8 +87,37 @@ class TestMarketDataAcquisitionBoundary(unittest.TestCase):
 
         self.assertEqual(payload.symbol, "FPT")
         self.assertEqual(payload.source_tag, "PROVIDER_FAILURE")
+        self.assertEqual(payload.failure_type, "PROVIDER_FAILURE")
         self.assertTrue(payload.raw_df.empty)
         self.assertIn("Provider offline", payload.error)
+
+    def test_unstructured_exception_message_does_not_infer_invalid_symbol(self):
+        """Regression test: An exception containing string 'INVALID_SYMBOL' without structured failure_type is classified as PROVIDER_FAILURE."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+        mock_provider.fetch_ohlcv.side_effect = RuntimeError(
+            "Fetch failed with INVALID_SYMBOL error message"
+        )
+
+        payload = acquire_raw_market_data("FPT", provider=mock_provider)
+
+        self.assertEqual(payload.failure_type, "PROVIDER_FAILURE")
+        self.assertEqual(payload.source_tag, "PROVIDER_FAILURE")
+
+    def test_structured_exceptions_classified_correctly(self):
+        """Structured InvalidSymbolError and ExplicitlyInvalidDataError are classified accurately."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+
+        mock_provider.fetch_ohlcv.side_effect = InvalidSymbolError("Symbol ABC not found")
+        payload_invalid_sym = acquire_raw_market_data("ABC", provider=mock_provider)
+        self.assertEqual(payload_invalid_sym.failure_type, "INVALID_SYMBOL")
+        self.assertEqual(payload_invalid_sym.source_tag, "INVALID_SYMBOL")
+
+        mock_provider.fetch_ohlcv.side_effect = ExplicitlyInvalidDataError("Corrupted payload")
+        payload_exp_invalid = acquire_raw_market_data("XYZ", provider=mock_provider)
+        self.assertEqual(payload_exp_invalid.failure_type, "EXPLICITLY_INVALID")
+        self.assertEqual(payload_exp_invalid.source_tag, "EXPLICITLY_INVALID")
 
     @patch("scripts.data.acquisition.can_recover_rate_limit", return_value=False)
     def test_rate_limit_exceeded_raises(self, _mock_can_rec):
