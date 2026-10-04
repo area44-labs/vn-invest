@@ -35,13 +35,12 @@ class MarketDataNormalizer:
         raw_df = payload.raw_df
 
         if raw_df is None or raw_df.empty:
-            src_tag = payload.source_tag
-            if payload.error:
-                err_upper = payload.error.upper()
-                if "INVALID_SYMBOL" in err_upper or "INVALID SYMBOL" in err_upper:
-                    src_tag = "INVALID_SYMBOL"
-                elif "EXPLICITLY_INVALID" in err_upper:
-                    src_tag = "EXPLICITLY_INVALID"
+            src_tag = (
+                payload.source_tag
+                if payload.source_tag
+                in ("INVALID_SYMBOL", "EXPLICITLY_INVALID", "PROVIDER_FAILURE")
+                else (payload.failure_type or "PROVIDER_FAILURE")
+            )
             return CanonicalMarketData(
                 symbol=sym,
                 records=(),

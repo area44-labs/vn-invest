@@ -99,10 +99,11 @@ class CanonicalMarketData:
                 )
 
     def to_df(self) -> pd.DataFrame:
-        """Convert canonical market records into a pandas DataFrame."""
-        if self.df is not None and isinstance(self.df, pd.DataFrame):
-            return self.df.copy()
+        """Convert canonical market records into a pandas DataFrame adapter view.
 
+        'records' is the authoritative source of truth. Produces a clean DataFrame
+        containing canonical OHLCV columns.
+        """
         if not self.records:
             return pd.DataFrame(columns=CANONICAL_OHLCV_COLUMNS)
 

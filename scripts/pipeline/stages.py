@@ -8,6 +8,7 @@ import time
 import pandas as pd
 
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
+from scripts.data.models import CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
@@ -20,7 +21,6 @@ from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
-    get_clean_ohlcv_data,
     validate_temporal_integrity,
 )
 from scripts.pipeline.context import PipelineContext
@@ -249,6 +249,7 @@ class DataValidationStage(PipelineStage):
         cmd_vn = normalize_raw_market_data(raw_vn_payload)
         v_vn = validate_canonical_market_data(cmd_vn, reference_date=context.generated_at)
 
+        context.canonical_vnindex = v_vn
         df_clean_vn = v_vn.to_df()
         vn_val = v_vn.data_quality.to_dict() if v_vn.data_quality else {}
         context.df_vnindex_clean = df_clean_vn
@@ -299,6 +300,7 @@ class DataValidationStage(PipelineStage):
         cmd_vn30 = normalize_raw_market_data(raw_vn30_payload)
         v_vn30 = validate_canonical_market_data(cmd_vn30, reference_date=context.generated_at)
 
+        context.canonical_vn30 = v_vn30
         df_clean_vn30 = v_vn30.to_df()
         vn30_val = v_vn30.data_quality.to_dict() if v_vn30.data_quality else {}
         context.df_vn30_clean = df_clean_vn30
@@ -351,6 +353,7 @@ class DataValidationStage(PipelineStage):
             )
             v_st = validate_canonical_market_data(cmd_st, reference_date=context.generated_at)
 
+            context.canonical_stock_map[sym] = v_st
             df_clean_stock = v_st.to_df()
             stock_val = v_st.data_quality.to_dict() if v_st.data_quality else {}
             tag = v_st.source_tag
@@ -438,6 +441,12 @@ class DataValidationStage(PipelineStage):
                         latest_date=context.stock_dates_map.get(sym),
                         expected_date=context.data_as_of,
                     )
+                    context.canonical_stock_map[sym] = CanonicalMarketData(
+                        symbol=sym,
+                        records=(),
+                        data_as_of=context.data_as_of,
+                        source_tag="EXPLICITLY_INVALID",
+                    )
                     context.stock_data_map[sym] = (
                         pd.DataFrame(),
                         "EXPLICITLY_INVALID",
@@ -461,6 +470,7 @@ class DataValidationStage(PipelineStage):
                 symbol="VNINDEX", raw_df=df_vnindex_as_of, source_tag="REAL_DATA"
             )
             v_vnindex = validate_canonical_market_data(normalize_raw_market_data(payload_vnindex))
+            context.canonical_vnindex = v_vnindex
             df_vnindex_clean = v_vnindex.to_df()
             vnindex_val = v_vnindex.data_quality.to_dict() if v_vnindex.data_quality else {}
 
@@ -484,6 +494,7 @@ class DataValidationStage(PipelineStage):
                     symbol="VN30", raw_df=df_vn30_as_of, source_tag="REAL_DATA"
                 )
                 v_vn30 = validate_canonical_market_data(normalize_raw_market_data(payload_vn30))
+                context.canonical_vn30 = v_vn30
                 df_vn30_clean = v_vn30.to_df()
                 vn30_val = v_vn30.data_quality.to_dict() if v_vn30.data_quality else {}
 
@@ -528,8 +539,16 @@ class DataValidationStage(PipelineStage):
                     v_st = validate_canonical_market_data(
                         normalize_raw_market_data(payload_st, explicit_data_as_of=canonical_as_of)
                     )
+                    context.canonical_stock_map[sym_upper] = v_st
                     df_stock_clean = v_st.to_df()
                 else:
+                    v_st = CanonicalMarketData(
+                        symbol=sym_upper,
+                        records=(),
+                        data_as_of=canonical_as_of,
+                        source_tag="PROVIDER_FAILURE",
+                    )
+                    context.canonical_stock_map[sym_upper] = v_st
                     df_stock_clean = pd.DataFrame()
 
                 clean_stock_as_of_map[sym_upper] = df_stock_clean
@@ -727,18 +746,19 @@ class MarketAnalysisStage(PipelineStage):
             for sym_dict in context.candidate_stocks:
                 s_name = sym_dict["symbol"]
                 if s_name in context.processed_symbols:
-                    df_st, _, _ = context.stock_data_map[s_name]
-                    df_c_st, st_val = get_clean_ohlcv_data(df_st, s_name)
+                    cmd_st = context.canonical_stock_map.get(s_name)
                     if (
-                        st_val["status"] == "SUFFICIENT"
-                        and not df_c_st.empty
-                        and len(df_c_st) >= 20
+                        cmd_st
+                        and cmd_st.data_quality
+                        and cmd_st.data_quality.status == "SUFFICIENT"
                     ):
-                        valid_breadth_denom += 1
-                        c = df_c_st["close"].iloc[-1]
-                        ma20 = df_c_st["close"].tail(20).mean()
-                        if c > ma20:
-                            bullish_count += 1
+                        df_c_st = cmd_st.to_df()
+                        if not df_c_st.empty and len(df_c_st) >= 20:
+                            valid_breadth_denom += 1
+                            c = df_c_st["close"].iloc[-1]
+                            ma20 = df_c_st["close"].tail(20).mean()
+                            if c > ma20:
+                                bullish_count += 1
 
             context.breadth_ratio = (
                 round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
@@ -798,10 +818,16 @@ class SignalRecommendationGenerationStage(PipelineStage):
                 sec = item["sector"]
                 ex = item.get("exchange", "HOSE")
 
-                df_stock, tag, _ = context.stock_data_map[sym]
-                if sym in context.processed_symbols:
-                    df_clean_stock, _ = get_clean_ohlcv_data(df_stock, sym)
-                    df_stock_input = df_clean_stock
+                cmd_st = context.canonical_stock_map.get(sym)
+                tag = cmd_st.source_tag if cmd_st else "PROVIDER_FAILURE"
+
+                if (
+                    sym in context.processed_symbols
+                    and cmd_st
+                    and cmd_st.data_quality
+                    and cmd_st.data_quality.status == "SUFFICIENT"
+                ):
+                    df_stock_input = cmd_st.to_df()
                 else:
                     df_stock_input = pd.DataFrame()
 

@@ -23,6 +23,24 @@ from scripts.data_provider import (
 logger = logging.getLogger(__name__)
 
 
+class AcquisitionError(Exception):
+    """Base exception for market data acquisition errors."""
+
+    failure_type: str = "PROVIDER_FAILURE"
+
+
+class InvalidSymbolError(AcquisitionError):
+    """Exception raised when a symbol is invalid or not found by market data provider."""
+
+    failure_type: str = "INVALID_SYMBOL"
+
+
+class ExplicitlyInvalidDataError(AcquisitionError):
+    """Exception raised when provider market data is corrupt or explicitly invalid."""
+
+    failure_type: str = "EXPLICITLY_INVALID"
+
+
 @dataclass(frozen=True)
 class RawMarketDataPayload:
     """Container for raw market data acquired from external providers before normalization."""
@@ -31,6 +49,7 @@ class RawMarketDataPayload:
     raw_df: pd.DataFrame | None = None
     provider_name: str = "vnstock"
     source_tag: str = "REAL_DATA"
+    failure_type: str | None = None
     warnings: tuple[str, ...] = ()
     error: str | None = None
 
@@ -113,11 +132,32 @@ class MarketDataAcquirer:
             except Exception as e:  # noqa: BLE001
                 logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
                 err_msg = str(e)
+                exc_failure_type = getattr(e, "failure_type", None)
+                if not exc_failure_type:
+                    err_upper = err_msg.upper()
+                    if "INVALID_SYMBOL" in err_upper or "INVALID SYMBOL" in err_upper:
+                        exc_failure_type = "INVALID_SYMBOL"
+                    elif "EXPLICITLY_INVALID" in err_upper:
+                        exc_failure_type = "EXPLICITLY_INVALID"
+                    else:
+                        exc_failure_type = "PROVIDER_FAILURE"
+
+                src_tag = (
+                    "INVALID_SYMBOL"
+                    if exc_failure_type == "INVALID_SYMBOL"
+                    else (
+                        "EXPLICITLY_INVALID"
+                        if exc_failure_type == "EXPLICITLY_INVALID"
+                        else "PROVIDER_FAILURE"
+                    )
+                )
+
                 return RawMarketDataPayload(
                     symbol=sym,
                     raw_df=pd.DataFrame(),
                     provider_name=provider_name,
-                    source_tag="PROVIDER_FAILURE",
+                    source_tag=src_tag,
+                    failure_type=exc_failure_type,
                     warnings=(f"[{sym}] Failed to acquire market data from provider: {e}",),
                     error=err_msg,
                 )
