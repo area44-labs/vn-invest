@@ -7,6 +7,7 @@ Explicitly tags data sources: REAL_DATA or INSUFFICIENT_HISTORICAL_DATA.
 
 import logging
 import os
+import time  # noqa: F401
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
