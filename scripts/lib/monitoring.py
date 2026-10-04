@@ -491,6 +491,45 @@ def validate_monitoring_payload(payload: dict) -> bool:
     return True
 
 
+def normalize_market_payload(market_payload: Any, data_as_of: str | None = None) -> dict[str, Any]:
+    """Normalize raw market payload into a canonical dictionary shape.
+
+    Canonical Shape:
+    {
+        "data_as_of": <date_str>,
+        "market": {
+            "regime": ...,
+            "confidence": ...,
+            "metrics": { ... },
+            ...
+        }
+    }
+    """
+    if not isinstance(market_payload, dict):
+        return {"data_as_of": data_as_of, "market": {}}
+
+    payload_date = market_payload.get("data_as_of")
+    if (
+        not payload_date
+        and "market" in market_payload
+        and isinstance(market_payload["market"], dict)
+    ):
+        payload_date = market_payload["market"].get("data_as_of")
+
+    resolved_date = payload_date or data_as_of
+
+    if "market" in market_payload and isinstance(market_payload["market"], dict):
+        inner_market = dict(market_payload["market"])
+    else:
+        inner_market = dict(market_payload)
+        inner_market.pop("data_as_of", None)
+
+    return {
+        "data_as_of": resolved_date,
+        "market": inner_market,
+    }
+
+
 def classify_confidence_bucket(conf: float | None) -> str | None:
     """Classify numeric confidence score [0.0..1.0] into canonical bucket string."""
     if conf is None:
@@ -3268,8 +3307,10 @@ def evaluate_production_monitoring(
     data_as_of = recommendations_payload.get("data_as_of")
     generated_at = recommendations_payload.get("generated_at", datetime.now(UTC).isoformat())
 
-    if market_payload is None:
-        market_payload = recommendations_payload.get("market", {})
+    raw_market = (
+        market_payload if market_payload is not None else recommendations_payload.get("market")
+    )
+    market_payload = normalize_market_payload(raw_market, data_as_of=data_as_of)
 
     # 2. Schema validation check
     checks.append(check_schema_validation(recommendations_payload, schema_path=s_path))
@@ -3313,15 +3354,6 @@ def evaluate_production_monitoring(
             for s in insuf_list
         ]
 
-        perf_fallback = (
-            recommendations_payload.get("performance")
-            if isinstance(recommendations_payload, dict)
-            and "performance" in recommendations_payload
-            else None
-        )
-        if perf_fallback is None:
-            perf_fallback = create_default_performance_payload()
-
         universe_audit = {
             "expected_symbols": exp_list,
             "processed_symbols": proc_list,
@@ -3338,7 +3370,10 @@ def evaluate_production_monitoring(
                 "missing_count": 0,
             },
             "exclusions": ex_list,
-            "performance": perf_fallback,
+            "performance": recommendations_payload.get("performance")
+            if isinstance(recommendations_payload, dict)
+            and "performance" in recommendations_payload
+            else None,
         }
 
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)

@@ -20,6 +20,7 @@ from scripts.lib.monitoring import (
     check_symbol_processing_counts,
     evaluate_production_monitoring,
     find_nan_or_inf,
+    normalize_market_payload,
     validate_monitoring_payload,
 )
 from scripts.lib.recommendation import generate_recommendation
@@ -194,6 +195,48 @@ class TestProductionMonitoring(unittest.TestCase):
             "performance": self.healthy_performance,
         }
 
+    def test_normalize_market_payload_variants(self):
+        """Verify normalize_market_payload handles nested, standalone, and missing date structures consistently."""
+        # 1. Standalone market.json shape (with top-level data_as_of and market dict)
+        standalone = {
+            "data_as_of": "2026-09-28",
+            "market": {
+                "regime": "BEAR",
+                "confidence": 0.85,
+                "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+            },
+        }
+        norm_standalone = normalize_market_payload(standalone, data_as_of="2026-09-28")
+        self.assertEqual(norm_standalone["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_standalone["market"]["regime"], "BEAR")
+
+        # 2. Direct inner market dict shape
+        inner = {
+            "regime": "BEAR",
+            "confidence": 0.85,
+            "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+        }
+        norm_inner = normalize_market_payload(inner, data_as_of="2026-09-28")
+        self.assertEqual(norm_inner["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_inner["market"]["regime"], "BEAR")
+
+    def test_missing_performance_data_fails_closed(self):
+        """Verify missing performance data in universe_audit fails closed with FAIL status rather than defaulting to PASS."""
+        audit_no_perf = copy.deepcopy(self.healthy_audit)
+        audit_no_perf["performance"] = None
+
+        res = evaluate_production_monitoring(
+            recommendations_payload=self.healthy_payload,
+            market_payload=self.healthy_market,
+            reference_date=self.reference_date,
+            universe_audit=audit_no_perf,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        perf_chk = next(c for c in res.checks if c.check_name == "performance_payload_integrity")
+        self.assertEqual(perf_chk.status, "FAIL")
+        self.assertIn("missing", perf_chk.message.lower())
+
     def test_run_37162713439_reproduction_does_not_fail_monitoring(self):
         """Verify that standard production market_payload structure with data_as_of passes monitoring without false positive FAIL."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -224,6 +267,7 @@ class TestProductionMonitoring(unittest.TestCase):
                 recommendations_payload=self.healthy_payload,
                 market_payload=market_payload,
                 reference_date=self.reference_date,
+                universe_audit=self.healthy_audit,
             )
 
             failed_checks = [c for c in res.checks if c.status == "FAIL"]
