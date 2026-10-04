@@ -341,7 +341,9 @@ class TestProductionMonitoring(unittest.TestCase):
 
             failed_nested = [c for c in res_nested.checks if c.status == "FAIL"]
             self.assertEqual(
-                len(failed_nested), 0, f"Expected 0 failed checks for nested market_payload, got: {failed_nested}"
+                len(failed_nested),
+                0,
+                f"Expected 0 failed checks for nested market_payload, got: {failed_nested}",
             )
             self.assertIn(res_nested.overall_status, ("PASS", "WARNING"))
 
