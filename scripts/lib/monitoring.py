@@ -161,7 +161,10 @@ def evaluate_performance_regression(performance_data: dict) -> dict[str, Any]:
 
 
 def create_default_performance_payload() -> dict[str, Any]:
-    """Construct a minimal valid performance payload for default monitoring initialization."""
+    """Construct a minimal valid performance payload for test harness or explicit fallback contexts only.
+
+    MUST NOT be used in production monitoring to swallow or replace missing performance data.
+    """
     payload = {
         "stages": [
             {"stage": "pipeline", "elapsed_seconds": 0.0, "status": "SUCCESS"},
@@ -2713,12 +2716,12 @@ def check_market_regime_status(market_payload: dict) -> CheckResult:
             message="Market regime payload is not an object",
         )
 
-    if "market" in market_payload and isinstance(market_payload["market"], dict):
-        market_payload = market_payload["market"]
+    norm_market = normalize_market_payload(market_payload)
+    market_obj = norm_market.get("market", {})
 
-    regime = market_payload.get("regime")
-    conf = market_payload.get("confidence")
-    metrics = market_payload.get("metrics")
+    regime = market_obj.get("regime")
+    conf = market_obj.get("confidence")
+    metrics = market_obj.get("metrics")
 
     if regime not in VALID_MARKET_REGIMES:
         return CheckResult(
@@ -3576,7 +3579,7 @@ def evaluate_production_monitoring(
         "hold_count": summary.get("hold_count", 0),
         "sell_count": summary.get("sell_count", 0),
         "avoid_count": summary.get("avoid_count", 0),
-        "market_regime": market_payload.get("regime"),
+        "market_regime": market_payload.get("market", {}).get("regime"),
         "universe_audit": universe_audit,
         "performance": universe_audit.get("performance")
         if isinstance(universe_audit, dict)

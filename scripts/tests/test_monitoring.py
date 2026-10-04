@@ -196,21 +196,38 @@ class TestProductionMonitoring(unittest.TestCase):
         }
 
     def test_normalize_market_payload_variants(self):
-        """Verify normalize_market_payload handles nested, standalone, and missing date structures consistently."""
+        """Verify normalize_market_payload handles nested, standalone, flat, and missing date structures consistently."""
         # 1. Standalone market.json shape (with top-level data_as_of and market dict)
         standalone = {
             "data_as_of": "2026-09-28",
+            "source_date": "2026-09-28",
+            "generated_at": "2026-09-28T06:00:00+00:00",
+            "data_source": "REAL_DATA",
+            "universe_info": {"universe_type": "TEST", "universe_size": 2},
             "market": {
                 "regime": "BEAR",
                 "confidence": 0.85,
                 "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
             },
+            "summary": self.healthy_summary,
         }
         norm_standalone = normalize_market_payload(standalone, data_as_of="2026-09-28")
         self.assertEqual(norm_standalone["data_as_of"], "2026-09-28")
         self.assertEqual(norm_standalone["market"]["regime"], "BEAR")
 
-        # 2. Direct inner market dict shape
+        # 2. Flat inner market dict with top-level data_as_of
+        flat = {
+            "data_as_of": "2026-09-28",
+            "regime": "BEAR",
+            "confidence": 0.85,
+            "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+        }
+        norm_flat = normalize_market_payload(flat, data_as_of="2026-09-28")
+        self.assertEqual(norm_flat["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_flat["market"]["regime"], "BEAR")
+        self.assertNotIn("data_as_of", norm_flat["market"])
+
+        # 3. Direct inner market dict without data_as_of key
         inner = {
             "regime": "BEAR",
             "confidence": 0.85,
@@ -219,6 +236,11 @@ class TestProductionMonitoring(unittest.TestCase):
         norm_inner = normalize_market_payload(inner, data_as_of="2026-09-28")
         self.assertEqual(norm_inner["data_as_of"], "2026-09-28")
         self.assertEqual(norm_inner["market"]["regime"], "BEAR")
+
+        # 4. Non-dict input
+        norm_none = normalize_market_payload(None, data_as_of="2026-09-28")
+        self.assertEqual(norm_none["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_none["market"], {})
 
     def test_missing_performance_data_fails_closed(self):
         """Verify missing performance data in universe_audit fails closed with FAIL status rather than defaulting to PASS."""
@@ -237,19 +259,41 @@ class TestProductionMonitoring(unittest.TestCase):
         self.assertEqual(perf_chk.status, "FAIL")
         self.assertIn("missing", perf_chk.message.lower())
 
+        reg_chk = next(c for c in res.checks if c.check_name == "performance_regression")
+        self.assertEqual(reg_chk.status, "FAIL")
+
+        bud_chk = next(c for c in res.checks if c.check_name == "provider_budget")
+        self.assertEqual(bud_chk.status, "FAIL")
+
+    def test_missing_universe_audit_performance_payload_fails_closed(self):
+        """Verify when universe_audit is None and recommendations_payload lacks performance, monitoring fails closed."""
+        payload_no_perf = copy.deepcopy(self.healthy_payload)
+
+        res = evaluate_production_monitoring(
+            recommendations_payload=payload_no_perf,
+            market_payload=self.healthy_market,
+            reference_date=self.reference_date,
+            universe_audit=None,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        perf_chk = next(c for c in res.checks if c.check_name == "performance_payload_integrity")
+        self.assertEqual(perf_chk.status, "FAIL")
+
     def test_run_37162713439_reproduction_does_not_fail_monitoring(self):
         """Verify that standard production market_payload structure with data_as_of passes monitoring without false positive FAIL."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
 
-            market_payload = copy.deepcopy(self.healthy_market)
-            market_payload["data_as_of"] = "2026-09-17"
+            # Test Form A: Flat market_payload dict with data_as_of
+            market_payload_flat = copy.deepcopy(self.healthy_market)
+            market_payload_flat["data_as_of"] = "2026-09-17"
 
             with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
                 json.dump(self.healthy_payload, f)
             with open(os.path.join(tmpdir, "market.json"), "w") as f:
-                json.dump(market_payload, f)
+                json.dump(market_payload_flat, f)
 
             baseline_dates = [f"2026-09-{16 - i:02d}" for i in range(5)]
             index_dates = ["2026-09-17"] + baseline_dates
@@ -265,7 +309,7 @@ class TestProductionMonitoring(unittest.TestCase):
             res = evaluate_production_monitoring(
                 generated_dir=tmpdir,
                 recommendations_payload=self.healthy_payload,
-                market_payload=market_payload,
+                market_payload=market_payload_flat,
                 reference_date=self.reference_date,
                 universe_audit=self.healthy_audit,
             )
@@ -275,6 +319,31 @@ class TestProductionMonitoring(unittest.TestCase):
                 len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}"
             )
             self.assertIn(res.overall_status, ("PASS", "WARNING"))
+
+            # Test Form B: Standalone market.json wrapper payload with nested "market"
+            market_payload_nested = {
+                "data_as_of": "2026-09-17",
+                "source_date": "2026-09-17",
+                "generated_at": "2026-09-17T06:00:00+00:00",
+                "data_source": "REAL_DATA",
+                "universe_info": {"universe_type": "TEST", "universe_size": 2},
+                "market": copy.deepcopy(self.healthy_market),
+                "summary": self.healthy_summary,
+            }
+
+            res_nested = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=market_payload_nested,
+                reference_date=self.reference_date,
+                universe_audit=self.healthy_audit,
+            )
+
+            failed_nested = [c for c in res_nested.checks if c.status == "FAIL"]
+            self.assertEqual(
+                len(failed_nested), 0, f"Expected 0 failed checks for nested market_payload, got: {failed_nested}"
+            )
+            self.assertIn(res_nested.overall_status, ("PASS", "WARNING"))
 
     def test_healthy_production_data_passes(self):
         """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""
