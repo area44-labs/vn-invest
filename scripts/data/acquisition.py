@@ -1,0 +1,168 @@
+"""Market data acquisition boundary for VN Invest data layer.
+
+Responsible for retrieving raw market data from external market providers (such as vnstock).
+Encapsulates all provider-specific retry, circuit-breaker, and rate-limiting logic within
+the acquisition layer so quantitative and monitoring layers never invoke providers directly.
+"""
+
+import logging
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+import pandas as pd
+
+from scripts.data_provider import (
+    CanonicalOHLCVError,
+    ProviderRateLimitError,
+    VnstockDataProvider,
+    can_recover_rate_limit,
+    increment_rate_limit_recovery_count,
+    reset_circuit_breaker,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RawMarketDataPayload:
+    """Container for raw market data acquired from external providers before normalization."""
+
+    symbol: str
+    raw_df: pd.DataFrame | None = None
+    provider_name: str = "vnstock"
+    source_tag: str = "REAL_DATA"
+    warnings: tuple[str, ...] = ()
+    error: str | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.warnings, (list, set)):
+            object.__setattr__(self, "warnings", tuple(str(w) for w in self.warnings))
+
+
+class MarketDataAcquirer:
+    """Acquirer for raw market data.
+
+    Manages provider interaction, rate-limit recovery loops, and error tagging.
+    """
+
+    def __init__(self, provider: VnstockDataProvider | None = None):
+        self._provider = provider
+
+    def _get_provider(self) -> VnstockDataProvider:
+        return self._provider if self._provider is not None else VnstockDataProvider()
+
+    def acquire(
+        self,
+        symbol: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        max_retries: int = 2,
+        throttle_delay: float = 0.0,
+        max_rate_limit_retries: int = 3,
+        target_date: str | None = None,
+    ) -> RawMarketDataPayload:
+        """Acquire raw market data for a symbol across provider boundaries."""
+        sym = symbol.strip().upper()
+        if not start_date or not end_date:
+            now_dt = datetime.now(UTC)
+            end_date = now_dt.strftime("%Y-%m-%d")
+            start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
+
+        for rate_limit_attempt in range(max_rate_limit_retries + 1):
+            if throttle_delay > 0:
+                time.sleep(throttle_delay)
+
+            try:
+                provider = self._get_provider()
+                df_out = provider.fetch_ohlcv(
+                    symbol=sym,
+                    start_date=start_date,
+                    end_date=end_date,
+                    max_retries=max_retries,
+                    target_date=target_date,
+                )
+                return RawMarketDataPayload(
+                    symbol=sym,
+                    raw_df=df_out,
+                    provider_name="vnstock",
+                    source_tag="REAL_DATA",
+                )
+            except ProviderRateLimitError as exc:
+                if can_recover_rate_limit() and rate_limit_attempt < max_rate_limit_retries:
+                    cooldown = exc.cooldown_seconds if exc.cooldown_seconds is not None else 30
+                    increment_rate_limit_recovery_count()
+                    logger.warning(
+                        "Provider rate limit encountered for '%s'. Waiting %d seconds (attempt %d/%d)...",
+                        sym,
+                        cooldown,
+                        rate_limit_attempt + 1,
+                        max_rate_limit_retries,
+                    )
+                    time.sleep(cooldown)
+                    reset_circuit_breaker()
+                    continue
+
+                logger.error(
+                    "Provider rate-limit error encountered for '%s' and recovery budget exhausted.",
+                    sym,
+                )
+                raise
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
+                err_msg = str(e)
+                if isinstance(e, CanonicalOHLCVError) or any(
+                    p in err_msg.lower()
+                    for p in [
+                        "ohlc",
+                        "nan",
+                        "infinite",
+                        "non-positive",
+                        "negative volume",
+                        "duplicate date",
+                        "unsorted date",
+                    ]
+                ):
+                    source_tag = "EXPLICITLY_INVALID"
+                else:
+                    source_tag = "PROVIDER_FAILURE"
+
+                return RawMarketDataPayload(
+                    symbol=sym,
+                    raw_df=pd.DataFrame(),
+                    provider_name="vnstock",
+                    source_tag=source_tag,
+                    warnings=(f"[{sym}] Failed to acquire market data from provider: {e}",),
+                    error=err_msg,
+                )
+
+        return RawMarketDataPayload(
+            symbol=sym,
+            raw_df=pd.DataFrame(),
+            provider_name="vnstock",
+            source_tag="PROVIDER_FAILURE",
+            error="Rate limit retries exhausted",
+        )
+
+
+def acquire_raw_market_data(
+    symbol: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    max_retries: int = 2,
+    throttle_delay: float = 0.0,
+    max_rate_limit_retries: int = 3,
+    target_date: str | None = None,
+    provider: VnstockDataProvider | None = None,
+) -> RawMarketDataPayload:
+    """Convenience entry point to acquire raw market data via MarketDataAcquirer."""
+    acquirer = MarketDataAcquirer(provider=provider)
+    return acquirer.acquire(
+        symbol=symbol,
+        start_date=start_date,
+        end_date=end_date,
+        max_retries=max_retries,
+        throttle_delay=throttle_delay,
+        max_rate_limit_retries=max_rate_limit_retries,
+        target_date=target_date,
+    )
