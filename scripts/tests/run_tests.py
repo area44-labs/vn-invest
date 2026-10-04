@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import unittest
 
 from scripts.tests import enforce_network_isolation
@@ -27,9 +28,6 @@ def filter_suite(suite: unittest.TestSuite) -> unittest.TestSuite:
                 continue
             filtered.addTest(item)
     return filtered
-
-
-import time
 
 
 class TimingTestResult(unittest.TextTestResult):

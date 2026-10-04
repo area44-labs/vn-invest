@@ -22,6 +22,7 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 
+
 SINGLE_STOCK_UNIVERSE = [
     {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"},
     {"symbol": "SSI", "companyName": "SSI Securities", "sector": "Securities", "exchange": "HOSE"},
