@@ -20,6 +20,7 @@ from scripts.lib.monitoring import (
     check_symbol_processing_counts,
     evaluate_production_monitoring,
     find_nan_or_inf,
+    normalize_market_payload,
     validate_monitoring_payload,
 )
 from scripts.lib.recommendation import generate_recommendation
@@ -193,6 +194,87 @@ class TestProductionMonitoring(unittest.TestCase):
             "exclusions": [],
             "performance": self.healthy_performance,
         }
+
+    def test_normalize_market_payload_variants(self):
+        """Verify normalize_market_payload handles nested, standalone, and missing date structures consistently."""
+        # 1. Standalone market.json shape (with top-level data_as_of and market dict)
+        standalone = {
+            "data_as_of": "2026-09-28",
+            "market": {
+                "regime": "BEAR",
+                "confidence": 0.85,
+                "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+            },
+        }
+        norm_standalone = normalize_market_payload(standalone, data_as_of="2026-09-28")
+        self.assertEqual(norm_standalone["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_standalone["market"]["regime"], "BEAR")
+
+        # 2. Direct inner market dict shape
+        inner = {
+            "regime": "BEAR",
+            "confidence": 0.85,
+            "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
+        }
+        norm_inner = normalize_market_payload(inner, data_as_of="2026-09-28")
+        self.assertEqual(norm_inner["data_as_of"], "2026-09-28")
+        self.assertEqual(norm_inner["market"]["regime"], "BEAR")
+
+    def test_missing_performance_data_fails_closed(self):
+        """Verify missing performance data in universe_audit fails closed with FAIL status rather than defaulting to PASS."""
+        audit_no_perf = copy.deepcopy(self.healthy_audit)
+        audit_no_perf["performance"] = None
+
+        res = evaluate_production_monitoring(
+            recommendations_payload=self.healthy_payload,
+            market_payload=self.healthy_market,
+            reference_date=self.reference_date,
+            universe_audit=audit_no_perf,
+        )
+
+        self.assertEqual(res.overall_status, "FAIL")
+        perf_chk = next(c for c in res.checks if c.check_name == "performance_payload_integrity")
+        self.assertEqual(perf_chk.status, "FAIL")
+        self.assertIn("missing", perf_chk.message.lower())
+
+    def test_run_37162713439_reproduction_does_not_fail_monitoring(self):
+        """Verify that standard production market_payload structure with data_as_of passes monitoring without false positive FAIL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+
+            market_payload = copy.deepcopy(self.healthy_market)
+            market_payload["data_as_of"] = "2026-09-17"
+
+            with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
+                json.dump(self.healthy_payload, f)
+            with open(os.path.join(tmpdir, "market.json"), "w") as f:
+                json.dump(market_payload, f)
+
+            baseline_dates = [f"2026-09-{16 - i:02d}" for i in range(5)]
+            index_dates = ["2026-09-17"] + baseline_dates
+            with open(os.path.join(hist_dir, "index.json"), "w") as f:
+                json.dump({"dates": index_dates}, f)
+
+            for d in index_dates:
+                b_payload = copy.deepcopy(self.healthy_payload)
+                b_payload["data_as_of"] = d
+                with open(os.path.join(hist_dir, f"{d}.json"), "w") as f:
+                    json.dump(b_payload, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=self.healthy_payload,
+                market_payload=market_payload,
+                reference_date=self.reference_date,
+                universe_audit=self.healthy_audit,
+            )
+
+            failed_checks = [c for c in res.checks if c.status == "FAIL"]
+            self.assertEqual(
+                len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}"
+            )
+            self.assertIn(res.overall_status, ("PASS", "WARNING"))
 
     def test_healthy_production_data_passes(self):
         """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""

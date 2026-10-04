@@ -868,9 +868,19 @@ class ArtifactPublishingStage(PipelineStage):
             and context.monitoring_result is not None
             and context.monitoring_result.overall_status == "FAIL"
         ):
-            logger.error(
-                "Production update rejected due to monitoring failure. All artifacts preserved byte-for-byte."
-            )
+            logger.error("Production update rejected due to monitoring failure.")
+            failed_checks = [c for c in context.monitoring_result.checks if c.status == "FAIL"]
+            logger.error("Failed monitoring check count: %d", len(failed_checks))
+            for c in failed_checks:
+                logger.error(
+                    "  - Failed check: %s | status=%s | measured_value=%s | expected_condition=%s | reason=%s",
+                    c.check_name,
+                    c.status,
+                    c.measured_value,
+                    c.expected_condition,
+                    c.message,
+                )
+            logger.error("All artifacts preserved byte-for-byte.")
             raise SystemExit(1)
 
         data_as_of = context.data_as_of
