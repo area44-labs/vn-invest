@@ -46,19 +46,24 @@ class CanonicalMarketValidator:
 
         if df is None or df.empty:
             issues.append("empty_dataset")
+            src_tag = (
+                canonical_data.source_tag
+                if canonical_data.source_tag in ("INVALID_SYMBOL", "EXPLICITLY_INVALID")
+                else "PROVIDER_FAILURE"
+            )
             dq = DataQuality(
                 status="INSUFFICIENT",
                 issues=tuple(issues),
                 valid_row_count=0,
                 latest_date=canonical_data.data_as_of,
                 data_as_of=canonical_data.data_as_of,
-                data_source="PROVIDER_FAILURE",
+                data_source=src_tag,
             )
             return CanonicalMarketData(
                 symbol=sym,
                 records=(),
                 data_as_of=canonical_data.data_as_of,
-                source_tag="PROVIDER_FAILURE",
+                source_tag=src_tag,
                 data_quality=dq,
             )
 
@@ -160,7 +165,10 @@ class CanonicalMarketValidator:
             "future_dated" in iss for iss in issues
         )
 
-        if has_provider_failure or canonical_data.source_tag == "PROVIDER_FAILURE":
+        if canonical_data.source_tag == "INVALID_SYMBOL":
+            source_tag = "INVALID_SYMBOL"
+            dq_status = "INSUFFICIENT"
+        elif has_provider_failure or canonical_data.source_tag == "PROVIDER_FAILURE":
             source_tag = "PROVIDER_FAILURE"
             dq_status = "INSUFFICIENT"
         elif has_corruption or canonical_data.source_tag == "EXPLICITLY_INVALID":

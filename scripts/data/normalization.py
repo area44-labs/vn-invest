@@ -59,7 +59,7 @@ class MarketDataNormalizer:
                 symbol=sym,
                 records=(),
                 data_as_of=explicit_data_as_of,
-                source_tag="EXPLICITLY_INVALID",
+                source_tag="PROVIDER_FAILURE",
             )
 
         # Standardize date column name to 'date'

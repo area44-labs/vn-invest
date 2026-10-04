@@ -143,6 +143,19 @@ class CanonicalMarketData:
         if not date_col:
             raise ValueError("DataFrame missing date/time column for canonical conversion")
 
+        missing_cols = [
+            c for c in ["open", "high", "low", "close", "volume"] if c not in cols_lower
+        ]
+        if missing_cols:
+            return cls(
+                symbol=symbol,
+                records=(),
+                data_as_of=data_as_of,
+                source_tag="PROVIDER_FAILURE",
+                data_quality=data_quality,
+                df=df,
+            )
+
         records = []
         has_record_error = False
         for _, row in df.iterrows():
@@ -172,7 +185,7 @@ class CanonicalMarketData:
                 symbol=symbol,
                 records=(),
                 data_as_of=data_as_of,
-                source_tag="EXPLICITLY_INVALID",
+                source_tag=source_tag or "EXPLICITLY_INVALID",
                 data_quality=data_quality,
                 df=df,
             )
