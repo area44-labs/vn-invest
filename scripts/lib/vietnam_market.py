@@ -765,12 +765,13 @@ def get_historical_data(
     """
     from scripts.data.acquisition import acquire_raw_market_data
     from scripts.data.normalization import normalize_raw_market_data
+    from scripts.data.providers.vnstock import VnstockMarketProvider
     from scripts.data.validation import validate_canonical_market_data
 
     sym = normalize_symbol(symbol)
     provider_inst = VnstockDataProvider()
 
-    # 1. Acquisition boundary
+    # 1. Acquisition boundary via MarketDataProvider interface
     payload = acquire_raw_market_data(
         symbol=sym,
         start_date=start_date,
@@ -779,7 +780,7 @@ def get_historical_data(
         throttle_delay=throttle_delay,
         max_rate_limit_retries=max_rate_limit_retries,
         target_date=target_date,
-        provider=provider_inst,
+        provider=VnstockMarketProvider(provider_instance=provider_inst),
     )
 
     if payload.source_tag in ("PROVIDER_FAILURE", "EXPLICITLY_INVALID") and (
@@ -802,11 +803,7 @@ def get_historical_data(
     # 3. Validation boundary
     validated_data = validate_canonical_market_data(canonical_data)
 
-    df_out = (
-        validated_data.to_df()
-        if validated_data.records
-        else (payload.raw_df if payload.raw_df is not None else pd.DataFrame())
-    )
+    df_out = validated_data.to_df()
     source_tag = validated_data.source_tag or payload.source_tag
     issues = list(validated_data.data_quality.issues) if validated_data.data_quality else []
 

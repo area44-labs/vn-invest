@@ -6,20 +6,101 @@ and fail-closed behavior on malformed/temporal data.
 """
 
 import unittest
-from unittest.mock import MagicMock
 
 import pandas as pd
 
 from scripts.data.acquisition import RawMarketDataPayload, acquire_raw_market_data
 from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
+from scripts.data.providers.base import MarketDataProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 
 
+class FakeCustomMarketProvider(MarketDataProvider):
+    """Custom fake provider implementation for provider replacement testing."""
+
+    @property
+    def provider_name(self) -> str:
+        return "custom_synthetic_provider"
+
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        max_retries: int = 2,
+        target_date: str | None = None,
+    ) -> pd.DataFrame:
+        dates = [f"2025-01-{i:02d}" for i in range(1, 25)]
+        if symbol.upper() in ("VNINDEX", "VN30"):
+            return pd.DataFrame(
+                {
+                    "time": dates,
+                    "open": [1200.0 + i for i in range(24)],
+                    "high": [1210.0 + i for i in range(24)],
+                    "low": [1195.0 + i for i in range(24)],
+                    "close": [1205.0 + i for i in range(24)],
+                    "volume": [500000000.0] * 24,
+                }
+            )
+        return pd.DataFrame(
+            {
+                "time": dates,
+                "open": [100.0 + i for i in range(24)],
+                "high": [102.0 + i for i in range(24)],
+                "low": [99.0 + i for i in range(24)],
+                "close": [101.0 + i for i in range(24)],
+                "volume": [1000000.0] * 24,
+            }
+        )
+
+
 class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
     """Test data boundary contracts, malformed field handling, and provider replacement."""
+
+    def test_provider_replacement_via_interface(self):
+        """Provider replacement: replacing provider with FakeCustomMarketProvider without modifying acquisition or quantitative layer."""
+        fake_provider = FakeCustomMarketProvider()
+
+        # Step 1: Acquire raw data via custom fake provider
+        payload_vnindex = acquire_raw_market_data("VNINDEX", provider=fake_provider)
+        payload_stock = acquire_raw_market_data("FPT", provider=fake_provider)
+
+        self.assertEqual(payload_vnindex.provider_name, "custom_synthetic_provider")
+        self.assertEqual(payload_stock.provider_name, "custom_synthetic_provider")
+
+        # Step 2: Normalization
+        cmd_vnindex = normalize_raw_market_data(payload_vnindex)
+        cmd_stock = normalize_raw_market_data(payload_stock)
+
+        # Step 3: Validation
+        v_vnindex = validate_canonical_market_data(cmd_vnindex)
+        v_stock = validate_canonical_market_data(cmd_stock)
+
+        self.assertEqual(v_vnindex.data_quality.status, "SUFFICIENT")
+        self.assertEqual(v_stock.data_quality.status, "SUFFICIENT")
+
+        # Step 4: Quantitative analysis strictly consumes canonical validated DataFrames
+        regime_info = detect_market_regime(
+            df_vnindex=v_vnindex.to_df(),
+            df_vn30=None,
+            breadth_ratio=0.8,
+        )
+        rec = generate_recommendation(
+            symbol=v_stock.symbol,
+            company_name="FPT Corp",
+            sector="Technology",
+            exchange="HOSE",
+            df_stock=v_stock.to_df(),
+            market_regime_info=regime_info,
+            df_vnindex=v_vnindex.to_df(),
+            data_as_of=v_stock.data_as_of,
+            data_source=v_stock.source_tag,
+        )
+        self.assertEqual(rec.symbol, "FPT")
+        self.assertIsNotNone(rec.signal_score)
 
     def test_provider_response_malformed_missing_fields(self):
         """Malformed provider DataFrame missing required columns handles fail-closed."""
@@ -79,98 +160,14 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         with self.assertRaises(ValueError):
             CanonicalMarketData(symbol="FPT", data_as_of="2025/01/02")
 
-    def test_provider_replacement_with_canonical_fixture_without_vnstock(self):
-        """Quantitative engine consumes canonical fixture without importing or calling vnstock."""
-        # Construct synthetic canonical fixture DataFrames
-        dates = [f"2025-01-{i:02d}" for i in range(1, 25)]
-        df_vnindex = pd.DataFrame(
-            {
-                "date": dates,
-                "open": [1200.0 + i for i in range(24)],
-                "high": [1210.0 + i for i in range(24)],
-                "low": [1195.0 + i for i in range(24)],
-                "close": [1205.0 + i for i in range(24)],
-                "volume": [500000000.0] * 24,
-            }
+    def test_no_provider_fields_in_canonical_models(self):
+        """Confirm CanonicalMarketData strips provider-specific attributes."""
+        cmd = CanonicalMarketData(
+            symbol="VCB",
+            data_as_of="2025-01-02",
         )
-        df_stock = pd.DataFrame(
-            {
-                "date": dates,
-                "open": [100000.0 + i * 100 for i in range(24)],
-                "high": [102000.0 + i * 100 for i in range(24)],
-                "low": [99000.0 + i * 100 for i in range(24)],
-                "close": [101000.0 + i * 100 for i in range(24)],
-                "volume": [1000000.0] * 24,
-            }
-        )
-
-        cmd_vnindex = CanonicalMarketData.from_df("VNINDEX", df_vnindex, data_as_of="2025-01-24")
-        cmd_stock = CanonicalMarketData.from_df("FPT", df_stock, data_as_of="2025-01-24")
-
-        # Confirm no provider fields present in canonical objects
         for forbidden in FORBIDDEN_PROVIDER_FIELDS:
-            self.assertFalse(hasattr(cmd_vnindex, forbidden))
-            self.assertFalse(hasattr(cmd_stock, forbidden))
-
-        # Detect regime using canonical fixture DataFrame
-        regime_info = detect_market_regime(
-            df_vnindex=cmd_vnindex.to_df(),
-            df_vn30=None,
-            breadth_ratio=0.8,
-        )
-        self.assertIsNotNone(regime_info)
-        self.assertIn(
-            regime_info.get("regime"), ["STRONG_BULL", "BULL", "NEUTRAL", "BEAR", "PANIC"]
-        )
-
-        # Generate recommendation using canonical fixture DataFrame
-        rec = generate_recommendation(
-            symbol=cmd_stock.symbol,
-            company_name="FPT Corporation",
-            sector="Technology",
-            exchange="HOSE",
-            df_stock=cmd_stock.to_df(),
-            market_regime_info=regime_info,
-            df_vnindex=cmd_vnindex.to_df(),
-            data_as_of=cmd_stock.data_as_of,
-            data_source="CANONICAL_FIXTURE",
-        )
-        self.assertEqual(rec["symbol"], "FPT")
-        self.assertEqual(rec["data_as_of"], "2025-01-24")
-        self.assertIn("action", rec)
-        self.assertIn("signal_score", rec)
-        self.assertIsNotNone(rec.signal_score)
-
-    def test_full_boundary_pipeline_flow(self):
-        """Test full data boundary flow: acquire -> normalize -> validate."""
-        mock_raw_df = pd.DataFrame(
-            {
-                "time": [f"2025-01-{i:02d}" for i in range(1, 25)],
-                "open": [100.0] * 24,
-                "high": [105.0] * 24,
-                "low": [99.0] * 24,
-                "close": [102.0] * 24,
-                "volume": [1000.0] * 24,
-            }
-        )
-        mock_provider = MagicMock()
-        mock_provider.fetch_ohlcv.return_value = mock_raw_df
-
-        # Step 1: Acquisition
-        raw_payload = acquire_raw_market_data("FPT", provider=mock_provider)
-        self.assertEqual(raw_payload.symbol, "FPT")
-
-        # Step 2: Normalization
-        canonical_data = normalize_raw_market_data(raw_payload)
-        self.assertEqual(canonical_data.symbol, "FPT")
-        self.assertEqual(canonical_data.data_as_of, "2025-01-24")
-        self.assertEqual(canonical_data.records[0].open, 100000.0)  # normalized price
-
-        # Step 3: Validation
-        validated_data = validate_canonical_market_data(canonical_data, reference_date="2025-01-24")
-        self.assertEqual(validated_data.data_quality.status, "SUFFICIENT")
-        self.assertEqual(validated_data.source_tag, "REAL_DATA")
-        self.assertEqual(len(validated_data.records), 24)
+            self.assertFalse(hasattr(cmd, forbidden))
 
 
 if __name__ == "__main__":

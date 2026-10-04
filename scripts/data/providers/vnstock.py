@@ -1,0 +1,36 @@
+"""Vnstock market data provider implementation."""
+
+import pandas as pd
+
+from scripts.data_provider import VnstockDataProvider
+from scripts.data.providers.base import MarketDataProvider
+
+
+class VnstockMarketProvider(MarketDataProvider):
+    """Provider implementation adapting external VnstockDataProvider."""
+
+    def __init__(self, provider_instance: VnstockDataProvider | None = None):
+        self._provider = (
+            provider_instance if provider_instance is not None else VnstockDataProvider()
+        )
+
+    @property
+    def provider_name(self) -> str:
+        return "vnstock"
+
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        max_retries: int = 2,
+        target_date: str | None = None,
+    ) -> pd.DataFrame:
+        """Fetch raw OHLCV market data from VnstockDataProvider."""
+        return self._provider.fetch_ohlcv(
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            max_retries=max_retries,
+            target_date=target_date,
+        )

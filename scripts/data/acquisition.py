@@ -1,8 +1,8 @@
 """Market data acquisition boundary for VN Invest data layer.
 
-Responsible for retrieving raw market data from external market providers (such as vnstock).
-Encapsulates all provider-specific retry, circuit-breaker, and rate-limiting logic within
-the acquisition layer so quantitative and monitoring layers never invoke providers directly.
+Responsible for retrieving raw market data from external market providers.
+Encapsulates all provider interaction, retry, circuit-breaker, and rate-limiting logic
+within the acquisition layer without inspecting exception strings or classifying data quality.
 """
 
 import logging
@@ -12,10 +12,9 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
+from scripts.data.providers import MarketDataProvider, VnstockMarketProvider
 from scripts.data_provider import (
-    CanonicalOHLCVError,
     ProviderRateLimitError,
-    VnstockDataProvider,
     can_recover_rate_limit,
     increment_rate_limit_recovery_count,
     reset_circuit_breaker,
@@ -43,14 +42,15 @@ class RawMarketDataPayload:
 class MarketDataAcquirer:
     """Acquirer for raw market data.
 
-    Manages provider interaction, rate-limit recovery loops, and error tagging.
+    Manages provider interaction, rate-limit recovery loops, and raw payload capture.
+    Strictly decoupled from data-quality classification logic.
     """
 
-    def __init__(self, provider: VnstockDataProvider | None = None):
+    def __init__(self, provider: MarketDataProvider | None = None):
         self._provider = provider
 
-    def _get_provider(self) -> VnstockDataProvider:
-        return self._provider if self._provider is not None else VnstockDataProvider()
+    def _get_provider(self) -> MarketDataProvider:
+        return self._provider if self._provider is not None else VnstockMarketProvider()
 
     def acquire(
         self,
@@ -69,12 +69,14 @@ class MarketDataAcquirer:
             end_date = now_dt.strftime("%Y-%m-%d")
             start_date = (now_dt - timedelta(days=365)).strftime("%Y-%m-%d")
 
+        provider = self._get_provider()
+        provider_name = provider.provider_name
+
         for rate_limit_attempt in range(max_rate_limit_retries + 1):
             if throttle_delay > 0:
                 time.sleep(throttle_delay)
 
             try:
-                provider = self._get_provider()
                 df_out = provider.fetch_ohlcv(
                     symbol=sym,
                     start_date=start_date,
@@ -85,7 +87,7 @@ class MarketDataAcquirer:
                 return RawMarketDataPayload(
                     symbol=sym,
                     raw_df=df_out,
-                    provider_name="vnstock",
+                    provider_name=provider_name,
                     source_tag="REAL_DATA",
                 )
             except ProviderRateLimitError as exc:
@@ -111,27 +113,11 @@ class MarketDataAcquirer:
             except Exception as e:  # noqa: BLE001
                 logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
                 err_msg = str(e)
-                if isinstance(e, CanonicalOHLCVError) or any(
-                    p in err_msg.lower()
-                    for p in [
-                        "ohlc",
-                        "nan",
-                        "infinite",
-                        "non-positive",
-                        "negative volume",
-                        "duplicate date",
-                        "unsorted date",
-                    ]
-                ):
-                    source_tag = "EXPLICITLY_INVALID"
-                else:
-                    source_tag = "PROVIDER_FAILURE"
-
                 return RawMarketDataPayload(
                     symbol=sym,
                     raw_df=pd.DataFrame(),
-                    provider_name="vnstock",
-                    source_tag=source_tag,
+                    provider_name=provider_name,
+                    source_tag="PROVIDER_FAILURE",
                     warnings=(f"[{sym}] Failed to acquire market data from provider: {e}",),
                     error=err_msg,
                 )
@@ -139,7 +125,7 @@ class MarketDataAcquirer:
         return RawMarketDataPayload(
             symbol=sym,
             raw_df=pd.DataFrame(),
-            provider_name="vnstock",
+            provider_name=provider_name,
             source_tag="PROVIDER_FAILURE",
             error="Rate limit retries exhausted",
         )
@@ -153,7 +139,7 @@ def acquire_raw_market_data(
     throttle_delay: float = 0.0,
     max_rate_limit_retries: int = 3,
     target_date: str | None = None,
-    provider: VnstockDataProvider | None = None,
+    provider: MarketDataProvider | None = None,
 ) -> RawMarketDataPayload:
     """Convenience entry point to acquire raw market data via MarketDataAcquirer."""
     acquirer = MarketDataAcquirer(provider=provider)
