@@ -91,6 +91,22 @@ class TestMarketDataAcquisitionBoundary(unittest.TestCase):
         self.assertTrue(payload.raw_df.empty)
         self.assertIn("Provider offline", payload.error)
 
+    def test_client_auth_and_unstructured_exceptions_classified_as_provider_failure(self):
+        """Client auth errors and generic exceptions evaluate as PROVIDER_FAILURE (not INVALID_SYMBOL)."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+
+        auth_err = Exception("HTTP 401 Unauthorized")
+        res_mock = MagicMock()
+        res_mock.status_code = 401
+        auth_err.response = res_mock
+
+        mock_provider.fetch_ohlcv.side_effect = auth_err
+        payload = acquire_raw_market_data("FPT", provider=mock_provider)
+
+        self.assertEqual(payload.failure_type, "PROVIDER_FAILURE")
+        self.assertEqual(payload.source_tag, "PROVIDER_FAILURE")
+
     def test_unstructured_exception_message_does_not_infer_invalid_symbol(self):
         """Regression test: An exception containing string 'INVALID_SYMBOL' without structured failure_type is classified as PROVIDER_FAILURE."""
         mock_provider = MagicMock()

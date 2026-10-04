@@ -5,14 +5,12 @@ import pandas as pd
 from scripts.data.providers.base import (
     AcquisitionError,
     ExplicitlyInvalidDataError,
-    InvalidSymbolError,
     MarketDataProvider,
 )
 from scripts.data_provider import (
     CanonicalOHLCVError,
     ProviderRateLimitError,
     VnstockDataProvider,
-    is_client_auth_exception,
 )
 
 
@@ -58,9 +56,3 @@ class VnstockMarketProvider(MarketDataProvider):
             raise ExplicitlyInvalidDataError(
                 f"Provider market data for symbol '{symbol}' is corrupt or explicitly invalid: {exc}"
             ) from exc
-        except Exception as exc:
-            if is_client_auth_exception(exc):
-                raise InvalidSymbolError(
-                    f"Symbol '{symbol}' not found or rejected by provider: {exc}"
-                ) from exc
-            raise
