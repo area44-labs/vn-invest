@@ -108,7 +108,10 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()

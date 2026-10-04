@@ -785,7 +785,10 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
         self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_p = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SMALL_TEST_UNIVERSE)
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
         self.sleep_p1.start()
         self.sleep_p2.start()
         self.sleep_p3.start()
@@ -951,7 +954,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
         self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_p = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SMALL_TEST_UNIVERSE)
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
         self.sleep_p1.start()
         self.sleep_p2.start()
         self.sleep_p3.start()
@@ -1578,7 +1584,10 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
         self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_p = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SMALL_TEST_UNIVERSE)
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
         self.sleep_p1.start()
         self.sleep_p2.start()
         self.sleep_p3.start()
@@ -1919,7 +1928,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
         self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_p = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SMALL_TEST_UNIVERSE)
+        self.univ_p = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SMALL_TEST_UNIVERSE,
+        )
         self.sleep_p1.start()
         self.sleep_p2.start()
         self.sleep_p3.start()

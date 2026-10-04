@@ -22,7 +22,6 @@ from scripts.lib.vietnam_market import (
     validate_temporal_integrity,
 )
 
-
 SINGLE_STOCK_UNIVERSE = [
     {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"},
     {"symbol": "SSI", "companyName": "SSI Securities", "sector": "Securities", "exchange": "HOSE"},
@@ -35,7 +34,10 @@ class TestDataDateSemantics(unittest.TestCase):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()
@@ -43,6 +45,7 @@ class TestDataDateSemantics(unittest.TestCase):
 
     def tearDown(self):
         patch.stopall()
+
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
         """1. extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
         df_unsorted = pd.DataFrame(
@@ -291,7 +294,10 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()
@@ -299,6 +305,7 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
 
     def tearDown(self):
         patch.stopall()
+
     """Dedicated test suite for validate_temporal_integrity & pipeline temporal contracts."""
 
     def test_valid_synchronized_vnindex_and_stocks_success(self):
@@ -484,7 +491,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()
@@ -492,6 +502,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
 
     def tearDown(self):
         patch.stopall()
+
     def test_top_level_provenance_metadata_presence(self):
         """Verify report payload contains all required provenance metadata fields."""
         df_vnindex = pd.DataFrame(
@@ -635,7 +646,10 @@ class TestProductionDataFreshness(unittest.TestCase):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
-        self.univ_patcher = patch("scripts.pipeline.stages.UniverseProvider._get_candidates", return_value=SINGLE_STOCK_UNIVERSE)
+        self.univ_patcher = patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
+        )
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()
@@ -643,6 +657,7 @@ class TestProductionDataFreshness(unittest.TestCase):
 
     def tearDown(self):
         patch.stopall()
+
     """Deterministic offline unit tests verifying production data freshness rules."""
 
     def test_1_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):

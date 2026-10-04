@@ -397,6 +397,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
 
     def tearDown(self):
         patch.stopall()
+
     """Verify error handling and failure behavior compatibility."""
 
     def test_empty_candidate_universe_raises_runtime_error(self):
