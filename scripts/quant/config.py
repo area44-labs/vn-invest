@@ -288,9 +288,7 @@ class QuantConfig:
 
     def __post_init__(self) -> None:
         if not isinstance(self.signal_weights, FrozenDict):
-            object.__setattr__(
-                self, "signal_weights", FrozenDict(dict(self.signal_weights))
-            )
+            object.__setattr__(self, "signal_weights", FrozenDict(dict(self.signal_weights)))
 
         if not isinstance(self.divergence_timeframe_weights, FrozenDict):
             object.__setattr__(
@@ -307,9 +305,7 @@ class QuantConfig:
             )
 
         if not isinstance(self.valid_market_regimes, tuple):
-            object.__setattr__(
-                self, "valid_market_regimes", tuple(self.valid_market_regimes)
-            )
+            object.__setattr__(self, "valid_market_regimes", tuple(self.valid_market_regimes))
 
         if not isinstance(self.regimes_strong_buy, tuple):
             object.__setattr__(self, "regimes_strong_buy", tuple(self.regimes_strong_buy))
