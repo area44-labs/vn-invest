@@ -5,18 +5,30 @@ from collections.abc import Mapping
 import pandas as pd
 
 from scripts.lib.features import calculate_multi_timeframe_features
+from scripts.quant.contracts import FeatureInput, FeatureResult
 
 
 def compute_market_breadth(
-    stock_data_map: Mapping[str, pd.DataFrame] | list[pd.DataFrame] | tuple[pd.DataFrame, ...],
+    input_data: FeatureInput
+    | Mapping[str, pd.DataFrame]
+    | list[pd.DataFrame]
+    | tuple[pd.DataFrame, ...],
     candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None,
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None,
-) -> float:
+) -> FeatureResult:
     """Compute market breadth ratio across given stock datasets.
 
     Breadth ratio = (stocks with close > MA20) / (stocks with >= 20 sessions).
     Returns 0.50 default if zero valid stocks are available.
+    Returns FeatureResult containing breadth_ratio.
     """
+    if isinstance(input_data, FeatureInput):
+        stock_data_map = input_data.stock_data_map
+        candidate_symbols = input_data.candidate_symbols
+        processed_symbols = input_data.processed_symbols
+    else:
+        stock_data_map = input_data
+
     bullish_count = 0
     valid_breadth_denom = 0
 
@@ -49,7 +61,8 @@ def compute_market_breadth(
                 if c > ma20:
                     bullish_count += 1
 
-    return round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
+    ratio = round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
+    return FeatureResult(breadth_ratio=ratio)
 
 
 __all__ = [

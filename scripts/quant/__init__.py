@@ -52,19 +52,20 @@ class MarketAnalysisEngine:
         input_data: MarketAnalysisInput,
         regime_detector: Callable[..., dict[str, Any]] | None = None,
     ) -> RegimeResult:
-        breadth = compute_market_breadth(
+        feature_in = FeatureInput(
             stock_data_map=input_data.stock_data_map,
             candidate_symbols=input_data.candidate_symbols,
             processed_symbols=input_data.processed_symbols,
         )
+        feature_res = compute_market_breadth(feature_in)
+
         df_vn30_input = input_data.df_vn30 if input_data.vn30_sufficient else None
-        detector = regime_detector or detect_market_regime
-        regime_dict = detector(
+        regime_in = RegimeInput(
             df_vnindex=input_data.df_vnindex,
             df_vn30=df_vn30_input,
-            breadth_ratio=breadth,
+            breadth_ratio=feature_res.breadth_ratio,
         )
-        return RegimeResult(market_regime=regime_dict)
+        return detect_market_regime(regime_in, detector=regime_detector)
 
 
 __all__ = [

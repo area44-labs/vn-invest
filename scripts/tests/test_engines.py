@@ -94,28 +94,26 @@ class TestQuantFeaturesAndRegime(unittest.TestCase):
 
     def test_compute_market_breadth_deterministic(self):
         stock_map = {"AAA": self.stock_a, "BBB": self.stock_b}
-        breadth = compute_market_breadth(stock_map)
-        self.assertEqual(breadth, 0.50)
+        res = compute_market_breadth(stock_map)
+        self.assertEqual(res.breadth_ratio, 0.50)
 
     def test_compute_market_breadth_custom_mapping(self):
         """Verify custom Mapping implementation is supported without falling back to 0.50."""
         custom_map = CustomMapping({"AAA": self.stock_a})
-        breadth = compute_market_breadth(custom_map)
-        self.assertEqual(breadth, 1.0)
+        res = compute_market_breadth(custom_map)
+        self.assertEqual(res.breadth_ratio, 1.0)
 
     def test_market_analysis_engine_analyze(self):
-        input_data = type(
-            "InputData",
-            (),
-            {
-                "stock_data_map": {"AAA": self.stock_a, "BBB": self.stock_b},
-                "df_vnindex": self.df_vnindex,
-                "df_vn30": self.df_vn30,
-                "candidate_symbols": None,
-                "processed_symbols": None,
-                "vn30_sufficient": True,
-            },
-        )()
+        from scripts.quant.contracts import MarketAnalysisInput
+
+        input_data = MarketAnalysisInput(
+            stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            candidate_symbols=None,
+            processed_symbols=None,
+            vn30_sufficient=True,
+        )
         res = MarketAnalysisEngine.analyze(input_data)
         self.assertIn("regime", res.market_regime)
         self.assertEqual(res.market_regime["metrics"]["market_breadth_ratio"], 0.50)
