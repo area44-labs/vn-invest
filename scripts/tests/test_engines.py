@@ -5,7 +5,6 @@ from collections.abc import Mapping
 
 import pandas as pd
 
-from scripts.lib.recommendation import generate_recommendation
 from scripts.quant import (
     CandidateSpec,
     FeatureInput,
@@ -376,9 +375,22 @@ class TestQuantRecommendationEngine(unittest.TestCase):
         )
         self.assertIsNone(rec_dict["data_source"])
 
-    def test_behavioral_parity(self):
-        """7. Behavioral parity -> full payload comparison between quant engine and direct calculation wrapper."""
-        direct_rec = generate_recommendation(
+    def test_engine_and_single_recommendation_parity(self):
+        """7. Engine parity -> full payload comparison between SignalRecommendationEngine and generate_single_recommendation."""
+        engine_res = SignalRecommendationEngine.generate_recommendations(
+            RecommendationInput(
+                candidates=[self.candidate],
+                stock_data_map={"VNM": self.df_stock},
+                market_regime=self.market_regime,
+                df_vnindex=self.df_vnindex,
+                data_as_of="2025-01-20",
+                data_source="REAL_DATA",
+                processed_symbols={"VNM"},
+                data_sources={"VNM": "REAL_DATA"},
+            )
+        )
+
+        single_rec = generate_single_recommendation(
             symbol="VNM",
             company_name="Vinamilk",
             sector="Consumer Goods",
@@ -390,7 +402,19 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
 
-        engine_rec = generate_single_recommendation(
+        engine_dict = (
+            engine_res.recommendations[0].to_dict()
+            if hasattr(engine_res.recommendations[0], "to_dict")
+            else engine_res.recommendations[0]
+        )
+        single_dict = single_rec.to_dict() if hasattr(single_rec, "to_dict") else single_rec
+        self.assertEqual(engine_dict, single_dict)
+
+    def test_legacy_wrapper_backward_compatibility(self):
+        """8. Backward compatibility -> legacy scripts.lib wrapper delegates to scripts.quant with exact payload equivalence."""
+        from scripts.lib.recommendation import generate_recommendation as legacy_generate_rec
+
+        legacy_rec = legacy_generate_rec(
             symbol="VNM",
             company_name="Vinamilk",
             sector="Consumer Goods",
@@ -402,9 +426,21 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
 
-        direct_dict = direct_rec.to_dict() if hasattr(direct_rec, "to_dict") else direct_rec
-        engine_dict = engine_rec.to_dict() if hasattr(engine_rec, "to_dict") else engine_rec
-        self.assertEqual(engine_dict, direct_dict)
+        quant_rec = generate_single_recommendation(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Consumer Goods",
+            exchange="HOSE",
+            df_stock=self.df_stock,
+            market_regime_info=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+            data_source="REAL_DATA",
+        )
+
+        legacy_dict = legacy_rec.to_dict() if hasattr(legacy_rec, "to_dict") else legacy_rec
+        quant_dict = quant_rec.to_dict() if hasattr(quant_rec, "to_dict") else quant_rec
+        self.assertEqual(legacy_dict, quant_dict)
 
 
 if __name__ == "__main__":
