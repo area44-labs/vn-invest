@@ -443,5 +443,112 @@ class TestQuantRecommendationEngine(unittest.TestCase):
         self.assertEqual(legacy_dict, quant_dict)
 
 
+class TestQuantUnificationAndBacktestParity(unittest.TestCase):
+    """Test Issue #175: Proof of unification between production and backtest quantitative engines."""
+
+    def setUp(self):
+        self.df_vnindex = make_sample_ohlcv(days=80, start_price=1200.0, trend=2.0)
+        self.df_vn30 = make_sample_ohlcv(days=80, start_price=1250.0, trend=2.0)
+        self.df_stock = make_sample_ohlcv(days=80, start_price=50.0, trend=0.5)
+        self.as_of_date = self.df_stock["date"].iloc[50]
+
+    def test_backtest_uses_quant_engine_directly(self):
+        """Verify backtest modules use detect_market_regime and generate_recommendation from scripts.quant."""
+        import scripts.lib.backtest as bt
+        import scripts.lib.portfolio_backtest as pbt
+        from scripts.quant.regime import lib_detect_market_regime
+
+        self.assertIs(bt.detect_market_regime, lib_detect_market_regime)
+        self.assertIs(bt.generate_recommendation, generate_single_recommendation)
+        self.assertIs(pbt.detect_market_regime, lib_detect_market_regime)
+        self.assertIs(pbt.generate_recommendation, generate_single_recommendation)
+
+    def test_production_and_backtest_quant_equivalence_and_determinism(self):
+        """Verify production engine output matches backtest signal generation at identical point in time."""
+        from scripts.lib.backtest import run_backtest_for_symbol
+        from scripts.lib.backtest import get_as_of_dataset
+
+        # 1. Backtest call at as_of_date
+        results = run_backtest_for_symbol(
+            symbol="VNM",
+            df_stock=self.df_stock,
+            evaluation_dates=[self.as_of_date],
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+        self.assertEqual(len(results), 1)
+        backtest_sig = results[0].signal
+
+        # 2. Production engine call with point-in-time sliced data <= as_of_date
+        df_stock_pit = get_as_of_dataset(self.df_stock, self.as_of_date)
+        df_vnindex_pit = get_as_of_dataset(self.df_vnindex, self.as_of_date)
+        df_vn30_pit = get_as_of_dataset(self.df_vn30, self.as_of_date)
+
+        regime_res = detect_market_regime(
+            RegimeInput(
+                df_vnindex=df_vnindex_pit,
+                df_vn30=df_vn30_pit,
+                breadth_ratio=1.0,  # Single stock in universe produces 1.0
+            )
+        )
+        prod_rec = generate_single_recommendation(
+            symbol="VNM",
+            company_name="Company VNM",
+            sector="General",
+            exchange="HOSE",
+            df_stock=df_stock_pit,
+            market_regime_info=regime_res.market_regime,
+            df_vnindex=df_vnindex_pit,
+            data_as_of=self.as_of_date,
+        )
+
+        # 3. Assert full quantitative equivalence
+        self.assertEqual(backtest_sig.action, prod_rec.action)
+        self.assertEqual(backtest_sig.signal_score, prod_rec.signal_score)
+        self.assertEqual(backtest_sig.confidence, prod_rec.confidence)
+        self.assertEqual(backtest_sig.market_regime, regime_res.market_regime["regime"])
+        self.assertEqual(backtest_sig.risk_adjusted_score, prod_rec.risk_adjusted_score)
+        self.assertEqual(backtest_sig.score_components, prod_rec.score_components)
+
+    def test_pit_dataset_no_lookahead_isolation(self):
+        """Verify future mutations (> as_of_date) do not alter quantitative signal outputs at as_of_date."""
+        from scripts.lib.backtest import run_backtest_for_symbol
+
+        # Run 1: original data
+        res1 = run_backtest_for_symbol(
+            symbol="VNM",
+            df_stock=self.df_stock,
+            evaluation_dates=[self.as_of_date],
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+        )
+
+        # Run 2: mutate future stock and index prices (> as_of_date)
+        df_stock_mutated = self.df_stock.copy()
+        df_vnindex_mutated = self.df_vnindex.copy()
+        df_vn30_mutated = self.df_vn30.copy()
+
+        future_mask_stock = df_stock_mutated["date"] > self.as_of_date
+        for col in ["open", "high", "low", "close"]:
+            df_stock_mutated.loc[future_mask_stock, col] *= 5.0
+
+        future_mask_vn = df_vnindex_mutated["date"] > self.as_of_date
+        for col in ["open", "high", "low", "close"]:
+            df_vnindex_mutated.loc[future_mask_vn, col] *= 0.1
+
+        res2 = run_backtest_for_symbol(
+            symbol="VNM",
+            df_stock=df_stock_mutated,
+            evaluation_dates=[self.as_of_date],
+            df_vnindex=df_vnindex_mutated,
+            df_vn30=df_vn30_mutated,
+        )
+
+        # Quantitative signal generated at T MUST be identical
+        self.assertEqual(res1[0].signal.to_dict(), res2[0].signal.to_dict())
+        # Forward outcomes AFTER T MUST reflect modified future prices
+        self.assertNotEqual(res1[0].outcome.to_dict(), res2[0].outcome.to_dict())
+
+
 if __name__ == "__main__":
     unittest.main()
