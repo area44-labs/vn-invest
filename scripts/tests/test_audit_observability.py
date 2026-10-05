@@ -805,6 +805,7 @@ class TestAuditTrailObservability(unittest.TestCase):
 
     def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
         """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
+        from scripts.domain.universe import Universe, UniverseScanResult
         from scripts.generate_report import build_universe_audit
 
         data_as_of = "2026-09-25"
@@ -856,51 +857,37 @@ class TestAuditTrailObservability(unittest.TestCase):
             },
         }
 
-        # Run 1: Input iterables in order A
-        audit_run_1 = build_universe_audit(
-            expected_symbols=[
-                "VNINDEX",
-                "VN30",
-                "MWG",
-                "FPT",
-                "VIC",
-                "VNM",
-                "ZAL",
-                "AAA",
-                "XYZ",
-                "BID",
+        u = Universe.from_candidates(
+            candidates=[
+                {"symbol": sym, "companyName": sym, "sector": "Sec", "exchange": "HOSE"}
+                for sym in ["MWG", "FPT", "VIC", "VNM", "ZAL", "AAA", "XYZ", "BID"]
             ],
+            universe_type="TEST_AUDIT",
+            benchmarks=("VNINDEX", "VN30"),
+        )
+
+        scan_1 = UniverseScanResult(
+            universe=u,
             processed_symbols=["VNINDEX", "VN30", "MWG", "FPT", "VIC", "VNM"],
             invalid_symbols=["XYZ"],
-            insufficient_history_symbols=[],
+            insufficient_symbols=[],
             failed_symbols=["BID"],
             missing_symbols=["ZAL", "AAA"],
             exclusions_map=exclusions,
-            update_data=False,
         )
 
-        # Run 2: Input iterables in different order B (using sets and reordered lists)
-        audit_run_2 = build_universe_audit(
-            expected_symbols={
-                "BID",
-                "XYZ",
-                "AAA",
-                "ZAL",
-                "VNM",
-                "VIC",
-                "FPT",
-                "MWG",
-                "VN30",
-                "VNINDEX",
-            },
+        scan_2 = UniverseScanResult(
+            universe=u,
             processed_symbols=["VNM", "VIC", "FPT", "MWG", "VN30", "VNINDEX"],
             invalid_symbols=["XYZ"],
-            insufficient_history_symbols=[],
+            insufficient_symbols=[],
             failed_symbols=["BID"],
             missing_symbols={"AAA", "ZAL"},
             exclusions_map=exclusions,
-            update_data=False,
         )
+
+        audit_run_1 = build_universe_audit(scan_result=scan_1, update_data=False)
+        audit_run_2 = build_universe_audit(scan_result=scan_2, update_data=False)
 
         # Assert exact equality across runs
         self.assertEqual(audit_run_1, audit_run_2)

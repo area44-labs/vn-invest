@@ -71,6 +71,11 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_runner_initializes_context_tracker(self):
         """Verify ProductionPipeline manages PerformanceTracker lifecycle when context.tracker is None."""
         ctx = PipelineContext()
+        ctx.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         self.assertIsNone(ctx.tracker)
 
         pipeline = ProductionPipeline(stages=[MockStage("noop", [])])
@@ -251,6 +256,11 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
         pipeline = ProductionPipeline(stages=[StageA(), StageB(), StageC()])
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(len(context.candidate_stocks), 1)
@@ -302,6 +312,11 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
         self.assertEqual(len(pipeline.stages), 2)
 
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(execution_log, ["stage_a", "stage_b"])
@@ -323,6 +338,11 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
 
         pipeline = ProductionPipeline(stages=stages)
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(

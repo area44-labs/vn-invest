@@ -54,28 +54,10 @@ class ProductionPipeline:
         if not context.generated_dir:
             context.generated_dir = os.path.abspath(GENERATED_DIR)
 
-        # Initialize canonical Universe at orchestration entry point if not already set
-        if context.universe is None:
-            if context.is_historical:
-                if context.candidate_metadata:
-                    u_hist = Universe.from_candidates(
-                        candidates=context.candidate_metadata,
-                        universe_type="HISTORICAL_SNAPSHOT",
-                        benchmarks=("VNINDEX", "VN30"),
-                    )
-                    context.set_universe(u_hist)
-                else:
-                    raise ValueError(
-                        "Historical execution requires context.universe or candidate_metadata to be set"
-                    )
-            else:
-                context.provider = UniverseProvider()
-                u_prod = context.provider.get_universe()
-                if u_prod is None or u_prod.universe_size == 0:
-                    raise RuntimeError(
-                        "Candidate universe is empty or missing. Cannot generate report."
-                    )
-                context.set_universe(u_prod)
+        if context.universe is None or context.universe_scan_result is None:
+            raise ValueError(
+                "ProductionPipeline requires context.universe and context.universe_scan_result to be set prior to execution"
+            )
 
         t_pipeline_start = time.perf_counter()
 
