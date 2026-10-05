@@ -173,7 +173,7 @@ class PipelineContext:
     def update_universe_audit(self) -> dict[str, Any]:
         """Construct UniverseScanResult and assign universe_audit dictionary."""
         if not isinstance(self.universe, Universe):
-            raise ValueError("PipelineContext.universe must be set to a valid Universe instance")
+            raise TypeError("PipelineContext.universe must be set to a valid Universe instance")
 
         scan_result = UniverseScanResult(
             universe=self.universe,
