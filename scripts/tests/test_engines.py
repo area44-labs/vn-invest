@@ -1,5 +1,6 @@
 """Unit, boundary, and regression tests for extracted quantitative engines (#174)."""
 
+from collections.abc import Mapping
 import unittest
 
 import pandas as pd
@@ -45,6 +46,22 @@ def make_sample_ohlcv(
     )
 
 
+class CustomMapping(Mapping):
+    """Custom Mapping implementation for testing compute_market_breadth Mapping contract."""
+
+    def __init__(self, data: dict):
+        self._data = data
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+
 class TestCandidateSpecContract(unittest.TestCase):
     """Test CandidateSpec input contract validation."""
 
@@ -81,6 +98,12 @@ class TestMarketAnalysisEngine(unittest.TestCase):
         breadth = compute_market_breadth(stock_map)
         self.assertEqual(breadth, 0.50)  # 1 bullish out of 2 valid
 
+    def test_compute_market_breadth_custom_mapping(self):
+        """Verify custom Mapping implementation is supported without falling back to 0.50."""
+        custom_map = CustomMapping({"AAA": self.stock_a})
+        breadth = compute_market_breadth(custom_map)
+        self.assertEqual(breadth, 1.0)  # 1 bullish out of 1 valid
+
     def test_engine_analyze_returns_typed_result(self):
         input_data = MarketAnalysisInput(
             stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
@@ -104,7 +127,7 @@ class TestMarketAnalysisEngine(unittest.TestCase):
 
 
 class TestSignalRecommendationEngine(unittest.TestCase):
-    """Test SignalRecommendationEngine unit behavior and contracts."""
+    """Test SignalRecommendationEngine unit behavior, contracts, and regression cases."""
 
     def setUp(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -133,8 +156,98 @@ class TestSignalRecommendationEngine(unittest.TestCase):
         self.assertEqual(rec["symbol"], "VNM")
         self.assertEqual(rec["data_as_of"], "2025-01-20")
 
-    def test_recommendation_parity_with_legacy_call(self):
-        """Engine result must be identical to direct generate_recommendation call."""
+    def test_production_sufficient_stock_provenance(self):
+        """1. Production + sufficient stock -> data_source equals actual source tag."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": self.df_stock},
+            data_sources={"VNM": "REAL_DATA"},
+            processed_symbols={"VNM"},
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertEqual(rec_dict["data_source"], "REAL_DATA")
+
+    def test_production_provider_failure_provenance(self):
+        """2. Production + provider failure -> data_source is None."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": pd.DataFrame()},
+            data_sources={"VNM": "PROVIDER_FAILURE"},
+            processed_symbols=set(),
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertIsNone(rec_dict["data_source"])
+
+    def test_production_insufficient_data_provenance(self):
+        """3. Production + insufficient data -> data_source is None."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": pd.DataFrame()},
+            data_sources={"VNM": "INSUFFICIENT_HISTORICAL_DATA"},
+            processed_symbols=set(),
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertIsNone(rec_dict["data_source"])
+
+    def test_production_symbol_not_processed_provenance(self):
+        """4. Production + symbol not processed -> recommendation created with data_source is None."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": self.df_stock},  # raw data exists but not processed
+            data_sources={"VNM": "EXPLICITLY_INVALID"},
+            processed_symbols=set(),  # VNM not in processed
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertIsNone(rec_dict["data_source"])
+        self.assertEqual(rec_dict["action"], "AVOID")
+
+    def test_historical_valid_dataset_provenance(self):
+        """5. Historical + valid dataset -> retains correct historical date/source semantics."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": self.df_stock},
+            data_source="explicit_historical_input",
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertEqual(rec_dict["data_source"], "explicit_historical_input")
+        self.assertEqual(rec_dict["data_as_of"], "2025-01-20")
+
+    def test_historical_empty_dataset_provenance(self):
+        """6. Historical + empty dataset -> data_source is None."""
+        input_data = SignalRecommendationInput(
+            candidates=[self.candidate],
+            stock_data_map={"VNM": pd.DataFrame()},
+            data_source="explicit_historical_input",
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+        )
+        res = SignalRecommendationEngine.generate_recommendations(input_data)
+        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        self.assertIsNone(rec_dict["data_source"])
+
+    def test_behavioral_parity(self):
+        """7. Behavioral parity -> full payload comparison between engine and direct legacy calculation."""
         direct_rec = generate_recommendation(
             symbol="VNM",
             company_name="Vinamilk",
@@ -156,7 +269,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        self.assertEqual(res.recommendations[0], direct_rec)
+        engine_rec = res.recommendations[0]
+
+        direct_dict = direct_rec.to_dict() if hasattr(direct_rec, "to_dict") else direct_rec
+        engine_dict = engine_rec.to_dict() if hasattr(engine_rec, "to_dict") else engine_rec
+        self.assertEqual(engine_dict, direct_dict)
 
 
 class TestRiskTradePlanEngine(unittest.TestCase):

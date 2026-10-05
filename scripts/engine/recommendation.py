@@ -28,7 +28,9 @@ class SignalRecommendationEngine:
         """Generate recommendations for candidates based on stock data and market regime."""
         scanned_recs = []
         processed_set = (
-            set(input_data.processed_symbols) if input_data.processed_symbols is not None else None
+            set(input_data.processed_symbols)
+            if input_data.processed_symbols is not None
+            else None
         )
         generator = recommendation_generator or generate_recommendation
 
@@ -46,10 +48,11 @@ class SignalRecommendationEngine:
                 df_stock_input = df_stock_raw
 
             source_tag = None
-            if input_data.data_sources and sym in input_data.data_sources:
-                source_tag = input_data.data_sources[sym]
-            elif not df_stock_input.empty:
-                source_tag = input_data.data_source
+            if not df_stock_input.empty:
+                if input_data.data_sources and sym in input_data.data_sources:
+                    source_tag = input_data.data_sources[sym]
+                else:
+                    source_tag = input_data.data_source
 
             rec = generator(
                 symbol=sym,

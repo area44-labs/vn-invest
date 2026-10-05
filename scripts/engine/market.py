@@ -4,7 +4,7 @@ Pure quantitative calculation engine for market breadth ratio and multi-factor m
 Does not perform I/O, network requests, or database state updates.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import pandas as pd
@@ -14,7 +14,7 @@ from scripts.lib.regime import detect_market_regime
 
 
 def compute_market_breadth(
-    stock_data_map: dict[str, pd.DataFrame] | list[pd.DataFrame],
+    stock_data_map: Mapping[str, pd.DataFrame] | list[pd.DataFrame] | tuple[pd.DataFrame, ...],
     candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None,
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None,
 ) -> float:
@@ -28,7 +28,7 @@ def compute_market_breadth(
 
     if candidate_symbols is not None:
         symbols_to_check = [s for s in candidate_symbols]
-    elif isinstance(stock_data_map, dict):
+    elif isinstance(stock_data_map, Mapping):
         symbols_to_check = list(stock_data_map.keys())
     else:
         symbols_to_check = None
@@ -38,7 +38,7 @@ def compute_market_breadth(
         for sym in symbols_to_check:
             if processed_set is not None and sym not in processed_set:
                 continue
-            df_st = stock_data_map.get(sym) if isinstance(stock_data_map, dict) else None
+            df_st = stock_data_map.get(sym) if isinstance(stock_data_map, Mapping) else None
             if df_st is not None and not df_st.empty and len(df_st) >= 20:
                 valid_breadth_denom += 1
                 c = df_st["close"].iloc[-1]
