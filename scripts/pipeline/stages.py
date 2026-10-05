@@ -724,10 +724,10 @@ class MarketAnalysisStage(PipelineStage):
             analysis_res = MarketAnalysisEngine.analyze(
                 input_data, regime_detector=detect_market_regime
             )
-            context.breadth_ratio = round(
-                analysis_res.market_regime.get("metrics", {}).get("market_breadth_ratio", 0.50),
-                2,
-            )
+            breadth_val = analysis_res.market_regime.get("metrics", {}).get("market_breadth_ratio")
+            if breadth_val is None:
+                breadth_val = 0.50
+            context.breadth_ratio = round(breadth_val, 2)
 
         with context.tracker.measure_stage("regime_calculation"):
             context.final_market_regime = analysis_res.market_regime

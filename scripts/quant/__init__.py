@@ -26,13 +26,13 @@ from scripts.quant.recommendation import (
 from scripts.quant.regime import detect_market_regime
 from scripts.quant.risk import (
     RiskTradePlanEngine,
+    calculate_confidence,
     calculate_risk_adjusted_score,
     calculate_t25_risk_metrics,
     compute_stock_risk_and_trade_plan,
     normalize_universe_liquidity_scores,
 )
 from scripts.quant.signal import (
-    calculate_confidence,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,

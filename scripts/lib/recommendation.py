@@ -14,7 +14,16 @@ Raw provider data may be retained for diagnostics only.
 
 import math
 
-from scripts.domain import Recommendation
+from scripts.domain import Recommendation, RiskAssessment, TradePlan
+from scripts.lib.features import calculate_multi_timeframe_features
+from scripts.lib.risk import calculate_t25_risk_metrics
+from scripts.lib.vietnam_market import (
+    clamp_price_limits,
+    extract_latest_trading_date,
+    get_clean_ohlcv_data,
+    round_tick_size,
+    validate_ohlcv_data,
+)
 
 SIGNAL_MODEL_VERSION = "2.0"
 
@@ -403,18 +412,356 @@ def generate_recommendation(
     data_source: str | None = None,
 ) -> Recommendation:
     """Generate a single stock recommendation object for VN Invest Signal Engine v2.0."""
-    from scripts.quant.recommendation import generate_single_recommendation
+    comp_clean = (
+        company_name.strip()
+        if (isinstance(company_name, str) and company_name.strip())
+        else f"Company {symbol}"
+    )
+    sec_clean = sector.strip() if (isinstance(sector, str) and sector.strip()) else "General"
+    ex_clean = (
+        exchange.strip().upper() if (isinstance(exchange, str) and exchange.strip()) else "HOSE"
+    )
 
-    return generate_single_recommendation(
+    val_res = validate_ohlcv_data(df_stock, symbol)
+    df_clean = val_res["clean_df"]
+    stock_data_as_of = (
+        data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_clean)
+    )
+
+    if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
+        return Recommendation(
+            symbol=symbol,
+            company_name=comp_clean,
+            exchange=ex_clean,
+            sector=sec_clean,
+            action="AVOID",
+            model_version=SIGNAL_MODEL_VERSION,
+            data_quality="INSUFFICIENT",
+            data_quality_issues=tuple(val_res["issues"]),
+            data_as_of=stock_data_as_of,
+            data_source=data_source,
+            signal_score=None,
+            risk_adjusted_score=None,
+            score_components={
+                "trend": None,
+                "momentum": None,
+                "volume": None,
+                "relative_strength": None,
+                "divergence": None,
+            },
+            confidence=0.10,
+            risk_level=None,
+            expected_return={
+                "expected_return_5d": None,
+                "expected_return_10d": None,
+                "expected_return_20d": None,
+            },
+            risk_metrics=RiskAssessment(
+                var_t25=None,
+                es_t25=None,
+                volatility_60d=None,
+                max_drawdown=None,
+                liquidity_score=None,
+            ),
+            trade_plan=TradePlan(
+                current_price=None,
+                entry_low=None,
+                entry_high=None,
+                stop_loss=None,
+                tp1=None,
+                tp2=None,
+                risk_reward=None,
+                position_percent=0.0,
+            ),
+            reasons=("Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu.",),
+            warnings=("Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo.",),
+            invalidation=("Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích.",),
+            divergence={
+                "1H": "NONE",
+                "1D": "NONE",
+                "1W": "NONE",
+                "1M": "NONE",
+            },
+        )
+
+    df_d, tf_summary = calculate_multi_timeframe_features(df_clean)
+    risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex_clean)
+
+    raw_close = _safe_float(df_d["close"].iloc[-1])
+    raw_ma20 = _safe_float(df_d["ma20"].iloc[-1])
+    raw_ma50 = _safe_float(df_d["ma50"].iloc[-1])
+    rsi = _safe_float(df_d["rsi"].iloc[-1])
+    macd_hist = _safe_float(df_d["hist"].iloc[-1])
+    prev_macd_hist = _safe_float(df_d["hist"].iloc[-2]) if len(df_d) >= 2 else None
+    atr = _safe_float(df_d["atr"].iloc[-1])
+
+    vol_20d_avg = _safe_float(df_d["vol_ma20"].iloc[-1])
+    current_vol = _safe_float(df_d["volume"].iloc[-1])
+    vol_ratio = (
+        (current_vol / vol_20d_avg)
+        if (current_vol is not None and vol_20d_avg is not None and vol_20d_avg > 0)
+        else None
+    )
+
+    rs_diff = None
+    df_vnindex_clean = None
+    if df_vnindex is not None and not df_vnindex.empty:
+        df_vnindex_clean, _ = get_clean_ohlcv_data(df_vnindex, "VNINDEX")
+
+    if df_vnindex_clean is not None and len(df_vnindex_clean) >= 20 and len(df_d) >= 20:
+        c0 = _safe_float(df_d["close"].iloc[-20])
+        vn_c1 = _safe_float(df_vnindex_clean["close"].iloc[-1])
+        vn_c0 = _safe_float(df_vnindex_clean["close"].iloc[-20])
+        if (
+            raw_close is not None
+            and c0 is not None
+            and c0 > 0
+            and vn_c1 is not None
+            and vn_c0 is not None
+            and vn_c0 > 0
+        ):
+            stock_ret_20 = (raw_close - c0) / c0
+            vn_ret_20 = (vn_c1 - vn_c0) / vn_c0
+            rs_diff = stock_ret_20 - vn_ret_20
+
+    trend_score = calculate_trend_score(raw_close, raw_ma20, raw_ma50)
+    momentum_score = calculate_momentum_score(rsi, macd_hist, prev_macd_hist)
+    volume_score = calculate_volume_score(vol_ratio)
+    rs_score = calculate_relative_strength_score(rs_diff)
+    div_score = calculate_divergence_score(tf_summary)
+
+    score, score_components, data_quality = calculate_signal_score(
+        trend_score=trend_score,
+        momentum_score=momentum_score,
+        volume_score=volume_score,
+        relative_strength_score=rs_score,
+        divergence_score=div_score,
+    )
+
+    reasons = []
+    warnings = []
+
+    if raw_close is not None and raw_ma20 is not None:
+        if raw_close > raw_ma20:
+            reasons.append(
+                f"Giá đóng cửa ({format_vnd(raw_close)} VNĐ) nằm trên đường xu hướng MA20 ({format_vnd(raw_ma20)} VNĐ)."
+            )
+        else:
+            warnings.append(
+                f"Giá đóng cửa ({format_vnd(raw_close)} VNĐ) nằm dưới đường xu hướng MA20 ({format_vnd(raw_ma20)} VNĐ)."
+            )
+
+    if raw_close is not None and raw_ma50 is not None and raw_close > raw_ma50:
+        reasons.append(f"Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 ({format_vnd(raw_ma50)} VNĐ).")
+
+    if macd_hist is not None:
+        if prev_macd_hist is not None and macd_hist > 0 and macd_hist > prev_macd_hist:
+            reasons.append("MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.")
+        elif macd_hist < 0:
+            warnings.append("MACD Histogram âm, báo hiệu áp lực điều chỉnh.")
+
+    if vol_ratio is not None and vol_ratio > 1.2:
+        reasons.append(f"Khối lượng bùng nổ {vol_ratio:.1f}x so với bình quân 20 phiên.")
+
+    if rsi is not None:
+        if 45.0 <= rsi <= 65.0:
+            reasons.append(f"Chỉ báo RSI ({rsi:.1f}) nằm trong vùng an toàn (45 - 65).")
+        elif rsi > 78.0:
+            warnings.append(
+                f"RSI ({rsi:.1f}) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
+            )
+        elif rsi > 70.0:
+            warnings.append(f"RSI ({rsi:.1f}) thuộc vùng quá mua (> 70).")
+        elif rsi < 35.0:
+            warnings.append(f"RSI ({rsi:.1f}) quá bán nặng (< 35).")
+
+    if rs_diff is not None:
+        if rs_diff > 0.05:
+            reasons.append(
+                f"Sức mạnh tương quan (RS) vượt trội so với VN-Index (+{rs_diff * 100:.1f}%)."
+            )
+        elif rs_diff < -0.05:
+            warnings.append(f"Sức mạnh tương quan (RS) yếu hơn VN-Index ({rs_diff * 100:.1f}%).")
+
+    for tf_key, tf_label in [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]:
+        tf_info = tf_summary.get(tf_key, {})
+        div = tf_info.get("divergence", {})
+        if div.get("rsi_bullish") or div.get("macd_bullish"):
+            reasons.append(f"Xuất hiện tín hiệu Phân Kỳ Dương trên khung {tf_label}.")
+        if div.get("rsi_bearish") or div.get("macd_bearish"):
+            warnings.append(f"Cảnh báo Phân Kỳ Âm trên khung {tf_label}.")
+
+    regime = market_regime_info.get("regime", "DEFENSIVE")
+    action = classify_action(score, regime, raw_close, raw_ma20)
+
+    confidence = calculate_confidence(
+        data_quality=data_quality,
+        components=score_components,
+        risk_metrics=risk_metrics,
+        rsi=rsi,
+    )
+
+    vol60 = risk_metrics.get("volatility_60d")
+    mdd = risk_metrics.get("max_drawdown")
+    if vol60 is not None and mdd is not None:
+        if vol60 > 0.35 or abs(mdd) > 0.25:
+            risk_level = "HIGH"
+        elif vol60 < 0.22 and abs(mdd) < 0.12:
+            risk_level = "LOW"
+        else:
+            risk_level = "MEDIUM"
+    else:
+        risk_level = None
+
+    current_price_vnd = round(raw_close, 0) if raw_close is not None else 0.0
+    lowest_5d = float(df_d["low"].tail(5).min()) if not df_d.empty else raw_close
+
+    invalidation = []
+
+    if action in ["BUY", "WATCH"] and raw_close is not None:
+        stop_atr_component = (raw_close - 1.8 * atr) if atr is not None else (raw_close * 0.95)
+        sl_raw = max(
+            stop_atr_component,
+            lowest_5d,
+            (raw_ma20 * 0.98 if raw_ma20 else raw_close * 0.95),
+            raw_close * 0.93,
+        )
+        sl_p = min(sl_raw, raw_close * 0.99)
+        sl_p = clamp_price_limits(sl_p, raw_close, ex_clean)
+        risk_amt = max(raw_close - sl_p, raw_close * 0.03)
+
+        entry_low_p = round_tick_size(raw_close, ex_clean)
+        entry_high_p = clamp_price_limits(max(entry_low_p, raw_close * 1.02), raw_close, ex_clean)
+        tp1_p = clamp_price_limits(
+            max(entry_high_p, raw_close + 2.0 * risk_amt), raw_close, ex_clean
+        )
+        tp2_p = clamp_price_limits(max(tp1_p, raw_close + 3.0 * risk_amt), raw_close, ex_clean)
+
+        rr_num = round((tp1_p - raw_close) / risk_amt, 2) if risk_amt > 0 else 1.0
+
+        stop_distance_pct = (
+            abs(raw_close - sl_p) / raw_close
+            if raw_close > 0 and abs(raw_close - sl_p) > 1e-4
+            else 0.05
+        )
+        portfolio_risk_budget_pct = 1.0
+        calc_position_pct = round(portfolio_risk_budget_pct / stop_distance_pct, 1)
+
+        max_position_cap = 20.0 if action == "BUY" else 10.0
+        final_position_pct = min(calc_position_pct, max_position_cap)
+
+        trade_plan = {
+            "current_price": current_price_vnd,
+            "entry_low": round(entry_low_p, 0),
+            "entry_high": round(entry_high_p, 0),
+            "stop_loss": round(sl_p, 0),
+            "tp1": round(tp1_p, 0),
+            "tp2": round(tp2_p, 0),
+            "risk_reward": rr_num,
+            "position_percent": final_position_pct,
+        }
+
+        invalidation.extend(
+            [
+                f"Giá đóng cửa vi phạm ngưỡng cắt lỗ {format_vnd(sl_p)} VNĐ.",
+                f"Giá gãy hỗ trợ trung hạn MA50 ({format_vnd(raw_ma50 if raw_ma50 else raw_close)}) VNĐ.",
+                "Trạng thái thị trường chung suy giảm sang PANIC.",
+            ]
+        )
+    else:
+        trade_plan = {
+            "current_price": current_price_vnd if raw_close is not None else None,
+            "entry_low": None,
+            "entry_high": None,
+            "stop_loss": None,
+            "tp1": None,
+            "tp2": None,
+            "risk_reward": None,
+            "position_percent": 0.0,
+        }
+        invalidation.extend(
+            [
+                "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+                "Tín hiệu phân kỳ dương hình thành trên khung 1D.",
+            ]
+        )
+
+    expected_return = {
+        "expected_return_5d": None,
+        "expected_return_10d": None,
+        "expected_return_20d": None,
+    }
+
+    risk_adjusted_score = calculate_risk_adjusted_score(
+        signal_score=score,
+        regime=regime,
+        volatility_60d=vol60,
+        max_drawdown=mdd,
+        liquidity_score=risk_metrics.get("liquidity_score"),
+    )
+
+    div_mapping = {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE",
+    }
+    tf_k_map = [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]
+    for tf_key, tf_lbl in tf_k_map:
+        d_info = tf_summary.get(tf_key, {}).get("divergence", {})
+        if d_info.get("rsi_bullish") or d_info.get("macd_bullish"):
+            div_mapping[tf_lbl] = "BULLISH"
+        elif d_info.get("rsi_bearish") or d_info.get("macd_bearish"):
+            div_mapping[tf_lbl] = "BEARISH"
+        else:
+            div_mapping[tf_lbl] = "NONE"
+
+    final_data_quality = data_quality
+    if val_res["status"] == "PARTIAL" and final_data_quality == "SUFFICIENT":
+        final_data_quality = "PARTIAL"
+
+    risk_assessment = RiskAssessment(
+        var_t25=risk_metrics.get("var_t25"),
+        es_t25=risk_metrics.get("es_t25"),
+        volatility_60d=risk_metrics.get("volatility_60d"),
+        max_drawdown=risk_metrics.get("max_drawdown"),
+        liquidity_score=risk_metrics.get("liquidity_score"),
+        avg_value_20d=risk_metrics.get("avg_value_20d"),
+        risk_level=risk_level,
+    )
+
+    trade_plan_obj = TradePlan(
+        current_price=trade_plan.get("current_price"),
+        entry_low=trade_plan.get("entry_low"),
+        entry_high=trade_plan.get("entry_high"),
+        stop_loss=trade_plan.get("stop_loss"),
+        tp1=trade_plan.get("tp1"),
+        tp2=trade_plan.get("tp2"),
+        risk_reward=trade_plan.get("risk_reward"),
+        position_percent=trade_plan.get("position_percent", 0.0),
+    )
+
+    return Recommendation(
         symbol=symbol,
-        company_name=company_name,
-        sector=sector,
-        exchange=exchange,
-        df_stock=df_stock,
-        market_regime_info=market_regime_info,
-        df_vnindex=df_vnindex,
-        foreign_net_buy_bn=foreign_net_buy_bn,
-        prop_net_buy_bn=prop_net_buy_bn,
-        data_as_of=data_as_of,
+        company_name=comp_clean,
+        exchange=ex_clean,
+        sector=sec_clean,
+        action=action,
+        model_version=SIGNAL_MODEL_VERSION,
+        data_quality=final_data_quality,
+        data_quality_issues=tuple(val_res["issues"]),
+        data_as_of=stock_data_as_of,
         data_source=data_source,
+        signal_score=score,
+        risk_adjusted_score=risk_adjusted_score,
+        score_components=score_components,
+        confidence=confidence,
+        risk_level=risk_level,
+        expected_return=expected_return,
+        risk_metrics=risk_assessment,
+        trade_plan=trade_plan_obj,
+        reasons=tuple(reasons),
+        warnings=tuple(warnings),
+        invalidation=tuple(invalidation),
+        divergence=div_mapping,
     )

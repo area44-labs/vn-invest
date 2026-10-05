@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from scripts.domain import Recommendation, RiskAssessment, TradePlan
-from scripts.lib.recommendation import (
+from scripts.quant.signal import (
     SIGNAL_MODEL_VERSION,
     classify_action,
 )
