@@ -160,6 +160,18 @@ def generate_historical_report(
     if not candidate_metadata:
         raise ValueError("candidate_metadata cannot be empty")
 
+    seen_symbols = set()
+    for idx, item in enumerate(candidate_metadata):
+        if not isinstance(item, dict):
+            raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
+        sym = item.get("symbol")
+        if not sym or not isinstance(sym, str) or not sym.strip():
+            raise ValueError(f"Candidate metadata item at index {idx} missing valid symbol string")
+        sym_u = sym.strip().upper()
+        if sym_u in seen_symbols:
+            raise ValueError(f"Duplicate candidate stock symbol '{sym_u}' in candidate_metadata")
+        seen_symbols.add(sym_u)
+
     if not isinstance(universe_stock_map, dict):
         raise TypeError("universe_stock_map must be a dictionary mapping symbols to DataFrames")
 

@@ -668,11 +668,231 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
             ctx.processed_symbols = {"FPT"}
 
     def test_legacy_candidate_stocks_isolation(self):
+        import scripts.lib.vietnam_market as vnm_module
         from scripts.lib.vietnam_market import CANDIDATE_STOCKS, UniverseProvider
 
         u = UniverseProvider().get_universe()
         self.assertEqual(len(CANDIDATE_STOCKS), u.universe_size)
         self.assertEqual([c["symbol"] for c in CANDIDATE_STOCKS], list(u.candidate_symbols))
+
+        # Modifying legacy CANDIDATE_STOCKS snapshot does not alter UniverseProvider output
+        original_len = len(vnm_module.CANDIDATE_STOCKS)
+        try:
+            vnm_module.CANDIDATE_STOCKS.append(
+                {
+                    "symbol": "FAKE_MONKEYPATCH",
+                    "companyName": "Fake",
+                    "sector": "Fake",
+                    "exchange": "HOSE",
+                }
+            )
+            u_after = UniverseProvider().get_universe()
+            self.assertNotIn("FAKE_MONKEYPATCH", u_after.candidate_symbols)
+            self.assertEqual(u_after.universe_size, u.universe_size)
+        finally:
+            vnm_module.CANDIDATE_STOCKS = vnm_module.CANDIDATE_STOCKS[:original_len]
+
+
+class TestIssue173ArchitectureInvariants(unittest.TestCase):
+    """Regression test suite for Issue #173 architectural requirements A through H."""
+
+    def test_a_audit_canonical_state_no_reconstruction(self):
+        """A. UniverseScanResult.to_audit_dict() produces audit payload directly without Universe reconstruction."""
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Co B", "sector": "Sec B", "exchange": "HOSE"},
+            ],
+            universe_type="TEST_A",
+            benchmarks=("VNINDEX",),
+        )
+        scan_res = UniverseScanResult(
+            universe=u,
+            processed_symbols=("VNINDEX", "AAA"),
+            failed_symbols=("BBB",),
+            exclusions_map={
+                "BBB": {
+                    "symbol": "BBB",
+                    "stage": "STOCK_FETCH",
+                    "category": "PROVIDER_FAILURE",
+                    "status": "FAILED",
+                    "reason": "Fetch timeout",
+                }
+            },
+        )
+
+        audit = scan_res.to_audit_dict()
+        self.assertEqual(audit["status"], "DEGRADED")
+        self.assertEqual(audit["failed_stage"], "STOCK_FETCH")
+        self.assertEqual(audit["expected_symbols"], ["AAA", "BBB", "VNINDEX"])
+        self.assertEqual(audit["processed_symbols"], ["AAA", "VNINDEX"])
+        self.assertEqual(audit["failed_symbols"], ["BBB"])
+
+    def test_b_audit_benchmark_neutrality(self):
+        """B. Custom Universe does not infer benchmarks; production Universe preserves VNINDEX and VN30."""
+        u_custom = Universe.from_candidates(
+            [{"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"}],
+            universe_type="CUSTOM",
+            benchmarks=(),
+        )
+        scan_custom = UniverseScanResult(universe=u_custom, processed_symbols=("AAA",))
+        audit_custom = scan_custom.to_audit_dict()
+        self.assertEqual(audit_custom["expected_symbols"], ["AAA"])
+        self.assertNotIn("VNINDEX", audit_custom["expected_symbols"])
+        self.assertNotIn("VN30", audit_custom["expected_symbols"])
+
+        from scripts.lib.vietnam_market import UniverseProvider
+
+        u_prod = UniverseProvider().get_universe()
+        scan_prod = UniverseScanResult(
+            universe=u_prod, processed_symbols=tuple(u_prod.expected_symbols)
+        )
+        audit_prod = scan_prod.to_audit_dict()
+        self.assertIn("VNINDEX", audit_prod["expected_symbols"])
+        self.assertIn("VN30", audit_prod["expected_symbols"])
+
+    def test_c_historical_canonical_universe_flow(self):
+        """C. Historical entry point creates single Universe; stages operate on context.universe."""
+        from scripts.pipeline.context import PipelineContext
+        from scripts.pipeline.stages import UniverseValidationStage
+
+        cands = [{"symbol": "VNM", "companyName": "Vinamilk", "sector": "Food", "exchange": "HOSE"}]
+        u_hist = Universe.from_candidates(
+            cands, universe_type="HISTORICAL_SNAPSHOT", benchmarks=("VNINDEX", "VN30")
+        )
+
+        ctx = PipelineContext(is_historical=True, historical_data_as_of="2025-01-30")
+        ctx.set_universe(u_hist)
+
+        # Mismatch candidate_metadata to verify stage ignores context.candidate_metadata for expected set
+        ctx.candidate_metadata = [
+            {"symbol": "EXTRA_SYM", "companyName": "Extra", "sector": "Extra", "exchange": "HOSE"}
+        ]
+
+        import pandas as pd
+
+        stage = UniverseValidationStage()
+        df_dummy = pd.DataFrame({"close": [100.0]})
+        ctx.data_as_of = "2025-01-30"
+        ctx.df_vnindex_clean = df_dummy
+        ctx.vnindex_val = {"latest_date": "2025-01-30"}
+        ctx.df_vn30_clean = df_dummy
+        ctx.vn30_val = {"status": "SUFFICIENT"}
+        ctx.stock_data_map = {"VNM": (df_dummy, "explicit_historical_input", [])}
+
+        stage.execute(ctx)
+
+        self.assertIn("VNM", ctx.processed_symbols)
+        self.assertNotIn("EXTRA_SYM", ctx.expected_symbols)
+        self.assertEqual(ctx.expected_symbols, frozenset({"VNINDEX", "VN30", "VNM"}))
+
+    def test_d_candidate_metadata_mismatch_universe_remains_canonical(self):
+        """D. Candidate metadata mismatch does not expand expected symbols set beyond Universe."""
+        from scripts.pipeline.context import PipelineContext
+
+        u = Universe.from_candidates(
+            [{"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"}],
+            universe_type="CANONICAL",
+            benchmarks=("VNINDEX",),
+        )
+        ctx = PipelineContext()
+        ctx.set_universe(u)
+        ctx.candidate_metadata = [
+            {"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"},
+            {
+                "symbol": "BBB_MISMATCH",
+                "companyName": "Co B",
+                "sector": "Sec B",
+                "exchange": "HOSE",
+            },
+        ]
+
+        self.assertEqual(ctx.expected_symbols, {"VNINDEX", "AAA"})
+        self.assertNotIn("BBB_MISMATCH", ctx.expected_symbols)
+
+    def test_e_missing_universe_stage_fail_fast(self):
+        """E. Downstream stages fail fast with ValueError if executed without canonical Universe."""
+        from scripts.pipeline.context import PipelineContext
+        from scripts.pipeline.stages import (
+            DataAcquisitionStage,
+            DataValidationStage,
+            MarketAnalysisStage,
+            SignalRecommendationGenerationStage,
+            UniverseValidationStage,
+        )
+
+        ctx = PipelineContext()
+        self.assertIsNone(ctx.universe)
+
+        for stage in (
+            DataAcquisitionStage(),
+            DataValidationStage(),
+            UniverseValidationStage(),
+            MarketAnalysisStage(),
+            SignalRecommendationGenerationStage(),
+        ):
+            with self.assertRaises(ValueError) as cm:
+                stage.execute(ctx)
+            self.assertIn("requires context.universe", str(cm.exception))
+
+    def test_f_synchronization_identity_invariant(self):
+        """F. Invariant check: context.universe and context.universe_scan_result.universe remain identical."""
+        from scripts.pipeline.context import PipelineContext
+
+        ctx = PipelineContext()
+        u1 = Universe.from_candidates(
+            [{"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"}],
+            universe_type="U1",
+        )
+        ctx.set_universe(u1)
+
+        self.assertIsNotNone(ctx.universe_scan_result)
+        self.assertIs(ctx.universe, ctx.universe_scan_result.universe)
+
+        u2 = Universe.from_candidates(
+            [{"symbol": "BBB", "companyName": "Co B", "sector": "Sec B", "exchange": "HOSE"}],
+            universe_type="U2",
+        )
+        ctx.universe = u2
+        self.assertIs(ctx.universe, ctx.universe_scan_result.universe)
+
+    def test_g_legacy_candidate_stocks_isolation_under_monkeypatching(self):
+        """G. Monkeypatching legacy CANDIDATE_STOCKS does not alter UniverseProvider or Pipeline execution."""
+        import scripts.lib.vietnam_market as vnm_module
+        from scripts.lib.vietnam_market import UniverseProvider
+
+        orig_stocks = list(vnm_module.CANDIDATE_STOCKS)
+        try:
+            vnm_module.CANDIDATE_STOCKS = [
+                {
+                    "symbol": "MUTATED",
+                    "companyName": "Mutated",
+                    "sector": "Mutated",
+                    "exchange": "HOSE",
+                }
+            ]
+
+            u = UniverseProvider().get_universe()
+            self.assertNotIn("MUTATED", u.candidate_symbols)
+            self.assertIn("FPT", u.candidate_symbols)
+        finally:
+            vnm_module.CANDIDATE_STOCKS = orig_stocks
+
+    def test_h_audit_adapter_compatibility_delegates_directly(self):
+        """H. build_universe_audit(scan_result=...) delegates directly without reconstructing Universe."""
+        from scripts.pipeline.audit import build_universe_audit
+
+        u = Universe.from_candidates(
+            [{"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"}],
+            universe_type="ADAPTER_TEST",
+            benchmarks=("VNINDEX",),
+        )
+        scan_res = UniverseScanResult(universe=u, processed_symbols=("VNINDEX", "AAA"))
+
+        audit = build_universe_audit(scan_result=scan_res)
+        self.assertEqual(audit["status"], "SUCCESS")
+        self.assertEqual(audit["expected_symbols"], ["AAA", "VNINDEX"])
+        self.assertEqual(audit["processed_symbols"], ["AAA", "VNINDEX"])
 
 
 if __name__ == "__main__":

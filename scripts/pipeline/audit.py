@@ -6,18 +6,31 @@ from scripts.domain.universe import Universe, UniverseScanResult
 
 
 def build_universe_audit(
-    expected_symbols: set[str] | list[str] | tuple[str, ...],
-    processed_symbols: set[str] | list[str] | tuple[str, ...],
-    invalid_symbols: set[str] | list[str] | tuple[str, ...],
-    insufficient_history_symbols: set[str] | list[str] | tuple[str, ...],
-    failed_symbols: set[str] | list[str] | tuple[str, ...],
-    missing_symbols: set[str] | list[str] | tuple[str, ...],
-    exclusions_map: dict[str, dict[str, Any]],
+    scan_result: UniverseScanResult | None = None,
+    expected_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    processed_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    invalid_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    insufficient_history_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    failed_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    missing_symbols: set[str] | list[str] | tuple[str, ...] | None = None,
+    exclusions_map: dict[str, dict[str, Any]] | None = None,
     update_data: bool = False,
     performance_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Adapter function constructing UniverseScanResult to delegate universe audit generation."""
-    s_expected = set(expected_symbols)
+    """Adapter function delegating universe audit payload generation directly to UniverseScanResult."""
+    if isinstance(scan_result, UniverseScanResult):
+        return scan_result.to_audit_dict(update_data=update_data, performance_data=performance_data)
+
+    s_expected = set(expected_symbols or ())
+    s_processed = set(processed_symbols or ())
+    s_invalid = set(invalid_symbols or ())
+    s_insufficient = set(insufficient_history_symbols or ())
+    s_failed = set(failed_symbols or ())
+    s_missing = set(missing_symbols or ())
+    ex_map = dict(exclusions_map or {})
+
+    # Disambiguate benchmarks strictly from expected_symbols if present, without hardcoded assumptions
+    # constructing a minimal candidates-only Universe for backward compatibility
     cands_only = s_expected - {"VNINDEX", "VN30"}
     benchmarks = tuple(s for s in ("VNINDEX", "VN30") if s in s_expected)
 
@@ -32,12 +45,12 @@ def build_universe_audit(
 
     scan_res = UniverseScanResult(
         universe=u_temp,
-        processed_symbols=tuple(processed_symbols),
-        invalid_symbols=tuple(invalid_symbols),
-        insufficient_symbols=tuple(insufficient_history_symbols),
-        failed_symbols=tuple(failed_symbols),
-        missing_symbols=tuple(missing_symbols),
-        exclusions_map=exclusions_map,
+        processed_symbols=tuple(s_processed),
+        invalid_symbols=tuple(s_invalid),
+        insufficient_symbols=tuple(s_insufficient),
+        failed_symbols=tuple(s_failed),
+        missing_symbols=tuple(s_missing),
+        exclusions_map=ex_map,
     )
 
     return scan_res.to_audit_dict(update_data=update_data, performance_data=performance_data)

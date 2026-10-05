@@ -147,8 +147,8 @@ class DataAcquisitionStage(PipelineStage):
 
         # Fetch candidate stocks raw payloads
         with context.tracker.measure_stage("stock_fetch"):
-            for item in context.candidate_stocks:
-                sym = item["symbol"].upper()
+            for cand in context.universe.candidates:
+                sym = cand.symbol
                 context.tracker.record_request(sym)
                 try:
                     payload_stock = acquirer.acquire(
@@ -316,8 +316,8 @@ class DataValidationStage(PipelineStage):
             context.record_symbol_processed("VN30")
 
         # 3. Normalize and Validate Candidate Stock Universe via canonical boundary
-        for item in context.candidate_stocks:
-            sym = item["symbol"].upper()
+        for cand in context.universe.candidates:
+            sym = cand.symbol
             raw_st_payload = context.raw_stock_payloads.get(sym) or RawMarketDataPayload(
                 symbol=sym,
                 raw_df=context.stock_data_map.get(sym, (pd.DataFrame(), None, []))[0],
@@ -481,20 +481,12 @@ class DataValidationStage(PipelineStage):
         seen_candidate_symbols = set()
 
         with context.tracker.measure_stage("stock_fetch"):
-            for idx, item in enumerate(context.candidate_metadata or []):
-                if not isinstance(item, dict):
-                    raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
-                sym = item.get("symbol")
-                if not sym or not isinstance(sym, str):
-                    raise ValueError(
-                        f"Candidate metadata item at index {idx} missing valid symbol string"
-                    )
-
-                sym_upper = sym.upper()
+            for cand in context.universe.candidates:
+                sym_upper = cand.symbol
                 context.tracker.record_request(sym_upper)
                 if sym_upper in seen_candidate_symbols:
                     raise ValueError(
-                        f"Duplicate candidate stock symbol '{sym_upper}' in candidate_metadata"
+                        f"Duplicate candidate stock symbol '{sym_upper}' in context.universe"
                     )
                 seen_candidate_symbols.add(sym_upper)
 
@@ -587,8 +579,8 @@ class UniverseValidationStage(PipelineStage):
                     expected_date=canonical_as_of,
                 )
 
-            for item in context.candidate_stocks:
-                sym_upper = item["symbol"].upper()
+            for cand in context.universe.candidates:
+                sym_upper = cand.symbol
                 df_st = context.stock_data_map.get(sym_upper, (pd.DataFrame(), None, None))[0]
                 if df_st is not None and not df_st.empty:
                     context.record_symbol_processed(sym_upper)
@@ -721,8 +713,8 @@ class MarketAnalysisStage(PipelineStage):
         with context.tracker.measure_stage("market_calculation"):
             bullish_count = 0
             valid_breadth_denom = 0
-            for sym_dict in context.candidate_stocks:
-                s_name = sym_dict["symbol"]
+            for cand in context.universe.candidates:
+                s_name = cand.symbol
                 if s_name in context.processed_symbols:
                     cmd_st = context.canonical_stock_map.get(s_name)
                     if (
@@ -768,11 +760,11 @@ class SignalRecommendationGenerationStage(PipelineStage):
         if context.is_historical:
             with context.tracker.measure_stage("recommendation_calculation"):
                 scanned_recs = []
-                for item in context.candidate_stocks:
-                    sym = item["symbol"].upper()
-                    comp = item["companyName"]
-                    sec = item["sector"]
-                    ex = item.get("exchange", "HOSE")
+                for cand in context.universe.candidates:
+                    sym = cand.symbol
+                    comp = cand.company_name
+                    sec = cand.sector
+                    ex = cand.exchange
 
                     df_stock_clean = context.stock_data_map.get(sym, (pd.DataFrame(), None, None))[
                         0
@@ -795,11 +787,11 @@ class SignalRecommendationGenerationStage(PipelineStage):
 
         with context.tracker.measure_stage("recommendation_calculation"):
             scanned_recs = []
-            for item in context.candidate_stocks:
-                sym = item["symbol"]
-                comp = item["companyName"]
-                sec = item["sector"]
-                ex = item.get("exchange", "HOSE")
+            for cand in context.universe.candidates:
+                sym = cand.symbol
+                comp = cand.company_name
+                sec = cand.sector
+                ex = cand.exchange
 
                 cmd_st = context.canonical_stock_map.get(sym)
                 tag = cmd_st.source_tag if cmd_st else "PROVIDER_FAILURE"
