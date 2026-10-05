@@ -465,20 +465,37 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""
-        from scripts.lib.backtest import get_as_of_dataset, run_backtest_for_symbol
+        from scripts.lib.backtest import (
+            calculate_as_of_market_breadth,
+            get_as_of_dataset,
+            run_backtest_for_symbol,
+        )
 
-        # 1. Backtest call at as_of_date
+        company_name = "Company VNM"
+        sector = "Consumer Goods"
+        exchange = "HOSE"
+        universe_map = {"VNM": self.df_stock}
+
+        # 1. Compute exact PIT market breadth as of T
+        pit_breadth = calculate_as_of_market_breadth(universe_map, self.as_of_date)
+
+        # 2. Backtest call at as_of_date using explicit market breadth and metadata
         results = run_backtest_for_symbol(
             symbol="VNM",
             df_stock=self.df_stock,
             evaluation_dates=[self.as_of_date],
+            company_name=company_name,
+            sector=sector,
+            exchange=exchange,
             df_vnindex=self.df_vnindex,
             df_vn30=self.df_vn30,
+            breadth_ratio=pit_breadth,
+            universe_stock_map=universe_map,
         )
         self.assertEqual(len(results), 1)
         backtest_sig = results[0].signal
 
-        # 2. Production engine call with point-in-time sliced data <= as_of_date
+        # 3. Production engine call with identical point-in-time sliced datasets <= as_of_date
         df_stock_pit = get_as_of_dataset(self.df_stock, self.as_of_date)
         df_vnindex_pit = get_as_of_dataset(self.df_vnindex, self.as_of_date)
         df_vn30_pit = get_as_of_dataset(self.df_vn30, self.as_of_date)
@@ -487,21 +504,21 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
             RegimeInput(
                 df_vnindex=df_vnindex_pit,
                 df_vn30=df_vn30_pit,
-                breadth_ratio=1.0,  # Single stock in universe produces 1.0
+                breadth_ratio=pit_breadth,
             )
         )
         prod_rec = generate_single_recommendation(
             symbol="VNM",
-            company_name="Company VNM",
-            sector="General",
-            exchange="HOSE",
+            company_name=company_name,
+            sector=sector,
+            exchange=exchange,
             df_stock=df_stock_pit,
             market_regime_info=regime_res.market_regime,
             df_vnindex=df_vnindex_pit,
             data_as_of=self.as_of_date,
         )
 
-        # 3. Assert full quantitative equivalence
+        # 4. Assert full quantitative equivalence
         self.assertEqual(backtest_sig.action, prod_rec.action)
         self.assertEqual(backtest_sig.signal_score, prod_rec.signal_score)
         self.assertEqual(backtest_sig.confidence, prod_rec.confidence)
