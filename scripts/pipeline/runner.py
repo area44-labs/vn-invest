@@ -5,6 +5,8 @@ import os
 import time
 from typing import Any
 
+from scripts.domain.universe import Universe
+from scripts.lib.vietnam_market import UniverseProvider
 from scripts.pipeline.constants import GENERATED_DIR
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.result import PipelineResult
@@ -51,6 +53,11 @@ class ProductionPipeline:
 
         if not context.generated_dir:
             context.generated_dir = os.path.abspath(GENERATED_DIR)
+
+        if context.universe is None or context.universe_scan_result is None:
+            raise ValueError(
+                "ProductionPipeline requires context.universe and context.universe_scan_result to be set prior to execution"
+            )
 
         t_pipeline_start = time.perf_counter()
 
@@ -106,6 +113,13 @@ def run_pipeline(
         tracker=tracker,
         generated_dir=os.path.abspath(generated_dir),
     )
+
+    context.provider = UniverseProvider()
+    u_prod = context.provider.get_universe()
+    if u_prod is None or u_prod.universe_size == 0:
+        raise RuntimeError("Candidate universe is empty or missing. Cannot generate report.")
+    context.set_universe(u_prod)
+
     pipeline = ProductionPipeline()
     return pipeline.execute(context)
 
@@ -127,6 +141,18 @@ def generate_historical_report(
         raise TypeError("candidate_metadata must be a list of candidate stock dicts")
     if not candidate_metadata:
         raise ValueError("candidate_metadata cannot be empty")
+
+    seen_symbols = set()
+    for idx, item in enumerate(candidate_metadata):
+        if not isinstance(item, dict):
+            raise TypeError(f"Candidate metadata item at index {idx} must be a dict")
+        sym = item.get("symbol")
+        if not sym or not isinstance(sym, str) or not sym.strip():
+            raise ValueError(f"Candidate metadata item at index {idx} missing valid symbol string")
+        sym_u = sym.strip().upper()
+        if sym_u in seen_symbols:
+            raise ValueError(f"Duplicate candidate stock symbol '{sym_u}' in candidate_metadata")
+        seen_symbols.add(sym_u)
 
     if not isinstance(universe_stock_map, dict):
         raise TypeError("universe_stock_map must be a dictionary mapping symbols to DataFrames")
@@ -151,6 +177,13 @@ def generate_historical_report(
         candidate_metadata=candidate_metadata,
         data_source=data_source,
     )
+
+    u_hist = Universe.from_candidates(
+        candidates=candidate_metadata,
+        universe_type="HISTORICAL_SNAPSHOT",
+        benchmarks=("VNINDEX", "VN30"),
+    )
+    context.set_universe(u_hist)
 
     pipeline = ProductionPipeline()
     return pipeline.execute(context)

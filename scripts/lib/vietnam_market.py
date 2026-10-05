@@ -9,6 +9,7 @@ import logging
 import os
 import time  # noqa: F401
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,7 @@ import pandas as pd
 from scripts.data_provider import (
     VnstockDataProvider,
 )
+from scripts.domain.universe import DEFAULT_BENCHMARKS, Universe
 from scripts.lib.config import (
     MAX_BENCHMARK_FUTURE_DAYS,
     MAX_STOCK_STALENESS_DAYS,
@@ -209,9 +211,32 @@ def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
 class UniverseProvider:
     """Abstraction for stock universe selection in Vietnam equity markets."""
 
-    def __init__(self, universe_type: str = "VN30_MIDCAP_LEADERS"):
+    def __init__(
+        self,
+        universe_type: str = "VN30_MIDCAP_LEADERS",
+        benchmarks: tuple[str, ...] = DEFAULT_BENCHMARKS,
+    ):
         self.universe_type = universe_type
-        self.candidates = self._get_candidates()
+        self.benchmarks = tuple(benchmarks)
+        raw_candidates = self._get_candidates()
+        self.universe = Universe(
+            universe_type=self.universe_type,
+            candidates=raw_candidates,
+            benchmarks=self.benchmarks,
+        )
+
+    def get_universe(self) -> Universe:
+        """Returns the canonical domain Universe contract."""
+        return self.universe
+
+    @property
+    def candidates(self) -> list[dict[str, Any]]:
+        """Return candidate stocks list of dicts for backward compatibility."""
+        return self.get_universe().to_candidate_list()
+
+    def get_info(self) -> dict:
+        """Return universe info metadata dict for backward compatibility."""
+        return self.get_universe().to_info_dict()
 
     def _get_candidates(self) -> list[dict]:
         return [
@@ -471,14 +496,8 @@ class UniverseProvider:
             },
         ]
 
-    def get_info(self) -> dict:
-        return {
-            "universe_type": self.universe_type,
-            "universe_size": len(self.candidates),
-        }
 
-
-CANDIDATE_STOCKS = UniverseProvider().candidates
+CANDIDATE_STOCKS = UniverseProvider().get_universe().to_candidate_list()
 
 
 def normalize_symbol(symbol: str) -> str:

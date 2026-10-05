@@ -1,9 +1,10 @@
-"""Domain contract for Market Universe definitions and candidates."""
+"""Domain contract for Market Universe definitions, candidates, and scan results."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Self
 
 VALID_EXCHANGES = {"HOSE", "HNX", "UPCOM"}
+DEFAULT_BENCHMARKS = ("VNINDEX", "VN30")
 
 
 @dataclass(frozen=True)
@@ -68,40 +69,82 @@ class Universe:
 
     universe_type: str
     candidates: tuple[UniverseCandidate, ...] = ()
+    benchmarks: tuple[str, ...] = ()
     scanned_at: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.universe_type, str) or not self.universe_type.strip():
             raise ValueError("Field 'universe_type' must be a non-empty string")
 
+        bmarks = []
+        if isinstance(self.benchmarks, (list, tuple, set, dict)):
+            for idx, bm in enumerate(self.benchmarks):
+                if not isinstance(bm, str) or not bm.strip():
+                    raise ValueError(f"Benchmark symbol at index {idx} must be a non-empty string")
+                bmarks.append(bm.strip().upper())
+        else:
+            raise TypeError(
+                f"Field 'benchmarks' must be a tuple, list, or set, got {type(self.benchmarks).__name__}"
+            )
+
         cands = []
+        seen_symbols = set()
         if isinstance(self.candidates, (list, tuple, set)):
             for idx, item in enumerate(self.candidates):
                 if isinstance(item, UniverseCandidate):
-                    cands.append(item)
+                    cand = item
                 elif isinstance(item, dict):
-                    cands.append(UniverseCandidate.from_dict(item))
+                    item_norm = dict(item)
+                    ex = item_norm.get("exchange")
+                    if not ex or not isinstance(ex, str) or not ex.strip():
+                        item_norm["exchange"] = "HOSE"
+                    cand = UniverseCandidate.from_dict(item_norm)
                 else:
                     raise TypeError(
                         f"Candidate item at index {idx} must be UniverseCandidate or dict, got {type(item).__name__}"
                     )
+                if cand.symbol not in seen_symbols:
+                    seen_symbols.add(cand.symbol)
+                    cands.append(cand)
         else:
             raise TypeError(
                 f"Field 'candidates' must be a tuple or list, got {type(self.candidates).__name__}"
             )
 
+        object.__setattr__(self, "benchmarks", tuple(bmarks))
         object.__setattr__(self, "candidates", tuple(cands))
 
     @property
     def universe_size(self) -> int:
-        """Returns the total number of candidate stocks in the universe."""
+        """Returns the total number of unique candidate stocks in the universe."""
         return len(self.candidates)
+
+    @property
+    def candidate_symbols(self) -> tuple[str, ...]:
+        """Returns tuple of candidate stock symbols."""
+        return tuple(c.symbol for c in self.candidates)
+
+    @property
+    def candidate_symbols_set(self) -> frozenset[str]:
+        """Returns frozenset of candidate stock symbols."""
+        return frozenset(c.symbol for c in self.candidates)
+
+    @property
+    def expected_symbols(self) -> frozenset[str]:
+        """Returns frozenset of all expected symbols including benchmarks and candidates."""
+        return frozenset(self.benchmarks) | self.candidate_symbols_set
+
+    @property
+    def candidate_metadata(self) -> list[dict[str, str]]:
+        """Returns candidate metadata list of dictionaries."""
+        return [c.to_dict() for c in self.candidates]
 
     def to_dict(self) -> dict[str, Any]:
         """Convert Universe contract to dictionary representation with all candidates preserved for lossless round-trip."""
         res: dict[str, Any] = {
             "universe_type": self.universe_type,
             "universe_size": self.universe_size,
+            "benchmarks": list(self.benchmarks),
             "candidates": [c.to_dict() for c in self.candidates],
         }
         if self.scanned_at:
@@ -123,13 +166,302 @@ class Universe:
         return [c.to_dict() for c in self.candidates]
 
     @classmethod
+    def from_candidates(
+        cls,
+        candidates: Any,
+        universe_type: str = "CUSTOM",
+        benchmarks: tuple[str, ...] = (),
+        scanned_at: str | None = None,
+    ) -> Self:
+        """Construct Universe from candidates sequence."""
+        return cls(
+            universe_type=universe_type,
+            candidates=tuple(candidates) if isinstance(candidates, (list, tuple, set)) else (),
+            benchmarks=tuple(benchmarks) if isinstance(benchmarks, (list, tuple, set)) else (),
+            scanned_at=scanned_at,
+        )
+
+    @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Construct Universe contract from dictionary representation."""
         if not isinstance(data, dict):
             raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
         candidates_raw = data.get("candidates") or data.get("universe") or []
+        bmarks_raw = data.get("benchmarks")
+        bmarks = tuple(bmarks_raw) if isinstance(bmarks_raw, (list, tuple, set)) else ()
         return cls(
             universe_type=data.get("universe_type", "CUSTOM"),
             candidates=tuple(candidates_raw),
+            benchmarks=bmarks,
             scanned_at=data.get("scanned_at"),
+        )
+
+
+@dataclass(frozen=True)
+class UniverseScanResult:
+    """Canonical domain representation of a universe scan and completeness coverage evaluation."""
+
+    universe: Universe
+    processed_symbols: tuple[str, ...] = ()
+    invalid_symbols: tuple[str, ...] = ()
+    insufficient_symbols: tuple[str, ...] = ()
+    failed_symbols: tuple[str, ...] = ()
+    missing_symbols: tuple[str, ...] = ()
+    exclusions_map: dict[str, dict[str, Any]] = field(default_factory=dict)
+    status: str = "SUCCESS"
+    failed_stage: str | None = None
+    data_as_of: str | None = None
+    source_date: str | None = None
+    data_source: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.universe, Universe):
+            raise TypeError(
+                f"Field 'universe' must be a Universe instance, got {type(self.universe).__name__}"
+            )
+
+        def _clean_syms(syms: Any) -> tuple[str, ...]:
+            if isinstance(syms, (list, tuple, set, frozenset)):
+                out = []
+                for s in syms:
+                    if isinstance(s, str) and s.strip():
+                        out.append(s.strip().upper())
+                return tuple(sorted(set(out)))
+            return ()
+
+        object.__setattr__(self, "processed_symbols", _clean_syms(self.processed_symbols))
+        object.__setattr__(self, "invalid_symbols", _clean_syms(self.invalid_symbols))
+        object.__setattr__(self, "insufficient_symbols", _clean_syms(self.insufficient_symbols))
+        object.__setattr__(self, "failed_symbols", _clean_syms(self.failed_symbols))
+        object.__setattr__(self, "missing_symbols", _clean_syms(self.missing_symbols))
+
+        ex_map = dict(self.exclusions_map) if isinstance(self.exclusions_map, dict) else {}
+        object.__setattr__(self, "exclusions_map", ex_map)
+
+        if not isinstance(self.status, str) or not self.status.strip():
+            object.__setattr__(self, "status", "SUCCESS")
+        else:
+            object.__setattr__(self, "status", self.status.strip().upper())
+
+    @property
+    def insufficient_history_symbols(self) -> tuple[str, ...]:
+        """Alias for insufficient_symbols for pipeline/audit compatibility."""
+        return self.insufficient_symbols
+
+    @property
+    def expected_symbols(self) -> frozenset[str]:
+        """Returns expected symbols set from universe."""
+        return self.universe.expected_symbols
+
+    @property
+    def expected_count(self) -> int:
+        """Total expected symbol count."""
+        return len(self.expected_symbols)
+
+    @property
+    def processed_count(self) -> int:
+        """Processed symbol count."""
+        return len(self.processed_symbols)
+
+    @property
+    def invalid_count(self) -> int:
+        """Invalid symbol count."""
+        return len(self.invalid_symbols)
+
+    @property
+    def insufficient_count(self) -> int:
+        """Insufficient history symbol count."""
+        return len(self.insufficient_symbols)
+
+    @property
+    def insufficient_history_count(self) -> int:
+        """Alias for insufficient_count."""
+        return self.insufficient_count
+
+    @property
+    def failed_count(self) -> int:
+        """Failed symbol count."""
+        return len(self.failed_symbols)
+
+    @property
+    def missing_count(self) -> int:
+        """Missing symbol count."""
+        return len(self.missing_symbols)
+
+    @property
+    def processed_ratio(self) -> float:
+        """Ratio of processed symbols to expected symbols."""
+        return self.processed_count / self.expected_count if self.expected_count > 0 else 0.0
+
+    @property
+    def is_complete(self) -> bool:
+        """Returns True if expected symbols equal processed + invalid with zero failed/insufficient/missing."""
+        if not self.processed_symbols:
+            return False
+        return (
+            set(self.processed_symbols) | set(self.invalid_symbols) == set(self.expected_symbols)
+            and not self.failed_symbols
+            and not self.insufficient_symbols
+            and not self.missing_symbols
+        )
+
+    @property
+    def computed_failed_stage(self) -> str | None:
+        """Computes the pipeline failure stage based on scan exclusions and failure sets."""
+        s_failed = set(self.failed_symbols)
+        if "VNINDEX" in s_failed or "VN30" in s_failed:
+            return "BENCHMARK_FETCH"
+        if any(e.get("stage") == "TEMPORAL_VALIDATION" for e in self.exclusions_map.values()):
+            return "TEMPORAL_VALIDATION"
+        if any(e.get("stage") == "STOCK_FETCH" for e in self.exclusions_map.values()):
+            return "STOCK_FETCH"
+        if self.missing_symbols:
+            return "UNIVERSE_DISCOVERY"
+        return self.failed_stage
+
+    def computed_pipeline_status(self, update_data: bool = False) -> str:
+        """Computes pipeline overall audit status (SUCCESS, DEGRADED, FAILED)."""
+        st = self.computed_failed_stage
+        if st is not None:
+            return "FAILED" if update_data else "DEGRADED"
+        return "SUCCESS"
+
+    @property
+    def diagnostics(self) -> list[dict[str, Any]]:
+        """Returns ordered diagnostics list from exclusions map."""
+        return [self.exclusions_map[s] for s in sorted(self.exclusions_map.keys())]
+
+    def with_updates(
+        self,
+        universe: Universe | None = None,
+        processed_symbols: Any = None,
+        invalid_symbols: Any = None,
+        insufficient_symbols: Any = None,
+        failed_symbols: Any = None,
+        missing_symbols: Any = None,
+        exclusions_map: Any = None,
+        status: str | None = None,
+        failed_stage: str | None = None,
+        data_as_of: str | None = None,
+        source_date: str | None = None,
+        data_source: str | None = None,
+    ) -> Self:
+        """Return a new UniverseScanResult instance with updated scan fields."""
+        return UniverseScanResult(
+            universe=self.universe if universe is None else universe,
+            processed_symbols=self.processed_symbols
+            if processed_symbols is None
+            else processed_symbols,
+            invalid_symbols=self.invalid_symbols if invalid_symbols is None else invalid_symbols,
+            insufficient_symbols=self.insufficient_symbols
+            if insufficient_symbols is None
+            else insufficient_symbols,
+            failed_symbols=self.failed_symbols if failed_symbols is None else failed_symbols,
+            missing_symbols=self.missing_symbols if missing_symbols is None else missing_symbols,
+            exclusions_map=self.exclusions_map if exclusions_map is None else exclusions_map,
+            status=self.status if status is None else status,
+            failed_stage=self.failed_stage if failed_stage is None else failed_stage,
+            data_as_of=self.data_as_of if data_as_of is None else data_as_of,
+            source_date=self.source_date if source_date is None else source_date,
+            data_source=self.data_source if data_source is None else data_source,
+        )
+
+    def to_audit_dict(
+        self, update_data: bool = False, performance_data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Convert scan result directly to production 'universe_audit' dictionary payload."""
+        from scripts.lib.monitoring import validate_performance_payload
+
+        failed_stage = self.computed_failed_stage
+        pipeline_status = self.computed_pipeline_status(update_data=update_data)
+        diagnostics_list = self.diagnostics
+
+        universe_summary = {
+            "status": pipeline_status,
+            "failed_stage": failed_stage,
+            "expected_count": self.expected_count,
+            "processed_count": self.processed_count,
+            "invalid_count": self.invalid_count,
+            "insufficient_history_count": self.insufficient_count,
+            "failed_count": self.failed_count,
+            "missing_count": self.missing_count,
+            "diagnostic_count": len(diagnostics_list),
+        }
+
+        audit = {
+            "status": pipeline_status,
+            "failed_stage": failed_stage,
+            "expected_symbols": sorted(self.expected_symbols),
+            "processed_symbols": sorted(self.processed_symbols),
+            "invalid_symbols": sorted(self.invalid_symbols),
+            "insufficient_history_symbols": sorted(self.insufficient_symbols),
+            "failed_symbols": sorted(self.failed_symbols),
+            "missing_symbols": sorted(self.missing_symbols),
+            "counts": universe_summary,
+            "summary": universe_summary,
+            "exclusions": diagnostics_list,
+            "diagnostics": diagnostics_list,
+        }
+
+        if performance_data is not None:
+            validate_performance_payload(performance_data)
+            audit["performance"] = performance_data
+
+        return audit
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert UniverseScanResult to lossless dictionary representation."""
+        res = {
+            "universe": self.universe.to_dict(),
+            "status": self.status,
+            "failed_stage": self.failed_stage,
+            "expected_symbols": sorted(self.expected_symbols),
+            "processed_symbols": list(self.processed_symbols),
+            "invalid_symbols": list(self.invalid_symbols),
+            "insufficient_symbols": list(self.insufficient_symbols),
+            "failed_symbols": list(self.failed_symbols),
+            "missing_symbols": list(self.missing_symbols),
+            "exclusions_map": dict(self.exclusions_map),
+            "counts": {
+                "expected_count": self.expected_count,
+                "processed_count": self.processed_count,
+                "invalid_count": self.invalid_count,
+                "insufficient_count": self.insufficient_count,
+                "failed_count": self.failed_count,
+                "missing_count": self.missing_count,
+                "processed_ratio": self.processed_ratio,
+            },
+        }
+        if self.data_as_of:
+            res["data_as_of"] = self.data_as_of
+        if self.source_date:
+            res["source_date"] = self.source_date
+        if self.data_source:
+            res["data_source"] = self.data_source
+        return res
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Construct UniverseScanResult from dictionary representation."""
+        if not isinstance(data, dict):
+            raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
+        u_raw = data.get("universe") or {}
+        if not isinstance(u_raw, dict):
+            raise TypeError(f"Universe data in dict must be a dict, got {type(u_raw).__name__}")
+        u_obj = Universe.from_dict(u_raw)
+        return cls(
+            universe=u_obj,
+            processed_symbols=tuple(data.get("processed_symbols") or ()),
+            invalid_symbols=tuple(data.get("invalid_symbols") or ()),
+            insufficient_symbols=tuple(
+                data.get("insufficient_symbols") or data.get("insufficient_history_symbols") or ()
+            ),
+            failed_symbols=tuple(data.get("failed_symbols") or ()),
+            missing_symbols=tuple(data.get("missing_symbols") or ()),
+            exclusions_map=dict(data.get("exclusions_map") or {}),
+            status=data.get("status", "SUCCESS"),
+            failed_stage=data.get("failed_stage"),
+            data_as_of=data.get("data_as_of"),
+            source_date=data.get("source_date"),
+            data_source=data.get("data_source"),
         )

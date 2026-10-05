@@ -8,10 +8,10 @@ import pandas as pd
 
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
+from scripts.domain.universe import Universe, UniverseScanResult
 from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
 from scripts.lib.vietnam_market import UniverseProvider
-from scripts.pipeline.audit import build_universe_audit
 
 
 @dataclass
@@ -35,12 +35,13 @@ class PipelineContext:
     universe_stock_map: dict[str, pd.DataFrame | None] | None = None
     candidate_metadata: list[dict[str, Any]] | None = None
 
+    # Domain Universe contract (single canonical source of truth)
+    _universe: Universe | None = field(default=None, init=False, repr=False)
+    _universe_scan_result: UniverseScanResult | None = field(default=None, init=False, repr=False)
+
     # 3. Data acquisition state & providers
     provider: UniverseProvider | None = None
     market_data_provider: Any | None = None
-    raw_candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
-    candidate_stocks: list[dict[str, Any]] = field(default_factory=list)
-    universe_info: dict[str, Any] = field(default_factory=dict)
 
     # Raw acquisition payloads
     raw_vnindex_payload: Any | None = None
@@ -85,17 +86,7 @@ class PipelineContext:
     market_payload: dict[str, Any] = field(default_factory=dict)
     history_payload: dict[str, Any] = field(default_factory=dict)
 
-    # 5. Validation & Audit
-    expected_symbols: set[str] = field(default_factory=set)
-    processed_symbols: set[str] = field(default_factory=set)
-    invalid_symbols: set[str] = field(default_factory=set)
-    insufficient_history_symbols: set[str] = field(default_factory=set)
-    failed_symbols: set[str] = field(default_factory=set)
-    missing_symbols: set[str] = field(default_factory=set)
-    exclusions_map: dict[str, dict[str, Any]] = field(default_factory=dict)
-
     temporal_res: dict[str, Any] = field(default_factory=dict)
-    universe_audit: dict[str, Any] = field(default_factory=dict)
 
     # 6. Performance tracking (owned by pipeline/runner or test harness)
     tracker: Any = None
@@ -119,6 +110,202 @@ class PipelineContext:
             else:
                 self.generated_at = datetime.now(UTC).isoformat()
 
+    # --- Domain State Properties & Derived Views ---
+    @property
+    def universe(self) -> Universe | None:
+        """The canonical Universe object for this context."""
+        return self._universe
+
+    @universe.setter
+    def universe(self, val: Universe | None) -> None:
+        if val is not None and not isinstance(val, Universe):
+            raise TypeError(f"universe must be a Universe or None, got {type(val).__name__}")
+        self._universe = val
+        if val is not None:
+            if self._universe_scan_result is None:
+                self._universe_scan_result = UniverseScanResult(universe=val)
+            else:
+                self._universe_scan_result = self._universe_scan_result.with_updates(universe=val)
+        else:
+            self._universe_scan_result = None
+
+    @property
+    def universe_scan_result(self) -> UniverseScanResult | None:
+        """The canonical UniverseScanResult tracking scan coverage."""
+        return self._universe_scan_result
+
+    @universe_scan_result.setter
+    def universe_scan_result(self, val: UniverseScanResult | None) -> None:
+        if val is not None and not isinstance(val, UniverseScanResult):
+            raise TypeError(
+                f"universe_scan_result must be a UniverseScanResult or None, got {type(val).__name__}"
+            )
+        self._universe_scan_result = val
+        if val is not None:
+            self._universe = val.universe
+
+    # Compatibility properties derived directly from canonical domain state
+    @property
+    def raw_candidate_stocks(self) -> list[dict[str, Any]]:
+        return self._universe.to_candidate_list() if self._universe else []
+
+    @raw_candidate_stocks.setter
+    def raw_candidate_stocks(self, val: Any) -> None:
+        pass
+
+    @property
+    def candidate_stocks(self) -> list[dict[str, Any]]:
+        return self._universe.to_candidate_list() if self._universe else []
+
+    @candidate_stocks.setter
+    def candidate_stocks(self, val: Any) -> None:
+        pass
+
+    @property
+    def universe_info(self) -> dict[str, Any]:
+        return self._universe.to_info_dict() if self._universe else {}
+
+    @universe_info.setter
+    def universe_info(self, val: Any) -> None:
+        pass
+
+    @property
+    def expected_symbols(self) -> set[str]:
+        if self._universe:
+            return set(self._universe.expected_symbols)
+        return set()
+
+    @expected_symbols.setter
+    def expected_symbols(self, val: Any) -> None:
+        pass
+
+    @property
+    def processed_symbols(self) -> set[str]:
+        if self._universe_scan_result:
+            return set(self._universe_scan_result.processed_symbols)
+        return set()
+
+    @processed_symbols.setter
+    def processed_symbols(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set processed_symbols without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            processed_symbols=tuple(sorted(val))
+        )
+
+    @property
+    def invalid_symbols(self) -> set[str]:
+        if self._universe_scan_result:
+            return set(self._universe_scan_result.invalid_symbols)
+        return set()
+
+    @invalid_symbols.setter
+    def invalid_symbols(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set invalid_symbols without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            invalid_symbols=tuple(sorted(val))
+        )
+
+    @property
+    def insufficient_history_symbols(self) -> set[str]:
+        if self._universe_scan_result:
+            return set(self._universe_scan_result.insufficient_symbols)
+        return set()
+
+    @insufficient_history_symbols.setter
+    def insufficient_history_symbols(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set insufficient_history_symbols without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            insufficient_symbols=tuple(sorted(val))
+        )
+
+    @property
+    def failed_symbols(self) -> set[str]:
+        if self._universe_scan_result:
+            return set(self._universe_scan_result.failed_symbols)
+        return set()
+
+    @failed_symbols.setter
+    def failed_symbols(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set failed_symbols without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            failed_symbols=tuple(sorted(val))
+        )
+
+    @property
+    def missing_symbols(self) -> set[str]:
+        if self._universe_scan_result:
+            return set(self._universe_scan_result.missing_symbols)
+        return set()
+
+    @missing_symbols.setter
+    def missing_symbols(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set missing_symbols without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            missing_symbols=tuple(sorted(val))
+        )
+
+    @property
+    def exclusions_map(self) -> dict[str, dict[str, Any]]:
+        if self._universe_scan_result:
+            return self._universe_scan_result.exclusions_map
+        return {}
+
+    @exclusions_map.setter
+    def exclusions_map(self, val: Any) -> None:
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set exclusions_map without context.universe")
+        self._universe_scan_result = self._universe_scan_result.with_updates(exclusions_map=val)
+
+    @property
+    def universe_audit(self) -> dict[str, Any]:
+        if self._universe_scan_result:
+            return self._universe_scan_result.to_audit_dict(
+                update_data=self.update_data,
+                performance_data=self.performance_data or None,
+            )
+        return {}
+
+    @universe_audit.setter
+    def universe_audit(self, val: Any) -> None:
+        pass
+
+    def set_universe(self, universe: Universe) -> None:
+        """Assign canonical domain Universe as single source of truth and synchronize context state."""
+        if not isinstance(universe, Universe):
+            raise TypeError(
+                f"set_universe requires a Universe instance, got {type(universe).__name__}"
+            )
+        self.universe = universe
+
+    def record_symbol_processed(self, symbol: str) -> None:
+        """Record a symbol as successfully processed in universe_scan_result."""
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot record symbol status without context.universe")
+
+        sym_u = symbol.upper()
+        cur_proc = set(self._universe_scan_result.processed_symbols)
+        cur_proc.add(sym_u)
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            processed_symbols=tuple(sorted(cur_proc))
+        )
+
+    def discard_symbol_processed(self, symbol: str) -> None:
+        """Remove a symbol from processed_symbols in universe_scan_result."""
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot discard symbol status without context.universe")
+
+        sym_u = symbol.upper()
+        cur_proc = set(self._universe_scan_result.processed_symbols)
+        cur_proc.discard(sym_u)
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            processed_symbols=tuple(sorted(cur_proc))
+        )
+
     def add_exclusion(
         self,
         symbol: str,
@@ -130,18 +317,29 @@ class PipelineContext:
         expected_date: str | None = None,
         processed: bool = False,
     ) -> None:
-        """Record a symbol exclusion diagnostic in exclusions_map and update target status set."""
-        sym_u = symbol.upper()
-        if status == "FAILED":
-            self.failed_symbols.add(sym_u)
-        elif status == "INVALID":
-            self.invalid_symbols.add(sym_u)
-        elif status == "INSUFFICIENT":
-            self.insufficient_history_symbols.add(sym_u)
-        elif status == "MISSING":
-            self.missing_symbols.add(sym_u)
+        """Record a symbol exclusion diagnostic in universe_scan_result and update status sets."""
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot add exclusion without context.universe")
 
-        self.exclusions_map[sym_u] = {
+        sym_u = symbol.upper()
+        res = self._universe_scan_result
+
+        failed = set(res.failed_symbols)
+        invalid = set(res.invalid_symbols)
+        insufficient = set(res.insufficient_symbols)
+        missing = set(res.missing_symbols)
+
+        if status == "FAILED":
+            failed.add(sym_u)
+        elif status == "INVALID":
+            invalid.add(sym_u)
+        elif status == "INSUFFICIENT":
+            insufficient.add(sym_u)
+        elif status == "MISSING":
+            missing.add(sym_u)
+
+        ex_map = dict(res.exclusions_map)
+        ex_map[sym_u] = {
             "symbol": sym_u,
             "stage": stage,
             "category": category,
@@ -153,24 +351,37 @@ class PipelineContext:
             "recoverable": is_recoverable_category(category),
         }
 
+        self._universe_scan_result = res.with_updates(
+            failed_symbols=tuple(sorted(failed)),
+            invalid_symbols=tuple(sorted(invalid)),
+            insufficient_symbols=tuple(sorted(insufficient)),
+            missing_symbols=tuple(sorted(missing)),
+            exclusions_map=ex_map,
+        )
+
     def update_universe_audit(self) -> dict[str, Any]:
-        """Construct and assign universe_audit dictionary from context sets and exclusions."""
-        audit = build_universe_audit(
-            expected_symbols=self.expected_symbols,
-            processed_symbols=self.processed_symbols,
-            invalid_symbols=self.invalid_symbols,
-            insufficient_history_symbols=self.insufficient_history_symbols,
-            failed_symbols=self.failed_symbols,
-            missing_symbols=self.missing_symbols,
-            exclusions_map=self.exclusions_map,
+        """Construct UniverseScanResult and return universe_audit dictionary."""
+        if not isinstance(self._universe, Universe):
+            raise TypeError("PipelineContext.universe must be set to a valid Universe instance")
+
+        if not self._universe_scan_result:
+            self._universe_scan_result = UniverseScanResult(universe=self._universe)
+
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            data_as_of=self.data_as_of,
+            source_date=self.source_date,
+            data_source=self.data_source,
+        )
+        return self._universe_scan_result.to_audit_dict(
             update_data=self.update_data,
             performance_data=self.performance_data or None,
         )
-        self.universe_audit = audit
-        return audit
 
     def build_payloads(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         """Assemble recommendations, market, and history JSON payloads from context state."""
+        if not self._universe:
+            raise ValueError("build_payloads requires context.universe to be set")
+
         self.scanned_recs_dicts = [
             r.to_dict() if hasattr(r, "to_dict") else r for r in self.scanned_recs
         ]
@@ -190,13 +401,7 @@ class PipelineContext:
             "avoid_count": avoid_cnt,
         }
 
-        if self.is_historical:
-            u_info = {
-                "universe_type": "HISTORICAL_SNAPSHOT",
-                "universe_size": len(self.candidate_metadata or []),
-            }
-        else:
-            u_info = self.universe_info
+        u_info = self._universe.to_info_dict()
 
         self.recommendations_payload = {
             "schema_version": "2.0",

@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
+from scripts.domain.universe import Universe
 from scripts.generate_report import generate_historical_report, run_pipeline
 
 
@@ -29,7 +30,7 @@ def create_synthetic_ohlcv(
         elif trend == "downtrend":
             price = base_price * (1.0 - 0.005 * i)
         elif trend == "volatile":
-            price = base_price * (1.0 + 0.02 * (1 if i % 2 == 0 else -1))
+            price = base_price + (1.0 + 0.02 * (1 if i % 2 == 0 else -1))
         else:  # sideways
             price = base_price + (i % 3 - 1) * 100.0
 
@@ -150,14 +151,14 @@ class TestProductionHistoricalParity(unittest.TestCase):
                 "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=self._mock_fetch_ohlcv,
             ),
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = mock_provider_cls.return_value
-            mock_provider.candidates = copy.deepcopy(self.candidate_metadata)
-            mock_provider.get_info.return_value = {
-                "universe_type": "TEST_UNIVERSE",
-                "universe_size": len(self.candidate_metadata),
-            }
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                self.candidate_metadata,
+                universe_type="TEST_UNIVERSE",
+                benchmarks=("VNINDEX", "VN30"),
+            )
 
             prod_res = run_pipeline(update_data=False)
 

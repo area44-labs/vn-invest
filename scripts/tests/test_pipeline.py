@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
+from scripts.domain.universe import Universe
 from scripts.pipeline import (
     ArtifactPublishingStage,
     DataAcquisitionStage,
@@ -70,6 +71,11 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_runner_initializes_context_tracker(self):
         """Verify ProductionPipeline manages PerformanceTracker lifecycle when context.tracker is None."""
         ctx = PipelineContext()
+        ctx.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         self.assertIsNone(ctx.tracker)
 
         pipeline = ProductionPipeline(stages=[MockStage("noop", [])])
@@ -102,6 +108,16 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_context_add_exclusion_helper(self):
         """Verify add_exclusion helper updates status sets and exclusions_map accurately."""
         ctx = PipelineContext()
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "CCC", "companyName": "Comp C", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "DDD", "companyName": "Comp D", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
 
         ctx.add_exclusion(
             symbol="AAA",
@@ -145,8 +161,16 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
     def test_pipeline_context_update_universe_audit_helper(self):
         """Verify update_universe_audit constructs valid universe_audit payload."""
+
         ctx = PipelineContext(update_data=False)
-        ctx.expected_symbols = {"VNINDEX", "VN30", "AAA", "BBB"}
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
         ctx.processed_symbols = {"VNINDEX", "VN30", "AAA"}
         ctx.add_exclusion(
             symbol="BBB",
@@ -165,6 +189,14 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_context_build_payloads_helper(self):
         """Verify build_payloads constructs recommendations, market, and history payloads."""
         ctx = PipelineContext(reference_date="2026-09-01")
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
         ctx.data_as_of = "2026-09-01"
         ctx.data_source = "REAL_DATA"
         ctx.final_market_regime = {"regime": "STRONG_BULL"}
@@ -192,8 +224,18 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
                 return "stage_a"
 
             def execute(self, context: PipelineContext) -> None:
-                context.candidate_stocks = [{"symbol": "AAA"}]
-                context.expected_symbols = {"VNINDEX", "VN30", "AAA"}
+                u = Universe.from_candidates(
+                    [
+                        {
+                            "symbol": "AAA",
+                            "companyName": "Comp A",
+                            "sector": "Tech",
+                            "exchange": "HOSE",
+                        }
+                    ],
+                    benchmarks=("VNINDEX", "VN30"),
+                )
+                context.set_universe(u)
 
         class StageB(PipelineStage):
             @property
@@ -214,6 +256,11 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
         pipeline = ProductionPipeline(stages=[StageA(), StageB(), StageC()])
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(len(context.candidate_stocks), 1)
@@ -265,6 +312,11 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
         self.assertEqual(len(pipeline.stages), 2)
 
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(execution_log, ["stage_a", "stage_b"])
@@ -286,6 +338,11 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
 
         pipeline = ProductionPipeline(stages=stages)
         context = PipelineContext()
+        context.set_universe(
+            Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
+            )
+        )
         pipeline.execute(context)
 
         self.assertEqual(
@@ -323,13 +380,13 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as tmpdir,
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
-            mock_provider.candidates = [
-                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}
-            ]
-            mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
+                benchmarks=("VNINDEX", "VN30"),
+            )
             mock_provider_cls.return_value = mock_provider
 
             mock_fetch.return_value = valid_df
@@ -402,28 +459,30 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
 
     def test_empty_candidate_universe_raises_runtime_error(self):
         """Verify empty candidate universe halts data acquisition with RuntimeError."""
-        with patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls:
+        with patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls:
             mock_provider = MagicMock()
-            mock_provider.candidates = []
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [], universe_type="EMPTY"
+            )
             mock_provider_cls.return_value = mock_provider
 
             with self.assertRaises(RuntimeError) as cm:
                 run_pipeline(update_data=False)
 
-            self.assertIn("Candidate universe is empty", str(cm.exception))
+            self.assertIn("Candidate universe is empty or missing", str(cm.exception))
 
     def test_update_mode_incomplete_universe_raises_runtime_error(self):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
         empty_df = pd.DataFrame()
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
         ):
             mock_provider = MagicMock()
-            mock_provider.candidates = [
-                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}
-            ]
-            mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
+                benchmarks=("VNINDEX", "VN30"),
+            )
             mock_provider_cls.return_value = mock_provider
 
             mock_fetch.return_value = empty_df

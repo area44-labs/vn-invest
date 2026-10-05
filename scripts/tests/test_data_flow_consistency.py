@@ -17,6 +17,7 @@ from unittest.mock import patch
 import jsonschema
 import pandas as pd
 
+from scripts.domain.universe import Universe
 from scripts.generate_report import (
     SCHEMA_PATH,
     generate_historical_report,
@@ -97,18 +98,18 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame()
 
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch(
                 "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value
-            mock_provider.candidates = candidates
-            mock_provider.get_info.return_value = {
-                "universe_type": "TEST",
-                "universe_size": 1,
-            }
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                candidates,
+                universe_type="TEST",
+                benchmarks=("VNINDEX", "VN30"),
+            )
 
             # In update mode, should raise RuntimeError because AAA has insufficient history (< 20 clean rows)
             with self.assertRaises(RuntimeError) as ctx:
@@ -273,18 +274,18 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame()
 
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch(
                 "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=mock_fetch_ohlcv,
             ),
         ):
             mock_provider = mock_provider_cls.return_value
-            mock_provider.candidates = candidates
-            mock_provider.get_info.return_value = {
-                "universe_type": "TEST",
-                "universe_size": 1,
-            }
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                candidates,
+                universe_type="TEST",
+                benchmarks=("VNINDEX", "VN30"),
+            )
 
             with self.assertRaises(RuntimeError):
                 run_pipeline(update_data=True)
