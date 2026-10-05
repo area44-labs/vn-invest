@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
 from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
@@ -45,6 +46,11 @@ class PipelineContext:
     raw_vnindex_payload: Any | None = None
     raw_vn30_payload: Any | None = None
     raw_stock_payloads: dict[str, Any] = field(default_factory=dict)
+
+    # Canonical validated market data containers
+    canonical_vnindex: CanonicalMarketData | None = None
+    canonical_vn30: CanonicalMarketData | None = None
+    canonical_stock_map: dict[str, CanonicalMarketData] = field(default_factory=dict)
 
     # Benchmark raw & clean datasets
     df_vnindex_raw: pd.DataFrame | None = None

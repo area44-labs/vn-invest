@@ -26,6 +26,7 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
         self.assertEqual(len(cmd.records), 1)
         self.assertEqual(cmd.data_as_of, "2025-01-02")
         self.assertEqual(cmd.source_tag, "REAL_DATA")
+        self.assertFalse(hasattr(cmd, "df"))
 
     def test_forbid_provider_fields_in_from_dict(self):
         for forbidden in FORBIDDEN_PROVIDER_FIELDS:

@@ -10,7 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from scripts.data.acquisition import RawMarketDataPayload, acquire_raw_market_data
+from scripts.data.acquisition import (
+    InvalidSymbolError,
+    RawMarketDataPayload,
+    acquire_raw_market_data,
+)
 from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers.base import MarketDataProvider
@@ -22,6 +26,8 @@ from scripts.pipeline.stages import (
     DataAcquisitionStage,
     DataValidationStage,
     MarketAnalysisStage,
+    MonitoringStage,
+    PerformanceStage,
     RiskTradePlanStage,
     SignalRecommendationGenerationStage,
 )
@@ -108,6 +114,64 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         risk_stage.execute(ctx)
         self.assertIn("recommendations", ctx.recommendations_payload)
 
+        perf_stage = PerformanceStage()
+        perf_stage.execute(ctx)
+
+        mon_stage = MonitoringStage()
+        mon_stage.execute(ctx)
+        self.assertIsNotNone(ctx.monitoring_result)
+
+    def test_structured_acquisition_error_propagation_no_string_parsing(self):
+        """Structured acquisition exceptions propagate failure_type directly without error string parsing."""
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "mock_provider"
+        mock_provider.fetch_ohlcv.side_effect = InvalidSymbolError("Symbol ABC not found")
+
+        payload = acquire_raw_market_data("ABC", provider=mock_provider)
+        self.assertEqual(payload.failure_type, "INVALID_SYMBOL")
+        self.assertEqual(payload.source_tag, "INVALID_SYMBOL")
+
+        cmd = normalize_raw_market_data(payload)
+        self.assertEqual(cmd.source_tag, "INVALID_SYMBOL")
+
+        v_data = validate_canonical_market_data(cmd)
+        self.assertEqual(v_data.source_tag, "INVALID_SYMBOL")
+        self.assertEqual(v_data.data_quality.status, "INSUFFICIENT")
+
+    def test_validation_checks_unsorted_and_invalid_ohlc(self):
+        """Validation boundary detects unsorted dates and invalid OHLC relationships fail-closed."""
+        unsorted_df = pd.DataFrame(
+            {
+                "date": ["2025-01-03", "2025-01-02"],  # Unsorted dates
+                "open": [100.0, 101.0],
+                "high": [105.0, 106.0],
+                "low": [99.0, 100.0],
+                "close": [102.0, 103.0],
+                "volume": [1000.0, 1100.0],
+            }
+        )
+        cmd_unsorted = CanonicalMarketData.from_df("FPT", unsorted_df)
+        v_unsorted = validate_canonical_market_data(cmd_unsorted)
+        self.assertIn("unsorted_dates", v_unsorted.data_quality.issues)
+        self.assertEqual(v_unsorted.source_tag, "EXPLICITLY_INVALID")
+
+        invalid_ohlc_df = pd.DataFrame(
+            {
+                "date": ["2025-01-02"],
+                "open": [100.0],
+                "high": [105.0],
+                "low": [110.0],  # Invalid: low > high
+                "close": [102.0],
+                "volume": [1000.0],
+            }
+        )
+        cmd_invalid_ohlc = CanonicalMarketData.from_df("FPT", invalid_ohlc_df)
+        self.assertEqual(cmd_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
+        v_invalid_ohlc = validate_canonical_market_data(cmd_invalid_ohlc)
+        self.assertEqual(v_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
+        self.assertEqual(v_invalid_ohlc.data_quality.status, "INSUFFICIENT")
+        self.assertEqual(len(v_invalid_ohlc.records), 0)
+
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_production_acquisition_stage_uses_market_data_acquirer(self, mock_fetch_ohlcv):
         """Verify DataAcquisitionStage in production uses MarketDataAcquirer and provider boundary."""
@@ -191,7 +255,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
 
         self.assertEqual(validated.source_tag, "PROVIDER_FAILURE")
         self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
-        self.assertIn("missing_required_columns", validated.data_quality.issues)
+        self.assertEqual(len(validated.records), 0)
 
     def test_temporal_mismatch_fails_closed(self):
         """Record date in future relative to reference_date fails closed."""

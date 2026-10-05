@@ -6,7 +6,7 @@ provider-specific attributes or raw provider responses.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, ClassVar, Self
 
 import pandas as pd
@@ -52,6 +52,7 @@ class CanonicalMarketData:
 
     Authoritative location for market data date ('data_as_of') and clean OHLCV records.
     Strictly forbids provider-specific attributes or raw provider payloads.
+    'records' is the single source of truth.
     """
 
     symbol: str
@@ -59,7 +60,6 @@ class CanonicalMarketData:
     data_as_of: str | None = None
     source_tag: str | None = None
     data_quality: DataQuality | None = None
-    df: pd.DataFrame | None = field(default=None, repr=False, compare=False)
 
     FORBIDDEN_ATTRS: ClassVar[set[str]] = FORBIDDEN_PROVIDER_FIELDS
 
@@ -99,10 +99,11 @@ class CanonicalMarketData:
                 )
 
     def to_df(self) -> pd.DataFrame:
-        """Convert canonical market records into a pandas DataFrame."""
-        if self.df is not None and isinstance(self.df, pd.DataFrame):
-            return self.df.copy()
+        """Convert canonical market records into a pandas DataFrame adapter view.
 
+        'records' is the authoritative source of truth. Produces a clean DataFrame
+        containing canonical OHLCV columns.
+        """
         if not self.records:
             return pd.DataFrame(columns=CANONICAL_OHLCV_COLUMNS)
 
@@ -127,7 +128,6 @@ class CanonicalMarketData:
                 data_as_of=data_as_of,
                 source_tag=source_tag,
                 data_quality=data_quality,
-                df=pd.DataFrame(columns=CANONICAL_OHLCV_COLUMNS) if df is not None else None,
             )
 
         # Determine date column ('date' or 'time')
@@ -153,7 +153,6 @@ class CanonicalMarketData:
                 data_as_of=data_as_of,
                 source_tag="PROVIDER_FAILURE",
                 data_quality=data_quality,
-                df=df,
             )
 
         records = []
@@ -169,11 +168,11 @@ class CanonicalMarketData:
             try:
                 rec = OHLCVData(
                     date=d_str,
-                    open=open_v,
-                    high=high_v,
-                    low=low_v,
-                    close=close_v,
-                    volume=vol_v,
+                    open=float(open_v),
+                    high=float(high_v),
+                    low=float(low_v),
+                    close=float(close_v),
+                    volume=float(vol_v),
                 )
                 records.append(rec)
             except ValueError, TypeError:
@@ -185,9 +184,8 @@ class CanonicalMarketData:
                 symbol=symbol,
                 records=(),
                 data_as_of=data_as_of,
-                source_tag=source_tag or "EXPLICITLY_INVALID",
+                source_tag="EXPLICITLY_INVALID",
                 data_quality=data_quality,
-                df=df,
             )
 
         # Authoritative data_as_of from max record date if not explicitly supplied
@@ -195,18 +193,12 @@ class CanonicalMarketData:
         if not derived_as_of and records:
             derived_as_of = max(rec.date for rec in records)
 
-        df_canonical = df.copy()
-        # Rename date column to 'date' if named 'time'
-        if date_col and date_col.lower() == "time" and "date" not in df_canonical.columns:
-            df_canonical = df_canonical.rename(columns={date_col: "date"})
-
         return cls(
             symbol=symbol,
             records=tuple(records),
             data_as_of=derived_as_of,
             source_tag=source_tag,
             data_quality=data_quality,
-            df=df_canonical,
         )
 
     def to_dict(self) -> dict[str, Any]:

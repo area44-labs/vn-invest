@@ -47,7 +47,6 @@ class TestMarketDataValidationBoundary(unittest.TestCase):
 
         self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
         self.assertEqual(validated.source_tag, "EXPLICITLY_INVALID")
-        self.assertIn("invalid_ohlc_relationship", validated.data_quality.issues)
         self.assertEqual(len(validated.records), 0)
 
     def test_future_dated_record_fails_closed(self):

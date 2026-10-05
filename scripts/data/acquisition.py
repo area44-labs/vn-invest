@@ -12,7 +12,13 @@ from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
-from scripts.data.providers import MarketDataProvider, VnstockMarketProvider
+from scripts.data.providers import (
+    AcquisitionError,
+    ExplicitlyInvalidDataError,
+    InvalidSymbolError,
+    MarketDataProvider,
+    VnstockMarketProvider,
+)
 from scripts.data_provider import (
     ProviderRateLimitError,
     can_recover_rate_limit,
@@ -31,6 +37,7 @@ class RawMarketDataPayload:
     raw_df: pd.DataFrame | None = None
     provider_name: str = "vnstock"
     source_tag: str = "REAL_DATA"
+    failure_type: str | None = None
     warnings: tuple[str, ...] = ()
     error: str | None = None
 
@@ -113,11 +120,23 @@ class MarketDataAcquirer:
             except Exception as e:  # noqa: BLE001
                 logger.warning("Data fetch failed for '%s' via acquisition boundary: %s", sym, e)
                 err_msg = str(e)
+                exc_failure_type = getattr(e, "failure_type", None) or "PROVIDER_FAILURE"
+                src_tag = (
+                    "INVALID_SYMBOL"
+                    if exc_failure_type == "INVALID_SYMBOL"
+                    else (
+                        "EXPLICITLY_INVALID"
+                        if exc_failure_type == "EXPLICITLY_INVALID"
+                        else "PROVIDER_FAILURE"
+                    )
+                )
+
                 return RawMarketDataPayload(
                     symbol=sym,
                     raw_df=pd.DataFrame(),
                     provider_name=provider_name,
-                    source_tag="PROVIDER_FAILURE",
+                    source_tag=src_tag,
+                    failure_type=exc_failure_type,
                     warnings=(f"[{sym}] Failed to acquire market data from provider: {e}",),
                     error=err_msg,
                 )
@@ -152,3 +171,13 @@ def acquire_raw_market_data(
         max_rate_limit_retries=max_rate_limit_retries,
         target_date=target_date,
     )
+
+
+__all__ = [
+    "AcquisitionError",
+    "ExplicitlyInvalidDataError",
+    "InvalidSymbolError",
+    "MarketDataAcquirer",
+    "RawMarketDataPayload",
+    "acquire_raw_market_data",
+]

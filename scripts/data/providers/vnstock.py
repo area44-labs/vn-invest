@@ -2,8 +2,16 @@
 
 import pandas as pd
 
-from scripts.data.providers.base import MarketDataProvider
-from scripts.data_provider import VnstockDataProvider
+from scripts.data.providers.base import (
+    AcquisitionError,
+    ExplicitlyInvalidDataError,
+    MarketDataProvider,
+)
+from scripts.data_provider import (
+    CanonicalOHLCVError,
+    ProviderRateLimitError,
+    VnstockDataProvider,
+)
 
 
 class VnstockMarketProvider(MarketDataProvider):
@@ -31,11 +39,20 @@ class VnstockMarketProvider(MarketDataProvider):
         max_retries: int = 2,
         target_date: str | None = None,
     ) -> pd.DataFrame:
-        """Fetch raw OHLCV market data from VnstockDataProvider."""
-        return self._provider.fetch_ohlcv(
-            symbol=symbol,
-            start_date=start_date,
-            end_date=end_date,
-            max_retries=max_retries,
-            target_date=target_date,
-        )
+        """Fetch raw OHLCV market data from VnstockDataProvider and map provider errors to structured acquisition errors."""
+        try:
+            return self._provider.fetch_ohlcv(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                max_retries=max_retries,
+                target_date=target_date,
+            )
+        except ProviderRateLimitError:
+            raise
+        except AcquisitionError:
+            raise
+        except CanonicalOHLCVError as exc:
+            raise ExplicitlyInvalidDataError(
+                f"Provider market data for symbol '{symbol}' is corrupt or explicitly invalid: {exc}"
+            ) from exc

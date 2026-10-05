@@ -42,7 +42,7 @@ class CanonicalMarketValidator:
         sym = canonical_data.symbol
         issues: list[str] = []
 
-        df = canonical_data.to_df() if canonical_data.df is None else canonical_data.df.copy()
+        df = canonical_data.to_df()
 
         if df is None or df.empty:
             issues.append("empty_dataset")
@@ -201,7 +201,6 @@ class CanonicalMarketValidator:
             data_as_of=canonical_data.data_as_of or latest_record_date,
             source_tag=source_tag,
             data_quality=dq,
-            df=canonical_data.df if is_valid else pd.DataFrame(columns=self.REQUIRED_COLUMNS),
         )
 
 
