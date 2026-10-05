@@ -465,7 +465,8 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""
-        from scripts.lib.backtest import get_as_of_dataset, run_backtest_for_symbol
+        from scripts.lib.backtest import run_backtest_for_symbol
+        from scripts.lib.backtest import get_as_of_dataset
 
         # 1. Backtest call at as_of_date
         results = run_backtest_for_symbol(
