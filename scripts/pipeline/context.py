@@ -8,10 +8,10 @@ import pandas as pd
 
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
+from scripts.domain.universe import Universe, UniverseScanResult
 from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
 from scripts.lib.vietnam_market import UniverseProvider
-from scripts.pipeline.audit import build_universe_audit
 
 
 @dataclass
@@ -34,6 +34,10 @@ class PipelineContext:
     historical_data_as_of: str | None = None
     universe_stock_map: dict[str, pd.DataFrame | None] | None = None
     candidate_metadata: list[dict[str, Any]] | None = None
+
+    # Domain Universe contract
+    universe: Universe | None = None
+    universe_scan_result: UniverseScanResult | None = None
 
     # 3. Data acquisition state & providers
     provider: UniverseProvider | None = None
@@ -119,6 +123,14 @@ class PipelineContext:
             else:
                 self.generated_at = datetime.now(UTC).isoformat()
 
+    def set_universe(self, universe: Universe) -> None:
+        """Assign canonical domain Universe and synchronize context state."""
+        self.universe = universe
+        self.raw_candidate_stocks = universe.to_candidate_list()
+        self.candidate_stocks = universe.to_candidate_list()
+        self.universe_info = universe.to_info_dict()
+        self.expected_symbols = set(universe.expected_symbols)
+
     def add_exclusion(
         self,
         symbol: str,
@@ -154,20 +166,33 @@ class PipelineContext:
         }
 
     def update_universe_audit(self) -> dict[str, Any]:
-        """Construct and assign universe_audit dictionary from context sets and exclusions."""
-        audit = build_universe_audit(
-            expected_symbols=self.expected_symbols,
-            processed_symbols=self.processed_symbols,
-            invalid_symbols=self.invalid_symbols,
-            insufficient_history_symbols=self.insufficient_history_symbols,
-            failed_symbols=self.failed_symbols,
-            missing_symbols=self.missing_symbols,
-            exclusions_map=self.exclusions_map,
+        """Construct UniverseScanResult and assign universe_audit dictionary."""
+        current_u = self.universe
+        if current_u is None:
+            u_type = "HISTORICAL_SNAPSHOT" if self.is_historical else "CUSTOM"
+            c_meta = self.candidate_metadata or self.candidate_stocks or []
+            current_u = Universe.from_candidates(candidates=c_meta, universe_type=u_type)
+            self.universe = current_u
+            self.expected_symbols = set(current_u.expected_symbols)
+
+        scan_result = UniverseScanResult(
+            universe=current_u,
+            processed_symbols=tuple(sorted(self.processed_symbols)),
+            invalid_symbols=tuple(sorted(self.invalid_symbols)),
+            insufficient_symbols=tuple(sorted(self.insufficient_history_symbols)),
+            failed_symbols=tuple(sorted(self.failed_symbols)),
+            missing_symbols=tuple(sorted(self.missing_symbols)),
+            exclusions_map=dict(self.exclusions_map),
+            data_as_of=self.data_as_of,
+            source_date=self.source_date,
+            data_source=self.data_source,
+        )
+        self.universe_scan_result = scan_result
+        self.universe_audit = scan_result.to_audit_dict(
             update_data=self.update_data,
             performance_data=self.performance_data or None,
         )
-        self.universe_audit = audit
-        return audit
+        return self.universe_audit
 
     def build_payloads(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         """Assemble recommendations, market, and history JSON payloads from context state."""
@@ -190,7 +215,9 @@ class PipelineContext:
             "avoid_count": avoid_cnt,
         }
 
-        if self.is_historical:
+        if self.universe:
+            u_info = self.universe.to_info_dict()
+        elif self.is_historical:
             u_info = {
                 "universe_type": "HISTORICAL_SNAPSHOT",
                 "universe_size": len(self.candidate_metadata or []),

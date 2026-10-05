@@ -12,6 +12,7 @@ from scripts.domain import (
     TradePlan,
     Universe,
     UniverseCandidate,
+    UniverseScanResult,
 )
 
 
@@ -463,6 +464,116 @@ class TestPipelineResultDomainContract(unittest.TestCase):
         # Serialization
         pr_dict = pr.to_dict()
         self.assertEqual(pr_dict["market"]["market"]["regime"], "BULL")
+
+
+class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
+    """Test suite for Issue #173 Universe and UniverseScanResult contracts."""
+
+    def test_universe_construction_and_symbol_normalization(self):
+        candidates = [
+            {"symbol": " fpt ", "companyName": " FPT Corp ", "sector": " Tech ", "exchange": " hose "},
+            {"symbol": "vnm", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
+        ]
+        u = Universe.from_candidates(candidates, universe_type="VN30_MIDCAP")
+        self.assertEqual(u.universe_type, "VN30_MIDCAP")
+        self.assertEqual(u.universe_size, 2)
+        self.assertEqual(u.candidate_symbols, ("FPT", "VNM"))
+        self.assertEqual(u.candidate_symbols_set, frozenset({"FPT", "VNM"}))
+        self.assertEqual(u.benchmarks, ("VNINDEX", "VN30"))
+        self.assertEqual(u.expected_symbols, frozenset({"VNINDEX", "VN30", "FPT", "VNM"}))
+
+    def test_duplicate_symbol_handling(self):
+        candidates = [
+            {"symbol": "FPT", "companyName": "FPT Corp 1", "sector": "Tech", "exchange": "HOSE"},
+            {"symbol": "FPT", "companyName": "FPT Corp 2", "sector": "Tech", "exchange": "HOSE"},
+            {"symbol": "VNM", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
+        ]
+        u = Universe.from_candidates(candidates, universe_type="DEDUP_TEST")
+        # Keeps first occurrence of FPT
+        self.assertEqual(u.universe_size, 2)
+        self.assertEqual(u.candidate_symbols, ("FPT", "VNM"))
+        self.assertEqual(u.candidates[0].company_name, "FPT Corp 1")
+
+    def test_vnindex_vn30_mandatory_handling(self):
+        u = Universe.from_candidates([], universe_type="EMPTY_TEST")
+        self.assertEqual(u.benchmarks, ("VNINDEX", "VN30"))
+        self.assertEqual(u.expected_symbols, frozenset({"VNINDEX", "VN30"}))
+
+        # Custom benchmarks
+        u2 = Universe.from_candidates([], universe_type="CUSTOM", benchmarks=("vnindex", "vn30", "hnxindex"))
+        self.assertEqual(u2.benchmarks, ("VNINDEX", "VN30", "HNXINDEX"))
+        self.assertEqual(u2.expected_symbols, frozenset({"VNINDEX", "VN30", "HNXINDEX"}))
+
+    def test_universe_scan_result_completeness_and_classification(self):
+        u = Universe.from_candidates(
+            [
+                {"symbol": "FPT", "companyName": "FPT", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "VNM", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
+                {"symbol": "VIC", "companyName": "Vingroup", "sector": "Real Estate", "exchange": "HOSE"},
+            ]
+        )
+        # expected_symbols = {"VNINDEX", "VN30", "FPT", "VNM", "VIC"} (5 total)
+
+        scan_res = UniverseScanResult(
+            universe=u,
+            processed_symbols=("VNINDEX", "VN30", "FPT"),
+            invalid_symbols=(),
+            insufficient_symbols=("VNM",),
+            failed_symbols=(),
+            missing_symbols=("VIC",),
+            exclusions_map={
+                "VNM": {"symbol": "VNM", "stage": "STOCK_FETCH", "status": "INSUFFICIENT", "reason": "Low history"},
+                "VIC": {"symbol": "VIC", "stage": "UNIVERSE_DISCOVERY", "status": "MISSING", "reason": "Missing"},
+            },
+        )
+
+        self.assertEqual(scan_res.expected_count, 5)
+        self.assertEqual(scan_res.processed_count, 3)
+        self.assertEqual(scan_res.insufficient_count, 1)
+        self.assertEqual(scan_res.missing_count, 1)
+        self.assertEqual(scan_res.invalid_count, 0)
+        self.assertEqual(scan_res.failed_count, 0)
+        self.assertAlmostEqual(scan_res.processed_ratio, 0.6)
+        self.assertFalse(scan_res.is_complete)
+
+    def test_conversion_to_universe_info_and_universe_audit(self):
+        u = Universe.from_candidates(
+            [{"symbol": "FPT", "companyName": "FPT", "sector": "Tech", "exchange": "HOSE"}]
+        )
+        u_info = u.to_info_dict()
+        self.assertEqual(u_info, {"universe_type": "CUSTOM", "universe_size": 1})
+
+        scan_res = UniverseScanResult(
+            universe=u,
+            processed_symbols=("VNINDEX", "VN30", "FPT"),
+            status="SUCCESS",
+        )
+        self.assertTrue(scan_res.is_complete)
+
+        audit = scan_res.to_audit_dict(update_data=False)
+        self.assertEqual(audit["status"], "SUCCESS")
+        self.assertIsNone(audit["failed_stage"])
+        self.assertEqual(audit["expected_symbols"], ["FPT", "VN30", "VNINDEX"])
+        self.assertEqual(audit["processed_symbols"], ["FPT", "VN30", "VNINDEX"])
+        self.assertEqual(audit["counts"]["expected_count"], 3)
+        self.assertEqual(audit["counts"]["processed_count"], 3)
+
+    def test_production_pipeline_compatibility(self):
+        from scripts.pipeline.context import PipelineContext
+
+        ctx = PipelineContext(is_historical=False)
+        u = Universe.from_candidates(
+            [{"symbol": "FPT", "companyName": "FPT", "sector": "Tech", "exchange": "HOSE"}]
+        )
+        ctx.set_universe(u)
+        self.assertEqual(ctx.universe, u)
+        self.assertEqual(ctx.expected_symbols, {"VNINDEX", "VN30", "FPT"})
+        self.assertEqual(ctx.raw_candidate_stocks[0]["symbol"], "FPT")
+
+        audit = ctx.update_universe_audit()
+        self.assertIsNotNone(ctx.universe_scan_result)
+        self.assertEqual(ctx.universe_scan_result.universe, u)
+        self.assertIn("counts", audit)
 
 
 if __name__ == "__main__":

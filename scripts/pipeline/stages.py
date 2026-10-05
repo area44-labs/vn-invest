@@ -612,7 +612,7 @@ class UniverseValidationStage(PipelineStage):
                     expected_date=canonical_as_of,
                 )
 
-            for item in candidate_metadata:
+            for item in context.candidate_stocks:
                 sym_upper = item["symbol"].upper()
                 df_st = context.stock_data_map.get(sym_upper, (pd.DataFrame(), None, None))[0]
                 if df_st is not None and not df_st.empty:

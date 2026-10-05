@@ -9,9 +9,16 @@ from scripts.domain.pipeline_result import PipelineResult
 from scripts.domain.recommendation import VALID_ACTIONS, Recommendation
 from scripts.domain.risk_assessment import VALID_RISK_LEVELS, RiskAssessment
 from scripts.domain.trade_plan import TradePlan
-from scripts.domain.universe import VALID_EXCHANGES, Universe, UniverseCandidate
+from scripts.domain.universe import (
+    DEFAULT_BENCHMARKS,
+    VALID_EXCHANGES,
+    Universe,
+    UniverseCandidate,
+    UniverseScanResult,
+)
 
 __all__ = [
+    "DEFAULT_BENCHMARKS",
     "VALID_ACTIONS",
     "VALID_DATA_QUALITY_STATUSES",
     "VALID_EXCHANGES",
@@ -24,4 +31,5 @@ __all__ = [
     "TradePlan",
     "Universe",
     "UniverseCandidate",
+    "UniverseScanResult",
 ]
