@@ -1,15 +1,20 @@
 """Quantitative layer package for VN Invest."""
 
+from collections.abc import Callable
+from typing import Any
+
 from scripts.quant.contracts import (
     CandidateSpec,
     FeatureInput,
     FeatureResult,
+    MarketAnalysisInput,
     RecommendationInput,
     RecommendationResult,
     RegimeInput,
     RegimeResult,
     RiskInput,
     RiskResult,
+    RiskTradePlanInput,
     SignalInput,
     SignalResult,
 )
@@ -38,12 +43,15 @@ from scripts.quant.signal import (
     compute_signal,
 )
 
-# MarketAnalysisEngine alias/wrapper around features & regime
+
 class MarketAnalysisEngine:
     """Quantitative engine for market analysis (breadth and regime)."""
 
     @staticmethod
-    def analyze(input_data, regime_detector=None):
+    def analyze(
+        input_data: MarketAnalysisInput,
+        regime_detector: Callable[..., dict[str, Any]] | None = None,
+    ) -> RegimeResult:
         breadth = compute_market_breadth(
             stock_data_map=input_data.stock_data_map,
             candidate_symbols=input_data.candidate_symbols,
@@ -64,6 +72,7 @@ __all__ = [
     "FeatureInput",
     "FeatureResult",
     "MarketAnalysisEngine",
+    "MarketAnalysisInput",
     "RecommendationInput",
     "RecommendationResult",
     "RegimeInput",
@@ -71,6 +80,7 @@ __all__ = [
     "RiskInput",
     "RiskResult",
     "RiskTradePlanEngine",
+    "RiskTradePlanInput",
     "SignalInput",
     "SignalResult",
     "SignalRecommendationEngine",

@@ -3,7 +3,6 @@
 from typing import Any, Callable
 
 from scripts.lib.recommendation import (
-    _safe_float,
     calculate_confidence,
     calculate_risk_adjusted_score,
     format_vnd,

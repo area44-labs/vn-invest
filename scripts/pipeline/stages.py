@@ -16,14 +16,11 @@ from scripts.data_provider import ProviderRateLimitError
 from scripts.quant import (
     CandidateSpec,
     MarketAnalysisEngine,
-    RiskTradePlanEngine,
-    SignalRecommendationEngine,
-)
-from scripts.quant.contracts import (
-    FeatureInput,
+    MarketAnalysisInput,
     RecommendationInput,
-    RiskInput,
+    RiskTradePlanEngine,
     RiskTradePlanInput,
+    SignalRecommendationEngine,
 )
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
@@ -716,21 +713,16 @@ class MarketAnalysisStage(PipelineStage):
             processed_syms = context.processed_symbols
 
         with context.tracker.measure_stage("market_calculation"):
-            input_data = FeatureInput(
+            input_data = MarketAnalysisInput(
                 stock_data_map=stock_data_map,
+                df_vnindex=context.df_vnindex_clean,
+                df_vn30=context.df_vn30_clean,
                 candidate_symbols=cand_syms,
                 processed_symbols=processed_syms,
+                vn30_sufficient=(context.vn30_val.get("status") != "INSUFFICIENT"),
             )
             analysis_res = MarketAnalysisEngine.analyze(
-                type("MarketAnalysisInput", (), {
-                    "stock_data_map": stock_data_map,
-                    "df_vnindex": context.df_vnindex_clean,
-                    "df_vn30": context.df_vn30_clean,
-                    "candidate_symbols": cand_syms,
-                    "processed_symbols": processed_syms,
-                    "vn30_sufficient": (context.vn30_val.get("status") != "INSUFFICIENT"),
-                })(),
-                regime_detector=detect_market_regime,
+                input_data, regime_detector=detect_market_regime
             )
             context.breadth_ratio = round(
                 analysis_res.market_regime.get("metrics", {}).get("market_breadth_ratio", 0.50),
@@ -825,9 +817,7 @@ class RiskTradePlanStage(PipelineStage):
             res = RiskTradePlanEngine.process_risk(
                 input_data, risk_normalizer=normalize_universe_liquidity_scores
             )
-            context.scanned_recs = (
-                res.recommendations if hasattr(res, "recommendations") else res
-            )
+            context.scanned_recs = res.recommendations if hasattr(res, "recommendations") else res
 
         context.build_payloads()
 

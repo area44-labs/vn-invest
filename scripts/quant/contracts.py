@@ -62,6 +62,18 @@ class RegimeResult:
 
 
 @dataclass(frozen=True)
+class MarketAnalysisInput:
+    """Input payload for MarketAnalysisEngine."""
+
+    stock_data_map: Mapping[str, pd.DataFrame] | list[pd.DataFrame] | tuple[pd.DataFrame, ...]
+    df_vnindex: pd.DataFrame | None = None
+    df_vn30: pd.DataFrame | None = None
+    candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None
+    processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None
+    vn30_sufficient: bool = True
+
+
+@dataclass(frozen=True)
 class SignalInput:
     """Input payload for signal scoring."""
 
@@ -161,6 +173,7 @@ __all__ = [
     "CandidateSpec",
     "FeatureInput",
     "FeatureResult",
+    "MarketAnalysisInput",
     "RecommendationInput",
     "RecommendationResult",
     "RegimeInput",

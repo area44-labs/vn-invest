@@ -1,7 +1,5 @@
 """Signal scoring and classification module for VN Invest quant layer."""
 
-import pandas as pd
-
 from scripts.lib.recommendation import (
     SIGNAL_MODEL_VERSION,
     SIGNAL_WEIGHTS,
@@ -19,7 +17,6 @@ from scripts.lib.recommendation import (
 from scripts.quant.contracts import SignalInput, SignalResult
 from scripts.quant.features import calculate_multi_timeframe_features
 from scripts.lib.vietnam_market import (
-    extract_latest_trading_date,
     get_clean_ohlcv_data,
     validate_ohlcv_data,
 )
@@ -29,11 +26,6 @@ def compute_signal(input_data: SignalInput) -> SignalResult:
     """Compute stock signals, scores, and components from clean OHLCV data."""
     val_res = validate_ohlcv_data(input_data.df_stock, input_data.symbol)
     df_clean = val_res["clean_df"]
-    stock_data_as_of = (
-        input_data.data_as_of
-        or val_res.get("latest_date")
-        or extract_latest_trading_date(df_clean)
-    )
 
     if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
         return SignalResult(
@@ -131,9 +123,7 @@ def compute_signal(input_data: SignalInput) -> SignalResult:
             )
 
     if raw_close is not None and raw_ma50 is not None and raw_close > raw_ma50:
-        reasons.append(
-            f"Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 ({format_vnd(raw_ma50)} VNĐ)."
-        )
+        reasons.append(f"Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 ({format_vnd(raw_ma50)} VNĐ).")
 
     if macd_hist is not None:
         if prev_macd_hist is not None and macd_hist > 0 and macd_hist > prev_macd_hist:
@@ -162,9 +152,7 @@ def compute_signal(input_data: SignalInput) -> SignalResult:
                 f"Sức mạnh tương quan (RS) vượt trội so với VN-Index (+{rs_diff * 100:.1f}%)."
             )
         elif rs_diff < -0.05:
-            warnings.append(
-                f"Sức mạnh tương quan (RS) yếu hơn VN-Index ({rs_diff * 100:.1f}%)."
-            )
+            warnings.append(f"Sức mạnh tương quan (RS) yếu hơn VN-Index ({rs_diff * 100:.1f}%).")
 
     for tf_key, tf_label in [("1d", "1D"), ("1w", "1W"), ("1m", "1M")]:
         tf_info = tf_summary.get(tf_key, {})

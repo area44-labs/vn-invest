@@ -226,9 +226,7 @@ class SignalRecommendationEngine:
         """Generate recommendations for candidates based on stock data and market regime."""
         scanned_recs = []
         processed_set = (
-            set(input_data.processed_symbols)
-            if input_data.processed_symbols is not None
-            else None
+            set(input_data.processed_symbols) if input_data.processed_symbols is not None else None
         )
         generator = recommendation_generator or generate_single_recommendation
 
