@@ -321,7 +321,7 @@ class UniverseScanResult:
         data_as_of: str | None = None,
         source_date: str | None = None,
         data_source: str | None = None,
-    ) -> "UniverseScanResult":
+    ) -> UniverseScanResult:
         """Return a new UniverseScanResult instance with updated scan fields."""
         return UniverseScanResult(
             universe=self.universe,
