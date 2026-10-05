@@ -1,7 +1,7 @@
 """Unit, boundary, and regression tests for extracted quantitative engines (#174)."""
 
-from collections.abc import Mapping
 import unittest
+from collections.abc import Mapping
 
 import pandas as pd
 
@@ -168,7 +168,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertEqual(rec_dict["data_source"], "REAL_DATA")
 
     def test_production_provider_failure_provenance(self):
@@ -183,7 +187,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertIsNone(rec_dict["data_source"])
 
     def test_production_insufficient_data_provenance(self):
@@ -198,7 +206,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertIsNone(rec_dict["data_source"])
 
     def test_production_symbol_not_processed_provenance(self):
@@ -213,7 +225,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertIsNone(rec_dict["data_source"])
         self.assertEqual(rec_dict["action"], "AVOID")
 
@@ -228,7 +244,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertEqual(rec_dict["data_source"], "explicit_historical_input")
         self.assertEqual(rec_dict["data_as_of"], "2025-01-20")
 
@@ -243,7 +263,11 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_as_of="2025-01-20",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        rec_dict = res.recommendations[0].to_dict() if hasattr(res.recommendations[0], "to_dict") else res.recommendations[0]
+        rec_dict = (
+            res.recommendations[0].to_dict()
+            if hasattr(res.recommendations[0], "to_dict")
+            else res.recommendations[0]
+        )
         self.assertIsNone(rec_dict["data_source"])
 
     def test_behavioral_parity(self):
