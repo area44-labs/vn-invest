@@ -9,9 +9,9 @@ All quantitative consumers must receive clean OHLCV data.
 Raw provider data may be retained for diagnostics only.
 """
 
+from collections.abc import Callable
 import logging
 import math
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np

@@ -1,7 +1,7 @@
 """Risk Assessment and Trade Plan calculation module for VN Invest quant layer."""
 
-import math
 from collections.abc import Callable
+import math
 from typing import Any
 
 import numpy as np
