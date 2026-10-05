@@ -66,6 +66,7 @@ from scripts.lib.backtest import (
     get_as_of_dataset,
 )
 from scripts.lib.vietnam_market import get_clean_ohlcv_data
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.recommendation import (
     generate_single_recommendation as generate_recommendation,
 )
@@ -185,6 +186,7 @@ class PortfolioConfig:
       (stocks failing execution eligibility are excluded). If False, execution eligibility is evaluated if
       execution_config is present and attached to PortfolioPosition.is_executable, but does NOT exclude candidate securities.
     - execution_config: ExecutionConfig parameters used when require_executable is True or when evaluating eligibility.
+    - quant_config: QuantConfig instance defining quantitative engine parameters and version contract.
     """
 
     max_positions: int | None = 5
@@ -197,6 +199,7 @@ class PortfolioConfig:
     execution_config: ExecutionConfig | None = None
     transaction_cost_pct: float = 0.0
     slippage_pct: float = 0.0
+    quant_config: QuantConfig = DEFAULT_QUANT_CONFIG
 
     def __post_init__(self) -> None:
         _validate_numeric_param(
@@ -367,6 +370,9 @@ class PortfolioBacktestResult:
                 "require_executable": self.config.require_executable,
                 "transaction_cost_pct": self.config.transaction_cost_pct,
                 "slippage_pct": self.config.slippage_pct,
+                "quant_version": self.config.quant_config.quant_version,
+                "model_version": self.config.quant_config.model_version,
+                "quant_config_hash": self.config.quant_config.get_config_hash(),
             },
             "aggregate": deepcopy(self.aggregate),
         }
@@ -449,6 +455,7 @@ def evaluate_portfolio_at_date(
         df_vnindex=df_vnindex_clean_as_of,
         df_vn30=df_vn30_clean_as_of,
         breadth_ratio=breadth_ratio,
+        config=config.quant_config,
     )
 
     meta_map = _build_candidate_meta_map(candidate_metadata, universe_stock_map)
@@ -476,6 +483,7 @@ def evaluate_portfolio_at_date(
             market_regime_info=market_regime_info,
             df_vnindex=df_vnindex_clean_as_of,
             data_as_of=target_date_str,
+            config=config.quant_config,
         )
 
         act = rec["action"]

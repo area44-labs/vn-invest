@@ -1,9 +1,47 @@
 """Canonical Quantitative Configuration and Version Contract for VN Invest quant layer."""
 
+import copy
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, fields
 from typing import Any
+
+
+class FrozenDict(dict, Mapping):
+    """Immutable dictionary subclass supporting deepcopy and JSON serialization."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._initialized = True
+
+    def __setitem__(self, key, value):
+        if getattr(self, "_initialized", False):
+            raise TypeError("FrozenDict is immutable")
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        if getattr(self, "_initialized", False):
+            raise TypeError("FrozenDict is immutable")
+        super().__delitem__(key)
+
+    def pop(self, *args, **kwargs):
+        raise TypeError("FrozenDict is immutable")
+
+    def popitem(self, *args, **kwargs):
+        raise TypeError("FrozenDict is immutable")
+
+    def clear(self):
+        raise TypeError("FrozenDict is immutable")
+
+    def update(self, *args, **kwargs):
+        raise TypeError("FrozenDict is immutable")
+
+    def setdefault(self, *args, **kwargs):
+        raise TypeError("FrozenDict is immutable")
+
+    def __deepcopy__(self, memo):
+        return FrozenDict({k: copy.deepcopy(v, memo) for k, v in self.items()})
 
 
 @dataclass(frozen=True)
@@ -15,22 +53,26 @@ class QuantConfig:
     model_version: str = "2.0"
 
     # Signal weights
-    signal_weights: dict[str, float] = field(
-        default_factory=lambda: {
-            "trend": 0.30,
-            "momentum": 0.25,
-            "volume": 0.15,
-            "relative_strength": 0.15,
-            "divergence": 0.15,
-        }
+    signal_weights: FrozenDict[str, float] | dict[str, float] = field(
+        default_factory=lambda: FrozenDict(
+            {
+                "trend": 0.30,
+                "momentum": 0.25,
+                "volume": 0.15,
+                "relative_strength": 0.15,
+                "divergence": 0.15,
+            }
+        )
     )
 
-    divergence_timeframe_weights: dict[str, float] = field(
-        default_factory=lambda: {
-            "1D": 0.50,
-            "1W": 0.30,
-            "1M": 0.20,
-        }
+    divergence_timeframe_weights: FrozenDict[str, float] | dict[str, float] = field(
+        default_factory=lambda: FrozenDict(
+            {
+                "1D": 0.50,
+                "1W": 0.30,
+                "1M": 0.20,
+            }
+        )
     )
 
     valid_market_regimes: tuple[str, ...] = (
@@ -165,15 +207,17 @@ class QuantConfig:
     confidence_adj_extreme_rsi: float = -0.05
 
     # Risk-Adjusted Score Parameters
-    regime_score_factors: dict[str, float] = field(
-        default_factory=lambda: {
-            "STRONG_BULL": 1.05,
-            "BULL": 1.00,
-            "NEUTRAL": 0.90,
-            "DEFENSIVE": 0.90,
-            "BEAR": 0.75,
-            "PANIC": 0.50,
-        }
+    regime_score_factors: FrozenDict[str, float] | dict[str, float] = field(
+        default_factory=lambda: FrozenDict(
+            {
+                "STRONG_BULL": 1.05,
+                "BULL": 1.00,
+                "NEUTRAL": 0.90,
+                "DEFENSIVE": 0.90,
+                "BEAR": 0.75,
+                "PANIC": 0.50,
+            }
+        )
     )
 
     volatility_penalty_threshold: float = 0.20
@@ -242,18 +286,48 @@ class QuantConfig:
     regime_confidence_insufficient: float = 0.40
     regime_confidence_history_threshold: int = 50
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.signal_weights, FrozenDict):
+            object.__setattr__(
+                self, "signal_weights", FrozenDict(dict(self.signal_weights))
+            )
+
+        if not isinstance(self.divergence_timeframe_weights, FrozenDict):
+            object.__setattr__(
+                self,
+                "divergence_timeframe_weights",
+                FrozenDict(dict(self.divergence_timeframe_weights)),
+            )
+
+        if not isinstance(self.regime_score_factors, FrozenDict):
+            object.__setattr__(
+                self,
+                "regime_score_factors",
+                FrozenDict(dict(self.regime_score_factors)),
+            )
+
+        if not isinstance(self.valid_market_regimes, tuple):
+            object.__setattr__(
+                self, "valid_market_regimes", tuple(self.valid_market_regimes)
+            )
+
+        if not isinstance(self.regimes_strong_buy, tuple):
+            object.__setattr__(self, "regimes_strong_buy", tuple(self.regimes_strong_buy))
+
+        if not isinstance(self.regimes_buy, tuple):
+            object.__setattr__(self, "regimes_buy", tuple(self.regimes_buy))
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize configuration to a dictionary representation."""
-        raw_dict = asdict(self)
-        # Ensure tuples/lists/dicts are JSON serializable and detached
         cleaned: dict[str, Any] = {}
-        for k, v in raw_dict.items():
-            if isinstance(v, tuple):
-                cleaned[k] = list(v)
-            elif isinstance(v, dict):
-                cleaned[k] = dict(v)
+        for f in fields(self):
+            v = getattr(self, f.name)
+            if isinstance(v, (tuple, list)):
+                cleaned[f.name] = list(v)
+            elif isinstance(v, (dict, FrozenDict)):
+                cleaned[f.name] = dict(v)
             else:
-                cleaned[k] = v
+                cleaned[f.name] = v
         return cleaned
 
     def get_config_hash(self) -> str:
@@ -276,5 +350,6 @@ DEFAULT_QUANT_CONFIG = QuantConfig()
 
 __all__ = [
     "DEFAULT_QUANT_CONFIG",
+    "FrozenDict",
     "QuantConfig",
 ]

@@ -9,9 +9,10 @@ import pandas as pd
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
 from scripts.domain.universe import Universe, UniverseScanResult
-from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
+from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
 from scripts.lib.vietnam_market import UniverseProvider
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
 @dataclass
@@ -403,9 +404,22 @@ class PipelineContext:
 
         u_info = self._universe.to_info_dict()
 
+        first_rec = self.scanned_recs[0] if self.scanned_recs else None
+        if isinstance(first_rec, dict):
+            cfg_hash = first_rec.get("config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            q_ver = first_rec.get("quant_version", QUANT_VERSION)
+        elif first_rec is not None:
+            cfg_hash = getattr(first_rec, "config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            q_ver = getattr(first_rec, "quant_version", QUANT_VERSION)
+        else:
+            cfg_hash = DEFAULT_QUANT_CONFIG.get_config_hash()
+            q_ver = QUANT_VERSION
+
         self.recommendations_payload = {
             "schema_version": "2.0",
             "signal_model_version": SIGNAL_MODEL_VERSION,
+            "quant_version": q_ver,
+            "config_hash": cfg_hash,
             "generated_at": self.generated_at,
             "data_as_of": self.data_as_of,
             "source_date": self.source_date,

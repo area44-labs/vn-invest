@@ -22,6 +22,12 @@
     "signal_model_version": {
       "type": "string"
     },
+    "quant_version": {
+      "type": "string"
+    },
+    "config_hash": {
+      "type": "string"
+    },
     "generated_at": {
       "type": "string"
     },
@@ -139,6 +145,8 @@
           "enum": ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
         },
         "model_version": { "type": "string" },
+        "quant_version": { "type": "string" },
+        "config_hash": { "type": "string" },
         "data_quality": {
           "type": "string",
           "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
