@@ -556,6 +556,20 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         with self.assertRaises(TypeError):
             UniverseScanResult(universe=123)
 
+    def test_universe_scan_result_with_updates_supports_universe_parameter(self):
+        u1 = Universe.from_candidates(
+            [{"symbol": "FPT", "companyName": "FPT", "sector": "Tech", "exchange": "HOSE"}]
+        )
+        u2 = Universe.from_candidates(
+            [{"symbol": "VNM", "companyName": "VNM", "sector": "Food", "exchange": "HOSE"}]
+        )
+
+        scan_res = UniverseScanResult(universe=u1, processed_symbols=("FPT",))
+        updated_scan_res = scan_res.with_updates(universe=u2, processed_symbols=("VNM",))
+
+        self.assertEqual(updated_scan_res.universe, u2)
+        self.assertEqual(updated_scan_res.processed_symbols, ("VNM",))
+
     def test_universe_scan_result_completeness_and_classification(self):
         u = Universe.from_candidates(
             [
@@ -635,6 +649,24 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         self.assertIsNotNone(ctx.universe_scan_result)
         self.assertEqual(ctx.universe_scan_result.universe, u)
         self.assertEqual(set(audit["expected_symbols"]), {"VNINDEX", "VN30", "FPT", "VNM"})
+
+    def test_pipeline_context_fail_fast_without_universe(self):
+        from scripts.pipeline.context import PipelineContext
+
+        ctx = PipelineContext()
+        self.assertIsNone(ctx.universe)
+
+        with self.assertRaises(ValueError):
+            ctx.record_symbol_processed("FPT")
+
+        with self.assertRaises(ValueError):
+            ctx.discard_symbol_processed("FPT")
+
+        with self.assertRaises(ValueError):
+            ctx.add_exclusion("FPT", "STAGE", "CAT", "FAILED", "Reason")
+
+        with self.assertRaises(ValueError):
+            ctx.processed_symbols = {"FPT"}
 
     def test_legacy_candidate_stocks_isolation(self):
         from scripts.lib.vietnam_market import CANDIDATE_STOCKS, UniverseProvider

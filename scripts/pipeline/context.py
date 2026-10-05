@@ -38,7 +38,6 @@ class PipelineContext:
     # Domain Universe contract (single canonical source of truth)
     _universe: Universe | None = field(default=None, init=False, repr=False)
     _universe_scan_result: UniverseScanResult | None = field(default=None, init=False, repr=False)
-    _universe_audit_override: dict[str, Any] | None = field(default=None, init=False, repr=False)
 
     # 3. Data acquisition state & providers
     provider: UniverseProvider | None = None
@@ -127,6 +126,8 @@ class PipelineContext:
                 self._universe_scan_result = UniverseScanResult(universe=val)
             else:
                 self._universe_scan_result = self._universe_scan_result.with_updates(universe=val)
+        else:
+            self._universe_scan_result = None
 
     @property
     def universe_scan_result(self) -> UniverseScanResult | None:
@@ -186,8 +187,8 @@ class PipelineContext:
 
     @processed_symbols.setter
     def processed_symbols(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set processed_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
             processed_symbols=tuple(sorted(val))
         )
@@ -200,8 +201,8 @@ class PipelineContext:
 
     @invalid_symbols.setter
     def invalid_symbols(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set invalid_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
             invalid_symbols=tuple(sorted(val))
         )
@@ -214,8 +215,8 @@ class PipelineContext:
 
     @insufficient_history_symbols.setter
     def insufficient_history_symbols(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set insufficient_history_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
             insufficient_symbols=tuple(sorted(val))
         )
@@ -228,8 +229,8 @@ class PipelineContext:
 
     @failed_symbols.setter
     def failed_symbols(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set failed_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
             failed_symbols=tuple(sorted(val))
         )
@@ -242,8 +243,8 @@ class PipelineContext:
 
     @missing_symbols.setter
     def missing_symbols(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set missing_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
             missing_symbols=tuple(sorted(val))
         )
@@ -256,14 +257,12 @@ class PipelineContext:
 
     @exclusions_map.setter
     def exclusions_map(self, val: Any) -> None:
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot set exclusions_map without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(exclusions_map=val)
 
     @property
     def universe_audit(self) -> dict[str, Any]:
-        if self._universe_audit_override is not None:
-            return self._universe_audit_override
         if self._universe_scan_result:
             return self._universe_scan_result.to_audit_dict(
                 update_data=self.update_data,
@@ -273,7 +272,7 @@ class PipelineContext:
 
     @universe_audit.setter
     def universe_audit(self, val: Any) -> None:
-        self._universe_audit_override = val
+        pass
 
     def set_universe(self, universe: Universe) -> None:
         """Assign canonical domain Universe as single source of truth and synchronize context state."""
@@ -282,12 +281,11 @@ class PipelineContext:
                 f"set_universe requires a Universe instance, got {type(universe).__name__}"
             )
         self.universe = universe
-        self._universe_audit_override = None
 
     def record_symbol_processed(self, symbol: str) -> None:
         """Record a symbol as successfully processed in universe_scan_result."""
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot record symbol status without context.universe")
 
         sym_u = symbol.upper()
         cur_proc = set(self._universe_scan_result.processed_symbols)
@@ -298,13 +296,15 @@ class PipelineContext:
 
     def discard_symbol_processed(self, symbol: str) -> None:
         """Remove a symbol from processed_symbols in universe_scan_result."""
-        if self._universe_scan_result:
-            sym_u = symbol.upper()
-            cur_proc = set(self._universe_scan_result.processed_symbols)
-            cur_proc.discard(sym_u)
-            self._universe_scan_result = self._universe_scan_result.with_updates(
-                processed_symbols=tuple(sorted(cur_proc))
-            )
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot discard symbol status without context.universe")
+
+        sym_u = symbol.upper()
+        cur_proc = set(self._universe_scan_result.processed_symbols)
+        cur_proc.discard(sym_u)
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            processed_symbols=tuple(sorted(cur_proc))
+        )
 
     def add_exclusion(
         self,
@@ -318,8 +318,8 @@ class PipelineContext:
         processed: bool = False,
     ) -> None:
         """Record a symbol exclusion diagnostic in universe_scan_result and update status sets."""
-        if not self._universe:
-            self.universe = Universe.from_candidates([])
+        if not self._universe or not self._universe_scan_result:
+            raise ValueError("Cannot add exclusion without context.universe")
 
         sym_u = symbol.upper()
         res = self._universe_scan_result
@@ -372,7 +372,6 @@ class PipelineContext:
             source_date=self.source_date,
             data_source=self.data_source,
         )
-        self._universe_audit_override = None
         return self._universe_scan_result.to_audit_dict(
             update_data=self.update_data,
             performance_data=self.performance_data or None,

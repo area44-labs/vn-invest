@@ -13,7 +13,6 @@ from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
-from scripts.domain.universe import Universe
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
@@ -58,26 +57,10 @@ class DataAcquisitionStage(PipelineStage):
         VnstockMarketProvider.reset_global_call_history()
         if context.universe is None:
             context.provider = UniverseProvider()
-            u = (
-                context.provider.get_universe()
-                if hasattr(context.provider, "get_universe")
-                else None
-            )
-            if isinstance(u, Universe):
-                universe = u
-            else:
-                cands = getattr(context.provider, "candidates", None) or []
-                if not isinstance(cands, (list, tuple, set)):
-                    cands = []
-                universe = Universe.from_candidates(
-                    candidates=cands,
-                    universe_type="VN30_MIDCAP_LEADERS",
-                    benchmarks=("VNINDEX", "VN30"),
-                )
-
-            if universe.universe_size == 0:
+            universe = context.provider.get_universe()
+            if universe is None or universe.universe_size == 0:
                 raise RuntimeError(
-                    "Candidate universe is empty. Cannot generate report on empty universe."
+                    "Candidate universe is empty or missing. Cannot generate report."
                 )
 
             context.set_universe(universe)
@@ -233,7 +216,7 @@ class DataValidationStage(PipelineStage):
         return "data_validation"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.universe is None:
+        if context.universe is None or context.universe_scan_result is None:
             raise ValueError("DataValidationStage requires context.universe to be set")
 
         if context.is_historical:
@@ -569,7 +552,7 @@ class UniverseValidationStage(PipelineStage):
         return "universe_validation"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.universe is None:
+        if context.universe is None or context.universe_scan_result is None:
             raise ValueError("UniverseValidationStage requires context.universe to be set")
 
         if context.is_historical:
@@ -711,7 +694,7 @@ class MarketAnalysisStage(PipelineStage):
         return "market_analysis"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.universe is None:
+        if context.universe is None or context.universe_scan_result is None:
             raise ValueError("MarketAnalysisStage requires context.universe to be set")
 
         if context.is_historical:
@@ -784,7 +767,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
         return "signal_recommendation_generation"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.universe is None:
+        if context.universe is None or context.universe_scan_result is None:
             raise ValueError(
                 "SignalRecommendationGenerationStage requires context.universe to be set"
             )

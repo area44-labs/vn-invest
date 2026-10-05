@@ -103,6 +103,16 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_context_add_exclusion_helper(self):
         """Verify add_exclusion helper updates status sets and exclusions_map accurately."""
         ctx = PipelineContext()
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "CCC", "companyName": "Comp C", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "DDD", "companyName": "Comp D", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
 
         ctx.add_exclusion(
             symbol="AAA",
@@ -345,10 +355,10 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
             patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
-            mock_provider.candidates = [
-                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}
-            ]
-            mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
+                benchmarks=("VNINDEX", "VN30"),
+            )
             mock_provider_cls.return_value = mock_provider
 
             mock_fetch.return_value = valid_df
@@ -423,13 +433,15 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
         """Verify empty candidate universe halts data acquisition with RuntimeError."""
         with patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls:
             mock_provider = MagicMock()
-            mock_provider.candidates = []
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [], universe_type="EMPTY"
+            )
             mock_provider_cls.return_value = mock_provider
 
             with self.assertRaises(RuntimeError) as cm:
                 run_pipeline(update_data=False)
 
-            self.assertIn("Candidate universe is empty", str(cm.exception))
+            self.assertIn("Candidate universe is empty or missing", str(cm.exception))
 
     def test_update_mode_incomplete_universe_raises_runtime_error(self):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
@@ -439,10 +451,10 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
         ):
             mock_provider = MagicMock()
-            mock_provider.candidates = [
-                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}
-            ]
-            mock_provider.get_info.return_value = {"universe_type": "TEST", "universe_size": 1}
+            mock_provider.get_universe.return_value = Universe.from_candidates(
+                [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
+                benchmarks=("VNINDEX", "VN30"),
+            )
             mock_provider_cls.return_value = mock_provider
 
             mock_fetch.return_value = empty_df

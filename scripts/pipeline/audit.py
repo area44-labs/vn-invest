@@ -1,4 +1,4 @@
-"""Universe Audit builder for VN Invest pipeline orchestration."""
+"""Universe Audit adapter for VN Invest pipeline orchestration."""
 
 from typing import Any
 

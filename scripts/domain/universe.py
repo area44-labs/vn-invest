@@ -310,6 +310,7 @@ class UniverseScanResult:
 
     def with_updates(
         self,
+        universe: Universe | dict[str, Any] | None = None,
         processed_symbols: Any = None,
         invalid_symbols: Any = None,
         insufficient_symbols: Any = None,
@@ -324,7 +325,7 @@ class UniverseScanResult:
     ) -> UniverseScanResult:
         """Return a new UniverseScanResult instance with updated scan fields."""
         return UniverseScanResult(
-            universe=self.universe,
+            universe=self.universe if universe is None else universe,
             processed_symbols=self.processed_symbols
             if processed_symbols is None
             else processed_symbols,

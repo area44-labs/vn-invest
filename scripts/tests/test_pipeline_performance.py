@@ -21,6 +21,7 @@ from scripts.data_provider import (
     reset_circuit_breaker,
     reset_rate_limit_recovery_count,
 )
+from scripts.domain.universe import Universe
 from scripts.generate_report import (
     PerformanceTracker,
     PipelineResult,
@@ -912,6 +913,21 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         from scripts.pipeline import ArtifactPublishingStage, MonitoringStage
 
         def fake_execute(context):
+            u = Universe.from_candidates(
+                [
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    }
+                ],
+                benchmarks=("VNINDEX", "VN30"),
+            )
+            context.set_universe(u)
+            context.processed_symbols = {"VNINDEX", "VN30", "FPT"}
+            if isinstance(audit, dict) and "performance" in audit:
+                context.performance_data = audit["performance"]
             context.recommendations_payload = payload
             context.market_payload = payload["market"]
             context.history_payload = payload
@@ -920,7 +936,6 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 context.reference_date = payload["data_as_of"]
             context.df_vnindex_clean = df_vnindex
             context.df_vn30_clean = df_vn30
-            context.universe_audit = audit
             MonitoringStage().execute(context)
             ArtifactPublishingStage().execute(context)
             return PipelineResult(
