@@ -7,10 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from scripts.lib.vietnam_market import (
-    clamp_price_limits,
-    round_tick_size,
-)
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import RiskInput, RiskResult, RiskTradePlanInput
 from scripts.quant.signal import (
     VALID_MARKET_REGIMES,
@@ -31,6 +28,7 @@ def calculate_t25_risk_metrics(
     df: pd.DataFrame,
     exchange: str = "HOSE",
     is_margin_eligible: bool = True,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> dict:
     """Calculate T+2.5 risk metrics for a given stock."""
     default_nulls = {
@@ -42,7 +40,7 @@ def calculate_t25_risk_metrics(
         "avg_value_20d": None,
     }
 
-    if df is None or df.empty or len(df) < 20:
+    if df is None or df.empty or len(df) < config.ma_short_period:
         return default_nulls
 
     price_col = "close"
@@ -81,7 +79,7 @@ def calculate_t25_risk_metrics(
     avg_val_20d_bn = None
     if "volume" in df_calc.columns:
         df_calc["trading_value"] = df_calc[price_col] * df_calc["volume"]
-        raw_avg_val = _safe_float(df_calc["trading_value"].tail(20).mean())
+        raw_avg_val = _safe_float(df_calc["trading_value"].tail(config.ma_short_period).mean())
         if raw_avg_val is not None and raw_avg_val > 0:
             avg_val_20d_bn = round(raw_avg_val / 1e9, 2)
 
@@ -100,12 +98,17 @@ def calculate_confidence(
     components: dict[str, float | None],
     risk_metrics: dict,
     rsi: float | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> float:
     """Calculate deterministic confidence score (0.10 to 0.95)."""
     if data_quality == "INSUFFICIENT":
-        return 0.10
+        return config.confidence_min
 
-    base_conf = 0.70 if data_quality == "SUFFICIENT" else 0.55
+    base_conf = (
+        config.confidence_base_sufficient
+        if data_quality == "SUFFICIENT"
+        else config.confidence_base_partial
+    )
 
     available_scores = [v for v in components.values() if v is not None]
     if len(available_scores) >= 2:
@@ -113,28 +116,28 @@ def calculate_confidence(
         variance = sum((s - mean_score) ** 2 for s in available_scores) / len(available_scores)
         std_dev = math.sqrt(variance)
 
-        if std_dev < 12.0:
-            base_conf += 0.10
-        elif std_dev < 18.0:
-            base_conf += 0.05
-        elif std_dev > 30.0:
-            base_conf -= 0.15
-        elif std_dev > 22.0:
-            base_conf -= 0.08
+        if std_dev < config.dispersion_std_very_low:
+            base_conf += config.confidence_adj_very_low_dispersion
+        elif std_dev < config.dispersion_std_low:
+            base_conf += config.confidence_adj_low_dispersion
+        elif std_dev > config.dispersion_std_high:
+            base_conf += config.confidence_adj_high_dispersion
+        elif std_dev > config.dispersion_std_moderate_high:
+            base_conf += config.confidence_adj_moderate_high_dispersion
 
     vol60 = _safe_float(risk_metrics.get("volatility_60d")) if risk_metrics else None
     mdd = _safe_float(risk_metrics.get("max_drawdown")) if risk_metrics else None
 
     if vol60 is not None and mdd is not None:
-        if vol60 > 0.35 or abs(mdd) > 0.25:
-            base_conf -= 0.05
-        elif vol60 < 0.22 and abs(mdd) < 0.12:
-            base_conf += 0.05
+        if vol60 > config.risk_volatility_high or abs(mdd) > config.risk_drawdown_high:
+            base_conf += config.confidence_adj_high_risk
+        elif vol60 < config.risk_volatility_low and abs(mdd) < config.risk_drawdown_low:
+            base_conf += config.confidence_adj_low_risk
 
-    if rsi is not None and (rsi > 78.0 or rsi < 35.0):
-        base_conf -= 0.05
+    if rsi is not None and (rsi > config.rsi_overbought_extreme or rsi < config.rsi_weak_lower):
+        base_conf += config.confidence_adj_extreme_rsi
 
-    return round(max(0.10, min(0.95, base_conf)), 2)
+    return round(max(config.confidence_min, min(config.confidence_max, base_conf)), 2)
 
 
 def calculate_risk_adjusted_score(
@@ -143,19 +146,13 @@ def calculate_risk_adjusted_score(
     volatility_60d: float | None = None,
     max_drawdown: float | None = None,
     liquidity_score: float | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> float | None:
     """Calculate deterministic and explainable risk-adjusted signal score."""
     if signal_score is None:
         return None
 
-    regime_map = {
-        "STRONG_BULL": 1.05,
-        "BULL": 1.00,
-        "NEUTRAL": 0.90,
-        "DEFENSIVE": 0.90,
-        "BEAR": 0.75,
-        "PANIC": 0.50,
-    }
+    regime_map = config.regime_score_factors
     if regime not in regime_map:
         raise ValueError(
             f"Invalid market regime: '{regime}'. Must be one of {VALID_MARKET_REGIMES}"
@@ -165,17 +162,30 @@ def calculate_risk_adjusted_score(
     vol_penalty = 0.0
     vol60 = _safe_float(volatility_60d)
     if vol60 is not None:
-        vol_penalty = min(0.25, max(0.0, (vol60 - 0.20) * 0.5))
+        vol_penalty = min(
+            config.volatility_penalty_max,
+            max(
+                0.0,
+                (vol60 - config.volatility_penalty_threshold) * config.volatility_penalty_factor,
+            ),
+        )
 
     mdd_penalty = 0.0
     mdd = _safe_float(max_drawdown)
     if mdd is not None:
-        mdd_penalty = min(0.25, max(0.0, (abs(mdd) - 0.15) * 0.5))
+        mdd_penalty = min(
+            config.drawdown_penalty_max,
+            max(
+                0.0, (abs(mdd) - config.drawdown_penalty_threshold) * config.drawdown_penalty_factor
+            ),
+        )
 
     liq_factor = 1.0
     liq = _safe_float(liquidity_score)
     if liq is not None:
-        liq_factor = 0.85 + 0.15 * (max(0.0, min(100.0, liq)) / 100.0)
+        liq_factor = config.liquidity_factor_base + config.liquidity_factor_scale * (
+            max(0.0, min(100.0, liq)) / 100.0
+        )
 
     score = signal_score * regime_factor * (1.0 - vol_penalty) * (1.0 - mdd_penalty) * liq_factor
     return max(0.0, min(100.0, round(score, 1)))
@@ -184,6 +194,7 @@ def calculate_risk_adjusted_score(
 def normalize_universe_liquidity_scores(
     scanned_recommendations: list[Any],
     market_regime: str | dict | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> list[Any]:
     """Compute 0-100 percentile rank for liquidity_score across all stocks in universe."""
     from scripts.domain.recommendation import Recommendation
@@ -282,6 +293,7 @@ def normalize_universe_liquidity_scores(
                 volatility_60d=vol_60d,
                 max_drawdown=mdd,
                 liquidity_score=liq_score,
+                config=config,
             )
         else:
             final_adj = None
@@ -300,6 +312,12 @@ def normalize_universe_liquidity_scores(
 
 def compute_stock_risk_and_trade_plan(input_data: RiskInput) -> RiskResult:
     """Compute risk assessment, confidence, risk-adjusted score, trade plan, and invalidation rules."""
+    from scripts.lib.vietnam_market import (
+        clamp_price_limits,
+        round_tick_size,
+    )
+
+    cfg = input_data.config
     sig = input_data.signal_result
     ex_clean = input_data.exchange
     df_d = input_data.df_d
@@ -308,21 +326,22 @@ def compute_stock_risk_and_trade_plan(input_data: RiskInput) -> RiskResult:
     raw_ma50 = sig.raw_ma50
     atr = sig.atr
 
-    risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex_clean)
+    risk_metrics = calculate_t25_risk_metrics(df_d, exchange=ex_clean, config=cfg)
 
     confidence = calculate_confidence(
         data_quality=sig.data_quality,
         components=sig.score_components,
         risk_metrics=risk_metrics,
         rsi=sig.rsi,
+        config=cfg,
     )
 
     vol60 = risk_metrics.get("volatility_60d")
     mdd = risk_metrics.get("max_drawdown")
     if vol60 is not None and mdd is not None:
-        if vol60 > 0.35 or abs(mdd) > 0.25:
+        if vol60 > cfg.risk_volatility_high or abs(mdd) > cfg.risk_drawdown_high:
             risk_level = "HIGH"
-        elif vol60 < 0.22 and abs(mdd) < 0.12:
+        elif vol60 < cfg.risk_volatility_low and abs(mdd) < cfg.risk_drawdown_low:
             risk_level = "LOW"
         else:
             risk_level = "MEDIUM"
@@ -335,35 +354,55 @@ def compute_stock_risk_and_trade_plan(input_data: RiskInput) -> RiskResult:
     invalidation = []
 
     if input_data.action in ["BUY", "WATCH"] and raw_close is not None:
-        stop_atr_component = (raw_close - 1.8 * atr) if atr is not None else (raw_close * 0.95)
+        stop_atr_component = (
+            (raw_close - cfg.trade_plan_stop_atr_mult * atr)
+            if atr is not None
+            else (raw_close * cfg.trade_plan_default_stop_pct)
+        )
         sl_raw = max(
             stop_atr_component,
             lowest_5d if lowest_5d is not None else raw_close,
-            (raw_ma20 * 0.98 if raw_ma20 else raw_close * 0.95),
-            raw_close * 0.93,
+            (
+                raw_ma20 * cfg.trade_plan_ma20_stop_pct
+                if raw_ma20
+                else raw_close * cfg.trade_plan_default_stop_pct
+            ),
+            raw_close * cfg.trade_plan_max_stop_pct,
         )
-        sl_p = min(sl_raw, raw_close * 0.99)
+        sl_p = min(sl_raw, raw_close * cfg.trade_plan_stop_clamp_cap)
         sl_p = clamp_price_limits(sl_p, raw_close, ex_clean)
-        risk_amt = max(raw_close - sl_p, raw_close * 0.03)
+        risk_amt = max(raw_close - sl_p, raw_close * cfg.trade_plan_min_risk_pct)
 
         entry_low_p = round_tick_size(raw_close, ex_clean)
-        entry_high_p = clamp_price_limits(max(entry_low_p, raw_close * 1.02), raw_close, ex_clean)
-        tp1_p = clamp_price_limits(
-            max(entry_high_p, raw_close + 2.0 * risk_amt), raw_close, ex_clean
+        entry_high_p = clamp_price_limits(
+            max(entry_low_p, raw_close * cfg.trade_plan_entry_high_mult), raw_close, ex_clean
         )
-        tp2_p = clamp_price_limits(max(tp1_p, raw_close + 3.0 * risk_amt), raw_close, ex_clean)
+        tp1_p = clamp_price_limits(
+            max(entry_high_p, raw_close + cfg.trade_plan_tp1_rr_mult * risk_amt),
+            raw_close,
+            ex_clean,
+        )
+        tp2_p = clamp_price_limits(
+            max(tp1_p, raw_close + cfg.trade_plan_tp2_rr_mult * risk_amt), raw_close, ex_clean
+        )
 
-        rr_num = round((tp1_p - raw_close) / risk_amt, 2) if risk_amt > 0 else 1.0
+        rr_num = (
+            round((tp1_p - raw_close) / risk_amt, 2) if risk_amt > 0 else cfg.trade_plan_default_rr
+        )
 
         stop_distance_pct = (
             abs(raw_close - sl_p) / raw_close
             if raw_close > 0 and abs(raw_close - sl_p) > 1e-4
-            else 0.05
+            else cfg.trade_plan_default_stop_dist_pct
         )
-        portfolio_risk_budget_pct = 1.0
+        portfolio_risk_budget_pct = cfg.trade_plan_portfolio_risk_budget_pct
         calc_position_pct = round(portfolio_risk_budget_pct / stop_distance_pct, 1)
 
-        max_position_cap = 20.0 if input_data.action == "BUY" else 10.0
+        max_position_cap = (
+            cfg.trade_plan_max_position_buy_pct
+            if input_data.action == "BUY"
+            else cfg.trade_plan_max_position_watch_pct
+        )
         final_position_pct = min(calc_position_pct, max_position_cap)
 
         trade_plan = {
@@ -409,6 +448,7 @@ def compute_stock_risk_and_trade_plan(input_data: RiskInput) -> RiskResult:
         volatility_60d=vol60,
         max_drawdown=mdd,
         liquidity_score=risk_metrics.get("liquidity_score"),
+        config=cfg,
     )
 
     return RiskResult(
@@ -429,20 +469,28 @@ class RiskTradePlanEngine:
         scanned_recommendations: list[Any] | RiskTradePlanInput,
         market_regime: str | dict | None = None,
         risk_normalizer: Callable[..., list[Any]] | None = None,
+        config: QuantConfig = DEFAULT_QUANT_CONFIG,
     ) -> list[Any]:
         """Normalize liquidity scores and adjust trade plans across scanned recommendations."""
         if isinstance(scanned_recommendations, RiskTradePlanInput):
             input_obj = scanned_recommendations
             recs = input_obj.scanned_recs
             regime = input_obj.market_regime
+            cfg = input_obj.config
         else:
             recs = scanned_recommendations
             regime = market_regime
+            cfg = config
 
-        normalizer = risk_normalizer or normalize_universe_liquidity_scores
-        return normalizer(
+        if risk_normalizer is not None:
+            return risk_normalizer(
+                scanned_recommendations=recs,
+                market_regime=regime,
+            )
+        return normalize_universe_liquidity_scores(
             scanned_recommendations=recs,
             market_regime=regime,
+            config=cfg,
         )
 
 

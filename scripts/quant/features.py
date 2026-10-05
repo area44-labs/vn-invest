@@ -10,46 +10,67 @@ from collections.abc import Mapping
 
 import pandas as pd
 
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import FeatureInput, FeatureResult
 
 
-def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+def calculate_atr(
+    df: pd.DataFrame,
+    period: int = DEFAULT_QUANT_CONFIG.atr_period,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
+) -> pd.Series:
     """Calculate Average True Range (ATR)."""
+    p = period if period != DEFAULT_QUANT_CONFIG.atr_period else config.atr_period
     high, low, close = df["high"], df["low"], df["close"]
     close_prev = close.shift(1)
     tr = pd.concat([high - low, (high - close_prev).abs(), (low - close_prev).abs()], axis=1).max(
         axis=1
     )
-    return tr.rolling(window=period, min_periods=1).mean()
+    return tr.rolling(window=p, min_periods=1).mean()
 
 
-def calculate_single_tf_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_single_tf_indicators(
+    df: pd.DataFrame, config: QuantConfig = DEFAULT_QUANT_CONFIG
+) -> pd.DataFrame:
     """Calculate single timeframe indicators (MA20, MA50, RSI, MACD, ATR, Returns)."""
     df_calc = df.copy()
-    df_calc["ma20"] = df_calc["close"].rolling(window=20, min_periods=1).mean()
-    df_calc["ma50"] = df_calc["close"].rolling(window=50, min_periods=1).mean()
-    df_calc["vol_ma20"] = df_calc["volume"].rolling(window=20, min_periods=1).mean()
+    df_calc["ma20"] = df_calc["close"].rolling(window=config.ma_short_period, min_periods=1).mean()
+    df_calc["ma50"] = df_calc["close"].rolling(window=config.ma_long_period, min_periods=1).mean()
+    df_calc["vol_ma20"] = (
+        df_calc["volume"].rolling(window=config.ma_short_period, min_periods=1).mean()
+    )
 
     delta = df_calc["close"].diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=14, min_periods=1).mean()
-    avg_loss = loss.rolling(window=14, min_periods=1).mean().replace(0, 0.00001)
+    avg_gain = gain.rolling(window=config.rsi_period, min_periods=1).mean()
+    avg_loss = loss.rolling(window=config.rsi_period, min_periods=1).mean().replace(0, 0.00001)
     df_calc["rsi"] = (100 - (100 / (1 + (avg_gain / avg_loss)))).fillna(50)
 
-    df_calc["ema12"] = df_calc["close"].ewm(span=12, adjust=False, min_periods=1).mean()
-    df_calc["ema26"] = df_calc["close"].ewm(span=26, adjust=False, min_periods=1).mean()
+    df_calc["ema12"] = (
+        df_calc["close"].ewm(span=config.macd_fast_period, adjust=False, min_periods=1).mean()
+    )
+    df_calc["ema26"] = (
+        df_calc["close"].ewm(span=config.macd_slow_period, adjust=False, min_periods=1).mean()
+    )
     df_calc["macd"] = df_calc["ema12"] - df_calc["ema26"]
-    df_calc["signal"] = df_calc["macd"].ewm(span=9, adjust=False, min_periods=1).mean()
+    df_calc["signal"] = (
+        df_calc["macd"].ewm(span=config.macd_signal_period, adjust=False, min_periods=1).mean()
+    )
     df_calc["hist"] = df_calc["macd"] - df_calc["signal"]
-    df_calc["atr"] = calculate_atr(df_calc, 14)
+    df_calc["atr"] = calculate_atr(df_calc, period=config.atr_period, config=config)
     df_calc["daily_return"] = df_calc["close"].pct_change()
     return df_calc
 
 
-def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
+def detect_divergence(
+    df: pd.DataFrame,
+    lookback: int | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
+) -> dict:
     """Detect RSI and MACD bullish and bearish divergences."""
-    if len(df) < 15:
+    lb = lookback if lookback is not None else config.divergence_lookback_1d
+    if len(df) < config.divergence_min_history:
         return {
             "rsi_bullish": False,
             "rsi_bearish": False,
@@ -57,7 +78,7 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
             "macd_bearish": False,
         }
 
-    df_sub = df.tail(lookback).reset_index(drop=True)
+    df_sub = df.tail(lb).reset_index(drop=True)
     n = len(df_sub)
 
     troughs = []
@@ -90,9 +111,15 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
         rsi1, rsi2 = df_sub["rsi"].iloc[t1], df_sub["rsi"].iloc[t2]
         macd1, macd2 = df_sub["hist"].iloc[t1], df_sub["hist"].iloc[t2]
 
-        if p2 <= p1 * 1.01 and rsi2 > rsi1 + 1.5:
+        if (
+            p2 <= p1 * config.divergence_trough_price_tolerance
+            and rsi2 > rsi1 + config.divergence_rsi_delta
+        ):
             rsi_bullish = True
-        if p2 <= p1 * 1.01 and macd2 > macd1 + 0.05:
+        if (
+            p2 <= p1 * config.divergence_trough_price_tolerance
+            and macd2 > macd1 + config.divergence_macd_delta
+        ):
             macd_bullish = True
 
     if len(peaks) >= 2:
@@ -101,17 +128,23 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
         rsi1, rsi2 = df_sub["rsi"].iloc[pk1], df_sub["rsi"].iloc[pk2]
         macd1, macd2 = df_sub["hist"].iloc[pk1], df_sub["hist"].iloc[pk2]
 
-        if p2 >= p1 * 0.99 and rsi2 < rsi1 - 1.5:
+        if (
+            p2 >= p1 * config.divergence_peak_price_tolerance
+            and rsi2 < rsi1 - config.divergence_rsi_delta
+        ):
             rsi_bearish = True
-        if p2 >= p1 * 0.99 and macd2 < macd1 - 0.05:
+        if (
+            p2 >= p1 * config.divergence_peak_price_tolerance
+            and macd2 < macd1 - config.divergence_macd_delta
+        ):
             macd_bearish = True
 
     last_5 = df_sub.tail(5)
     if (
         not rsi_bullish
         and (last_5["low"].iloc[-1] <= last_5["low"].min())
-        and (last_5["rsi"].iloc[-1] > last_5["rsi"].iloc[0] + 3.0)
-        and (last_5["rsi"].min() < 40)
+        and (last_5["rsi"].iloc[-1] > last_5["rsi"].iloc[0] + config.divergence_fallback_rsi_delta)
+        and (last_5["rsi"].min() < config.divergence_fallback_rsi_max)
     ):
         rsi_bullish = True
 
@@ -124,14 +157,14 @@ def detect_divergence(df: pd.DataFrame, lookback: int = 40) -> dict:
 
 
 def calculate_multi_timeframe_features(
-    df_daily: pd.DataFrame,
+    df_daily: pd.DataFrame, config: QuantConfig = DEFAULT_QUANT_CONFIG
 ) -> tuple[pd.DataFrame, dict]:
     """Perform multi-timeframe feature analysis across 1D, 1W, and 1M.
 
     Explicitly marks 1H as unavailable when daily EOD data is supplied.
     """
-    df_d = calculate_single_tf_indicators(df_daily)
-    div_d = detect_divergence(df_d)
+    df_d = calculate_single_tf_indicators(df_daily, config=config)
+    div_d = detect_divergence(df_d, lookback=config.divergence_lookback_1d, config=config)
 
     df_resample = df_d.copy()
     if not isinstance(df_resample.index, pd.DatetimeIndex):
@@ -173,11 +206,11 @@ def calculate_multi_timeframe_features(
             .dropna()
         )
 
-    df_w = calculate_single_tf_indicators(df_weekly)
-    div_w = detect_divergence(df_w, lookback=30)
+    df_w = calculate_single_tf_indicators(df_weekly, config=config)
+    div_w = detect_divergence(df_w, lookback=config.divergence_lookback_1w, config=config)
 
-    df_m = calculate_single_tf_indicators(df_monthly)
-    div_m = detect_divergence(df_m, lookback=24)
+    df_m = calculate_single_tf_indicators(df_monthly, config=config)
+    div_m = detect_divergence(df_m, lookback=config.divergence_lookback_1m, config=config)
 
     tf_summary = {
         "1h": {
@@ -220,6 +253,7 @@ def compute_market_breadth(
     | tuple[pd.DataFrame, ...],
     candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None,
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> FeatureResult:
     """Compute market breadth ratio across given stock datasets.
 
@@ -231,8 +265,10 @@ def compute_market_breadth(
         stock_data_map = input_data.stock_data_map
         candidate_symbols = input_data.candidate_symbols
         processed_symbols = input_data.processed_symbols
+        cfg = input_data.config
     else:
         stock_data_map = input_data
+        cfg = config
 
     bullish_count = 0
     valid_breadth_denom = 0
@@ -244,25 +280,27 @@ def compute_market_breadth(
     else:
         symbols_to_check = None
 
+    min_hist = cfg.ma_short_period
+
     if symbols_to_check is not None:
         processed_set = set(processed_symbols) if processed_symbols is not None else None
         for sym in symbols_to_check:
             if processed_set is not None and sym not in processed_set:
                 continue
             df_st = stock_data_map.get(sym) if isinstance(stock_data_map, Mapping) else None
-            if df_st is not None and not df_st.empty and len(df_st) >= 20:
+            if df_st is not None and not df_st.empty and len(df_st) >= min_hist:
                 valid_breadth_denom += 1
                 c = df_st["close"].iloc[-1]
-                ma20 = df_st["close"].tail(20).mean()
+                ma20 = df_st["close"].tail(min_hist).mean()
                 if c > ma20:
                     bullish_count += 1
     else:
         dfs = stock_data_map if isinstance(stock_data_map, (list, tuple)) else []
         for df_st in dfs:
-            if df_st is not None and not df_st.empty and len(df_st) >= 20:
+            if df_st is not None and not df_st.empty and len(df_st) >= min_hist:
                 valid_breadth_denom += 1
                 c = df_st["close"].iloc[-1]
-                ma20 = df_st["close"].tail(20).mean()
+                ma20 = df_st["close"].tail(min_hist).mean()
                 if c > ma20:
                     bullish_count += 1
 

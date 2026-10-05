@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import RegimeInput, RegimeResult
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def lib_detect_market_regime(
     df_vnindex: pd.DataFrame | None = None,
     df_vn30: pd.DataFrame | None = None,
     breadth_ratio: float | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> dict:
     """Evaluate multi-factor Vietnam market regime.
 
@@ -50,8 +52,8 @@ def lib_detect_market_regime(
 
     default_defensive = {
         "regime": "DEFENSIVE",
-        "regime_score": 50.0,
-        "confidence": 0.40,
+        "regime_score": config.regime_base_score,
+        "confidence": config.regime_confidence_insufficient,
         "metrics": {
             "vnindex_value": None,
             "vnindex_change_pct": None,
@@ -65,7 +67,7 @@ def lib_detect_market_regime(
     if (
         df_vnindex is None
         or df_vnindex.empty
-        or len(df_vnindex) < 20
+        or len(df_vnindex) < config.regime_min_history
         or "close" not in df_vnindex.columns
     ):
         return default_defensive
@@ -84,30 +86,38 @@ def lib_detect_market_regime(
     prev_vn = float(close_vn.iloc[-2]) if len(close_vn) >= 2 else latest_vn
     vn_change_pct = float((latest_vn - prev_vn) / prev_vn * 100) if prev_vn > 0 else 0.0
 
-    ma20_vn = float(close_vn.tail(20).mean())
-    ma50_vn = float(close_vn.tail(50).mean()) if len(close_vn) >= 50 else ma20_vn
+    ma20_vn = float(close_vn.tail(config.ma_short_period).mean())
+    ma50_vn = (
+        float(close_vn.tail(config.ma_long_period).mean())
+        if len(close_vn) >= config.ma_long_period
+        else ma20_vn
+    )
 
     ret_20d = (
-        float((latest_vn - close_vn.iloc[-20]) / close_vn.iloc[-20] * 100)
-        if len(close_vn) >= 20
+        float(
+            (latest_vn - close_vn.iloc[-config.ma_short_period])
+            / close_vn.iloc[-config.ma_short_period]
+            * 100
+        )
+        if len(close_vn) >= config.ma_short_period
         else 0.0
     )
 
     vol_ratio = None
-    if "volume" in df_vnindex.columns and len(df_vnindex) >= 20:
+    if "volume" in df_vnindex.columns and len(df_vnindex) >= config.ma_short_period:
         vol_series = pd.to_numeric(df_vnindex["volume"], errors="coerce")
         if (
             not vol_series.isna().any()
             and not np.isinf(vol_series.to_numpy()).any()
             and (vol_series >= 0).all()
         ):
-            mean_20_vol = float(vol_series.tail(20).mean())
+            mean_20_vol = float(vol_series.tail(config.ma_short_period).mean())
             if mean_20_vol > 0:
                 latest_vol = float(vol_series.iloc[-1])
                 vol_ratio = round(latest_vol / mean_20_vol, 2)
 
     # Volatility 20d std of daily return
-    returns_20d = close_vn.pct_change().tail(20)
+    returns_20d = close_vn.pct_change().tail(config.ma_short_period)
     vn_volatility = float(returns_20d.std() * (252**0.5)) if len(returns_20d) >= 5 else 0.15
 
     # VN30 metrics
@@ -129,57 +139,64 @@ def lib_detect_market_regime(
             )
 
     # Multi-factor score calculation (0 - 100)
-    score = 50.0
+    score = config.regime_base_score
 
     # Trend component (+/- 25)
     if latest_vn > ma20_vn:
-        score += 15.0
+        score += config.regime_trend_ma20_weight
     else:
-        score -= 15.0
+        score -= config.regime_trend_ma20_weight
 
     if latest_vn > ma50_vn:
-        score += 10.0
+        score += config.regime_trend_ma50_weight
     else:
-        score -= 10.0
+        score -= config.regime_trend_ma50_weight
 
     # Momentum component (+/- 15)
-    if ret_20d > 5.0:
-        score += 15.0
-    elif ret_20d > 1.0:
-        score += 8.0
-    elif ret_20d < -5.0:
-        score -= 15.0
-    elif ret_20d < -1.0:
-        score -= 8.0
+    if ret_20d > config.regime_ret_20d_strong_bull:
+        score += config.regime_ret_20d_strong_bull_score
+    elif ret_20d > config.regime_ret_20d_bull:
+        score += config.regime_ret_20d_bull_score
+    elif ret_20d < config.regime_ret_20d_strong_bear:
+        score += config.regime_ret_20d_strong_bear_score
+    elif ret_20d < config.regime_ret_20d_bear:
+        score += config.regime_ret_20d_bear_score
 
     # Market breadth (+/- 10)
     if safe_breadth is not None:
-        if safe_breadth >= 0.65:
-            score += 10.0
-        elif safe_breadth >= 0.50:
-            score += 5.0
-        elif safe_breadth <= 0.35:
-            score -= 10.0
+        if safe_breadth >= config.regime_breadth_high:
+            score += config.regime_breadth_high_score
+        elif safe_breadth >= config.regime_breadth_med:
+            score += config.regime_breadth_med_score
+        elif safe_breadth <= config.regime_breadth_low:
+            score += config.regime_breadth_low_score
 
     # Volatility / Panic penalty (-15)
-    if vn_volatility > 0.35 or vn_change_pct < -3.0:
-        score -= 15.0
+    if (
+        vn_volatility > config.regime_panic_volatility
+        or vn_change_pct < config.regime_panic_daily_drop_pct
+    ):
+        score += config.regime_panic_penalty
 
     score = max(0.0, min(100.0, round(score, 1)))
 
     # Classification
-    if score >= 80.0:
+    if score >= config.regime_threshold_strong_bull:
         regime = "STRONG_BULL"
-    elif score >= 60.0:
+    elif score >= config.regime_threshold_bull:
         regime = "BULL"
-    elif score >= 40.0:
+    elif score >= config.regime_threshold_defensive:
         regime = "DEFENSIVE"
-    elif score >= 20.0:
+    elif score >= config.regime_threshold_bear:
         regime = "BEAR"
     else:
         regime = "PANIC"
 
-    confidence = 0.85 if len(df_vnindex) >= 50 else 0.60
+    confidence = (
+        config.regime_confidence_sufficient
+        if len(df_vnindex) >= config.regime_confidence_history_threshold
+        else config.regime_confidence_partial
+    )
 
     return {
         "regime": regime,
@@ -201,6 +218,7 @@ def detect_market_regime(
     df_vn30: pd.DataFrame | None = None,
     breadth_ratio: float | None = None,
     detector: Callable[..., dict[str, Any]] | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> RegimeResult:
     """Detect market regime given index datasets and market breadth ratio.
 
@@ -211,17 +229,26 @@ def detect_market_regime(
         df_vnindex = input_data.df_vnindex
         df_vn30_val = input_data.df_vn30
         breadth_val = input_data.breadth_ratio
+        cfg = input_data.config
     else:
         df_vnindex = input_data
         df_vn30_val = df_vn30
         breadth_val = breadth_ratio
+        cfg = config
 
-    detect_fn = detector or lib_detect_market_regime
-    regime_dict = detect_fn(
-        df_vnindex=df_vnindex,
-        df_vn30=df_vn30_val,
-        breadth_ratio=breadth_val,
-    )
+    if detector is not None:
+        regime_dict = detector(
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30_val,
+            breadth_ratio=breadth_val,
+        )
+    else:
+        regime_dict = lib_detect_market_regime(
+            df_vnindex=df_vnindex,
+            df_vn30=df_vn30_val,
+            breadth_ratio=breadth_val,
+            config=cfg,
+        )
     return RegimeResult(market_regime=regime_dict)
 
 

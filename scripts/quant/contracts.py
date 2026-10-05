@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
+
 
 @dataclass(frozen=True)
 class CandidateSpec:
@@ -36,6 +38,7 @@ class FeatureInput:
     stock_data_map: Mapping[str, pd.DataFrame] | list[pd.DataFrame] | tuple[pd.DataFrame, ...]
     candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -52,6 +55,7 @@ class RegimeInput:
     df_vnindex: pd.DataFrame | None = None
     df_vn30: pd.DataFrame | None = None
     breadth_ratio: float | None = None
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -71,6 +75,7 @@ class MarketAnalysisInput:
     candidate_symbols: tuple[str, ...] | list[str] | set[str] | None = None
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None
     vn30_sufficient: bool = True
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -86,6 +91,7 @@ class SignalInput:
     df_vnindex: pd.DataFrame | None = None
     data_as_of: str | None = None
     data_source: str | None = None
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -126,6 +132,7 @@ class RiskInput:
     market_regime: dict[str, Any]
     signal_result: SignalResult
     action: str
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,7 @@ class RiskTradePlanInput:
 
     scanned_recs: list[Any]
     market_regime: str | dict[str, Any] | None = None
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -160,6 +168,7 @@ class RecommendationInput:
     data_source: str | None = None
     data_sources: Mapping[str, str] | None = None
     processed_symbols: set[str] | tuple[str, ...] | list[str] | None = None
+    config: QuantConfig = DEFAULT_QUANT_CONFIG
 
 
 @dataclass(frozen=True)
