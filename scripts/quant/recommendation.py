@@ -6,10 +6,6 @@ from typing import Any
 import pandas as pd
 
 from scripts.domain import Recommendation, RiskAssessment, TradePlan
-from scripts.quant.signal import (
-    SIGNAL_MODEL_VERSION,
-    classify_action,
-)
 from scripts.lib.vietnam_market import (
     extract_latest_trading_date,
     validate_ohlcv_data,
@@ -22,7 +18,11 @@ from scripts.quant.contracts import (
     SignalInput,
 )
 from scripts.quant.risk import compute_stock_risk_and_trade_plan
-from scripts.quant.signal import compute_signal
+from scripts.quant.signal import (
+    SIGNAL_MODEL_VERSION,
+    classify_action,
+    compute_signal,
+)
 
 
 def generate_single_recommendation(
