@@ -13,13 +13,13 @@ from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
-from scripts.domain.universe import Universe
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.domain.universe import Universe
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,
