@@ -471,7 +471,12 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
 
     def test_universe_construction_and_symbol_normalization(self):
         candidates = [
-            {"symbol": " fpt ", "companyName": " FPT Corp ", "sector": " Tech ", "exchange": " hose "},
+            {
+                "symbol": " fpt ",
+                "companyName": " FPT Corp ",
+                "sector": " Tech ",
+                "exchange": " hose ",
+            },
             {"symbol": "vnm", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
         ]
         u = Universe.from_candidates(candidates, universe_type="VN30_MIDCAP")
@@ -500,7 +505,9 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         self.assertEqual(u.expected_symbols, frozenset({"VNINDEX", "VN30"}))
 
         # Custom benchmarks
-        u2 = Universe.from_candidates([], universe_type="CUSTOM", benchmarks=("vnindex", "vn30", "hnxindex"))
+        u2 = Universe.from_candidates(
+            [], universe_type="CUSTOM", benchmarks=("vnindex", "vn30", "hnxindex")
+        )
         self.assertEqual(u2.benchmarks, ("VNINDEX", "VN30", "HNXINDEX"))
         self.assertEqual(u2.expected_symbols, frozenset({"VNINDEX", "VN30", "HNXINDEX"}))
 
@@ -508,8 +515,18 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         u = Universe.from_candidates(
             [
                 {"symbol": "FPT", "companyName": "FPT", "sector": "Tech", "exchange": "HOSE"},
-                {"symbol": "VNM", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
-                {"symbol": "VIC", "companyName": "Vingroup", "sector": "Real Estate", "exchange": "HOSE"},
+                {
+                    "symbol": "VNM",
+                    "companyName": "Vinamilk",
+                    "sector": "Consumer",
+                    "exchange": "HOSE",
+                },
+                {
+                    "symbol": "VIC",
+                    "companyName": "Vingroup",
+                    "sector": "Real Estate",
+                    "exchange": "HOSE",
+                },
             ]
         )
         # expected_symbols = {"VNINDEX", "VN30", "FPT", "VNM", "VIC"} (5 total)
@@ -522,8 +539,18 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
             failed_symbols=(),
             missing_symbols=("VIC",),
             exclusions_map={
-                "VNM": {"symbol": "VNM", "stage": "STOCK_FETCH", "status": "INSUFFICIENT", "reason": "Low history"},
-                "VIC": {"symbol": "VIC", "stage": "UNIVERSE_DISCOVERY", "status": "MISSING", "reason": "Missing"},
+                "VNM": {
+                    "symbol": "VNM",
+                    "stage": "STOCK_FETCH",
+                    "status": "INSUFFICIENT",
+                    "reason": "Low history",
+                },
+                "VIC": {
+                    "symbol": "VIC",
+                    "stage": "UNIVERSE_DISCOVERY",
+                    "status": "MISSING",
+                    "reason": "Missing",
+                },
             },
         )
 
