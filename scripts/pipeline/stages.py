@@ -14,6 +14,15 @@ from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
+from scripts.engine import (
+    CandidateSpec,
+    MarketAnalysisEngine,
+    MarketAnalysisInput,
+    RiskTradePlanEngine,
+    RiskTradePlanInput,
+    SignalRecommendationEngine,
+    SignalRecommendationInput,
+)
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import generate_recommendation
@@ -683,65 +692,42 @@ class MarketAnalysisStage(PipelineStage):
             raise ValueError("MarketAnalysisStage requires context.universe to be set")
 
         if context.is_historical:
-            with context.tracker.measure_stage("market_calculation"):
-                bullish_count = 0
-                valid_breadth_denom = 0
-                for df_st, _, _ in context.stock_data_map.values():
-                    if df_st is not None and not df_st.empty and len(df_st) >= 20:
-                        valid_breadth_denom += 1
-                        c = df_st["close"].iloc[-1]
-                        ma20 = df_st["close"].tail(20).mean()
-                        if c > ma20:
-                            bullish_count += 1
-
-                context.breadth_ratio = (
-                    round(bullish_count / valid_breadth_denom, 2)
-                    if valid_breadth_denom > 0
-                    else 0.50
+            stock_data_map = {
+                s: (df_st if df_st is not None else pd.DataFrame())
+                for s, (df_st, _, _) in context.stock_data_map.items()
+            }
+            cand_syms = None
+            processed_syms = None
+        else:
+            stock_data_map = {
+                cand.symbol: (
+                    context.canonical_stock_map[cand.symbol].to_df()
+                    if cand.symbol in context.canonical_stock_map
+                    and context.canonical_stock_map[cand.symbol].data_quality
+                    and context.canonical_stock_map[cand.symbol].data_quality.status == "SUFFICIENT"
+                    else pd.DataFrame()
                 )
-
-            with context.tracker.measure_stage("regime_calculation"):
-                context.final_market_regime = detect_market_regime(
-                    df_vnindex=context.df_vnindex_clean,
-                    df_vn30=context.df_vn30_clean
-                    if context.vn30_val.get("status") != "INSUFFICIENT"
-                    else None,
-                    breadth_ratio=context.breadth_ratio,
-                )
-            return
+                for cand in context.universe.candidates
+            }
+            cand_syms = [cand.symbol for cand in context.universe.candidates]
+            processed_syms = context.processed_symbols
 
         with context.tracker.measure_stage("market_calculation"):
-            bullish_count = 0
-            valid_breadth_denom = 0
-            for cand in context.universe.candidates:
-                s_name = cand.symbol
-                if s_name in context.processed_symbols:
-                    cmd_st = context.canonical_stock_map.get(s_name)
-                    if (
-                        cmd_st
-                        and cmd_st.data_quality
-                        and cmd_st.data_quality.status == "SUFFICIENT"
-                    ):
-                        df_c_st = cmd_st.to_df()
-                        if not df_c_st.empty and len(df_c_st) >= 20:
-                            valid_breadth_denom += 1
-                            c = df_c_st["close"].iloc[-1]
-                            ma20 = df_c_st["close"].tail(20).mean()
-                            if c > ma20:
-                                bullish_count += 1
-
-            context.breadth_ratio = (
-                round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
+            input_data = MarketAnalysisInput(
+                stock_data_map=stock_data_map,
+                df_vnindex=context.df_vnindex_clean,
+                df_vn30=context.df_vn30_clean,
+                candidate_symbols=cand_syms,
+                processed_symbols=processed_syms,
+                vn30_sufficient=(context.vn30_val.get("status") != "INSUFFICIENT"),
             )
+            analysis_res = MarketAnalysisEngine.analyze(
+                input_data, regime_detector=detect_market_regime
+            )
+            context.breadth_ratio = analysis_res.breadth_ratio
 
         with context.tracker.measure_stage("regime_calculation"):
-            context.final_market_regime = detect_market_regime(
-                df_vnindex=context.df_vnindex_clean,
-                df_vn30=context.df_vn30_clean
-                if context.vn30_val.get("status") != "INSUFFICIENT"
-                else None,
-                breadth_ratio=context.breadth_ratio,
-            )
+            context.final_market_regime = analysis_res.market_regime
 
 
 class SignalRecommendationGenerationStage(PipelineStage):
@@ -757,68 +743,59 @@ class SignalRecommendationGenerationStage(PipelineStage):
                 "SignalRecommendationGenerationStage requires context.universe to be set"
             )
 
+        candidates_spec = [
+            CandidateSpec(
+                symbol=cand.symbol,
+                company_name=cand.company_name,
+                sector=cand.sector,
+                exchange=cand.exchange,
+            )
+            for cand in context.universe.candidates
+        ]
+
         if context.is_historical:
-            with context.tracker.measure_stage("recommendation_calculation"):
-                scanned_recs = []
-                for cand in context.universe.candidates:
-                    sym = cand.symbol
-                    comp = cand.company_name
-                    sec = cand.sector
-                    ex = cand.exchange
-
-                    df_stock_clean = context.stock_data_map.get(sym, (pd.DataFrame(), None, None))[
-                        0
-                    ]
-
-                    rec = generate_recommendation(
-                        symbol=sym,
-                        company_name=comp,
-                        sector=sec,
-                        exchange=ex,
-                        df_stock=df_stock_clean,
-                        market_regime_info=context.final_market_regime,
-                        df_vnindex=context.df_vnindex_clean,
-                        data_as_of=context.data_as_of,
-                        data_source=context.data_source,
-                    )
-                    scanned_recs.append(rec)
-                context.scanned_recs = scanned_recs
-            return
+            stock_data_map = {
+                s: (df_st if df_st is not None else pd.DataFrame())
+                for s, (df_st, _, _) in context.stock_data_map.items()
+            }
+            data_sources = None
+            processed_syms = None
+        else:
+            stock_data_map = {
+                cand.symbol: (
+                    context.canonical_stock_map[cand.symbol].to_df()
+                    if cand.symbol in context.canonical_stock_map
+                    and context.canonical_stock_map[cand.symbol].data_quality
+                    and context.canonical_stock_map[cand.symbol].data_quality.status == "SUFFICIENT"
+                    else pd.DataFrame()
+                )
+                for cand in context.universe.candidates
+            }
+            data_sources = {
+                cand.symbol: (
+                    context.canonical_stock_map[cand.symbol].source_tag
+                    if cand.symbol in context.canonical_stock_map
+                    else "PROVIDER_FAILURE"
+                )
+                for cand in context.universe.candidates
+            }
+            processed_syms = context.processed_symbols
 
         with context.tracker.measure_stage("recommendation_calculation"):
-            scanned_recs = []
-            for cand in context.universe.candidates:
-                sym = cand.symbol
-                comp = cand.company_name
-                sec = cand.sector
-                ex = cand.exchange
-
-                cmd_st = context.canonical_stock_map.get(sym)
-                tag = cmd_st.source_tag if cmd_st else "PROVIDER_FAILURE"
-
-                if (
-                    sym in context.processed_symbols
-                    and cmd_st
-                    and cmd_st.data_quality
-                    and cmd_st.data_quality.status == "SUFFICIENT"
-                ):
-                    df_stock_input = cmd_st.to_df()
-                else:
-                    df_stock_input = pd.DataFrame()
-
-                rec = generate_recommendation(
-                    symbol=sym,
-                    company_name=comp,
-                    sector=sec,
-                    exchange=ex,
-                    df_stock=df_stock_input,
-                    market_regime_info=context.final_market_regime,
-                    df_vnindex=context.df_vnindex_clean,
-                    data_as_of=context.data_as_of,
-                    data_source=tag if not df_stock_input.empty else None,
-                )
-                scanned_recs.append(rec)
-            context.scanned_recs = scanned_recs
+            input_data = SignalRecommendationInput(
+                candidates=candidates_spec,
+                stock_data_map=stock_data_map,
+                market_regime=context.final_market_regime,
+                df_vnindex=context.df_vnindex_clean,
+                data_as_of=context.data_as_of,
+                data_source=context.data_source,
+                data_sources=data_sources,
+                processed_symbols=processed_syms,
+            )
+            res = SignalRecommendationEngine.generate_recommendations(
+                input_data, recommendation_generator=generate_recommendation
+            )
+            context.scanned_recs = res.recommendations
 
 
 class RiskTradePlanStage(PipelineStage):
@@ -830,9 +807,14 @@ class RiskTradePlanStage(PipelineStage):
 
     def execute(self, context: PipelineContext) -> None:
         with context.tracker.measure_stage("risk_calculation"):
-            context.scanned_recs = normalize_universe_liquidity_scores(
-                context.scanned_recs, market_regime=context.final_market_regime
+            input_data = RiskTradePlanInput(
+                scanned_recs=context.scanned_recs,
+                market_regime=context.final_market_regime,
             )
+            res = RiskTradePlanEngine.process_risk(
+                input_data, risk_normalizer=normalize_universe_liquidity_scores
+            )
+            context.scanned_recs = res.recommendations
 
         context.build_payloads()
 
