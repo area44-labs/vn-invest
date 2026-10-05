@@ -4,7 +4,9 @@ Pure quantitative calculation engine for generating universe stock signals and r
 Does not perform I/O, network requests, or database state updates.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 import pandas as pd
 
 from scripts.engine.contracts import (
@@ -38,9 +40,7 @@ class SignalRecommendationEngine:
 
             df_stock_raw = input_data.stock_data_map.get(sym)
 
-            if processed_set is not None and sym not in processed_set:
-                df_stock_input = pd.DataFrame()
-            elif df_stock_raw is None:
+            if processed_set is not None and sym not in processed_set or df_stock_raw is None:
                 df_stock_input = pd.DataFrame()
             else:
                 df_stock_input = df_stock_raw

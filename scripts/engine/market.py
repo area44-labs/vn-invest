@@ -4,7 +4,9 @@ Pure quantitative calculation engine for market breadth ratio and multi-factor m
 Does not perform I/O, network requests, or database state updates.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 import pandas as pd
 
 from scripts.engine.contracts import MarketAnalysisInput, MarketAnalysisResult

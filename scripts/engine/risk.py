@@ -4,7 +4,9 @@ Pure quantitative calculation engine for normalizing risk, liquidity rankings, a
 Does not perform I/O, network requests, or database state updates.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 from scripts.engine.contracts import RiskTradePlanInput, RiskTradePlanResult
 from scripts.lib.risk import normalize_universe_liquidity_scores
 

@@ -1,6 +1,7 @@
 """Unit, boundary, and regression tests for extracted quantitative engines (#174)."""
 
 import unittest
+
 import pandas as pd
 
 from scripts.engine import (
