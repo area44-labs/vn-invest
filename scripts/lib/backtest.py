@@ -74,9 +74,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
+)
+from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
 from scripts.quant.features import compute_market_breadth
 
 DEFAULT_HORIZONS = [5, 10, 20]

@@ -465,7 +465,8 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""
-        from scripts.lib.backtest import get_as_of_dataset, run_backtest_for_symbol
+        from scripts.lib.backtest import run_backtest_for_symbol
+        from scripts.lib.backtest import get_as_of_dataset
 
         # 1. Backtest call at as_of_date
         results = run_backtest_for_symbol(
@@ -522,7 +523,7 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
             df_vn30=self.df_vn30,
         )
 
-        # Run 2: mutate future stock and index prices (> as_of_date)
+        # Run 2: mutate future stock, VNINDEX, and VN30 data (> as_of_date)
         df_stock_mutated = self.df_stock.copy()
         df_vnindex_mutated = self.df_vnindex.copy()
         df_vn30_mutated = self.df_vn30.copy()
@@ -534,6 +535,24 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
         future_mask_vn = df_vnindex_mutated["date"] > self.as_of_date
         for col in ["open", "high", "low", "close"]:
             df_vnindex_mutated.loc[future_mask_vn, col] *= 0.1
+
+        future_mask_vn30 = df_vn30_mutated["date"] > self.as_of_date
+        for col in ["open", "high", "low", "close"]:
+            df_vn30_mutated.loc[future_mask_vn30, col] *= 0.2
+
+        # Explicitly verify future VN30 data is mutated
+        self.assertFalse(
+            df_vn30_mutated.loc[future_mask_vn30, "close"].equals(
+                self.df_vn30.loc[future_mask_vn30, "close"]
+            )
+        )
+        # Explicitly verify historical data <= as_of_date is identical
+        pit_mask_vn30 = df_vn30_mutated["date"] <= self.as_of_date
+        self.assertTrue(
+            df_vn30_mutated.loc[pit_mask_vn30, "close"].equals(
+                self.df_vn30.loc[pit_mask_vn30, "close"]
+            )
+        )
 
         res2 = run_backtest_for_symbol(
             symbol="VNM",
