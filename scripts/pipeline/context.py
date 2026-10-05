@@ -168,9 +168,11 @@ class PipelineContext:
     def update_universe_audit(self) -> dict[str, Any]:
         """Construct UniverseScanResult and assign universe_audit dictionary."""
         current_u = self.universe
-        if current_u is None:
+        if not isinstance(current_u, Universe):
             u_type = "HISTORICAL_SNAPSHOT" if self.is_historical else "CUSTOM"
             c_meta = self.candidate_metadata or self.candidate_stocks or []
+            if not isinstance(c_meta, (list, tuple, set)):
+                c_meta = []
             current_u = Universe.from_candidates(candidates=c_meta, universe_type=u_type)
             self.universe = current_u
             self.expected_symbols = set(current_u.expected_symbols)

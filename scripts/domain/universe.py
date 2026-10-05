@@ -221,13 +221,9 @@ class UniverseScanResult:
             if isinstance(self.universe, dict):
                 object.__setattr__(self, "universe", Universe.from_dict(self.universe))
             else:
-                cands = getattr(self.universe, "candidates", None)
-                if callable(cands):
-                    cands = cands()
-                if not isinstance(cands, (list, tuple, set)):
-                    cands = []
-                u_obj = Universe.from_candidates(candidates=cands)
-                object.__setattr__(self, "universe", u_obj)
+                raise TypeError(
+                    f"Field 'universe' must be a Universe or dict, got {type(self.universe).__name__}"
+                )
 
         def _clean_syms(syms: Any) -> tuple[str, ...]:
             if isinstance(syms, (list, tuple, set, frozenset)):

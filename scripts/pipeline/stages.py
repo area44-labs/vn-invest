@@ -19,6 +19,7 @@ from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.domain.universe import Universe
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,
@@ -56,35 +57,21 @@ class DataAcquisitionStage(PipelineStage):
 
         VnstockMarketProvider.reset_global_call_history()
         context.provider = UniverseProvider()
-        context.raw_candidate_stocks = context.provider.candidates
-        context.universe_info = context.provider.get_info()
+        u = context.provider.get_universe() if hasattr(context.provider, "get_universe") else None
+        if isinstance(u, Universe):
+            universe = u
+        else:
+            cands = context.provider.candidates if hasattr(context.provider, "candidates") else []
+            if not isinstance(cands, (list, tuple, set)):
+                cands = []
+            universe = Universe.from_candidates(candidates=cands)
 
-        if not context.raw_candidate_stocks:
+        if universe.universe_size == 0:
             raise RuntimeError(
                 "Candidate universe is empty. Cannot generate report on empty universe."
             )
 
-        unique_candidate_stocks = []
-        seen_candidate_syms = set()
-        for item in context.raw_candidate_stocks:
-            if isinstance(item, dict) and item.get("symbol"):
-                sym_u = str(item["symbol"]).strip().upper()
-                if sym_u and sym_u not in seen_candidate_syms:
-                    seen_candidate_syms.add(sym_u)
-                    item_copy = dict(item)
-                    item_copy["symbol"] = sym_u
-                    unique_candidate_stocks.append(item_copy)
-
-        context.candidate_stocks = unique_candidate_stocks
-        if not context.candidate_stocks:
-            raise RuntimeError("Candidate universe contains no valid symbols.")
-
-        if isinstance(context.universe_info, dict) and "universe_size" in context.universe_info:
-            context.universe_info["universe_size"] = len(context.candidate_stocks)
-
-        context.expected_symbols = {"VNINDEX", "VN30"} | {
-            item["symbol"] for item in context.candidate_stocks
-        }
+        context.set_universe(universe)
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
         acquirer = MarketDataAcquirer(
@@ -460,6 +447,14 @@ class DataValidationStage(PipelineStage):
         context.data_as_of = canonical_as_of
         context.source_date = canonical_as_of
 
+        if context.universe is None and context.candidate_metadata:
+            u_hist = Universe.from_candidates(
+                candidates=context.candidate_metadata,
+                universe_type="HISTORICAL_SNAPSHOT",
+                benchmarks=("VNINDEX", "VN30"),
+            )
+            context.set_universe(u_hist)
+
         with context.tracker.measure_stage("benchmark_fetch"):
             context.tracker.record_request("VNINDEX")
             df_vnindex_raw = (
@@ -571,10 +566,13 @@ class UniverseValidationStage(PipelineStage):
     def execute(self, context: PipelineContext) -> None:
         if context.is_historical:
             canonical_as_of = context.data_as_of
-            candidate_metadata = context.candidate_metadata or []
-            context.expected_symbols = {"VNINDEX", "VN30"} | {
-                item["symbol"].upper() for item in candidate_metadata
-            }
+            if context.universe is None:
+                u_hist = Universe.from_candidates(
+                    candidates=context.candidate_metadata or [],
+                    universe_type="HISTORICAL_SNAPSHOT",
+                    benchmarks=("VNINDEX", "VN30"),
+                )
+                context.set_universe(u_hist)
 
             if (
                 context.df_vnindex_clean is not None
@@ -785,7 +783,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
         if context.is_historical:
             with context.tracker.measure_stage("recommendation_calculation"):
                 scanned_recs = []
-                for item in context.candidate_metadata or []:
+                for item in context.candidate_stocks:
                     sym = item["symbol"].upper()
                     comp = item["companyName"]
                     sec = item["sector"]
