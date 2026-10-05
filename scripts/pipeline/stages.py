@@ -55,15 +55,8 @@ class DataAcquisitionStage(PipelineStage):
             return
 
         VnstockMarketProvider.reset_global_call_history()
-        if context.universe is None:
-            context.provider = UniverseProvider()
-            universe = context.provider.get_universe()
-            if universe is None or universe.universe_size == 0:
-                raise RuntimeError(
-                    "Candidate universe is empty or missing. Cannot generate report."
-                )
-
-            context.set_universe(universe)
+        if context.universe is None or context.universe_scan_result is None:
+            raise ValueError("DataAcquisitionStage requires context.universe to be set")
 
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
@@ -1046,5 +1039,6 @@ __all__ = [
     "PipelineStage",
     "RiskTradePlanStage",
     "SignalRecommendationGenerationStage",
+    "UniverseProvider",
     "UniverseValidationStage",
 ]

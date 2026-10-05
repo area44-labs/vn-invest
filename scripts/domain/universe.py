@@ -216,12 +216,9 @@ class UniverseScanResult:
 
     def __post_init__(self) -> None:
         if not isinstance(self.universe, Universe):
-            if isinstance(self.universe, dict):
-                object.__setattr__(self, "universe", Universe.from_dict(self.universe))
-            else:
-                raise TypeError(
-                    f"Field 'universe' must be a Universe or dict, got {type(self.universe).__name__}"
-                )
+            raise TypeError(
+                f"Field 'universe' must be a Universe instance, got {type(self.universe).__name__}"
+            )
 
         def _clean_syms(syms: Any) -> tuple[str, ...]:
             if isinstance(syms, (list, tuple, set, frozenset)):
@@ -308,9 +305,35 @@ class UniverseScanResult:
             and not self.missing_symbols
         )
 
+    @property
+    def computed_failed_stage(self) -> str | None:
+        """Computes the pipeline failure stage based on scan exclusions and failure sets."""
+        s_failed = set(self.failed_symbols)
+        if "VNINDEX" in s_failed or "VN30" in s_failed:
+            return "BENCHMARK_FETCH"
+        if any(e.get("stage") == "TEMPORAL_VALIDATION" for e in self.exclusions_map.values()):
+            return "TEMPORAL_VALIDATION"
+        if any(e.get("stage") == "STOCK_FETCH" for e in self.exclusions_map.values()):
+            return "STOCK_FETCH"
+        if self.missing_symbols:
+            return "UNIVERSE_DISCOVERY"
+        return self.failed_stage
+
+    def computed_pipeline_status(self, update_data: bool = False) -> str:
+        """Computes pipeline overall audit status (SUCCESS, DEGRADED, FAILED)."""
+        st = self.computed_failed_stage
+        if st is not None:
+            return "FAILED" if update_data else "DEGRADED"
+        return "SUCCESS"
+
+    @property
+    def diagnostics(self) -> list[dict[str, Any]]:
+        """Returns ordered diagnostics list from exclusions map."""
+        return [self.exclusions_map[s] for s in sorted(self.exclusions_map.keys())]
+
     def with_updates(
         self,
-        universe: Universe | dict[str, Any] | None = None,
+        universe: Universe | None = None,
         processed_symbols: Any = None,
         invalid_symbols: Any = None,
         insufficient_symbols: Any = None,
@@ -322,7 +345,7 @@ class UniverseScanResult:
         data_as_of: str | None = None,
         source_date: str | None = None,
         data_source: str | None = None,
-    ) -> UniverseScanResult:
+    ) -> Self:
         """Return a new UniverseScanResult instance with updated scan fields."""
         return UniverseScanResult(
             universe=self.universe if universe is None else universe,
@@ -346,20 +369,45 @@ class UniverseScanResult:
     def to_audit_dict(
         self, update_data: bool = False, performance_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Convert scan result to production 'universe_audit' dictionary payload."""
-        from scripts.pipeline.audit import build_universe_audit
+        """Convert scan result directly to production 'universe_audit' dictionary payload."""
+        from scripts.lib.monitoring import validate_performance_payload
 
-        return build_universe_audit(
-            expected_symbols=self.expected_symbols,
-            processed_symbols=self.processed_symbols,
-            invalid_symbols=self.invalid_symbols,
-            insufficient_history_symbols=self.insufficient_symbols,
-            failed_symbols=self.failed_symbols,
-            missing_symbols=self.missing_symbols,
-            exclusions_map=self.exclusions_map,
-            update_data=update_data,
-            performance_data=performance_data,
-        )
+        failed_stage = self.computed_failed_stage
+        pipeline_status = self.computed_pipeline_status(update_data=update_data)
+        diagnostics_list = self.diagnostics
+
+        universe_summary = {
+            "status": pipeline_status,
+            "failed_stage": failed_stage,
+            "expected_count": self.expected_count,
+            "processed_count": self.processed_count,
+            "invalid_count": self.invalid_count,
+            "insufficient_history_count": self.insufficient_count,
+            "failed_count": self.failed_count,
+            "missing_count": self.missing_count,
+            "diagnostic_count": len(diagnostics_list),
+        }
+
+        audit = {
+            "status": pipeline_status,
+            "failed_stage": failed_stage,
+            "expected_symbols": sorted(self.expected_symbols),
+            "processed_symbols": sorted(self.processed_symbols),
+            "invalid_symbols": sorted(self.invalid_symbols),
+            "insufficient_history_symbols": sorted(self.insufficient_symbols),
+            "failed_symbols": sorted(self.failed_symbols),
+            "missing_symbols": sorted(self.missing_symbols),
+            "counts": universe_summary,
+            "summary": universe_summary,
+            "exclusions": diagnostics_list,
+            "diagnostics": diagnostics_list,
+        }
+
+        if performance_data is not None:
+            validate_performance_payload(performance_data)
+            audit["performance"] = performance_data
+
+        return audit
 
     def to_dict(self) -> dict[str, Any]:
         """Convert UniverseScanResult to lossless dictionary representation."""
@@ -398,7 +446,9 @@ class UniverseScanResult:
         if not isinstance(data, dict):
             raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
         u_raw = data.get("universe") or {}
-        u_obj = Universe.from_dict(u_raw) if isinstance(u_raw, dict) else u_raw
+        if not isinstance(u_raw, dict):
+            raise TypeError(f"Universe data in dict must be a dict, got {type(u_raw).__name__}")
+        u_obj = Universe.from_dict(u_raw)
         return cls(
             universe=u_obj,
             processed_symbols=tuple(data.get("processed_symbols") or ()),

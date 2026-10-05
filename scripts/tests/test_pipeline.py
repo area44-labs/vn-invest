@@ -184,6 +184,14 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
     def test_pipeline_context_build_payloads_helper(self):
         """Verify build_payloads constructs recommendations, market, and history payloads."""
         ctx = PipelineContext(reference_date="2026-09-01")
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
         ctx.data_as_of = "2026-09-01"
         ctx.data_source = "REAL_DATA"
         ctx.final_market_regime = {"regime": "STRONG_BULL"}
@@ -352,7 +360,7 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as tmpdir,
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
@@ -431,7 +439,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
 
     def test_empty_candidate_universe_raises_runtime_error(self):
         """Verify empty candidate universe halts data acquisition with RuntimeError."""
-        with patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls:
+        with patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls:
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
                 [], universe_type="EMPTY"
@@ -447,7 +455,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
         empty_df = pd.DataFrame()
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
         ):
             mock_provider = MagicMock()

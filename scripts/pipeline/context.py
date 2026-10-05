@@ -379,6 +379,9 @@ class PipelineContext:
 
     def build_payloads(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         """Assemble recommendations, market, and history JSON payloads from context state."""
+        if not self._universe:
+            raise ValueError("build_payloads requires context.universe to be set")
+
         self.scanned_recs_dicts = [
             r.to_dict() if hasattr(r, "to_dict") else r for r in self.scanned_recs
         ]
@@ -398,15 +401,7 @@ class PipelineContext:
             "avoid_count": avoid_cnt,
         }
 
-        if self.universe:
-            u_info = self.universe.to_info_dict()
-        elif self.is_historical:
-            u_info = {
-                "universe_type": "HISTORICAL_SNAPSHOT",
-                "universe_size": len(self.candidate_metadata or []),
-            }
-        else:
-            u_info = self.universe_info
+        u_info = self._universe.to_info_dict()
 
         self.recommendations_payload = {
             "schema_version": "2.0",

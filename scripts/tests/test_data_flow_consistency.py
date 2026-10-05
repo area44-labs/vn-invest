@@ -98,7 +98,7 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame()
 
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch(
                 "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=mock_fetch_ohlcv,
@@ -274,7 +274,7 @@ class TestDataFlowConsistency(unittest.TestCase):
             return pd.DataFrame()
 
         with (
-            patch("scripts.pipeline.stages.UniverseProvider") as mock_provider_cls,
+            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
             patch(
                 "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
                 side_effect=mock_fetch_ohlcv,

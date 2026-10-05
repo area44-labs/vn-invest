@@ -22,6 +22,7 @@ from scripts.data.validation import validate_canonical_market_data
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.pipeline.context import PipelineContext
+from scripts.lib.vietnam_market import UniverseProvider
 from scripts.pipeline.stages import (
     DataAcquisitionStage,
     DataValidationStage,
@@ -79,6 +80,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
     def test_production_pipeline_execution_with_fake_provider(self):
         """Production pipeline stages execute through provider -> acquisition -> normalization -> validation -> quantitative using FakeCustomMarketProvider."""
         ctx = PipelineContext()
+        ctx.set_universe(UniverseProvider().get_universe())
         ctx.tracker = PerformanceTracker()
         ctx.market_data_provider = FakeCustomMarketProvider()
         ctx.update_data = False
@@ -189,6 +191,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         )
 
         ctx = PipelineContext()
+        ctx.set_universe(UniverseProvider().get_universe())
         ctx.tracker = PerformanceTracker()
         ctx.market_data_provider = mock_provider
         ctx.update_data = False

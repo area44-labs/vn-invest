@@ -545,16 +545,15 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         scan_res = UniverseScanResult(universe=u)
         self.assertIsInstance(scan_res.universe, Universe)
 
-        # Valid dict conversion
-        scan_res_dict = UniverseScanResult(universe=u.to_dict())
-        self.assertIsInstance(scan_res_dict.universe, Universe)
-
         # Invalid universe input must raise TypeError fail-fast
         with self.assertRaises(TypeError):
-            UniverseScanResult(universe="INVALID_UNIVERSE_STRING")
+            UniverseScanResult(universe=u.to_dict())  # type: ignore
 
         with self.assertRaises(TypeError):
-            UniverseScanResult(universe=123)
+            UniverseScanResult(universe="INVALID_UNIVERSE_STRING")  # type: ignore
+
+        with self.assertRaises(TypeError):
+            UniverseScanResult(universe=123)  # type: ignore
 
     def test_universe_scan_result_with_updates_supports_universe_parameter(self):
         u1 = Universe.from_candidates(
