@@ -1,16 +1,9 @@
-"""Market analysis engine for VN Invest.
+"""Feature and indicator calculation module for VN Invest quant layer."""
 
-Pure quantitative calculation engine for market breadth ratio and multi-factor market regime detection.
-Does not perform I/O, network requests, or database state updates.
-"""
-
-from collections.abc import Callable, Mapping
-from typing import Any
-
+from collections.abc import Mapping
 import pandas as pd
 
-from scripts.engine.contracts import MarketAnalysisInput, MarketAnalysisResult
-from scripts.lib.regime import detect_market_regime
+from scripts.lib.features import calculate_multi_timeframe_features
 
 
 def compute_market_breadth(
@@ -58,38 +51,7 @@ def compute_market_breadth(
     return round(bullish_count / valid_breadth_denom, 2) if valid_breadth_denom > 0 else 0.50
 
 
-class MarketAnalysisEngine:
-    """Quantitative engine for market breadth and regime detection."""
-
-    @staticmethod
-    def analyze(
-        input_data: MarketAnalysisInput,
-        regime_detector: Callable[..., dict[str, Any]] | None = None,
-    ) -> MarketAnalysisResult:
-        """Analyze market condition to return market breadth ratio and market regime dict."""
-        breadth = compute_market_breadth(
-            stock_data_map=input_data.stock_data_map,
-            candidate_symbols=input_data.candidate_symbols,
-            processed_symbols=input_data.processed_symbols,
-        )
-
-        df_vn30_input = input_data.df_vn30 if input_data.vn30_sufficient else None
-
-        detector = regime_detector or detect_market_regime
-
-        regime_dict = detector(
-            df_vnindex=input_data.df_vnindex,
-            df_vn30=df_vn30_input,
-            breadth_ratio=breadth,
-        )
-
-        return MarketAnalysisResult(
-            breadth_ratio=breadth,
-            market_regime=regime_dict,
-        )
-
-
 __all__ = [
-    "MarketAnalysisEngine",
+    "calculate_multi_timeframe_features",
     "compute_market_breadth",
 ]

@@ -26,6 +26,7 @@ from scripts.lib.recommendation import (
 from scripts.lib.recommendation import (
     _safe_float as recommendation_safe_float,
 )
+import scripts.pipeline.stages
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits

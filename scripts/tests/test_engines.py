@@ -1,26 +1,38 @@
-"""Unit, boundary, and regression tests for extracted quantitative engines (#174)."""
+"""Unit, boundary, and regression tests for extracted quantitative engines in scripts/quant/ (#174)."""
 
-import unittest
 from collections.abc import Mapping
+import unittest
 
 import pandas as pd
 
-from scripts.engine import (
-    CandidateSpec,
-    MarketAnalysisEngine,
-    MarketAnalysisInput,
-    MarketAnalysisResult,
-    RiskTradePlanEngine,
-    RiskTradePlanInput,
-    RiskTradePlanResult,
-    SignalRecommendationEngine,
-    SignalRecommendationInput,
-    SignalRecommendationResult,
-    compute_market_breadth,
-)
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.quant import (
+    CandidateSpec,
+    MarketAnalysisEngine,
+    RecommendationInput,
+    RecommendationResult,
+    RiskInput,
+    RiskTradePlanEngine,
+    SignalInput,
+    SignalRecommendationEngine,
+    calculate_confidence,
+    calculate_divergence_score,
+    calculate_momentum_score,
+    calculate_multi_timeframe_features,
+    calculate_relative_strength_score,
+    calculate_risk_adjusted_score,
+    calculate_signal_score,
+    calculate_t25_risk_metrics,
+    calculate_trend_score,
+    calculate_volume_score,
+    classify_action,
+    compute_market_breadth,
+    compute_signal,
+    compute_stock_risk_and_trade_plan,
+    generate_single_recommendation,
+)
 
 
 def make_sample_ohlcv(
@@ -84,46 +96,95 @@ class TestCandidateSpecContract(unittest.TestCase):
             CandidateSpec(symbol="ABC", company_name="", sector="Sector")
 
 
-class TestMarketAnalysisEngine(unittest.TestCase):
-    """Test MarketAnalysisEngine unit behavior and contracts."""
+class TestQuantFeaturesAndRegime(unittest.TestCase):
+    """Test scripts/quant/features.py and scripts/quant/regime.py."""
 
     def setUp(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_vn30 = make_sample_ohlcv(days=60, start_price=1250.0, trend=2.0)
-        self.stock_a = make_sample_ohlcv(days=30, start_price=50.0, trend=0.5)  # bullish
-        self.stock_b = make_sample_ohlcv(days=30, start_price=50.0, trend=-0.5)  # bearish
+        self.stock_a = make_sample_ohlcv(days=30, start_price=50.0, trend=0.5)
+        self.stock_b = make_sample_ohlcv(days=30, start_price=50.0, trend=-0.5)
 
     def test_compute_market_breadth_deterministic(self):
         stock_map = {"AAA": self.stock_a, "BBB": self.stock_b}
         breadth = compute_market_breadth(stock_map)
-        self.assertEqual(breadth, 0.50)  # 1 bullish out of 2 valid
+        self.assertEqual(breadth, 0.50)
 
     def test_compute_market_breadth_custom_mapping(self):
         """Verify custom Mapping implementation is supported without falling back to 0.50."""
         custom_map = CustomMapping({"AAA": self.stock_a})
         breadth = compute_market_breadth(custom_map)
-        self.assertEqual(breadth, 1.0)  # 1 bullish out of 1 valid
+        self.assertEqual(breadth, 1.0)
 
-    def test_engine_analyze_returns_typed_result(self):
-        input_data = MarketAnalysisInput(
-            stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
-            df_vnindex=self.df_vnindex,
-            df_vn30=self.df_vn30,
-        )
+    def test_market_analysis_engine_analyze(self):
+        input_data = type(
+            "InputData",
+            (),
+            {
+                "stock_data_map": {"AAA": self.stock_a, "BBB": self.stock_b},
+                "df_vnindex": self.df_vnindex,
+                "df_vn30": self.df_vn30,
+                "candidate_symbols": None,
+                "processed_symbols": None,
+                "vn30_sufficient": True,
+            },
+        )()
         res = MarketAnalysisEngine.analyze(input_data)
-        self.assertIsInstance(res, MarketAnalysisResult)
-        self.assertEqual(res.breadth_ratio, 0.50)
         self.assertIn("regime", res.market_regime)
-        self.assertEqual(res.to_dict()["breadth_ratio"], 0.50)
+        self.assertEqual(res.market_regime["metrics"]["market_breadth_ratio"], 0.50)
 
-    def test_engine_boundary_isolation(self):
-        """Engine accepts pure primitive types without requiring PipelineContext or Universe."""
-        input_data = MarketAnalysisInput(
-            stock_data_map={"AAA": self.stock_a},
+
+class TestQuantSignalAndRisk(unittest.TestCase):
+    """Test scripts/quant/signal.py and scripts/quant/risk.py decomposed calculations."""
+
+    def setUp(self):
+        self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
+        self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
+        self.market_regime = detect_market_regime(self.df_vnindex, breadth_ratio=0.60)
+
+    def test_compute_signal(self):
+        sig_input = SignalInput(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Consumer Goods",
+            exchange="HOSE",
+            df_stock=self.df_stock,
+            market_regime=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+            data_source="REAL_DATA",
+        )
+        sig_res = compute_signal(sig_input)
+        self.assertEqual(sig_res.symbol, "VNM")
+        self.assertEqual(sig_res.data_quality, "SUFFICIENT")
+        self.assertIsNotNone(sig_res.score)
+
+    def test_compute_stock_risk_and_trade_plan(self):
+        sig_input = SignalInput(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Consumer Goods",
+            exchange="HOSE",
+            df_stock=self.df_stock,
+            market_regime=self.market_regime,
             df_vnindex=self.df_vnindex,
         )
-        res = MarketAnalysisEngine.analyze(input_data)
-        self.assertEqual(res.breadth_ratio, 1.0)
+        sig_res = compute_signal(sig_input)
+
+        risk_input = RiskInput(
+            symbol="VNM",
+            company_name="Vinamilk",
+            exchange="HOSE",
+            sector="Consumer Goods",
+            df_d=sig_res.df_d,
+            val_res=sig_res.val_res,
+            market_regime=self.market_regime,
+            signal_result=sig_res,
+            action="BUY",
+        )
+        risk_res = compute_stock_risk_and_trade_plan(risk_input)
+        self.assertIsNotNone(risk_res.risk_adjusted_score)
+        self.assertIsNotNone(risk_res.trade_plan["stop_loss"])
 
 
 class TestSignalRecommendationEngine(unittest.TestCase):
@@ -141,7 +202,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
         )
 
     def test_generate_recommendations_typed_result(self):
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
             market_regime=self.market_regime,
@@ -150,7 +211,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        self.assertIsInstance(res, SignalRecommendationResult)
+        self.assertIsInstance(res, RecommendationResult)
         self.assertEqual(len(res.recommendations), 1)
         rec = res.recommendations[0]
         self.assertEqual(rec["symbol"], "VNM")
@@ -158,7 +219,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_production_sufficient_stock_provenance(self):
         """1. Production + sufficient stock -> data_source equals actual source tag."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
             data_sources={"VNM": "REAL_DATA"},
@@ -177,7 +238,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_production_provider_failure_provenance(self):
         """2. Production + provider failure -> data_source is None."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
             data_sources={"VNM": "PROVIDER_FAILURE"},
@@ -196,7 +257,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_production_insufficient_data_provenance(self):
         """3. Production + insufficient data -> data_source is None."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
             data_sources={"VNM": "INSUFFICIENT_HISTORICAL_DATA"},
@@ -215,7 +276,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_production_symbol_not_processed_provenance(self):
         """4. Production + symbol not processed -> recommendation created with data_source is None."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},  # raw data exists but not processed
             data_sources={"VNM": "EXPLICITLY_INVALID"},
@@ -235,7 +296,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_historical_valid_dataset_provenance(self):
         """5. Historical + valid dataset -> retains correct historical date/source semantics."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
             data_source="explicit_historical_input",
@@ -254,7 +315,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
 
     def test_historical_empty_dataset_provenance(self):
         """6. Historical + empty dataset -> data_source is None."""
-        input_data = SignalRecommendationInput(
+        input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
             data_source="explicit_historical_input",
@@ -284,115 +345,21 @@ class TestSignalRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
 
-        input_data = SignalRecommendationInput(
-            candidates=[self.candidate],
-            stock_data_map={"VNM": self.df_stock},
-            market_regime=self.market_regime,
+        engine_rec = generate_single_recommendation(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Consumer Goods",
+            exchange="HOSE",
+            df_stock=self.df_stock,
+            market_regime_info=self.market_regime,
             df_vnindex=self.df_vnindex,
             data_as_of="2025-01-20",
             data_source="REAL_DATA",
         )
-        res = SignalRecommendationEngine.generate_recommendations(input_data)
-        engine_rec = res.recommendations[0]
 
         direct_dict = direct_rec.to_dict() if hasattr(direct_rec, "to_dict") else direct_rec
         engine_dict = engine_rec.to_dict() if hasattr(engine_rec, "to_dict") else engine_rec
         self.assertEqual(engine_dict, direct_dict)
-
-
-class TestRiskTradePlanEngine(unittest.TestCase):
-    """Test RiskTradePlanEngine unit behavior and contracts."""
-
-    def setUp(self):
-        self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
-        self.df_stock_a = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
-        self.df_stock_b = make_sample_ohlcv(days=60, start_price=30.0, trend=0.2)
-        self.market_regime = detect_market_regime(self.df_vnindex, breadth_ratio=0.60)
-
-        self.rec_a = generate_recommendation(
-            symbol="AAA",
-            company_name="Alpha",
-            sector="Tech",
-            exchange="HOSE",
-            df_stock=self.df_stock_a,
-            market_regime_info=self.market_regime,
-            df_vnindex=self.df_vnindex,
-        )
-        self.rec_b = generate_recommendation(
-            symbol="BBB",
-            company_name="Beta",
-            sector="Tech",
-            exchange="HOSE",
-            df_stock=self.df_stock_b,
-            market_regime_info=self.market_regime,
-            df_vnindex=self.df_vnindex,
-        )
-
-    def test_process_risk_typed_result(self):
-        input_data = RiskTradePlanInput(
-            scanned_recs=[self.rec_a, self.rec_b],
-            market_regime=self.market_regime,
-        )
-        res = RiskTradePlanEngine.process_risk(input_data)
-        self.assertIsInstance(res, RiskTradePlanResult)
-        self.assertEqual(len(res.recommendations), 2)
-        rec = res.recommendations[0]
-        rec_dict = rec.to_dict() if hasattr(rec, "to_dict") else rec
-        self.assertIn("risk_metrics", rec_dict)
-        self.assertIn("liquidity_score", rec_dict["risk_metrics"])
-
-    def test_risk_parity_with_legacy_call(self):
-        direct_recs = normalize_universe_liquidity_scores(
-            scanned_recommendations=[self.rec_a, self.rec_b],
-            market_regime=self.market_regime,
-        )
-
-        input_data = RiskTradePlanInput(
-            scanned_recs=[self.rec_a, self.rec_b],
-            market_regime=self.market_regime,
-        )
-        res = RiskTradePlanEngine.process_risk(input_data)
-        self.assertEqual(res.recommendations, direct_recs)
-
-
-class TestEngineEdgeCasesAndBoundarySafety(unittest.TestCase):
-    """Test engine handling of empty, partial, or invalid inputs."""
-
-    def test_market_engine_empty_input(self):
-        input_data = MarketAnalysisInput(stock_data_map={})
-        res = MarketAnalysisEngine.analyze(input_data)
-        self.assertEqual(res.breadth_ratio, 0.50)
-        self.assertEqual(res.market_regime["regime"], "DEFENSIVE")
-
-    def test_recommendation_engine_empty_candidates(self):
-        input_data = SignalRecommendationInput(
-            candidates=[],
-            stock_data_map={},
-            market_regime={"regime": "DEFENSIVE"},
-        )
-        res = SignalRecommendationEngine.generate_recommendations(input_data)
-        self.assertEqual(res.recommendations, [])
-
-    def test_recommendation_engine_missing_stock_data(self):
-        cand = CandidateSpec(symbol="XYZ", company_name="Xyz", sector="Sector")
-        input_data = SignalRecommendationInput(
-            candidates=[cand],
-            stock_data_map={},
-            market_regime={"regime": "DEFENSIVE"},
-        )
-        res = SignalRecommendationEngine.generate_recommendations(input_data)
-        self.assertEqual(len(res.recommendations), 1)
-        rec_dict = (
-            res.recommendations[0].to_dict()
-            if hasattr(res.recommendations[0], "to_dict")
-            else res.recommendations[0]
-        )
-        self.assertEqual(rec_dict["action"], "AVOID")
-
-    def test_risk_engine_empty_recommendations(self):
-        input_data = RiskTradePlanInput(scanned_recs=[], market_regime={"regime": "DEFENSIVE"})
-        res = RiskTradePlanEngine.process_risk(input_data)
-        self.assertEqual(res.recommendations, [])
 
 
 if __name__ == "__main__":

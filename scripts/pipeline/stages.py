@@ -13,14 +13,17 @@ from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
-from scripts.engine import (
+from scripts.quant import (
     CandidateSpec,
     MarketAnalysisEngine,
-    MarketAnalysisInput,
     RiskTradePlanEngine,
-    RiskTradePlanInput,
     SignalRecommendationEngine,
-    SignalRecommendationInput,
+)
+from scripts.quant.contracts import (
+    FeatureInput,
+    RecommendationInput,
+    RiskInput,
+    RiskTradePlanInput,
 )
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
@@ -713,18 +716,26 @@ class MarketAnalysisStage(PipelineStage):
             processed_syms = context.processed_symbols
 
         with context.tracker.measure_stage("market_calculation"):
-            input_data = MarketAnalysisInput(
+            input_data = FeatureInput(
                 stock_data_map=stock_data_map,
-                df_vnindex=context.df_vnindex_clean,
-                df_vn30=context.df_vn30_clean,
                 candidate_symbols=cand_syms,
                 processed_symbols=processed_syms,
-                vn30_sufficient=(context.vn30_val.get("status") != "INSUFFICIENT"),
             )
             analysis_res = MarketAnalysisEngine.analyze(
-                input_data, regime_detector=detect_market_regime
+                type("MarketAnalysisInput", (), {
+                    "stock_data_map": stock_data_map,
+                    "df_vnindex": context.df_vnindex_clean,
+                    "df_vn30": context.df_vn30_clean,
+                    "candidate_symbols": cand_syms,
+                    "processed_symbols": processed_syms,
+                    "vn30_sufficient": (context.vn30_val.get("status") != "INSUFFICIENT"),
+                })(),
+                regime_detector=detect_market_regime,
             )
-            context.breadth_ratio = analysis_res.breadth_ratio
+            context.breadth_ratio = round(
+                analysis_res.market_regime.get("metrics", {}).get("market_breadth_ratio", 0.50),
+                2,
+            )
 
         with context.tracker.measure_stage("regime_calculation"):
             context.final_market_regime = analysis_res.market_regime
@@ -782,7 +793,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
             processed_syms = context.processed_symbols
 
         with context.tracker.measure_stage("recommendation_calculation"):
-            input_data = SignalRecommendationInput(
+            input_data = RecommendationInput(
                 candidates=candidates_spec,
                 stock_data_map=stock_data_map,
                 market_regime=context.final_market_regime,
@@ -814,7 +825,9 @@ class RiskTradePlanStage(PipelineStage):
             res = RiskTradePlanEngine.process_risk(
                 input_data, risk_normalizer=normalize_universe_liquidity_scores
             )
-            context.scanned_recs = res.recommendations
+            context.scanned_recs = (
+                res.recommendations if hasattr(res, "recommendations") else res
+            )
 
         context.build_payloads()
 
