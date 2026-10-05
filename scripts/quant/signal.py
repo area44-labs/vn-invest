@@ -14,12 +14,12 @@ from scripts.lib.recommendation import (
     classify_action,
     format_vnd,
 )
+from scripts.quant.contracts import SignalInput, SignalResult
+from scripts.quant.features import calculate_multi_timeframe_features
 from scripts.lib.vietnam_market import (
     get_clean_ohlcv_data,
     validate_ohlcv_data,
 )
-from scripts.quant.contracts import SignalInput, SignalResult
-from scripts.quant.features import calculate_multi_timeframe_features
 
 
 def compute_signal(input_data: SignalInput) -> SignalResult:

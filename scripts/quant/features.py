@@ -1,7 +1,6 @@
 """Feature and indicator calculation module for VN Invest quant layer."""
 
 from collections.abc import Mapping
-
 import pandas as pd
 
 from scripts.lib.features import calculate_multi_timeframe_features

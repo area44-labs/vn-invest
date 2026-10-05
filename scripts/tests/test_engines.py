@@ -1,7 +1,7 @@
 """Unit, boundary, and regression tests for extracted quantitative engines in scripts/quant/ (#174)."""
 
-import unittest
 from collections.abc import Mapping
+import unittest
 
 import pandas as pd
 

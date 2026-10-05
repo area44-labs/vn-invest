@@ -10,10 +10,6 @@ from scripts.lib.recommendation import (
     SIGNAL_MODEL_VERSION,
     classify_action,
 )
-from scripts.lib.vietnam_market import (
-    extract_latest_trading_date,
-    validate_ohlcv_data,
-)
 from scripts.quant.contracts import (
     CandidateSpec,
     RecommendationInput,
@@ -23,6 +19,10 @@ from scripts.quant.contracts import (
 )
 from scripts.quant.risk import compute_stock_risk_and_trade_plan
 from scripts.quant.signal import compute_signal
+from scripts.lib.vietnam_market import (
+    extract_latest_trading_date,
+    validate_ohlcv_data,
+)
 
 
 def generate_single_recommendation(

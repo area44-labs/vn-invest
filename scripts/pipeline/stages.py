@@ -13,6 +13,15 @@ from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
+from scripts.quant import (
+    CandidateSpec,
+    MarketAnalysisEngine,
+    MarketAnalysisInput,
+    RecommendationInput,
+    RiskTradePlanEngine,
+    RiskTradePlanInput,
+    SignalRecommendationEngine,
+)
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
@@ -26,15 +35,6 @@ from scripts.lib.vietnam_market import (
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.publishing import load_history_index, publish_artifacts_atomically
 from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
-from scripts.quant import (
-    CandidateSpec,
-    MarketAnalysisEngine,
-    MarketAnalysisInput,
-    RecommendationInput,
-    RiskTradePlanEngine,
-    RiskTradePlanInput,
-    SignalRecommendationEngine,
-)
 
 logger = logging.getLogger(__name__)
 
