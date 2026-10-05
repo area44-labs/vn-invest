@@ -40,7 +40,7 @@ class SignalRecommendationEngine:
 
             df_stock_raw = input_data.stock_data_map.get(sym)
 
-            if processed_set is not None and sym not in processed_set or df_stock_raw is None:
+            if (processed_set is not None and sym not in processed_set) or df_stock_raw is None:
                 df_stock_input = pd.DataFrame()
             else:
                 df_stock_input = df_stock_raw
