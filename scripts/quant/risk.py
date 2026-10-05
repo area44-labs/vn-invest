@@ -1,7 +1,6 @@
 """Risk Assessment and Trade Plan calculation module for VN Invest quant layer."""
 
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable
 
 from scripts.lib.recommendation import (
     calculate_confidence,
