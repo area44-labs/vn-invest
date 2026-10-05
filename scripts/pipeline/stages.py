@@ -56,26 +56,32 @@ class DataAcquisitionStage(PipelineStage):
             return
 
         VnstockMarketProvider.reset_global_call_history()
-        context.provider = UniverseProvider()
-        u = context.provider.get_universe() if hasattr(context.provider, "get_universe") else None
-        if isinstance(u, Universe):
-            universe = u
-        else:
-            cands = getattr(context.provider, "candidates", None) or []
-            if not isinstance(cands, (list, tuple, set)):
-                cands = []
-            universe = Universe.from_candidates(
-                candidates=cands,
-                universe_type="VN30_MIDCAP_LEADERS",
-                benchmarks=("VNINDEX", "VN30"),
+        if context.universe is None:
+            context.provider = UniverseProvider()
+            u = (
+                context.provider.get_universe()
+                if hasattr(context.provider, "get_universe")
+                else None
             )
+            if isinstance(u, Universe):
+                universe = u
+            else:
+                cands = getattr(context.provider, "candidates", None) or []
+                if not isinstance(cands, (list, tuple, set)):
+                    cands = []
+                universe = Universe.from_candidates(
+                    candidates=cands,
+                    universe_type="VN30_MIDCAP_LEADERS",
+                    benchmarks=("VNINDEX", "VN30"),
+                )
 
-        if universe.universe_size == 0:
-            raise RuntimeError(
-                "Candidate universe is empty. Cannot generate report on empty universe."
-            )
+            if universe.universe_size == 0:
+                raise RuntimeError(
+                    "Candidate universe is empty. Cannot generate report on empty universe."
+                )
 
-        context.set_universe(universe)
+            context.set_universe(universe)
+
         context.throttle = DEFAULT_UPDATE_THROTTLE_DELAY if context.update_data else 0.0
 
         acquirer = MarketDataAcquirer(
@@ -227,6 +233,9 @@ class DataValidationStage(PipelineStage):
         return "data_validation"
 
     def execute(self, context: PipelineContext) -> None:
+        if context.universe is None:
+            raise ValueError("DataValidationStage requires context.universe to be set")
+
         if context.is_historical:
             self._execute_historical(context)
             return
@@ -276,7 +285,7 @@ class DataValidationStage(PipelineStage):
                 latest_date=vn_val.get("latest_date"),
             )
         else:
-            context.processed_symbols.add("VNINDEX")
+            context.record_symbol_processed("VNINDEX")
 
         context.data_as_of = vn_val.get("latest_date") or v_vn.data_as_of
         context.source_date = context.data_as_of
@@ -328,7 +337,7 @@ class DataValidationStage(PipelineStage):
                 expected_date=context.data_as_of,
             )
         else:
-            context.processed_symbols.add("VN30")
+            context.record_symbol_processed("VN30")
 
         # 3. Normalize and Validate Candidate Stock Universe via canonical boundary
         for item in context.candidate_stocks:
@@ -398,7 +407,7 @@ class DataValidationStage(PipelineStage):
                     expected_date=context.data_as_of,
                 )
             else:
-                context.processed_symbols.add(sym)
+                context.record_symbol_processed(sym)
 
         # Validate temporal integrity
         with context.tracker.measure_stage("temporal_validation"):
@@ -422,7 +431,7 @@ class DataValidationStage(PipelineStage):
                     | temporal_res["missing_date_symbols"]
                 )
                 for sym in temporal_invalid_syms:
-                    context.processed_symbols.discard(sym)
+                    context.discard_symbol_processed(sym)
                     context.add_exclusion(
                         symbol=sym,
                         stage="TEMPORAL_VALIDATION",
@@ -450,14 +459,6 @@ class DataValidationStage(PipelineStage):
         canonical_as_of = _parse_canonical_date(context.historical_data_as_of)
         context.data_as_of = canonical_as_of
         context.source_date = canonical_as_of
-
-        if context.universe is None and context.candidate_metadata:
-            u_hist = Universe.from_candidates(
-                candidates=context.candidate_metadata,
-                universe_type="HISTORICAL_SNAPSHOT",
-                benchmarks=("VNINDEX", "VN30"),
-            )
-            context.set_universe(u_hist)
 
         with context.tracker.measure_stage("benchmark_fetch"):
             context.tracker.record_request("VNINDEX")
@@ -569,15 +570,7 @@ class UniverseValidationStage(PipelineStage):
 
     def execute(self, context: PipelineContext) -> None:
         if context.universe is None:
-            if context.is_historical and context.candidate_metadata:
-                u_hist = Universe.from_candidates(
-                    candidates=context.candidate_metadata,
-                    universe_type="HISTORICAL_SNAPSHOT",
-                    benchmarks=("VNINDEX", "VN30"),
-                )
-                context.set_universe(u_hist)
-            else:
-                raise ValueError("UniverseValidationStage requires context.universe to be set")
+            raise ValueError("UniverseValidationStage requires context.universe to be set")
 
         if context.is_historical:
             canonical_as_of = context.data_as_of
@@ -587,7 +580,7 @@ class UniverseValidationStage(PipelineStage):
                 and not context.df_vnindex_clean.empty
                 and context.vnindex_val.get("latest_date") == canonical_as_of
             ):
-                context.processed_symbols.add("VNINDEX")
+                context.record_symbol_processed("VNINDEX")
             else:
                 context.add_exclusion(
                     symbol="VNINDEX",
@@ -604,7 +597,7 @@ class UniverseValidationStage(PipelineStage):
                 and not context.df_vn30_clean.empty
                 and context.vn30_val.get("status") != "INSUFFICIENT"
             ):
-                context.processed_symbols.add("VN30")
+                context.record_symbol_processed("VN30")
             else:
                 context.add_exclusion(
                     symbol="VN30",
@@ -622,7 +615,7 @@ class UniverseValidationStage(PipelineStage):
                 sym_upper = item["symbol"].upper()
                 df_st = context.stock_data_map.get(sym_upper, (pd.DataFrame(), None, None))[0]
                 if df_st is not None and not df_st.empty:
-                    context.processed_symbols.add(sym_upper)
+                    context.record_symbol_processed(sym_upper)
                 else:
                     context.add_exclusion(
                         symbol=sym_upper,
@@ -633,13 +626,13 @@ class UniverseValidationStage(PipelineStage):
                         expected_date=canonical_as_of,
                     )
 
-            context.missing_symbols = context.expected_symbols - (
+            unaccounted = context.expected_symbols - (
                 context.processed_symbols
                 | context.invalid_symbols
                 | context.insufficient_history_symbols
                 | context.failed_symbols
             )
-            for sym in context.missing_symbols:
+            for sym in unaccounted:
                 context.add_exclusion(
                     symbol=sym,
                     stage="UNIVERSE_DISCOVERY",
@@ -652,13 +645,13 @@ class UniverseValidationStage(PipelineStage):
             context.update_universe_audit()
             return
 
-        context.missing_symbols = context.expected_symbols - (
+        unaccounted = context.expected_symbols - (
             context.processed_symbols
             | context.invalid_symbols
             | context.insufficient_history_symbols
             | context.failed_symbols
         )
-        for sym in context.missing_symbols:
+        for sym in unaccounted:
             context.add_exclusion(
                 symbol=sym,
                 stage="UNIVERSE_DISCOVERY",
@@ -718,6 +711,9 @@ class MarketAnalysisStage(PipelineStage):
         return "market_analysis"
 
     def execute(self, context: PipelineContext) -> None:
+        if context.universe is None:
+            raise ValueError("MarketAnalysisStage requires context.universe to be set")
+
         if context.is_historical:
             with context.tracker.measure_stage("market_calculation"):
                 bullish_count = 0
@@ -788,6 +784,11 @@ class SignalRecommendationGenerationStage(PipelineStage):
         return "signal_recommendation_generation"
 
     def execute(self, context: PipelineContext) -> None:
+        if context.universe is None:
+            raise ValueError(
+                "SignalRecommendationGenerationStage requires context.universe to be set"
+            )
+
         if context.is_historical:
             with context.tracker.measure_stage("recommendation_calculation"):
                 scanned_recs = []
@@ -884,8 +885,6 @@ class PerformanceStage(PipelineStage):
             pipeline_status=pipeline_status,
         )
 
-        context.universe_audit["performance"] = context.performance_data
-
 
 class MonitoringStage(PipelineStage):
     """Stage 8: Evaluate production monitoring and check final payload integrity."""
@@ -907,7 +906,6 @@ class MonitoringStage(PipelineStage):
                 pipeline_elapsed=context.pipeline_elapsed,
                 pipeline_status=context.universe_audit.get("status", "SUCCESS"),
             )
-            context.universe_audit["performance"] = context.performance_data
             return
 
         with context.tracker.measure_stage("monitoring"):
@@ -966,7 +964,6 @@ class MonitoringStage(PipelineStage):
 
         context.monitoring_dict["metrics"]["universe_audit"] = context.universe_audit
         context.monitoring_dict["metrics"]["performance"] = context.performance_data
-        context.universe_audit["performance"] = context.performance_data
 
 
 class ArtifactPublishingStage(PipelineStage):

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
+from scripts.domain.universe import Universe
 from scripts.pipeline import (
     ArtifactPublishingStage,
     DataAcquisitionStage,
@@ -145,7 +146,6 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
     def test_pipeline_context_update_universe_audit_helper(self):
         """Verify update_universe_audit constructs valid universe_audit payload."""
-        from scripts.domain.universe import Universe
 
         ctx = PipelineContext(update_data=False)
         u = Universe.from_candidates(
@@ -201,8 +201,18 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
                 return "stage_a"
 
             def execute(self, context: PipelineContext) -> None:
-                context.candidate_stocks = [{"symbol": "AAA"}]
-                context.expected_symbols = {"VNINDEX", "VN30", "AAA"}
+                u = Universe.from_candidates(
+                    [
+                        {
+                            "symbol": "AAA",
+                            "companyName": "Comp A",
+                            "sector": "Tech",
+                            "exchange": "HOSE",
+                        }
+                    ],
+                    benchmarks=("VNINDEX", "VN30"),
+                )
+                context.set_universe(u)
 
         class StageB(PipelineStage):
             @property

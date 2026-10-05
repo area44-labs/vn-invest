@@ -308,6 +308,40 @@ class UniverseScanResult:
             and not self.missing_symbols
         )
 
+    def with_updates(
+        self,
+        processed_symbols: Any = None,
+        invalid_symbols: Any = None,
+        insufficient_symbols: Any = None,
+        failed_symbols: Any = None,
+        missing_symbols: Any = None,
+        exclusions_map: Any = None,
+        status: str | None = None,
+        failed_stage: str | None = None,
+        data_as_of: str | None = None,
+        source_date: str | None = None,
+        data_source: str | None = None,
+    ) -> "UniverseScanResult":
+        """Return a new UniverseScanResult instance with updated scan fields."""
+        return UniverseScanResult(
+            universe=self.universe,
+            processed_symbols=self.processed_symbols
+            if processed_symbols is None
+            else processed_symbols,
+            invalid_symbols=self.invalid_symbols if invalid_symbols is None else invalid_symbols,
+            insufficient_symbols=self.insufficient_symbols
+            if insufficient_symbols is None
+            else insufficient_symbols,
+            failed_symbols=self.failed_symbols if failed_symbols is None else failed_symbols,
+            missing_symbols=self.missing_symbols if missing_symbols is None else missing_symbols,
+            exclusions_map=self.exclusions_map if exclusions_map is None else exclusions_map,
+            status=self.status if status is None else status,
+            failed_stage=self.failed_stage if failed_stage is None else failed_stage,
+            data_as_of=self.data_as_of if data_as_of is None else data_as_of,
+            source_date=self.source_date if source_date is None else source_date,
+            data_source=self.data_source if data_source is None else data_source,
+        )
+
     def to_audit_dict(
         self, update_data: bool = False, performance_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:

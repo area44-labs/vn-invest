@@ -5,6 +5,7 @@ import os
 import time
 from typing import Any
 
+from scripts.domain.universe import Universe
 from scripts.pipeline.constants import GENERATED_DIR
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.result import PipelineResult
@@ -151,6 +152,13 @@ def generate_historical_report(
         candidate_metadata=candidate_metadata,
         data_source=data_source,
     )
+
+    u_hist = Universe.from_candidates(
+        candidates=candidate_metadata,
+        universe_type="HISTORICAL_SNAPSHOT",
+        benchmarks=("VNINDEX", "VN30"),
+    )
+    context.set_universe(u_hist)
 
     pipeline = ProductionPipeline()
     return pipeline.execute(context)
