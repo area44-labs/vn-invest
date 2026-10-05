@@ -9,9 +9,9 @@ All quantitative consumers must receive clean OHLCV data.
 Raw provider data may be retained for diagnostics only.
 """
 
-from collections.abc import Callable
 import logging
 import math
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -32,7 +32,7 @@ def _safe_breadth_ratio(val: float | None) -> float | None:
         if 0.0 <= f <= 1.0:
             return f
         return None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
