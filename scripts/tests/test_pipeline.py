@@ -145,8 +145,17 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
     def test_pipeline_context_update_universe_audit_helper(self):
         """Verify update_universe_audit constructs valid universe_audit payload."""
+        from scripts.domain.universe import Universe
+
         ctx = PipelineContext(update_data=False)
-        ctx.expected_symbols = {"VNINDEX", "VN30", "AAA", "BBB"}
+        u = Universe.from_candidates(
+            [
+                {"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"},
+                {"symbol": "BBB", "companyName": "Comp B", "sector": "Tech", "exchange": "HOSE"},
+            ],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        ctx.set_universe(u)
         ctx.processed_symbols = {"VNINDEX", "VN30", "AAA"}
         ctx.add_exclusion(
             symbol="BBB",

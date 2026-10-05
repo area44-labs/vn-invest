@@ -69,7 +69,7 @@ class Universe:
 
     universe_type: str
     candidates: tuple[UniverseCandidate, ...] = ()
-    benchmarks: tuple[str, ...] = DEFAULT_BENCHMARKS
+    benchmarks: tuple[str, ...] = ()
     scanned_at: str | None = None
 
     def __post_init__(self) -> None:
@@ -170,14 +170,14 @@ class Universe:
         cls,
         candidates: Any,
         universe_type: str = "CUSTOM",
-        benchmarks: tuple[str, ...] = DEFAULT_BENCHMARKS,
+        benchmarks: tuple[str, ...] = (),
         scanned_at: str | None = None,
     ) -> Self:
         """Construct Universe from candidates sequence."""
         return cls(
             universe_type=universe_type,
             candidates=tuple(candidates) if isinstance(candidates, (list, tuple, set)) else (),
-            benchmarks=benchmarks,
+            benchmarks=tuple(benchmarks) if isinstance(benchmarks, (list, tuple, set)) else (),
             scanned_at=scanned_at,
         )
 
@@ -188,9 +188,7 @@ class Universe:
             raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
         candidates_raw = data.get("candidates") or data.get("universe") or []
         bmarks_raw = data.get("benchmarks")
-        bmarks = (
-            tuple(bmarks_raw) if isinstance(bmarks_raw, (list, tuple, set)) else DEFAULT_BENCHMARKS
-        )
+        bmarks = tuple(bmarks_raw) if isinstance(bmarks_raw, (list, tuple, set)) else ()
         return cls(
             universe_type=data.get("universe_type", "CUSTOM"),
             candidates=tuple(candidates_raw),

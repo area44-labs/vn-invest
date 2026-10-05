@@ -490,7 +490,9 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
             },
             {"symbol": "vnm", "companyName": "Vinamilk", "sector": "Consumer", "exchange": "HOSE"},
         ]
-        u = Universe.from_candidates(candidates, universe_type="VN30_MIDCAP")
+        u = Universe.from_candidates(
+            candidates, universe_type="VN30_MIDCAP", benchmarks=("VNINDEX", "VN30")
+        )
         self.assertEqual(u.universe_type, "VN30_MIDCAP")
         self.assertEqual(u.universe_size, 2)
         self.assertEqual(u.candidate_symbols, ("FPT", "VNM"))
@@ -511,10 +513,18 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
         self.assertEqual(u.candidates[0].company_name, "FPT Corp 1")
 
     def test_explicit_vs_default_benchmarks(self):
-        # Default benchmarks
+        # Generic Universe defaults to empty benchmarks
         u_default = Universe.from_candidates([], universe_type="DEFAULT_BM")
-        self.assertEqual(u_default.benchmarks, ("VNINDEX", "VN30"))
-        self.assertEqual(u_default.expected_symbols, frozenset({"VNINDEX", "VN30"}))
+        self.assertEqual(u_default.benchmarks, ())
+        self.assertEqual(u_default.expected_symbols, frozenset())
+
+        # Production benchmarks from UniverseProvider
+        from scripts.lib.vietnam_market import UniverseProvider
+
+        u_prod = UniverseProvider().get_universe()
+        self.assertEqual(u_prod.benchmarks, ("VNINDEX", "VN30"))
+        self.assertIn("VNINDEX", u_prod.expected_symbols)
+        self.assertIn("VN30", u_prod.expected_symbols)
 
         # Explicit custom benchmarks
         u_custom = Universe.from_candidates(
@@ -562,7 +572,8 @@ class TestUniverseAndScanResultDomainContracts(unittest.TestCase):
                     "sector": "Real Estate",
                     "exchange": "HOSE",
                 },
-            ]
+            ],
+            benchmarks=("VNINDEX", "VN30"),
         )
         # expected_symbols = {"VNINDEX", "VN30", "FPT", "VNM", "VIC"} (5 total)
 

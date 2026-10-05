@@ -35,7 +35,7 @@ class PipelineContext:
     universe_stock_map: dict[str, pd.DataFrame | None] | None = None
     candidate_metadata: list[dict[str, Any]] | None = None
 
-    # Domain Universe contract
+    # Domain Universe contract (single canonical source of truth)
     universe: Universe | None = None
     universe_scan_result: UniverseScanResult | None = None
 
@@ -124,12 +124,17 @@ class PipelineContext:
                 self.generated_at = datetime.now(UTC).isoformat()
 
     def set_universe(self, universe: Universe) -> None:
-        """Assign canonical domain Universe and synchronize context state."""
+        """Assign canonical domain Universe as single source of truth and synchronize context state."""
+        if not isinstance(universe, Universe):
+            raise TypeError(
+                f"set_universe requires a Universe instance, got {type(universe).__name__}"
+            )
         self.universe = universe
         self.raw_candidate_stocks = universe.to_candidate_list()
         self.candidate_stocks = universe.to_candidate_list()
         self.universe_info = universe.to_info_dict()
         self.expected_symbols = set(universe.expected_symbols)
+        self.universe_scan_result = UniverseScanResult(universe=universe)
 
     def add_exclusion(
         self,
@@ -167,18 +172,11 @@ class PipelineContext:
 
     def update_universe_audit(self) -> dict[str, Any]:
         """Construct UniverseScanResult and assign universe_audit dictionary."""
-        current_u = self.universe
-        if not isinstance(current_u, Universe):
-            u_type = "HISTORICAL_SNAPSHOT" if self.is_historical else "CUSTOM"
-            c_meta = self.candidate_metadata or self.candidate_stocks or []
-            if not isinstance(c_meta, (list, tuple, set)):
-                c_meta = []
-            current_u = Universe.from_candidates(candidates=c_meta, universe_type=u_type)
-            self.universe = current_u
-            self.expected_symbols = set(current_u.expected_symbols)
+        if not isinstance(self.universe, Universe):
+            raise ValueError("PipelineContext.universe must be set to a valid Universe instance")
 
         scan_result = UniverseScanResult(
-            universe=current_u,
+            universe=self.universe,
             processed_symbols=tuple(sorted(self.processed_symbols)),
             invalid_symbols=tuple(sorted(self.invalid_symbols)),
             insufficient_symbols=tuple(sorted(self.insufficient_history_symbols)),

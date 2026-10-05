@@ -13,13 +13,13 @@ from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
-from scripts.domain.universe import Universe
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.domain.universe import Universe
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,
@@ -61,10 +61,14 @@ class DataAcquisitionStage(PipelineStage):
         if isinstance(u, Universe):
             universe = u
         else:
-            cands = context.provider.candidates if hasattr(context.provider, "candidates") else []
+            cands = getattr(context.provider, "candidates", None) or []
             if not isinstance(cands, (list, tuple, set)):
                 cands = []
-            universe = Universe.from_candidates(candidates=cands)
+            universe = Universe.from_candidates(
+                candidates=cands,
+                universe_type="VN30_MIDCAP_LEADERS",
+                benchmarks=("VNINDEX", "VN30"),
+            )
 
         if universe.universe_size == 0:
             raise RuntimeError(
@@ -564,15 +568,19 @@ class UniverseValidationStage(PipelineStage):
         return "universe_validation"
 
     def execute(self, context: PipelineContext) -> None:
-        if context.is_historical:
-            canonical_as_of = context.data_as_of
-            if context.universe is None:
+        if context.universe is None:
+            if context.is_historical and context.candidate_metadata:
                 u_hist = Universe.from_candidates(
-                    candidates=context.candidate_metadata or [],
+                    candidates=context.candidate_metadata,
                     universe_type="HISTORICAL_SNAPSHOT",
                     benchmarks=("VNINDEX", "VN30"),
                 )
                 context.set_universe(u_hist)
+            else:
+                raise ValueError("UniverseValidationStage requires context.universe to be set")
+
+        if context.is_historical:
+            canonical_as_of = context.data_as_of
 
             if (
                 context.df_vnindex_clean is not None
