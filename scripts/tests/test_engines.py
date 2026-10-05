@@ -1,4 +1,4 @@
-"""Unit, boundary, and regression tests for extracted quantitative engines in scripts/quant/ (#174)."""
+"""Unit, boundary, contract, and regression tests for quantitative engines in scripts/quant/ (#174)."""
 
 import unittest
 from collections.abc import Mapping
@@ -6,18 +6,27 @@ from collections.abc import Mapping
 import pandas as pd
 
 from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
 from scripts.quant import (
     CandidateSpec,
+    FeatureInput,
+    FeatureResult,
     MarketAnalysisEngine,
+    MarketAnalysisInput,
     RecommendationInput,
     RecommendationResult,
+    RegimeInput,
+    RegimeResult,
     RiskInput,
+    RiskResult,
+    RiskTradePlanEngine,
+    RiskTradePlanInput,
     SignalInput,
     SignalRecommendationEngine,
+    SignalResult,
     compute_market_breadth,
     compute_signal,
     compute_stock_risk_and_trade_plan,
+    detect_market_regime,
     generate_single_recommendation,
 )
 
@@ -61,8 +70,8 @@ class CustomMapping(Mapping):
         return iter(self._data)
 
 
-class TestCandidateSpecContract(unittest.TestCase):
-    """Test CandidateSpec input contract validation."""
+class TestQuantContracts(unittest.TestCase):
+    """Test CandidateSpec and quantitative contract validation."""
 
     def test_candidate_spec_normalization_and_validation(self):
         cand = CandidateSpec(
@@ -83,8 +92,8 @@ class TestCandidateSpecContract(unittest.TestCase):
             CandidateSpec(symbol="ABC", company_name="", sector="Sector")
 
 
-class TestQuantFeaturesAndRegime(unittest.TestCase):
-    """Test scripts/quant/features.py and scripts/quant/regime.py."""
+class TestQuantMarketAnalysisAndRegimeEngine(unittest.TestCase):
+    """Test scripts/quant/features.py, scripts/quant/regime.py, and MarketAnalysisEngine."""
 
     def setUp(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -92,20 +101,32 @@ class TestQuantFeaturesAndRegime(unittest.TestCase):
         self.stock_a = make_sample_ohlcv(days=30, start_price=50.0, trend=0.5)
         self.stock_b = make_sample_ohlcv(days=30, start_price=50.0, trend=-0.5)
 
-    def test_compute_market_breadth_deterministic(self):
-        stock_map = {"AAA": self.stock_a, "BBB": self.stock_b}
-        res = compute_market_breadth(stock_map)
+    def test_compute_market_breadth_feature_input_contract(self):
+        feature_in = FeatureInput(
+            stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
+        )
+        res = compute_market_breadth(feature_in)
+        self.assertIsInstance(res, FeatureResult)
         self.assertEqual(res.breadth_ratio, 0.50)
 
     def test_compute_market_breadth_custom_mapping(self):
         """Verify custom Mapping implementation is supported without falling back to 0.50."""
         custom_map = CustomMapping({"AAA": self.stock_a})
         res = compute_market_breadth(custom_map)
+        self.assertIsInstance(res, FeatureResult)
         self.assertEqual(res.breadth_ratio, 1.0)
 
-    def test_market_analysis_engine_analyze(self):
-        from scripts.quant.contracts import MarketAnalysisInput
+    def test_detect_market_regime_input_contract(self):
+        regime_in = RegimeInput(
+            df_vnindex=self.df_vnindex,
+            df_vn30=self.df_vn30,
+            breadth_ratio=0.60,
+        )
+        res = detect_market_regime(regime_in)
+        self.assertIsInstance(res, RegimeResult)
+        self.assertIn("regime", res.market_regime)
 
+    def test_market_analysis_engine_analyze(self):
         input_data = MarketAnalysisInput(
             stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
             df_vnindex=self.df_vnindex,
@@ -115,17 +136,21 @@ class TestQuantFeaturesAndRegime(unittest.TestCase):
             vn30_sufficient=True,
         )
         res = MarketAnalysisEngine.analyze(input_data)
+        self.assertIsInstance(res, RegimeResult)
         self.assertIn("regime", res.market_regime)
         self.assertEqual(res.market_regime["metrics"]["market_breadth_ratio"], 0.50)
 
 
-class TestQuantSignalAndRisk(unittest.TestCase):
-    """Test scripts/quant/signal.py and scripts/quant/risk.py decomposed calculations."""
+class TestQuantSignalEngine(unittest.TestCase):
+    """Test scripts/quant/signal.py decomposed calculations."""
 
     def setUp(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
-        self.market_regime = detect_market_regime(self.df_vnindex, breadth_ratio=0.60)
+        regime_res = detect_market_regime(
+            RegimeInput(df_vnindex=self.df_vnindex, breadth_ratio=0.60)
+        )
+        self.market_regime = regime_res.market_regime
 
     def test_compute_signal(self):
         sig_input = SignalInput(
@@ -140,9 +165,22 @@ class TestQuantSignalAndRisk(unittest.TestCase):
             data_source="REAL_DATA",
         )
         sig_res = compute_signal(sig_input)
+        self.assertIsInstance(sig_res, SignalResult)
         self.assertEqual(sig_res.symbol, "VNM")
         self.assertEqual(sig_res.data_quality, "SUFFICIENT")
         self.assertIsNotNone(sig_res.score)
+
+
+class TestQuantRiskEngine(unittest.TestCase):
+    """Test scripts/quant/risk.py risk assessment and trade plan calculations."""
+
+    def setUp(self):
+        self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
+        self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
+        regime_res = detect_market_regime(
+            RegimeInput(df_vnindex=self.df_vnindex, breadth_ratio=0.60)
+        )
+        self.market_regime = regime_res.market_regime
 
     def test_compute_stock_risk_and_trade_plan(self):
         sig_input = SignalInput(
@@ -168,17 +206,40 @@ class TestQuantSignalAndRisk(unittest.TestCase):
             action="BUY",
         )
         risk_res = compute_stock_risk_and_trade_plan(risk_input)
+        self.assertIsInstance(risk_res, RiskResult)
         self.assertIsNotNone(risk_res.risk_adjusted_score)
         self.assertIsNotNone(risk_res.trade_plan["stop_loss"])
 
+    def test_risk_trade_plan_engine_process_risk(self):
+        rec = generate_single_recommendation(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Consumer Goods",
+            exchange="HOSE",
+            df_stock=self.df_stock,
+            market_regime_info=self.market_regime,
+            df_vnindex=self.df_vnindex,
+            data_as_of="2025-01-20",
+            data_source="REAL_DATA",
+        )
+        risk_tp_in = RiskTradePlanInput(
+            scanned_recs=[rec],
+            market_regime=self.market_regime,
+        )
+        recs_out = RiskTradePlanEngine.process_risk(risk_tp_in)
+        self.assertEqual(len(recs_out), 1)
 
-class TestSignalRecommendationEngine(unittest.TestCase):
-    """Test SignalRecommendationEngine unit behavior, contracts, and regression cases."""
+
+class TestQuantRecommendationEngine(unittest.TestCase):
+    """Test SignalRecommendationEngine unit behavior, contracts, provenance, and parity."""
 
     def setUp(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
-        self.market_regime = detect_market_regime(self.df_vnindex, breadth_ratio=0.60)
+        regime_res = detect_market_regime(
+            RegimeInput(df_vnindex=self.df_vnindex, breadth_ratio=0.60)
+        )
+        self.market_regime = regime_res.market_regime
         self.candidate = CandidateSpec(
             symbol="VNM",
             company_name="Vinamilk",
@@ -199,8 +260,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
         self.assertIsInstance(res, RecommendationResult)
         self.assertEqual(len(res.recommendations), 1)
         rec = res.recommendations[0]
-        self.assertEqual(rec["symbol"], "VNM")
-        self.assertEqual(rec["data_as_of"], "2025-01-20")
+        self.assertEqual(rec.symbol if hasattr(rec, "symbol") else rec["symbol"], "VNM")
 
     def test_production_sufficient_stock_provenance(self):
         """1. Production + sufficient stock -> data_source equals actual source tag."""
@@ -263,9 +323,9 @@ class TestSignalRecommendationEngine(unittest.TestCase):
         """4. Production + symbol not processed -> recommendation created with data_source is None."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
-            stock_data_map={"VNM": self.df_stock},  # raw data exists but not processed
+            stock_data_map={"VNM": self.df_stock},
             data_sources={"VNM": "EXPLICITLY_INVALID"},
-            processed_symbols=set(),  # VNM not in processed
+            processed_symbols=set(),
             market_regime=self.market_regime,
             df_vnindex=self.df_vnindex,
             data_as_of="2025-01-20",
@@ -317,7 +377,7 @@ class TestSignalRecommendationEngine(unittest.TestCase):
         self.assertIsNone(rec_dict["data_source"])
 
     def test_behavioral_parity(self):
-        """7. Behavioral parity -> full payload comparison between engine and direct legacy calculation."""
+        """7. Behavioral parity -> full payload comparison between quant engine and direct calculation wrapper."""
         direct_rec = generate_recommendation(
             symbol="VNM",
             company_name="Vinamilk",

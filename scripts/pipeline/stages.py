@@ -16,9 +16,6 @@ from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.monitoring import evaluate_production_monitoring
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,
@@ -721,9 +718,7 @@ class MarketAnalysisStage(PipelineStage):
                 processed_symbols=processed_syms,
                 vn30_sufficient=(context.vn30_val.get("status") != "INSUFFICIENT"),
             )
-            analysis_res = MarketAnalysisEngine.analyze(
-                input_data, regime_detector=detect_market_regime
-            )
+            analysis_res = MarketAnalysisEngine.analyze(input_data)
             breadth_val = analysis_res.market_regime.get("metrics", {}).get("market_breadth_ratio")
             if breadth_val is None:
                 breadth_val = 0.50
@@ -795,9 +790,7 @@ class SignalRecommendationGenerationStage(PipelineStage):
                 data_sources=data_sources,
                 processed_symbols=processed_syms,
             )
-            res = SignalRecommendationEngine.generate_recommendations(
-                input_data, recommendation_generator=generate_recommendation
-            )
+            res = SignalRecommendationEngine.generate_recommendations(input_data)
             context.scanned_recs = res.recommendations
 
 
@@ -814,9 +807,7 @@ class RiskTradePlanStage(PipelineStage):
                 scanned_recs=context.scanned_recs,
                 market_regime=context.final_market_regime,
             )
-            res = RiskTradePlanEngine.process_risk(
-                input_data, risk_normalizer=normalize_universe_liquidity_scores
-            )
+            res = RiskTradePlanEngine.process_risk(input_data)
             context.scanned_recs = res.recommendations if hasattr(res, "recommendations") else res
 
         context.build_payloads()

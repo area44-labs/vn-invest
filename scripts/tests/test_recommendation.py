@@ -917,7 +917,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         ],
     )
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    @patch("scripts.pipeline.stages.detect_market_regime")
+    @patch("scripts.quant.regime.lib_detect_market_regime")
     def test_run_pipeline_market_regime_propagation(
         self, mock_detect, mock_fetch_ohlcv, mock_univ, mock_s3, mock_s2, mock_s1
     ):
