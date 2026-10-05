@@ -74,8 +74,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
+from scripts.quant.features import compute_market_breadth
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
+)
+from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
 
 DEFAULT_HORIZONS = [5, 10, 20]
 DEFAULT_SIGNAL_COMPONENTS = [
@@ -946,7 +950,7 @@ def calculate_as_of_market_breadth(
 ) -> float:
     """Calculate point-in-time market breadth as-of evaluation date T (ratio of stocks with close > MA20).
 
-    Strictly slices each universe stock dataset <= T before calculating MA20.
+    Strictly slices each universe stock dataset <= T before calculating MA20 via compute_market_breadth.
     Fails closed on empty universe or malformed universe stock datasets (propagates ValueError).
     """
     if not universe_stock_map:
@@ -958,35 +962,27 @@ def calculate_as_of_market_breadth(
             "Cannot calculate market breadth: universe_stock_map contains no valid non-empty stock datasets."
         )
 
-    bullish_count = 0
-    valid_stocks_count = 0
-
+    pit_stock_map: dict[str, pd.DataFrame] = {}
     for sym, df_stock in valid_entries.items():
         # Extract point-in-time dataset. Fails closed if data <= T is malformed or unsorted.
         try:
             df_stock_as_of = get_as_of_dataset(df_stock, evaluation_date)
+            df_clean, val_res = get_clean_ohlcv_data(df_stock_as_of, sym)
+            if val_res["status"] != "INSUFFICIENT" and len(df_clean) >= 20:
+                pit_stock_map[sym] = df_clean
         except ValueError as err:
             # Expected when stock has no history prior to evaluation date
             if "No historical data available" in str(err) or "not present in dataset" in str(err):
                 continue
             raise
 
-        df_clean, val_res = get_clean_ohlcv_data(df_stock_as_of, sym)
-
-        if val_res["status"] != "INSUFFICIENT" and len(df_clean) >= 20:
-            c = _safe_float(df_clean["close"].iloc[-1])
-            ma20 = _safe_float(df_clean["close"].tail(20).mean())
-            if c is not None and ma20 is not None and ma20 > 0:
-                valid_stocks_count += 1
-                if c > ma20:
-                    bullish_count += 1
-
-    if valid_stocks_count == 0:
+    if not pit_stock_map:
         raise ValueError(
             f"Cannot calculate market breadth as-of '{evaluation_date}': zero stocks in universe had sufficient historical data (>= 20 sessions) <= T."
         )
 
-    return round(bullish_count / valid_stocks_count, 2)
+    res = compute_market_breadth(pit_stock_map)
+    return res.breadth_ratio
 
 
 def evaluate_forward_outcomes(
@@ -1159,8 +1155,6 @@ def run_backtest_for_symbol(
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
 
         # 3. Market regime evaluation at T using production regime engine
-        from scripts.lib.regime import detect_market_regime
-
         market_regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,
@@ -1911,8 +1905,6 @@ def evaluate_market_regimes(
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_d)
 
         # 4. Production regime detection at T
-        from scripts.lib.regime import detect_market_regime
-
         regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,

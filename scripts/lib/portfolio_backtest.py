@@ -17,7 +17,7 @@ Key Architectural & Evaluation Principles:
 2. Infrastructure Reuse & Non-Duplication:
    - Point-in-time dataset slicing timestamped <= T reuses `get_as_of_dataset()`.
    - Production market regime detection reuses `detect_market_regime()`.
-   - Production stock signal recommendations reuse `generate_recommendation()`.
+   - Production stock signal recommendations reuse `generate_single_recommendation()`.
    - Execution eligibility evaluations reuse `evaluate_execution_eligibility()` and `ExecutionConfig`.
    - Point-in-time market breadth reuses `calculate_as_of_market_breadth()`.
    - Forward historical returns reuse `evaluate_forward_outcomes()`.
@@ -65,8 +65,11 @@ from scripts.lib.backtest import (
     evaluate_forward_outcomes,
     get_as_of_dataset,
 )
-from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.vietnam_market import get_clean_ohlcv_data
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
+)
+from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
 
 
 def _safe_float(val: Any) -> float | None:
@@ -441,8 +444,6 @@ def evaluate_portfolio_at_date(
             df_vn30_clean_as_of = None
 
     breadth_ratio = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
-
-    from scripts.lib.regime import detect_market_regime
 
     market_regime_info = detect_market_regime(
         df_vnindex=df_vnindex_clean_as_of,
