@@ -550,7 +550,9 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 patch("os.replace", side_effect=double_failing_replace),
                 self.assertRaises(RuntimeError) as cm,
             ):
-                publish_artifacts_atomically(artifacts, target_dir=temp_dir)
+                publish_artifacts_atomically(
+                    artifacts, target_dir=temp_dir, strict_provenance=False
+                )
 
             self.assertIn(
                 "CRITICAL: Directory-level atomic artifact publish rollback failed",

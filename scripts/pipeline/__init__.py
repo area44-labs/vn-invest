@@ -5,6 +5,7 @@ from scripts.pipeline.audit import build_universe_audit
 from scripts.pipeline.constants import (
     GENERATED_DIR,
     PERFORMANCE_SCHEMA_PATH,
+    PIPELINE_VERSION,
     ROOT_DIR,
     SCHEMA_PATH,
 )
@@ -46,6 +47,7 @@ from scripts.pipeline.validation import (
 __all__ = [
     "GENERATED_DIR",
     "PERFORMANCE_SCHEMA_PATH",
+    "PIPELINE_VERSION",
     "ROOT_DIR",
     "SCHEMA_PATH",
     "ArtifactLock",
