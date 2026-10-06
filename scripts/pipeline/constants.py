@@ -2,6 +2,8 @@
 
 import os
 
+from scripts.artifacts.provenance import SCHEMA_VERSION
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
 SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
@@ -16,4 +18,5 @@ __all__ = [
     "PIPELINE_VERSION",
     "ROOT_DIR",
     "SCHEMA_PATH",
+    "SCHEMA_VERSION",
 ]

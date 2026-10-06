@@ -9,13 +9,19 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 logger = logging.getLogger(__name__)
 
+# Canonical Quantitative Engine and Signal Model Versions
+QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
+
 # Canonical Pipeline Software Implementation Version
 PIPELINE_VERSION = "2.0.0"
+
+# Canonical Artifact / Output Schema Version Contract
+SCHEMA_VERSION = "2.0"
 
 # Required top-level keys in a machine-readable Provenance Manifest
 REQUIRED_PROVENANCE_KEYS = (
@@ -316,7 +322,7 @@ class ProvenanceBuilder:
         signal_model_version: str = SIGNAL_MODEL_VERSION,
         quant_version: str = QUANT_VERSION,
         config_hash: str | None = None,
-        schema_version: str = "2.0",
+        schema_version: str = SCHEMA_VERSION,
         source_provider: dict[str, Any] | None = None,
         universe: dict[str, Any] | None = None,
         artifacts: list[str] | tuple[str, ...] | None = None,
@@ -359,7 +365,7 @@ class ProvenanceBuilder:
         sig_model_ver = rec_payload.get("signal_model_version") or SIGNAL_MODEL_VERSION
         q_ver = rec_payload.get("quant_version") or QUANT_VERSION
         cfg_hash = rec_payload.get("config_hash") or DEFAULT_QUANT_CONFIG.get_config_hash()
-        schema_ver = rec_payload.get("schema_version") or "2.0"
+        schema_ver = rec_payload.get("schema_version") or SCHEMA_VERSION
 
         source_provider = {
             "data_source": getattr(context, "data_source", None) or "REAL_DATA",
@@ -453,6 +459,7 @@ class ProvenanceBuilder:
 __all__ = [
     "PIPELINE_VERSION",
     "REQUIRED_PROVENANCE_KEYS",
+    "SCHEMA_VERSION",
     "ProvenanceBuilder",
     "ProvenanceManifest",
     "ProvenanceValidationError",

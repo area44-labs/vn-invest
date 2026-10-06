@@ -8,6 +8,7 @@ from scripts.pipeline.constants import (
     PIPELINE_VERSION,
     ROOT_DIR,
     SCHEMA_PATH,
+    SCHEMA_VERSION,
 )
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.publishing import (
@@ -50,6 +51,7 @@ __all__ = [
     "PIPELINE_VERSION",
     "ROOT_DIR",
     "SCHEMA_PATH",
+    "SCHEMA_VERSION",
     "ArtifactLock",
     "ArtifactLockError",
     "ArtifactPublishingStage",

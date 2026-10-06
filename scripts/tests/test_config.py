@@ -37,6 +37,15 @@ class TestCentralizedConfigConstants(unittest.TestCase):
         self.assertEqual(config.SIGNAL_MODEL_VERSION, "2.0")
         self.assertEqual(recommendation.SIGNAL_MODEL_VERSION, "2.0")
 
+    def test_schema_version_contract(self):
+        """Verify SCHEMA_VERSION is '2.0' and identical across re-export modules."""
+        from scripts.artifacts.provenance import SCHEMA_VERSION as ART_SCHEMA_VER
+        from scripts.pipeline.constants import SCHEMA_VERSION as PIPE_SCHEMA_VER
+
+        self.assertEqual(config.SCHEMA_VERSION, "2.0")
+        self.assertEqual(config.SCHEMA_VERSION, PIPE_SCHEMA_VER)
+        self.assertEqual(config.SCHEMA_VERSION, ART_SCHEMA_VER)
+
     def test_reexported_constants(self):
         """Verify backwards-compatible re-exported constants in recommendation module."""
         self.assertEqual(recommendation.SIGNAL_WEIGHTS, config.SIGNAL_WEIGHTS)

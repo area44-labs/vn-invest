@@ -7,9 +7,10 @@ and trade plan rules for the VN Invest quantitative engine.
 NOTE: All quantitative formulas and parameters delegate directly to DEFAULT_QUANT_CONFIG from scripts.quant.config.
 """
 
+from scripts.pipeline.constants import SCHEMA_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 
-# Signal and Configuration Versions
+# Signal, Pipeline, and Schema Version Contracts
 QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
 SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 PIPELINE_VERSION = "2.0.0"
@@ -336,6 +337,7 @@ __all__ = [
     "PIPELINE_VERSION",
     "QUANT_VERSION",
     "QUANT_VERSION_CONTRACT",
+    "SCHEMA_VERSION",
     "SIGNAL_MODEL_VERSION",
     "QuantConfig",
 ]

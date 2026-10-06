@@ -558,6 +558,216 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         self.assertEqual(manifest.pipeline_version, "2.0.0")
         self.assertEqual(manifest.signal_model_version, "2.1-custom")
 
+    def test_26_canonical_schema_version_consistency_and_propagation(self):
+        """26. Verify canonical SCHEMA_VERSION is used consistently and propagates to provenance."""
+        from scripts.artifacts.provenance import SCHEMA_VERSION
+        from scripts.domain.universe import Universe, UniverseCandidate
+        from scripts.lib.config import SCHEMA_VERSION as CONFIG_SCHEMA_VER
+        from scripts.pipeline.constants import SCHEMA_VERSION as CONST_SCHEMA_VER
+
+        self.assertEqual(SCHEMA_VERSION, "2.0")
+        self.assertEqual(SCHEMA_VERSION, CONST_SCHEMA_VER)
+        self.assertEqual(SCHEMA_VERSION, CONFIG_SCHEMA_VER)
+
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+        cand = UniverseCandidate(symbol="AAA", company_name="Co A", sector="Tech", exchange="HOSE")
+        context.universe = Universe(universe_type="MARKET", candidates=(cand,))
+
+        recs_payload, _mkt, _hist = context.build_payloads()
+        self.assertEqual(recs_payload["schema_version"], SCHEMA_VERSION)
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+
+        self.assertEqual(manifest.schema_version, SCHEMA_VERSION)
+        self.assertEqual(manifest.to_dict()["schema_version"], "2.0")
+
+    def test_27_four_version_metadata_fields_are_distinct(self):
+        """27. Verify all 4 version metadata contracts remain distinct and unmixed in provenance."""
+        from scripts.artifacts.provenance import SCHEMA_VERSION
+
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+
+        self.assertEqual(manifest.pipeline_version, "2.0.0")
+        self.assertEqual(manifest.signal_model_version, "2.0")
+        self.assertEqual(
+            manifest.quantitative_config_version,
+            {
+                "quant_version": "1.0.0",
+                "config_hash": manifest.quantitative_config_version["config_hash"],
+            },
+        )
+        self.assertEqual(manifest.schema_version, SCHEMA_VERSION)
+
+        # Confirm non-confusion / distinct types
+        self.assertIsInstance(manifest.pipeline_version, str)
+        self.assertIsInstance(manifest.signal_model_version, str)
+        self.assertIsInstance(manifest.quantitative_config_version, dict)
+        self.assertIsInstance(manifest.schema_version, str)
+
+    def test_28_provenance_validation_rejects_missing_or_malformed_schema_version(self):
+        """28. Verify validate_provenance_manifest fails closed on missing or malformed schema_version."""
+        # Missing schema_version key
+        missing_ver = dict(self.valid_provenance)
+        del missing_ver["schema_version"]
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(missing_ver)
+        self.assertIn("missing required fields", str(cm.exception))
+
+        # None schema_version
+        none_ver = dict(self.valid_provenance)
+        none_ver["schema_version"] = None
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(none_ver)
+        self.assertIn("missing required fields", str(cm.exception))
+
+        # Empty string schema_version
+        empty_ver = dict(self.valid_provenance)
+        empty_ver["schema_version"] = ""
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(empty_ver)
+        self.assertIn("schema_version", str(cm.exception))
+
+        # Blank whitespace schema_version
+        blank_ver = dict(self.valid_provenance)
+        blank_ver["schema_version"] = "   "
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(blank_ver)
+        self.assertIn("schema_version", str(cm.exception))
+
+        # Non-string schema_version
+        non_str_ver = dict(self.valid_provenance)
+        non_str_ver["schema_version"] = 2
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(non_str_ver)
+        self.assertIn("schema_version", str(cm.exception))
+
+    def test_29_publisher_rejects_missing_or_malformed_schema_version_before_transaction(self):
+        """29. Verify ArtifactPublisher rejects publication before transaction start on invalid schema_version."""
+        valid_recs = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "quant_version": "1.0.0",
+            "config_hash": "a1b2c3d4e5f6",
+            "generated_at": "2026-03-31T12:00:00+00:00",
+            "data_as_of": self.canonical_date,
+            "source_date": self.canonical_date,
+            "data_source": "REAL_DATA",
+            "universe_info": {
+                "universe_type": "MARKET",
+                "universe_size": 0,
+            },
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.8,
+                "metrics": {
+                    "vnindex_value": 1200.0,
+                    "vnindex_change_pct": 1.0,
+                    "market_breadth_ratio": 0.6,
+                },
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        invalid_prov = dict(self.valid_provenance)
+        invalid_prov["schema_version"] = ""
+
+        artifacts = {
+            "recommendations.json": valid_recs,
+            "market.json": {"data_as_of": self.canonical_date},
+            "provenance.json": invalid_prov,
+        }
+
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        with self.assertRaises(ProvenanceValidationError):
+            publisher.publish(artifacts, canonical_data_as_of=self.canonical_date)
+
+        # Confirm target directory remains unpopulated
+        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+
+    def test_30_valid_schema_version_published_successfully(self):
+        """30. Verify valid schema_version publishes successfully through publication boundary."""
+        valid_recs = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "quant_version": "1.0.0",
+            "config_hash": "a1b2c3d4e5f6",
+            "generated_at": "2026-03-31T12:00:00+00:00",
+            "data_as_of": self.canonical_date,
+            "source_date": self.canonical_date,
+            "data_source": "REAL_DATA",
+            "universe_info": {
+                "universe_type": "MARKET",
+                "universe_size": 0,
+            },
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.8,
+                "metrics": {
+                    "vnindex_value": 1200.0,
+                    "vnindex_change_pct": 1.0,
+                    "market_breadth_ratio": 0.6,
+                },
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        valid_prov = dict(self.valid_provenance)
+
+        artifacts = {
+            "recommendations.json": valid_recs,
+            "market.json": {"data_as_of": self.canonical_date},
+            "provenance.json": valid_prov,
+        }
+
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        manifest = publisher.publish(artifacts, canonical_data_as_of=self.canonical_date)
+
+        self.assertIn("provenance.json", manifest.artifacts)
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+
+    def test_31_existing_consumers_and_api_backward_compatibility(self):
+        """31. Verify existing artifact consumers expecting schema_version='2.0' remain 100% compatible."""
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+        m_dict = manifest.to_dict()
+
+        self.assertIn("schema_version", m_dict)
+        self.assertEqual(m_dict["schema_version"], "2.0")
+
 
 if __name__ == "__main__":
     unittest.main()

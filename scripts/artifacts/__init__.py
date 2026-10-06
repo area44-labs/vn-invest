@@ -9,6 +9,7 @@ from scripts.artifacts.manifest import (
 from scripts.artifacts.provenance import (
     PIPELINE_VERSION,
     REQUIRED_PROVENANCE_KEYS,
+    SCHEMA_VERSION,
     ProvenanceBuilder,
     ProvenanceManifest,
     ProvenanceValidationError,
@@ -35,6 +36,7 @@ from scripts.artifacts.transaction import (
 __all__ = [
     "PIPELINE_VERSION",
     "REQUIRED_PROVENANCE_KEYS",
+    "SCHEMA_VERSION",
     "ArtifactLock",
     "ArtifactLockError",
     "ArtifactManifest",

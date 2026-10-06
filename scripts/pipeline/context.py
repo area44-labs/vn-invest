@@ -12,7 +12,7 @@ from scripts.domain.universe import Universe, UniverseScanResult
 from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.vietnam_market import UniverseProvider
 from scripts.monitoring import PipelineMonitoringResult
-from scripts.pipeline.constants import PIPELINE_VERSION
+from scripts.pipeline.constants import PIPELINE_VERSION, SCHEMA_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
@@ -432,7 +432,7 @@ class PipelineContext:
             )
 
         self.recommendations_payload = {
-            "schema_version": "2.0",
+            "schema_version": SCHEMA_VERSION,
             "signal_model_version": SIGNAL_MODEL_VERSION,
             "quant_version": q_ver,
             "config_hash": cfg_hash,

@@ -7,6 +7,7 @@ Actual implementation resides in scripts.artifacts.
 from scripts.artifacts import (
     PIPELINE_VERSION,
     REQUIRED_PROVENANCE_KEYS,
+    SCHEMA_VERSION,
     ArtifactLock,
     ArtifactLockError,
     ArtifactManifest,
@@ -31,6 +32,7 @@ from scripts.artifacts import (
 __all__ = [
     "PIPELINE_VERSION",
     "REQUIRED_PROVENANCE_KEYS",
+    "SCHEMA_VERSION",
     "ArtifactLock",
     "ArtifactLockError",
     "ArtifactManifest",
