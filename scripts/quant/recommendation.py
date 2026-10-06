@@ -1,5 +1,6 @@
 """Recommendation and trade plan composition module for VN Invest quant layer."""
 
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -254,6 +255,16 @@ class SignalRecommendationEngine:
         )
         cfg = input_data.config
 
+        accepts_config = False
+        if recommendation_generator is not None:
+            try:
+                sig = inspect.signature(recommendation_generator)
+                params = sig.parameters
+                has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                accepts_config = "config" in params or has_kwargs
+            except ValueError, TypeError:
+                accepts_config = False
+
         for cand in input_data.candidates:
             sym = cand.symbol
             comp = cand.company_name
@@ -275,17 +286,53 @@ class SignalRecommendationEngine:
                     source_tag = input_data.data_source
 
             if recommendation_generator is not None:
-                rec = recommendation_generator(
-                    symbol=sym,
-                    company_name=comp,
-                    sector=sec,
-                    exchange=ex,
-                    df_stock=df_stock_input,
-                    market_regime_info=input_data.market_regime,
-                    df_vnindex=input_data.df_vnindex,
-                    data_as_of=input_data.data_as_of,
-                    data_source=source_tag,
+                if accepts_config:
+                    rec = recommendation_generator(
+                        symbol=sym,
+                        company_name=comp,
+                        sector=sec,
+                        exchange=ex,
+                        df_stock=df_stock_input,
+                        market_regime_info=input_data.market_regime,
+                        df_vnindex=input_data.df_vnindex,
+                        data_as_of=input_data.data_as_of,
+                        data_source=source_tag,
+                        config=cfg,
+                    )
+                else:
+                    rec = recommendation_generator(
+                        symbol=sym,
+                        company_name=comp,
+                        sector=sec,
+                        exchange=ex,
+                        df_stock=df_stock_input,
+                        market_regime_info=input_data.market_regime,
+                        df_vnindex=input_data.df_vnindex,
+                        data_as_of=input_data.data_as_of,
+                        data_source=source_tag,
+                    )
+
+                # Validate quant_version and config_hash of custom generator output
+                rec_qver = (
+                    rec.get("quant_version")
+                    if isinstance(rec, dict)
+                    else getattr(rec, "quant_version", None)
                 )
+                rec_chash = (
+                    rec.get("config_hash")
+                    if isinstance(rec, dict)
+                    else getattr(rec, "config_hash", None)
+                )
+
+                expected_qver = cfg.quant_version
+                expected_chash = cfg.get_config_hash()
+
+                if rec_qver != expected_qver or rec_chash != expected_chash:
+                    raise ValueError(
+                        f"Recommendation output configuration mismatch for symbol '{sym}': "
+                        f"expected quant_version='{expected_qver}' and config_hash='{expected_chash}', "
+                        f"got quant_version='{rec_qver}' and config_hash='{rec_chash}'."
+                    )
             else:
                 rec = generate_single_recommendation(
                     symbol=sym,

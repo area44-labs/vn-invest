@@ -10,6 +10,7 @@ Verifies:
 7. QuantConfig nested fields cannot be mutated in-place.
 8. Production and backtest outputs carry identical quant_version and config_hash for the same config.
 9. PipelineContext validates batch quant_version and config_hash consistency, failing closed on mixed configs.
+10. SignalRecommendationEngine propagates QuantConfig to custom recommendation generators and validates matching version/hash outputs.
 """
 
 import unittest
@@ -320,6 +321,105 @@ class TestQuantitativeConfigAndVersionContract(unittest.TestCase):
             ctx_mixed.build_payloads()
 
         self.assertIn("Mixed quantitative configuration versions", str(err_ctx.exception))
+
+    def test_custom_recommendation_generator_config_propagation_and_validation(self):
+        """10. Verify custom recommendation generator receives QuantConfig and output version/hash is validated."""
+        dates = pd.date_range("2026-01-01", periods=60)
+        df_stock = pd.DataFrame(
+            {
+                "time": dates.strftime("%Y-%m-%d"),
+                "open": np.linspace(50, 70, 60),
+                "high": np.linspace(51, 71, 60),
+                "low": np.linspace(49, 69, 60),
+                "close": np.linspace(50, 70, 60),
+                "volume": [1000000.0] * 60,
+            }
+        )
+
+        custom_cfg = replace(DEFAULT_QUANT_CONFIG, score_threshold_buy=70.0)
+
+        # Custom generator that consumes config
+        def custom_gen_matching(
+            symbol,
+            company_name,
+            sector,
+            exchange,
+            df_stock,
+            market_regime_info,
+            df_vnindex=None,
+            data_as_of=None,
+            data_source=None,
+            config=DEFAULT_QUANT_CONFIG,
+        ):
+            return generate_single_recommendation(
+                symbol=symbol,
+                company_name=company_name,
+                sector=sector,
+                exchange=exchange,
+                df_stock=df_stock,
+                market_regime_info=market_regime_info,
+                df_vnindex=df_vnindex,
+                data_as_of=data_as_of,
+                data_source=data_source,
+                config=config,
+            )
+
+        # Case 1: Custom generator returns matching quant_version and config_hash -> succeeds
+        input_data_matching = RecommendationInput(
+            candidates=[
+                CandidateSpec(
+                    symbol="FPT", company_name="FPT Corp", sector="Công nghệ", exchange="HOSE"
+                )
+            ],
+            stock_data_map={"FPT": df_stock},
+            market_regime={"regime": "BULL", "regime_score": 70.0},
+            config=custom_cfg,
+        )
+
+        res_matching = SignalRecommendationEngine.generate_recommendations(
+            input_data_matching, recommendation_generator=custom_gen_matching
+        )
+        self.assertEqual(len(res_matching.recommendations), 1)
+        rec_m = res_matching.recommendations[0]
+        self.assertEqual(rec_m.quant_version, custom_cfg.quant_version)
+        self.assertEqual(rec_m.config_hash, custom_cfg.get_config_hash())
+
+        # Custom generator that returns mismatched config_hash
+        def custom_gen_mismatched(
+            symbol,
+            company_name,
+            sector,
+            exchange,
+            df_stock,
+            market_regime_info,
+            df_vnindex=None,
+            data_as_of=None,
+            data_source=None,
+            config=DEFAULT_QUANT_CONFIG,
+        ):
+            rec = generate_single_recommendation(
+                symbol=symbol,
+                company_name=company_name,
+                sector=sector,
+                exchange=exchange,
+                df_stock=df_stock,
+                market_regime_info=market_regime_info,
+                df_vnindex=df_vnindex,
+                data_as_of=data_as_of,
+                data_source=data_source,
+                config=DEFAULT_QUANT_CONFIG,  # Uses default instead of passed custom_cfg!
+            )
+            return rec
+
+        # Case 2: Custom generator returns mismatched config_hash -> fails closed
+        with self.assertRaises(ValueError) as err_ctx:
+            SignalRecommendationEngine.generate_recommendations(
+                input_data_matching, recommendation_generator=custom_gen_mismatched
+            )
+
+        self.assertIn(
+            "Recommendation output configuration mismatch for symbol 'FPT'", str(err_ctx.exception)
+        )
 
 
 if __name__ == "__main__":
