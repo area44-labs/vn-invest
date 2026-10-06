@@ -1,0 +1,230 @@
+"""Deterministic unit and integration tests for the Decomposed Monitoring Subsystem (scripts/monitoring/).
+
+Verifies:
+1. Subsystem module decomposition and clean internal contracts.
+2. Complete backward-compatibility of legacy imports via `scripts.lib.monitoring`.
+3. Output schema, invariant structure, and payload integrity preservation.
+4. Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
+"""
+
+import json
+import os
+import tempfile
+import unittest
+
+from scripts.monitoring.evaluator import (
+    evaluate_production_monitoring,
+)
+from scripts.monitoring.metrics import (
+    classify_confidence_bucket,
+    is_canonical_yyyy_mm_dd,
+    normalize_market_payload,
+)
+from scripts.monitoring.models import (
+    CheckResult,
+    PipelineMonitoringResult,
+    _sanitize_value_for_json,
+    find_nan_or_inf,
+)
+from scripts.monitoring.performance import (
+    create_default_performance_payload,
+    load_performance_schema,
+    validate_performance_payload,
+)
+
+
+class TestMonitoringSubsystem(unittest.TestCase):
+    """Unit test suite for decomposed scripts.monitoring components."""
+
+    def test_canonical_date_validation(self):
+        """Verify date format check utility."""
+        self.assertTrue(is_canonical_yyyy_mm_dd("2026-03-31"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-3-31"))
+        self.assertFalse(is_canonical_yyyy_mm_dd("2026-02-29"))  # invalid leap year for 2026
+        self.assertFalse(is_canonical_yyyy_mm_dd(True))
+        self.assertFalse(is_canonical_yyyy_mm_dd(None))
+
+    def test_confidence_bucket_classification(self):
+        """Verify confidence score bucket classification."""
+        self.assertEqual(classify_confidence_bucket(0.0), "0.0-0.1")
+        self.assertEqual(classify_confidence_bucket(0.55), "0.5-0.6")
+        self.assertEqual(classify_confidence_bucket(1.0), "0.9-1.0")
+        self.assertIsNone(classify_confidence_bucket(None))
+        with self.assertRaises(ValueError):
+            classify_confidence_bucket(1.5)
+
+    def test_json_sanitization(self):
+        """Verify NaN/Inf sanitization for JSON serialization."""
+        data = {"a": float("nan"), "b": [float("inf"), float("-inf"), 1.23]}
+        sanitized = _sanitize_value_for_json(data)
+        self.assertEqual(sanitized["a"], "NaN")
+        self.assertEqual(sanitized["b"], ["Inf", "-Inf", 1.23])
+
+        nan_issues = find_nan_or_inf(data)
+        self.assertEqual(len(nan_issues), 3)
+
+    def test_check_result_models(self):
+        """Verify dataclasses validate check statuses."""
+        ck = CheckResult(
+            check_name="test_check",
+            status="PASS",
+            measured_value=10,
+            expected_condition=">0",
+            message="Passed",
+        )
+        self.assertEqual(ck.to_dict()["status"], "PASS")
+
+        with self.assertRaises(ValueError):
+            CheckResult(
+                check_name="invalid",
+                status="UNKNOWN_STATUS",
+                measured_value=0,
+                expected_condition="",
+                message="",
+            )
+
+    def test_normalize_market_payload(self):
+        """Verify normalization of market payload shapes."""
+        raw = {"regime": "BULLISH", "data_as_of": "2026-03-30", "metrics": {}}
+        norm = normalize_market_payload(raw, data_as_of="2026-03-30")
+        self.assertEqual(norm["data_as_of"], "2026-03-30")
+        self.assertEqual(norm["market"]["regime"], "BULLISH")
+        self.assertNotIn("data_as_of", norm["market"])
+
+    def test_performance_schema_loading_and_validation(self):
+        """Verify performance schema validation in performance module."""
+        schema = load_performance_schema()
+        self.assertIsInstance(schema, dict)
+
+        payload = create_default_performance_payload()
+        self.assertIn("stages", payload)
+        validate_performance_payload(payload)
+
+
+class TestBackwardCompatibilityImports(unittest.TestCase):
+    """Verify that all public symbols re-exported via `scripts.lib.monitoring` match `scripts.monitoring`."""
+
+    def test_reexported_symbols_identity(self):
+        import scripts.lib.monitoring as legacy_mon
+        import scripts.monitoring as new_mon
+
+        exported_names = [
+            "evaluate_production_monitoring",
+            "validate_monitoring_payload",
+            "evaluate_data_and_model_drift",
+            "check_required_artifacts",
+            "check_schema_validation",
+            "check_data_freshness",
+            "check_numeric_sanity",
+            "check_symbol_processing_counts",
+            "check_market_regime_status",
+            "check_history_index_status",
+            "check_ohlcv_data_quality",
+            "check_universe_audit_invariants",
+            "extract_recommendation_metrics",
+            "normalize_market_payload",
+            "classify_confidence_bucket",
+            "is_canonical_yyyy_mm_dd",
+            "validate_performance_payload",
+            "load_performance_schema",
+            "create_default_performance_payload",
+            "CheckResult",
+            "PipelineMonitoringResult",
+            "DriftObservation",
+            "DriftCheckResult",
+            "DriftMonitoringResult",
+            "DEFAULT_GENERATED_DIR",
+            "DEFAULT_SCHEMA_PATH",
+            "DEFAULT_PERFORMANCE_SCHEMA_PATH",
+        ]
+
+        for name in exported_names:
+            self.assertTrue(
+                hasattr(legacy_mon, name),
+                f"Legacy scripts.lib.monitoring missing re-export '{name}'",
+            )
+            legacy_attr = getattr(legacy_mon, name)
+            new_attr = getattr(new_mon, name)
+            self.assertIs(
+                legacy_attr,
+                new_attr,
+                f"Attribute '{name}' in scripts.lib.monitoring is not identical to scripts.monitoring",
+            )
+
+
+class TestMonitoringFailSafeAndIsolation(unittest.TestCase):
+    """Verify monitoring subsystem isolation and fail-closed behaviors."""
+
+    def test_evaluate_production_monitoring_missing_payload_fail_closed(self):
+        """Verify missing payload causes evaluate_production_monitoring to return overall_status == FAIL without crashing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            res = evaluate_production_monitoring(generated_dir=tmpdir)
+            self.assertIsInstance(res, PipelineMonitoringResult)
+            self.assertEqual(res.overall_status, "FAIL")
+            self.assertIn("error", res.metrics)
+
+    def test_monitoring_failure_does_not_mutate_business_payloads(self):
+        """Verify that running monitoring checks does not mutate input recommendation or market payloads."""
+        rec_payload = {
+            "schema_version": "v1.0",
+            "signal_model_version": "v2.0",
+            "generated_at": "2026-03-31T00:00:00Z",
+            "data_as_of": "2026-03-31",
+            "summary": {
+                "total_scanned": 1,
+                "buy_count": 1,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [
+                {
+                    "symbol": "VNM",
+                    "action": "BUY",
+                    "data_quality": "SUFFICIENT",
+                    "signal_score": 85.0,
+                    "risk_adjusted_score": 80.0,
+                    "confidence": 0.9,
+                }
+            ],
+        }
+        rec_payload_copy = json.loads(json.dumps(rec_payload))
+
+        market_payload = {
+            "data_as_of": "2026-03-31",
+            "market": {
+                "regime": "UPTREND",
+                "confidence": 0.85,
+                "metrics": {
+                    "vnindex_value": 1250.0,
+                    "vnindex_change_pct": 1.2,
+                    "market_breadth_ratio": 0.65,
+                },
+            },
+        }
+        market_payload_copy = json.loads(json.dumps(market_payload))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Setup dummy history index so artifact existence check passes history
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+            with open(os.path.join(hist_dir, "index.json"), "w", encoding="utf-8") as f:
+                json.dump({"dates": ["2026-03-31"]}, f)
+            with open(os.path.join(hist_dir, "2026-03-31.json"), "w", encoding="utf-8") as f:
+                json.dump(rec_payload, f)
+
+            res = evaluate_production_monitoring(
+                generated_dir=tmpdir,
+                recommendations_payload=rec_payload,
+                market_payload=market_payload,
+                reference_date="2026-03-31",
+            )
+
+            self.assertIsInstance(res, PipelineMonitoringResult)
+            self.assertEqual(rec_payload, rec_payload_copy)
+            self.assertEqual(market_payload, market_payload_copy)
+
+
+if __name__ == "__main__":
+    unittest.main()
