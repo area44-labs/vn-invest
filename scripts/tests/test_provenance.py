@@ -855,6 +855,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             [sys.executable, "-c", snippet],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(
             res.returncode,
