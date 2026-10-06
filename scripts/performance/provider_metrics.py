@@ -10,9 +10,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def aggregate_provider_performance(
-    call_history: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
+def aggregate_provider_performance(call_history: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Aggregate provider call timing history into structured performance statistics.
 
     If call_history is None, delegates to VnstockDataProvider.get_global_call_history().
@@ -32,7 +30,9 @@ def aggregate_provider_performance(
     total_elapsed_seconds = round(
         sum(float(c.get("elapsed_seconds", 0.0)) for c in call_history), 4
     )
-    average_call_seconds = round(total_elapsed_seconds / total_calls, 4) if total_calls > 0 else 0.0
+    average_call_seconds = (
+        round(total_elapsed_seconds / total_calls, 4) if total_calls > 0 else 0.0
+    )
 
     calls_by_source: dict[str, int] = {}
     for c in call_history:
@@ -71,7 +71,7 @@ def detect_duplicate_operations(
 
     all_symbols = set(symbol_provider_calls.keys())
     if symbol_requests:
-        all_symbols.update(str(s).strip().upper() for s in symbol_requests.keys())
+        all_symbols.update(str(s).strip().upper() for s in symbol_requests)
 
     duplicates = []
     for sym in sorted(all_symbols):

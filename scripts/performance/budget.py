@@ -68,10 +68,7 @@ def evaluate_provider_budget(
             "yes",
         )
 
-    if violations:
-        overall_status = "FAILED" if enforce_ci_budget else "DEGRADED"
-    else:
-        overall_status = "PASS"
+    overall_status = ("FAILED" if enforce_ci_budget else "DEGRADED") if violations else "PASS"
 
     return {
         "overall_status": overall_status,

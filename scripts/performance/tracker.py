@@ -116,12 +116,12 @@ class PerformanceTracker:
 
             validate_performance_payload(payload)
             return payload
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Instrumentation error during get_performance_payload: %s", exc)
             fallback = create_default_performance_payload()
             try:
                 validate_performance_payload(fallback)
-            except Exception as fallback_exc:
+            except Exception as fallback_exc:  # noqa: BLE001
                 logger.error("Fallback performance payload validation error: %s", fallback_exc)
             return fallback
 
