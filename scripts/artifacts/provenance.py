@@ -6,7 +6,7 @@ Provides machine-readable provenance tracking and fail-closed validation for pub
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION
@@ -182,7 +182,7 @@ def validate_provenance_manifest(
         raise ProvenanceValidationError("Provenance 'generated_at' must be a non-empty string")
     try:
         # Check ISO timestamp format parseability
-        datetime.fromisoformat(gen_at.replace("Z", "+00:00"))
+        datetime.fromisoformat(gen_at)
     except (ValueError, TypeError) as err:
         raise ProvenanceValidationError(
             f"Invalid 'generated_at' ISO timestamp format in provenance: {gen_at!r}"
@@ -249,11 +249,11 @@ def validate_provenance_manifest(
         )
 
     if batch_artifacts is not None:
-        expected_batch = sorted(list(batch_artifacts))
-        declared_batch = sorted(list(artifacts))
+        expected_batch = sorted(batch_artifacts)
+        declared_batch = sorted(artifacts)
         if declared_batch != expected_batch:
-            diff_missing = sorted(list(set(expected_batch) - set(declared_batch)))
-            diff_extra = sorted(list(set(declared_batch) - set(expected_batch)))
+            diff_missing = sorted(set(expected_batch) - set(declared_batch))
+            diff_extra = sorted(set(declared_batch) - set(expected_batch))
             msg = f"Provenance 'artifacts' list {declared_batch} does not match published batch {expected_batch}."
             if diff_missing:
                 msg += f" Missing in provenance: {diff_missing}."
@@ -306,7 +306,7 @@ class ProvenanceBuilder:
     ) -> "ProvenanceBuilder":
         """Build ProvenanceBuilder from a PipelineContext instance."""
         data_as_of = getattr(context, "data_as_of", None) or "1970-01-01"
-        generated_at = getattr(context, "generated_at", None) or datetime.now().isoformat()
+        generated_at = getattr(context, "generated_at", None) or datetime.now(UTC).isoformat()
 
         rec_payload = getattr(context, "recommendations_payload", {}) or {}
 
@@ -359,7 +359,7 @@ class ProvenanceBuilder:
         self, batch_artifacts: list[str] | set[str] | tuple[str, ...]
     ) -> "ProvenanceBuilder":
         """Update batch artifacts in builder."""
-        self.artifacts = tuple(sorted(list(batch_artifacts)))
+        self.artifacts = tuple(sorted(batch_artifacts))
         return self
 
     def build(self) -> ProvenanceManifest:
