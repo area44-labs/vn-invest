@@ -95,7 +95,7 @@ class ArtifactManifest:
             "created_at": self.created_at,
             "target_dir": self.target_dir,
             "artifact_count": len(self.artifacts),
-            "paths": sorted(list(self.artifacts.keys())),
+            "paths": sorted(self.artifacts.keys()),
         }
 
 
