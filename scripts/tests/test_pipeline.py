@@ -494,6 +494,43 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
             self.assertTrue(hasattr(cm.exception, "universe_audit"))
 
 
+def make_valid_sample_recommendation_payload():
+    return {
+        "schema_version": "2.0",
+        "signal_model_version": "2.0",
+        "generated_at": "2026-09-25T14:00:00Z",
+        "data_as_of": "2026-09-25",
+        "source_date": "2026-09-25",
+        "data_source": "kbs",
+        "universe_info": {
+            "universe_type": "MANDATORY_AND_CANDIDATES",
+            "universe_size": 0,
+        },
+        "market": {
+            "regime": "DEFENSIVE",
+            "confidence": 0.85,
+            "regime_score": 55.0,
+            "metrics": {
+                "vnindex_value": 1250.5,
+                "vnindex_change_pct": 0.5,
+                "vn30_change_pct": 0.4,
+                "market_breadth_ratio": 0.6,
+                "volatility": 0.15,
+                "volume_20d_ratio": 1.1,
+            },
+        },
+        "summary": {
+            "total_scanned": 0,
+            "buy_count": 0,
+            "watch_count": 0,
+            "hold_count": 0,
+            "sell_count": 0,
+            "avoid_count": 0,
+        },
+        "recommendations": [],
+    }
+
+
 class TestMonitoringAndPublishingStages(unittest.TestCase):
     """Verify JSON Schema validation preservation and ArtifactPublishingStage behavior."""
 
@@ -542,11 +579,17 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
     def test_artifact_publishing_stage_publishes_when_enabled(self):
         """Verify ArtifactPublishingStage executes atomic publication when publish_artifacts=True."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            rec_payload = make_valid_sample_recommendation_payload()
             context = PipelineContext(publish_artifacts=True, generated_dir=tmpdir)
-            context.data_as_of = "2026-09-29"
-            context.recommendations_payload = {"recommendations": []}
-            context.market_payload = {"market": {}}
-            context.monitoring_dict = {"status": "PASS"}
+            context.data_as_of = "2026-09-25"
+            context.recommendations_payload = rec_payload
+            context.history_payload = rec_payload
+            context.market_payload = rec_payload
+            context.monitoring_dict = {
+                "schema_version": "2.0",
+                "data_as_of": "2026-09-25",
+                "status": "PASS",
+            }
 
             stage = ArtifactPublishingStage()
             stage.execute(context)
