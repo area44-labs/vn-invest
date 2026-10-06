@@ -13,8 +13,7 @@ SCHEMA_VERSION = "2.0"
 # Root directory of the repository
 _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Extensible Central Schema Version Registry mapping (schema_type, schema_version) -> relative path
-# Supports multiple schema types ("recommendations", "performance") across versions
+# Single Canonical Mapping: (schema_type, schema_version) -> absolute schema file path
 _SCHEMA_FILES: dict[tuple[str, str], str] = {
     ("recommendations", "2.0"): os.path.join(
         _ROOT_DIR, "schemas", "v2", "recommendations.schema.json"
@@ -24,17 +23,12 @@ _SCHEMA_FILES: dict[tuple[str, str], str] = {
     ),
 }
 
-# Public Schema Version Registry mapping version strings to dictionary of schema types
-SCHEMA_REGISTRY: dict[str, dict[str, str]] = {
-    "2.0": {
-        "recommendations": os.path.join(
-            _ROOT_DIR, "schemas", "v2", "recommendations.schema.json"
-        ),
-        "performance": os.path.join(
-            _ROOT_DIR, "schemas", "v2", "performance.schema.json"
-        ),
-    }
-}
+# Derived SCHEMA_REGISTRY mapping schema_version -> {schema_type: schema_path}
+SCHEMA_REGISTRY: dict[str, dict[str, str]] = {}
+for (_stype, _ver), _path in _SCHEMA_FILES.items():
+    if _ver not in SCHEMA_REGISTRY:
+        SCHEMA_REGISTRY[_ver] = {}
+    SCHEMA_REGISTRY[_ver][_stype] = _path
 
 
 def get_supported_schema_versions(schema_type: str = "recommendations") -> set[str]:

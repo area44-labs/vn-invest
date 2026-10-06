@@ -82,25 +82,36 @@ def check_required_artifacts(
 def check_schema_validation(
     recommendations_payload: dict, schema_path: str = DEFAULT_SCHEMA_PATH
 ) -> CheckResult:
-    """Validate recommendations payload against canonical JSON schema."""
-    if not os.path.exists(schema_path):
-        return CheckResult(
-            check_name="schema_validation",
-            status="FAIL",
-            measured_value={"schema_path": schema_path},
-            expected_condition=f"Schema file exists at {schema_path}",
-            message=f"JSON Schema file not found at {schema_path}",
-        )
+    """Validate recommendations payload against canonical JSON schema from version registry."""
+    schema_ver = (
+        recommendations_payload.get("schema_version")
+        if isinstance(recommendations_payload, dict)
+        else None
+    )
 
     try:
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema = json.load(f)
+        if schema_path == DEFAULT_SCHEMA_PATH:
+            from scripts.pipeline.validation import load_schema
+
+            schema = load_schema(schema_ver)
+        else:
+            if not os.path.exists(schema_path):
+                return CheckResult(
+                    check_name="schema_validation",
+                    status="FAIL",
+                    measured_value={"schema_path": schema_path},
+                    expected_condition=f"Schema file exists at {schema_path}",
+                    message=f"JSON Schema file not found at {schema_path}",
+                )
+            with open(schema_path, "r", encoding="utf-8") as f:
+                schema = json.load(f)
+
         jsonschema.validate(instance=recommendations_payload, schema=schema)
         return CheckResult(
             check_name="schema_validation",
             status="PASS",
-            measured_value={"schema_version": recommendations_payload.get("schema_version")},
-            expected_condition="Payload matches recommendations.schema.json",
+            measured_value={"schema_version": schema_ver},
+            expected_condition="Payload matches versioned JSON schema",
             message="Recommendations payload passed JSON schema validation",
         )
     except jsonschema.ValidationError as err:
@@ -108,7 +119,7 @@ def check_schema_validation(
             check_name="schema_validation",
             status="FAIL",
             measured_value={"error_path": list(err.absolute_path), "failed_keyword": err.validator},
-            expected_condition="Payload matches recommendations.schema.json",
+            expected_condition="Payload matches versioned JSON schema",
             message=f"Schema validation failed at path {list(err.absolute_path)}: {err.message}",
         )
     except Exception as err:  # noqa: BLE001
@@ -116,7 +127,7 @@ def check_schema_validation(
             check_name="schema_validation",
             status="FAIL",
             measured_value={"error": str(err)},
-            expected_condition="Payload matches recommendations.schema.json",
+            expected_condition="Payload matches versioned JSON schema",
             message=f"Schema validation error: {err}",
         )
 

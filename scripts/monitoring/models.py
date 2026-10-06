@@ -12,8 +12,10 @@ from scripts.lib.config import (
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
-DEFAULT_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "recommendations.schema.json")
-DEFAULT_PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "performance.schema.json")
+from scripts.schema import SCHEMA_VERSION, get_registered_schema_path
+
+DEFAULT_SCHEMA_PATH = get_registered_schema_path("recommendations", SCHEMA_VERSION)
+DEFAULT_PERFORMANCE_SCHEMA_PATH = get_registered_schema_path("performance", SCHEMA_VERSION)
 
 VALID_CHECK_STATUSES = {"PASS", "WARNING", "FAIL"}
 

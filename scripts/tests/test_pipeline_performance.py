@@ -726,6 +726,10 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
                 "scripts.pipeline.validation.PERFORMANCE_SCHEMA_PATH",
                 "/non/existent/path/performance.schema.json",
             ),
+            patch(
+                "scripts.schema.registry.get_registered_schema_path",
+                return_value="/non/existent/path/performance.schema.json",
+            ),
             self.assertRaises(FileNotFoundError),
         ):
             validate_performance_payload(payload)
