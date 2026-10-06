@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import (
     CandidateSpec,
     FeatureInput,
@@ -52,10 +53,12 @@ class MarketAnalysisEngine:
         input_data: MarketAnalysisInput,
         regime_detector: Callable[..., dict[str, Any]] | None = None,
     ) -> RegimeResult:
+        cfg = input_data.config
         feature_in = FeatureInput(
             stock_data_map=input_data.stock_data_map,
             candidate_symbols=input_data.candidate_symbols,
             processed_symbols=input_data.processed_symbols,
+            config=cfg,
         )
         feature_res = compute_market_breadth(feature_in)
 
@@ -64,16 +67,19 @@ class MarketAnalysisEngine:
             df_vnindex=input_data.df_vnindex,
             df_vn30=df_vn30_input,
             breadth_ratio=feature_res.breadth_ratio,
+            config=cfg,
         )
         return detect_market_regime(regime_in, detector=regime_detector)
 
 
 __all__ = [
+    "DEFAULT_QUANT_CONFIG",
     "CandidateSpec",
     "FeatureInput",
     "FeatureResult",
     "MarketAnalysisEngine",
     "MarketAnalysisInput",
+    "QuantConfig",
     "RecommendationInput",
     "RecommendationResult",
     "RegimeInput",

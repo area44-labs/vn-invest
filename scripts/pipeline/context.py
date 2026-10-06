@@ -9,9 +9,10 @@ import pandas as pd
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
 from scripts.domain.universe import Universe, UniverseScanResult
-from scripts.lib.config import SIGNAL_MODEL_VERSION, is_recoverable_category
+from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.monitoring import PipelineMonitoringResult
 from scripts.lib.vietnam_market import UniverseProvider
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
 @dataclass
@@ -403,9 +404,36 @@ class PipelineContext:
 
         u_info = self._universe.to_info_dict()
 
+        quant_versions = set()
+        config_hashes = set()
+
+        for r in self.scanned_recs:
+            if isinstance(r, dict):
+                qv = r.get("quant_version", QUANT_VERSION)
+                ch = r.get("config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            else:
+                qv = getattr(r, "quant_version", QUANT_VERSION)
+                ch = getattr(r, "config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            quant_versions.add(qv)
+            config_hashes.add(ch)
+
+        if not self.scanned_recs:
+            q_ver = QUANT_VERSION
+            cfg_hash = DEFAULT_QUANT_CONFIG.get_config_hash()
+        elif len(quant_versions) == 1 and len(config_hashes) == 1:
+            q_ver = next(iter(quant_versions))
+            cfg_hash = next(iter(config_hashes))
+        else:
+            raise ValueError(
+                f"Mixed quantitative configuration versions {sorted(quant_versions)} "
+                f"or config hashes {sorted(config_hashes)} detected in recommendations batch."
+            )
+
         self.recommendations_payload = {
             "schema_version": "2.0",
             "signal_model_version": SIGNAL_MODEL_VERSION,
+            "quant_version": q_ver,
+            "config_hash": cfg_hash,
             "generated_at": self.generated_at,
             "data_as_of": self.data_as_of,
             "source_date": self.source_date,

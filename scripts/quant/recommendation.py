@@ -1,15 +1,13 @@
 """Recommendation and trade plan composition module for VN Invest quant layer."""
 
+import inspect
 from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
 
 from scripts.domain import Recommendation, RiskAssessment, TradePlan
-from scripts.lib.vietnam_market import (
-    extract_latest_trading_date,
-    validate_ohlcv_data,
-)
+from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import (
     CandidateSpec,
     RecommendationInput,
@@ -19,10 +17,22 @@ from scripts.quant.contracts import (
 )
 from scripts.quant.risk import compute_stock_risk_and_trade_plan
 from scripts.quant.signal import (
-    SIGNAL_MODEL_VERSION,
     classify_action,
     compute_signal,
 )
+
+
+def _extract_latest_trading_date(df: pd.DataFrame) -> str | None:
+    """Helper to extract latest trading date string from clean OHLCV DataFrame."""
+    if df is None or df.empty:
+        return None
+    date_col = "time" if "time" in df.columns else ("date" if "date" in df.columns else None)
+    if not date_col:
+        return None
+    parsed_dates = pd.to_datetime(df[date_col], errors="coerce").dropna()
+    if parsed_dates.empty:
+        return None
+    return str(parsed_dates.max().strftime("%Y-%m-%d"))
 
 
 def generate_single_recommendation(
@@ -37,8 +47,11 @@ def generate_single_recommendation(
     prop_net_buy_bn: float = 0.0,
     data_as_of: str | None = None,
     data_source: str | None = None,
+    config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> Recommendation:
     """Generate a single stock recommendation object by composing quant signal and risk modules."""
+    from scripts.lib.vietnam_market import validate_ohlcv_data
+
     comp_clean = (
         company_name.strip()
         if (isinstance(company_name, str) and company_name.strip())
@@ -52,17 +65,23 @@ def generate_single_recommendation(
     val_res = validate_ohlcv_data(df_stock, symbol)
     df_clean = val_res["clean_df"]
     stock_data_as_of = (
-        data_as_of or val_res.get("latest_date") or extract_latest_trading_date(df_clean)
+        data_as_of or val_res.get("latest_date") or _extract_latest_trading_date(df_clean)
     )
 
-    if val_res["status"] == "INSUFFICIENT" or df_clean.empty or len(df_clean) < 20:
+    if (
+        val_res["status"] == "INSUFFICIENT"
+        or df_clean.empty
+        or len(df_clean) < config.ma_short_period
+    ):
         return Recommendation(
             symbol=symbol,
             company_name=comp_clean,
             exchange=ex_clean,
             sector=sec_clean,
             action="AVOID",
-            model_version=SIGNAL_MODEL_VERSION,
+            model_version=config.model_version,
+            quant_version=config.quant_version,
+            config_hash=config.get_config_hash(),
             data_quality="INSUFFICIENT",
             data_quality_issues=tuple(val_res["issues"]),
             data_as_of=stock_data_as_of,
@@ -76,7 +95,7 @@ def generate_single_recommendation(
                 "relative_strength": None,
                 "divergence": None,
             },
-            confidence=0.10,
+            confidence=config.confidence_min,
             risk_level=None,
             expected_return={
                 "expected_return_5d": None,
@@ -122,11 +141,14 @@ def generate_single_recommendation(
         df_vnindex=df_vnindex,
         data_as_of=stock_data_as_of,
         data_source=data_source,
+        config=config,
     )
     sig_res = compute_signal(signal_input)
 
     regime = market_regime_info.get("regime", "DEFENSIVE")
-    action = classify_action(sig_res.score, regime, sig_res.raw_close, sig_res.raw_ma20)
+    action = classify_action(
+        sig_res.score, regime, sig_res.raw_close, sig_res.raw_ma20, config=config
+    )
 
     # 2. Compute Risk & Trade Plan
     risk_input = RiskInput(
@@ -139,6 +161,7 @@ def generate_single_recommendation(
         market_regime=market_regime_info,
         signal_result=sig_res,
         action=action,
+        config=config,
     )
     risk_res = compute_stock_risk_and_trade_plan(risk_input)
 
@@ -195,7 +218,9 @@ def generate_single_recommendation(
         exchange=ex_clean,
         sector=sec_clean,
         action=action,
-        model_version=SIGNAL_MODEL_VERSION,
+        model_version=config.model_version,
+        quant_version=config.quant_version,
+        config_hash=config.get_config_hash(),
         data_quality=final_data_quality,
         data_quality_issues=tuple(val_res["issues"]),
         data_as_of=stock_data_as_of,
@@ -228,7 +253,17 @@ class SignalRecommendationEngine:
         processed_set = (
             set(input_data.processed_symbols) if input_data.processed_symbols is not None else None
         )
-        generator = recommendation_generator or generate_single_recommendation
+        cfg = input_data.config
+
+        accepts_config = False
+        if recommendation_generator is not None:
+            try:
+                sig = inspect.signature(recommendation_generator)
+                params = sig.parameters
+                has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+                accepts_config = "config" in params or has_kwargs
+            except ValueError, TypeError:
+                accepts_config = False
 
         for cand in input_data.candidates:
             sym = cand.symbol
@@ -250,17 +285,67 @@ class SignalRecommendationEngine:
                 else:
                     source_tag = input_data.data_source
 
-            rec = generator(
-                symbol=sym,
-                company_name=comp,
-                sector=sec,
-                exchange=ex,
-                df_stock=df_stock_input,
-                market_regime_info=input_data.market_regime,
-                df_vnindex=input_data.df_vnindex,
-                data_as_of=input_data.data_as_of,
-                data_source=source_tag,
-            )
+            if recommendation_generator is not None:
+                if accepts_config:
+                    rec = recommendation_generator(
+                        symbol=sym,
+                        company_name=comp,
+                        sector=sec,
+                        exchange=ex,
+                        df_stock=df_stock_input,
+                        market_regime_info=input_data.market_regime,
+                        df_vnindex=input_data.df_vnindex,
+                        data_as_of=input_data.data_as_of,
+                        data_source=source_tag,
+                        config=cfg,
+                    )
+                else:
+                    rec = recommendation_generator(
+                        symbol=sym,
+                        company_name=comp,
+                        sector=sec,
+                        exchange=ex,
+                        df_stock=df_stock_input,
+                        market_regime_info=input_data.market_regime,
+                        df_vnindex=input_data.df_vnindex,
+                        data_as_of=input_data.data_as_of,
+                        data_source=source_tag,
+                    )
+
+                # Validate quant_version and config_hash of custom generator output
+                rec_qver = (
+                    rec.get("quant_version")
+                    if isinstance(rec, dict)
+                    else getattr(rec, "quant_version", None)
+                )
+                rec_chash = (
+                    rec.get("config_hash")
+                    if isinstance(rec, dict)
+                    else getattr(rec, "config_hash", None)
+                )
+
+                expected_qver = cfg.quant_version
+                expected_chash = cfg.get_config_hash()
+
+                if rec_qver != expected_qver or rec_chash != expected_chash:
+                    raise ValueError(
+                        f"Recommendation output configuration mismatch for symbol '{sym}': "
+                        f"expected quant_version='{expected_qver}' and config_hash='{expected_chash}', "
+                        f"got quant_version='{rec_qver}' and config_hash='{rec_chash}'."
+                    )
+            else:
+                rec = generate_single_recommendation(
+                    symbol=sym,
+                    company_name=comp,
+                    sector=sec,
+                    exchange=ex,
+                    df_stock=df_stock_input,
+                    market_regime_info=input_data.market_regime,
+                    df_vnindex=input_data.df_vnindex,
+                    data_as_of=input_data.data_as_of,
+                    data_source=source_tag,
+                    config=cfg,
+                )
             scanned_recs.append(rec)
 
         return RecommendationResult(recommendations=scanned_recs)

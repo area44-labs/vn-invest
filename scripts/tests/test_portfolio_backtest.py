@@ -2775,6 +2775,9 @@ class TestPortfolioSerializationAndResultContract(unittest.TestCase):
             "require_executable",
             "transaction_cost_pct",
             "slippage_pct",
+            "quant_version",
+            "model_version",
+            "quant_config_hash",
         }
         self.assertEqual(set(serialized["config"].keys()), required_config_keys)
 

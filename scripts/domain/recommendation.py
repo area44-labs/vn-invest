@@ -61,6 +61,8 @@ class Recommendation:
     action: str
     model_version: str
     data_quality: str
+    quant_version: str = "1.0.0"
+    config_hash: str = ""
     data_quality_issues: tuple[str, ...] = ()
     data_as_of: str | None = None
     data_source: str | None = None
@@ -78,6 +80,11 @@ class Recommendation:
     divergence: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
+        if not self.config_hash:
+            from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+            object.__setattr__(self, "config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+
         if not isinstance(self.symbol, str) or not self.symbol.strip():
             raise ValueError("Field 'symbol' must be a non-empty string")
         sym_u = self.symbol.strip().upper()
@@ -219,6 +226,8 @@ class Recommendation:
             "sector": self.sector,
             "action": self.action,
             "model_version": self.model_version,
+            "quant_version": self.quant_version,
+            "config_hash": self.config_hash,
             "data_quality": self.data_quality,
             "data_quality_issues": list(self.data_quality_issues),
             "data_as_of": self.data_as_of,
@@ -274,6 +283,8 @@ class Recommendation:
             sector=sec_val,
             action=data.get("action", "AVOID"),
             model_version=data.get("model_version", "2.0"),
+            quant_version=data.get("quant_version", "1.0.0"),
+            config_hash=data.get("config_hash", ""),
             data_quality=data.get("data_quality", "INSUFFICIENT"),
             data_quality_issues=tuple(data.get("data_quality_issues", [])),
             data_as_of=data.get("data_as_of"),
