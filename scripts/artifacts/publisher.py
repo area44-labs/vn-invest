@@ -22,10 +22,12 @@ class ArtifactPublisher:
         target_dir: str | None = None,
         schema: dict | None = None,
         strict_provenance: bool = True,
+        canonical_data_as_of: str | None = None,
     ):
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
         self.schema = schema
         self.strict_provenance = strict_provenance
+        self.canonical_data_as_of = canonical_data_as_of
 
     def validate_artifact(self, relative_path: str, payload: dict) -> None:
         """Validate artifact payload prior to publication.
@@ -51,7 +53,11 @@ class ArtifactPublisher:
 
         validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
 
-    def publish(self, artifacts: dict[str, dict] | ArtifactManifest) -> ArtifactManifest:
+    def publish(
+        self,
+        artifacts: dict[str, dict] | ArtifactManifest,
+        canonical_data_as_of: str | None = None,
+    ) -> ArtifactManifest:
         """Publish artifacts through full publishing pipeline under single-writer lock.
 
         Guarantees publication flow: Domain Results -> Schema Validation -> Manifest -> Atomic Transaction -> Published Artifacts.
@@ -70,19 +76,43 @@ class ArtifactPublisher:
         for rel_path, payload in manifest.artifacts.items():
             self.validate_artifact(rel_path, payload)
 
-        # Step 1b: Pre-publish provenance validation
-        batch_paths = set(manifest.artifacts.keys())
-        canonical_data_as_of = None
+        # Step 1b: Pre-publish batch-level data_as_of consistency check across ALL artifacts
+        effective_canonical_date = canonical_data_as_of or self.canonical_data_as_of
+
+        artifact_dates: dict[str, str] = {}
         for rel_path, payload in manifest.artifacts.items():
-            if isinstance(payload, dict) and "data_as_of" in payload and payload["data_as_of"]:
-                canonical_data_as_of = payload["data_as_of"]
-                break
+            if (
+                isinstance(payload, dict)
+                and "data_as_of" in payload
+                and payload["data_as_of"] is not None
+            ):
+                artifact_dates[rel_path] = str(payload["data_as_of"])
+
+        if effective_canonical_date is None:
+            distinct_dates = set(artifact_dates.values())
+            if len(distinct_dates) > 1:
+                raise ProvenanceValidationError(
+                    f"Conflicting 'data_as_of' dates detected across artifacts in published batch: {artifact_dates}"
+                )
+            if len(distinct_dates) == 1:
+                effective_canonical_date = next(iter(distinct_dates))
+
+        if effective_canonical_date is not None:
+            for rel_path, art_date in artifact_dates.items():
+                if art_date != effective_canonical_date:
+                    raise ProvenanceValidationError(
+                        f"Artifact '{rel_path}' data_as_of ({art_date!r}) does not match canonical date ({effective_canonical_date!r})"
+                    )
+
+        # Step 1c: Pre-publish provenance manifest validation
+        batch_paths = set(manifest.artifacts.keys())
 
         if "provenance.json" in manifest.artifacts:
             validate_provenance_manifest(
                 manifest.artifacts["provenance.json"],
                 batch_artifacts=batch_paths,
-                canonical_data_as_of=canonical_data_as_of,
+                canonical_data_as_of=effective_canonical_date,
+                artifacts_dict=manifest.artifacts,
             )
         elif self.strict_provenance:
             raise ProvenanceValidationError(
@@ -155,10 +185,15 @@ def publish_artifacts_atomically(
     artifacts: dict[str, dict] | ArtifactManifest,
     target_dir: str | None = None,
     strict_provenance: bool = True,
+    canonical_data_as_of: str | None = None,
 ) -> ArtifactManifest:
     """Publish multiple JSON artifacts or ArtifactManifest atomically using ArtifactPublisher."""
-    publisher = ArtifactPublisher(target_dir=target_dir, strict_provenance=strict_provenance)
-    return publisher.publish(artifacts)
+    publisher = ArtifactPublisher(
+        target_dir=target_dir,
+        strict_provenance=strict_provenance,
+        canonical_data_as_of=canonical_data_as_of,
+    )
+    return publisher.publish(artifacts, canonical_data_as_of=canonical_data_as_of)
 
 
 __all__ = [

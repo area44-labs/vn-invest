@@ -148,11 +148,12 @@ def validate_provenance_manifest(
     payload: dict[str, Any],
     batch_artifacts: set[str] | list[str] | tuple[str, ...] | None = None,
     canonical_data_as_of: str | None = None,
+    artifacts_dict: dict[str, Any] | None = None,
 ) -> None:
     """Fail-closed validation of a provenance manifest payload.
 
     Raises ProvenanceValidationError if any requirement, format, version, data_as_of,
-    batch match, or secret check fails.
+    batch match, artifact consistency, or secret check fails.
     """
     if not isinstance(payload, dict):
         raise ProvenanceValidationError("Provenance manifest payload must be a dictionary")
@@ -175,6 +176,21 @@ def validate_provenance_manifest(
         raise ProvenanceValidationError(
             f"Provenance 'data_as_of' ({data_as_of!r}) does not match canonical pipeline date ({canonical_data_as_of!r})"
         )
+
+    # 2b. Consistency check across ALL artifacts in artifacts_dict if provided
+    if artifacts_dict is not None:
+        expected_date = canonical_data_as_of or data_as_of
+        for rel_path, art_payload in artifacts_dict.items():
+            if (
+                isinstance(art_payload, dict)
+                and "data_as_of" in art_payload
+                and art_payload["data_as_of"] is not None
+            ):
+                art_date = art_payload["data_as_of"]
+                if art_date != expected_date:
+                    raise ProvenanceValidationError(
+                        f"Artifact '{rel_path}' data_as_of ({art_date!r}) does not match canonical date ({expected_date!r})"
+                    )
 
     # 3. generated_at validation
     gen_at = payload["generated_at"]
@@ -305,7 +321,16 @@ class ProvenanceBuilder:
         batch_artifacts: list[str] | set[str] | tuple[str, ...] | None = None,
     ) -> ProvenanceBuilder:
         """Build ProvenanceBuilder from a PipelineContext instance."""
-        data_as_of = getattr(context, "data_as_of", None) or "1970-01-01"
+        data_as_of = getattr(context, "data_as_of", None)
+        if (
+            not data_as_of
+            or not isinstance(data_as_of, str)
+            or not re.match(r"^\d{4}-\d{2}-\d{2}$", data_as_of)
+        ):
+            raise ProvenanceValidationError(
+                f"PipelineContext missing valid canonical 'data_as_of' date (got {data_as_of!r})"
+            )
+
         generated_at = getattr(context, "generated_at", None) or datetime.now(UTC).isoformat()
 
         rec_payload = getattr(context, "recommendations_payload", {}) or {}

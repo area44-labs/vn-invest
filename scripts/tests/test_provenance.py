@@ -364,6 +364,87 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         self.assertIn("test_doc.json", published.artifacts)
         self.assertTrue(os.path.exists(os.path.join(self.target_dir, "test_doc.json")))
 
+    def test_14_missing_context_data_as_of_causes_fail_closed_rejection(self):
+        """14. Verify missing or None context.data_as_of raises ProvenanceValidationError without fallback."""
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = None
+
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            ProvenanceBuilder.from_context(context)
+
+        self.assertIn("missing valid canonical 'data_as_of'", str(cm.exception))
+
+    def test_15_empty_or_malformed_context_data_as_of_causes_fail_closed_rejection(self):
+        """15. Verify empty or malformed context.data_as_of raises ProvenanceValidationError."""
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        for bad_date in ("", "invalid-date", "2026/03/31", "2026-3-31"):
+            context.data_as_of = bad_date
+            with self.assertRaises(ProvenanceValidationError):
+                ProvenanceBuilder.from_context(context)
+
+    def test_16_conflicting_data_as_of_across_artifacts_causes_fail_closed_rejection(self):
+        """16. Verify conflicting data_as_of dates across artifacts (e.g. recs=2026-10-06 vs mkt=2026-10-05) fails closed."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+
+        # Batch where recommendations date is 2026-10-06 and market date is 2026-10-05
+        conflicting_batch = {
+            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
+            "market.json": {"data_as_of": "2026-10-05", "market": {}},
+            "provenance.json": {
+                **self.valid_provenance,
+                "data_as_of": "2026-10-06",
+            },
+        }
+
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            publisher.publish(conflicting_batch)
+
+        self.assertIn("data_as_of", str(cm.exception))
+
+    def test_17_matching_data_as_of_across_artifacts_succeeds(self):
+        """17. Verify when all artifacts contain matching data_as_of, publication succeeds cleanly."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+
+        matching_batch = {
+            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
+            "market.json": {"data_as_of": "2026-10-06", "market": {}},
+            "provenance.json": {
+                **self.valid_provenance,
+                "data_as_of": "2026-10-06",
+            },
+        }
+
+        manifest = publisher.publish(matching_batch)
+        self.assertIn("provenance.json", manifest.artifacts)
+        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+
+    def test_18_mismatched_data_as_of_validation_occurs_before_transaction(self):
+        """18. Verify mismatched data_as_of validation occurs BEFORE atomic transaction/staging starts."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+
+        conflicting_batch = {
+            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
+            "market.json": {"data_as_of": "2026-10-05", "market": {}},
+            "provenance.json": {
+                **self.valid_provenance,
+                "data_as_of": "2026-10-06",
+            },
+        }
+
+        with self.assertRaises(ProvenanceValidationError):
+            publisher.publish(conflicting_batch)
+
+        # Confirm no target file or staging directory was created
+        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        for item in os.listdir(self.temp_dir):
+            self.assertNotIn("staging", item)
+
 
 if __name__ == "__main__":
     unittest.main()

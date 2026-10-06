@@ -971,8 +971,11 @@ class ArtifactPublishingStage(PipelineStage):
 
             context.artifacts_to_publish = historical_artifacts
             if context.publish_artifacts:
-                publisher = ArtifactPublisher(target_dir=context.generated_dir)
-                publisher.publish(historical_artifacts)
+                publisher = ArtifactPublisher(
+                    target_dir=context.generated_dir,
+                    canonical_data_as_of=context.data_as_of,
+                )
+                publisher.publish(historical_artifacts, canonical_data_as_of=context.data_as_of)
             return
 
         context.artifacts_to_publish = {
@@ -998,19 +1001,22 @@ class ArtifactPublishingStage(PipelineStage):
                 "dates": history_dates,
             }
             context.artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
+
+            # Build provenance manifest for production publication batch
+            batch_keys = list(context.artifacts_to_publish.keys()) + ["provenance.json"]
+            prov_builder = ProvenanceBuilder.from_context(context, batch_artifacts=batch_keys)
+            context.artifacts_to_publish["provenance.json"] = prov_builder.build().to_dict()
         else:
             logger.warning(
-                "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
+                "data_as_of is None. Skipping creation of historical date JSON artifact, history index update, and provenance manifest."
             )
 
-        # Build provenance manifest for production publication batch
-        batch_keys = list(context.artifacts_to_publish.keys()) + ["provenance.json"]
-        prov_builder = ProvenanceBuilder.from_context(context, batch_artifacts=batch_keys)
-        context.artifacts_to_publish["provenance.json"] = prov_builder.build().to_dict()
-
         if context.publish_artifacts:
-            publisher = ArtifactPublisher(target_dir=context.generated_dir)
-            publisher.publish(context.artifacts_to_publish)
+            publisher = ArtifactPublisher(
+                target_dir=context.generated_dir,
+                canonical_data_as_of=context.data_as_of,
+            )
+            publisher.publish(context.artifacts_to_publish, canonical_data_as_of=context.data_as_of)
 
 
 __all__ = [
