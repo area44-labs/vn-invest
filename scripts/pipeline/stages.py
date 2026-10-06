@@ -999,6 +999,7 @@ class ArtifactPublishingStage(PipelineStage):
 
 __all__ = [
     "ArtifactPublishingStage",
+    "publish_artifacts_atomically",
     "DataAcquisitionStage",
     "DataValidationStage",
     "MarketAnalysisStage",
@@ -1009,5 +1010,4 @@ __all__ = [
     "SignalRecommendationGenerationStage",
     "UniverseProvider",
     "UniverseValidationStage",
-    "publish_artifacts_atomically",
 ]
