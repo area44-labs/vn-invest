@@ -2,7 +2,6 @@
 
 from typing import Any
 
-
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.regression import evaluate_performance_regression
 

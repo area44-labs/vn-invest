@@ -3,10 +3,9 @@
 import json
 import os
 import unittest
+from unittest.mock import patch
 
 import jsonschema
-
-from unittest.mock import patch
 
 from scripts.artifacts.publisher import ArtifactPublisher
 from scripts.monitoring.checks import check_schema_validation
