@@ -270,7 +270,7 @@ def evaluate_production_monitoring(
                 check_name="performance_payload_integrity",
                 status="FAIL",
                 measured_value={"performance": None},
-                expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                expected_condition="Valid performance payload conforming to schemas/v2/performance.schema.json",
                 message="Performance payload is explicitly None or missing from universe audit",
             )
         )
@@ -300,7 +300,7 @@ def evaluate_production_monitoring(
                     check_name="performance_payload_integrity",
                     status="PASS",
                     measured_value={"stages_count": len(perf_data.get("stages", []))},
-                    expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                    expected_condition="Valid performance payload conforming to schemas/v2/performance.schema.json",
                     message="Performance payload passed JSON schema validation",
                 )
             )
@@ -363,7 +363,7 @@ def evaluate_production_monitoring(
                     check_name="performance_payload_integrity",
                     status="FAIL",
                     measured_value={"error": str(err)},
-                    expected_condition="Valid performance payload conforming to schemas/performance.schema.json",
+                    expected_condition="Valid performance payload conforming to schemas/v2/performance.schema.json",
                     message=f"Performance payload schema validation failed: {err}",
                 )
             )

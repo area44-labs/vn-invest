@@ -110,7 +110,7 @@ Use the repository's actual configuration as the sole source of truth.
 
 ### C. Monitoring, Performance & Drift Contracts
 
-- **Schema Compliance**: Payload outputs must pass JSON Schema validation against `schemas/recommendations.schema.json`.
+- **Schema Compliance**: Payload outputs must pass JSON Schema validation against versioned schema files (e.g., `schemas/v2/recommendations.schema.json`).
 - **Baseline Qualification**: Operational drift monitoring (`evaluate_data_and_model_drift()`) evaluates qualified historical reports with coverage ratio `processed_ratio >= 0.80` in reverse chronological order $< T$.
 - **Baseline Insufficiency vs. Drift**: When qualified historical reports are fewer than `min_baseline_reports` (5), monitoring returns `INSUFFICIENT` status and `WARNING` checks. Data insufficiency must strictly be distinguished from genuine quantitative model drift.
 

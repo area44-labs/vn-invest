@@ -52,8 +52,7 @@ class ArtifactPublisher:
             schema_to_use = self.schema
         elif relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
             s_ver = payload.get("schema_version")
-            if s_ver:
-                schema_to_use = load_schema_for_version("performance", str(s_ver))
+            schema_to_use = load_schema_for_version("performance", str(s_ver)) if s_ver else None
             validate_performance_payload(payload, schema=schema_to_use)
             return
         elif (

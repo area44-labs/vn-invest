@@ -27,15 +27,11 @@ def validate_performance_payload(
         )
 
     if schema is None:
-        s_ver = (
-            version
-            or (
-                performance_data.get("schema_version")
-                if isinstance(performance_data, dict)
-                else None
-            )
-            or SCHEMA_VERSION
-        )
+        s_ver = version or performance_data.get("schema_version")
+        if not s_ver:
+            from scripts.schema import SchemaResolutionError
+
+            raise SchemaResolutionError("Performance payload is missing required 'schema_version'")
         schema = load_performance_schema(str(s_ver))
 
     jsonschema.validate(instance=performance_data, schema=schema)

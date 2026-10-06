@@ -42,6 +42,7 @@ from scripts.lib.monitoring import (
 def make_valid_performance_payload():
     """Construct a valid canonical performance payload for schema testing."""
     return {
+        "schema_version": "2.0",
         "stages": [
             {
                 "stage": "pipeline",
@@ -707,24 +708,8 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         payload = make_valid_performance_payload()
         with (
             patch(
-                "scripts.monitoring.models.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.monitoring.performance.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.lib.monitoring.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.pipeline.constants.PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.pipeline.validation.PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
+                "scripts.schema.registry.SCHEMA_REGISTRY",
+                {("performance", "2.0"): Path("/non/existent/path/performance.schema.json")},
             ),
             self.assertRaises(FileNotFoundError),
         ):
@@ -1349,6 +1334,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
@@ -1581,6 +1567,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                 ],
@@ -1649,6 +1636,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {

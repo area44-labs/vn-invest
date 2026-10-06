@@ -11,6 +11,7 @@ from scripts.pipeline.validation import (
     load_performance_schema,
     load_schema,
     validate_final_payload_integrity,
+    validate_performance_payload,
 )
 from scripts.schema import (
     SchemaResolutionError,
@@ -22,7 +23,7 @@ from scripts.schema import (
 class TestSchemaValidation(unittest.TestCase):
     def test_generated_recommendations_schema(self):
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        schema_path = os.path.join(root_dir, "schemas", "recommendations.schema.json")
+        schema_path = os.path.join(root_dir, "schemas", "v2", "recommendations.schema.json")
         data_path = os.path.join(root_dir, "generated", "recommendations.json")
 
         self.assertTrue(os.path.exists(schema_path), f"Schema file not found: {schema_path}")
@@ -138,12 +139,12 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         # Valid performance artifact passes validation
         publisher.validate_artifact("performance.json", valid_perf_payload)
 
-        # Missing schema_version fails closed via schema validation
+        # Missing schema_version fails closed via SchemaResolutionError
         no_ver_perf = dict(valid_perf_payload)
         del no_ver_perf["schema_version"]
-        with self.assertRaises(jsonschema.ValidationError) as cm_no_ver:
+        with self.assertRaises(SchemaResolutionError) as cm_no_ver:
             publisher.validate_artifact("performance.json", no_ver_perf)
-        self.assertIn("schema_version", str(cm_no_ver.exception))
+        self.assertIn("missing required 'schema_version'", str(cm_no_ver.exception))
 
         # Unsupported schema_version fails closed
         bad_ver_perf = dict(valid_perf_payload, schema_version="3.0")
@@ -158,6 +159,39 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
 
         with self.assertRaises(SchemaResolutionError):
             load_schema_for_version("performance", "unknown_ver_99")
+
+    def test_performance_validation_routes_through_registry(self):
+        """7. Verify validate_performance_payload routes through schema registry and fails closed on missing or unknown version."""
+        valid_perf = {
+            "schema_version": "2.0",
+            "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.2,
+                "average_call_seconds": 0.2,
+                "calls_by_source": {"vnstock": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        # Valid 2.0 performance payload passes
+        validate_performance_payload(valid_perf)
+
+        # Performance payload with missing schema_version raises SchemaResolutionError
+        no_ver_perf = dict(valid_perf)
+        del no_ver_perf["schema_version"]
+        with self.assertRaises(SchemaResolutionError) as cm_missing:
+            validate_performance_payload(no_ver_perf)
+        self.assertIn("missing required 'schema_version'", str(cm_missing.exception))
+
+        # Performance payload with unsupported schema_version raises SchemaResolutionError
+        bad_ver_perf = dict(valid_perf, schema_version="9.9")
+        with self.assertRaises(SchemaResolutionError) as cm_unsupported:
+            validate_performance_payload(bad_ver_perf)
+        self.assertIn("Unsupported schema version '9.9'", str(cm_unsupported.exception))
 
 
 if __name__ == "__main__":

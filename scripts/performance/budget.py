@@ -20,7 +20,7 @@ def evaluate_provider_budget(
     `duplicate_operations_count` is the count of duplicate operation symbol records
     present in the `duplicate_operations` list.
 
-    Returns structured dict matching schemas/performance.schema.json with overall_status
+    Returns structured dict matching schemas/v2/performance.schema.json with overall_status
     ("PASS", "DEGRADED", or "FAILED") and violation details.
     """
     if not isinstance(performance_data, dict):
