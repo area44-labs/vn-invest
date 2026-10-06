@@ -19,6 +19,7 @@ from scripts.lib.config import (
     DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN,
     DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT,
 )
+from scripts.monitoring.metrics import extract_recommendation_metrics, is_canonical_yyyy_mm_dd
 from scripts.monitoring.models import (
     CANONICAL_CONFIDENCE_BUCKETS,
     DEFAULT_GENERATED_DIR,
@@ -27,7 +28,6 @@ from scripts.monitoring.models import (
     DriftObservation,
     find_nan_or_inf,
 )
-from scripts.monitoring.metrics import extract_recommendation_metrics, is_canonical_yyyy_mm_dd
 
 
 def evaluate_data_and_model_drift(

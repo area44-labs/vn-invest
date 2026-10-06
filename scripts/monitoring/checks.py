@@ -7,15 +7,15 @@ from typing import Any
 
 import jsonschema
 
+from scripts.lib.config import VALID_MARKET_REGIMES
 from scripts.lib.vietnam_market import validate_ohlcv_data
+from scripts.monitoring.metrics import normalize_market_payload
 from scripts.monitoring.models import (
     DEFAULT_SCHEMA_PATH,
     VALID_EXCLUSION_CATEGORIES,
     CheckResult,
     find_nan_or_inf,
 )
-from scripts.monitoring.metrics import normalize_market_payload
-from scripts.lib.config import VALID_MARKET_REGIMES
 
 
 def check_required_artifacts(

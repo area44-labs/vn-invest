@@ -11,13 +11,6 @@ from scripts.data_provider import ProviderRateLimitError
 from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
-from scripts.monitoring import (
-    evaluate_performance_regression,
-    evaluate_production_monitoring,
-    evaluate_provider_budget,
-    load_performance_schema,
-    validate_performance_payload,
-)
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
@@ -26,6 +19,13 @@ from scripts.lib.vietnam_market import (
     get_clean_ohlcv_data,
     get_historical_data,
     validate_temporal_integrity,
+)
+from scripts.monitoring import (
+    evaluate_performance_regression,
+    evaluate_production_monitoring,
+    evaluate_provider_budget,
+    load_performance_schema,
+    validate_performance_payload,
 )
 from scripts.pipeline import (
     GENERATED_DIR,
