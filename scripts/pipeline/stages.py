@@ -7,6 +7,7 @@ import time
 
 import pandas as pd
 
+from scripts.artifacts import ArtifactPublisher, load_history_index, publish_artifacts_atomically
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
 from scripts.data.models import CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
@@ -21,7 +22,6 @@ from scripts.lib.vietnam_market import (
 )
 from scripts.monitoring import evaluate_production_monitoring
 from scripts.pipeline.context import PipelineContext
-from scripts.artifacts import ArtifactPublisher, load_history_index, publish_artifacts_atomically
 from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
 from scripts.quant import (
     CandidateSpec,
@@ -999,7 +999,6 @@ class ArtifactPublishingStage(PipelineStage):
 
 __all__ = [
     "ArtifactPublishingStage",
-    "publish_artifacts_atomically",
     "DataAcquisitionStage",
     "DataValidationStage",
     "MarketAnalysisStage",
@@ -1010,4 +1009,5 @@ __all__ = [
     "SignalRecommendationGenerationStage",
     "UniverseProvider",
     "UniverseValidationStage",
+    "publish_artifacts_atomically",
 ]
