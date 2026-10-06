@@ -166,7 +166,7 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["PASS", "DEGRADED", "FAILED"]
+                "enum": ["PASS", "DEGRADED", "FAILED", "UNBASELINED"]
               },
               "message": {
                 "type": "string"
