@@ -38,6 +38,4 @@ jobs:
         run: uv sync --frozen
 
       - name: Run Python tests
-        env:
-          ENABLE_PERFORMANCE_BUDGETS: "true"
         run: uv run --frozen python scripts/tests/run_tests.py

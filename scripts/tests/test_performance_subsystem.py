@@ -189,13 +189,28 @@ class TestPerformanceBudget(unittest.TestCase):
             res = evaluate_provider_budget(payload)
             self.assertEqual(res["overall_status"], "FAILED")
 
+    def test_evaluate_provider_budget_argument_precedence_over_env_var(self):
+        payload = {
+            "provider": {"total_calls": 150, "total_elapsed_seconds": 10.0},
+            "duplicate_operations": [],
+        }
+        with patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "true"}):
+            res_degraded = evaluate_provider_budget(payload, enforce_ci_budget=False)
+            self.assertEqual(res_degraded["overall_status"], "DEGRADED")
+
+        with patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "false"}):
+            res_failed = evaluate_provider_budget(payload, enforce_ci_budget=True)
+            self.assertEqual(res_failed["overall_status"], "FAILED")
+
     def test_evaluate_provider_budget_custom_threshold_override(self):
         payload = {
             "provider": {"total_calls": 10, "total_elapsed_seconds": 5.0},
             "duplicate_operations": [],
         }
         override = {"max_total_calls": 5}
-        res = evaluate_provider_budget(payload, budget_config_override=override)
+        res = evaluate_provider_budget(
+            payload, budget_config_override=override, enforce_ci_budget=False
+        )
         self.assertEqual(res["overall_status"], "DEGRADED")
         self.assertEqual(res["max_calls_budget"], 5)
 

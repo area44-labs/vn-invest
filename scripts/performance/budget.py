@@ -61,14 +61,17 @@ def evaluate_provider_budget(
         )
 
     # Check whether CI budget enforcement is enabled
+    # Explicit enforce_ci_budget parameter takes precedence over environment variable
     if enforce_ci_budget is None:
-        enforce_ci_budget = os.getenv("ENABLE_PERFORMANCE_BUDGETS", "").lower() in (
+        is_ci_enforced = os.getenv("ENABLE_PERFORMANCE_BUDGETS", "").lower() in (
             "1",
             "true",
             "yes",
         )
+    else:
+        is_ci_enforced = bool(enforce_ci_budget)
 
-    overall_status = ("FAILED" if enforce_ci_budget else "DEGRADED") if violations else "PASS"
+    overall_status = ("FAILED" if is_ci_enforced else "DEGRADED") if violations else "PASS"
 
     return {
         "overall_status": overall_status,
