@@ -146,7 +146,11 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         """Verify backward compatibility of imports from scripts.pipeline.publishing."""
         from scripts.pipeline.publishing import (
             ArtifactLock as LegacyLock,
+        )
+        from scripts.pipeline.publishing import (
             ArtifactPublisher as LegacyPublisher,
+        )
+        from scripts.pipeline.publishing import (
             publish_artifacts_atomically as legacy_publish,
         )
 
