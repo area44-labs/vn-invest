@@ -1,51 +1,23 @@
 """Payload validation utilities for VN Invest pipeline orchestration."""
 
-import json
 import math
-import os
 
 import jsonschema
 
-from scripts.artifacts.provenance import SCHEMA_VERSION
 from scripts.lib.backtest import _parse_canonical_date
-from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH, SCHEMA_PATH
-
-# Extensible Central Schema Version Registry mapping version strings to schema file paths
-SCHEMA_REGISTRY: dict[str, str] = {
-    "2.0": SCHEMA_PATH,
-}
-
-
-def get_supported_schema_versions() -> set[str]:
-    """Return set of registered supported schema versions."""
-    return set(SCHEMA_REGISTRY.keys())
+from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH
+from scripts.schema import (
+    SCHEMA_REGISTRY,
+    SCHEMA_VERSION,
+    get_registered_schema_path,
+    get_supported_schema_versions,
+    load_schema_for_version,
+)
 
 
-def get_registered_schema_path(version: str) -> str:
-    """Return schema file path for a registered schema version or raise ValueError."""
-    if not isinstance(version, str) or not version.strip():
-        raise ValueError("Schema version must be a non-empty string")
-    if version not in SCHEMA_REGISTRY:
-        supported = sorted(SCHEMA_REGISTRY.keys())
-        raise ValueError(f"Unsupported schema_version '{version}'. Supported versions: {supported}")
-    return SCHEMA_REGISTRY[version]
-
-
-def load_schema_for_version(version: str) -> dict:
-    """Load JSON Schema Draft 2020-12 for a specific schema version."""
-    schema_path = get_registered_schema_path(version)
-    if not os.path.exists(schema_path):
-        raise FileNotFoundError(f"Schema file for version '{version}' not found at '{schema_path}'")
-    with open(schema_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def load_performance_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
-    if not os.path.exists(PERFORMANCE_SCHEMA_PATH):
-        raise FileNotFoundError(f"Performance schema file not found at '{PERFORMANCE_SCHEMA_PATH}'")
-    with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+def load_performance_schema(version: str | None = None) -> dict:
+    """Load JSON Schema Draft 2020-12 for performance payload."""
+    return load_schema_for_version("performance", version or SCHEMA_VERSION)
 
 
 def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
@@ -65,9 +37,9 @@ def validate_performance_payload(performance_data: dict, schema: dict | None = N
 
 
 def load_schema(version: str | None = None) -> dict:
-    """Load JSON Schema Draft 2020-12 for the specified version (defaults to canonical SCHEMA_VERSION)."""
+    """Load JSON Schema Draft 2020-12 for recommendations payload (defaults to canonical SCHEMA_VERSION)."""
     target_version = version or SCHEMA_VERSION
-    return load_schema_for_version(target_version)
+    return load_schema_for_version("recommendations", target_version)
 
 
 def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> list[str]:
@@ -75,13 +47,14 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     issues = []
 
     schema_ver = payload.get("schema_version") if isinstance(payload, dict) else None
+    supported_versions = get_supported_schema_versions("recommendations")
     if schema_ver is not None:
         if not isinstance(schema_ver, str) or not schema_ver.strip():
             issues.append("top-level 'schema_version' must be a non-empty string")
-        elif schema_ver not in SCHEMA_REGISTRY:
+        elif schema_ver not in supported_versions:
             issues.append(
                 f"Unsupported top-level 'schema_version' '{schema_ver}'. "
-                f"Supported versions: {sorted(SCHEMA_REGISTRY.keys())}"
+                f"Supported versions: {sorted(supported_versions)}"
             )
 
     if schema:

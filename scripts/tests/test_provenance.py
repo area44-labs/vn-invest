@@ -842,12 +842,13 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         import sys
 
         snippet = (
-            "from scripts.artifacts.provenance import SCHEMA_VERSION\n"
+            "from scripts.schema import SCHEMA_VERSION\n"
+            "from scripts.artifacts.provenance import SCHEMA_VERSION as s1\n"
             "from scripts.pipeline.constants import SCHEMA_VERSION as s2\n"
             "from scripts.lib.config import SCHEMA_VERSION as s3\n"
             "from scripts.pipeline.publishing import SCHEMA_VERSION as s4\n"
-            "from scripts.pipeline.validation import SCHEMA_REGISTRY\n"
-            "assert SCHEMA_VERSION == s2 == s3 == s4 == '2.0'\n"
+            "from scripts.schema import SCHEMA_REGISTRY\n"
+            "assert SCHEMA_VERSION == s1 == s2 == s3 == s4 == '2.0'\n"
             "assert '2.0' in SCHEMA_REGISTRY\n"
         )
 
@@ -862,6 +863,79 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             0,
             f"Subprocess import test failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}",
         )
+
+    def test_35_missing_registered_schema_file_fails_closed(self):
+        """35. Verify load_schema_for_version raises FileNotFoundError if registered schema file is missing."""
+        from unittest.mock import patch
+        from scripts.schema.registry import load_schema_for_version
+
+        with patch("scripts.schema.registry.get_registered_schema_path", return_value="/non/existent/schema.json"):
+            with self.assertRaises(FileNotFoundError):
+                load_schema_for_version("recommendations", "2.0")
+
+    def test_36_performance_artifact_schema_version_validation(self):
+        """36. Verify performance.json artifact uses performance schema version contract and rejects unsupported versions."""
+        from scripts.performance import PerformanceTracker
+
+        tracker = PerformanceTracker()
+        perf_payload = tracker.get_performance_payload()
+
+        self.assertIn("schema_version", perf_payload)
+        self.assertEqual(perf_payload["schema_version"], "2.0")
+
+        # Unsupported schema version on performance payload
+        invalid_perf_payload = dict(perf_payload)
+        invalid_perf_payload["schema_version"] = "99.0"
+
+        artifacts = {
+            "performance.json": invalid_perf_payload,
+            "provenance.json": self.valid_provenance,
+        }
+
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            publisher.publish(artifacts, canonical_data_as_of=self.canonical_date)
+
+        self.assertIn("unsupported schema_version '99.0'", str(cm.exception))
+
+    def test_37_governed_artifacts_require_valid_schema_version_in_publisher(self):
+        """37. Verify publisher rejects recommendations, performance, and history artifacts with invalid schema_version types."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+
+        bad_schema_versions = [
+            None,
+            "",
+            "   ",
+            123,
+            ["2.0"],
+            {"ver": "2.0"},
+        ]
+
+        for bad_ver in bad_schema_versions:
+            artifacts = {
+                "recommendations.json": {
+                    "schema_version": bad_ver,
+                    "data_as_of": self.canonical_date,
+                },
+                "provenance.json": self.valid_provenance,
+            }
+            with self.assertRaises(ProvenanceValidationError):
+                publisher.publish(artifacts, canonical_data_as_of=self.canonical_date)
+
+    def test_38_canonical_source_origin_is_schema_registry(self):
+        """38. Verify SCHEMA_VERSION in all modules originates from scripts.schema.registry."""
+        import scripts.artifacts.provenance as prov
+        import scripts.generate_report as report
+        import scripts.lib.config as cfg
+        import scripts.pipeline as pipe
+        import scripts.pipeline.constants as const
+        import scripts.schema.registry as reg
+
+        self.assertIs(prov.SCHEMA_VERSION, reg.SCHEMA_VERSION)
+        self.assertIs(const.SCHEMA_VERSION, reg.SCHEMA_VERSION)
+        self.assertIs(cfg.SCHEMA_VERSION, reg.SCHEMA_VERSION)
+        self.assertIs(pipe.SCHEMA_VERSION, reg.SCHEMA_VERSION)
+        self.assertIs(report.SCHEMA_VERSION, reg.SCHEMA_VERSION)
 
 
 if __name__ == "__main__":

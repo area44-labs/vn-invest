@@ -42,31 +42,47 @@ class ArtifactPublisher:
             return
 
         from scripts.pipeline.validation import (
-            SCHEMA_REGISTRY,
+            get_supported_schema_versions,
             load_schema_for_version,
             validate_final_payload_integrity,
+            validate_performance_payload,
         )
 
-        schema_to_use = None
-        if self.schema is not None:
-            schema_to_use = self.schema
-        elif (
-            relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
-        ) and "schema_version" in payload:
-            schema_ver = payload.get("schema_version")
-            if not isinstance(schema_ver, str) or not schema_ver.strip():
+        schema_type = "performance" if relative_path == "performance.json" else "recommendations"
+        schema_to_use = self.schema
+
+        if "schema_version" in payload:
+            schema_ver = payload["schema_version"]
+            if schema_ver is None:
                 raise ProvenanceValidationError(
-                    f"Artifact '{relative_path}' missing or invalid 'schema_version' string"
+                    f"Artifact '{relative_path}' 'schema_version' cannot be None"
                 )
-            if schema_ver not in SCHEMA_REGISTRY:
-                supported = sorted(SCHEMA_REGISTRY.keys())
+            if not isinstance(schema_ver, str):
                 raise ProvenanceValidationError(
-                    f"Artifact '{relative_path}' specifies unsupported schema_version '{schema_ver}'. "
+                    f"Artifact '{relative_path}' 'schema_version' must be a string, got {type(schema_ver).__name__}"
+                )
+            if not schema_ver.strip():
+                raise ProvenanceValidationError(
+                    f"Artifact '{relative_path}' 'schema_version' cannot be empty or blank"
+                )
+
+            supported_versions = get_supported_schema_versions(schema_type)
+            if schema_ver not in supported_versions:
+                supported = sorted(supported_versions)
+                raise ProvenanceValidationError(
+                    f"Artifact '{relative_path}' specifies unsupported schema_version '{schema_ver}' for '{schema_type}'. "
                     f"Supported versions: {supported}"
                 )
-            schema_to_use = load_schema_for_version(schema_ver)
 
-        validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
+            if schema_to_use is None:
+                schema_to_use = load_schema_for_version(schema_type, schema_ver)
+
+        if relative_path == "performance.json":
+            validate_performance_payload(payload, schema=schema_to_use)
+        else:
+            validate_final_payload_integrity(
+                payload, schema=schema_to_use, payload_name=relative_path
+            )
 
     def publish(
         self,

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
+from scripts.schema import SCHEMA_VERSION, get_supported_schema_versions
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,6 @@ SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 # Canonical Pipeline Software Implementation Version
 PIPELINE_VERSION = "2.0.0"
-
-# Canonical Artifact / Output Schema Version Contract
-SCHEMA_VERSION = "2.0"
 
 # Required top-level keys in a machine-readable Provenance Manifest
 REQUIRED_PROVENANCE_KEYS = (
@@ -224,10 +222,9 @@ def validate_provenance_manifest(
     if not isinstance(schema_ver, str) or not schema_ver.strip():
         raise ProvenanceValidationError("Provenance 'schema_version' must be a non-empty string")
 
-    from scripts.pipeline.validation import SCHEMA_REGISTRY
-
-    if schema_ver not in SCHEMA_REGISTRY:
-        supported = sorted(SCHEMA_REGISTRY.keys())
+    supported_versions = get_supported_schema_versions("recommendations")
+    if schema_ver not in supported_versions:
+        supported = sorted(supported_versions)
         raise ProvenanceValidationError(
             f"Provenance 'schema_version' '{schema_ver}' is unsupported. Supported versions: {supported}"
         )
