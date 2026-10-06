@@ -83,7 +83,11 @@ def check_schema_validation(
     recommendations_payload: dict, schema_path: str = DEFAULT_SCHEMA_PATH
 ) -> CheckResult:
     """Validate recommendations payload against canonical JSON schema using version-aware resolution."""
-    schema_ver = recommendations_payload.get("schema_version") if isinstance(recommendations_payload, dict) else None
+    schema_ver = (
+        recommendations_payload.get("schema_version")
+        if isinstance(recommendations_payload, dict)
+        else None
+    )
 
     try:
         from scripts.schema import SchemaResolutionError, load_schema_for_version

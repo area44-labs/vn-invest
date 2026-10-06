@@ -13,7 +13,6 @@ from scripts.pipeline.validation import (
     validate_final_payload_integrity,
 )
 from scripts.schema import (
-    SCHEMA_VERSION,
     SchemaResolutionError,
     load_schema_for_version,
     resolve_schema,
@@ -49,7 +48,9 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
 
         perf_schema = resolve_schema("performance", "2.0")
         self.assertIsInstance(perf_schema, dict)
-        self.assertEqual(perf_schema.get("title"), "VN Invest Production Performance Payload Schema")
+        self.assertEqual(
+            perf_schema.get("title"), "VN Invest Production Performance Payload Schema"
+        )
 
         # Verify helper functions delegate properly
         self.assertEqual(load_schema("2.0"), rec_schema)

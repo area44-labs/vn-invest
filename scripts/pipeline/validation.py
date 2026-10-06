@@ -1,14 +1,12 @@
 """Payload validation utilities for VN Invest pipeline orchestration."""
 
-import json
 import math
-import os
 
 import jsonschema
 
 from scripts.lib.backtest import _parse_canonical_date
-from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH, SCHEMA_PATH
-from scripts.schema import SCHEMA_VERSION, SchemaResolutionError, load_schema_for_version
+from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH
+from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
 
 def load_performance_schema(version: str = SCHEMA_VERSION) -> dict:
@@ -29,7 +27,15 @@ def validate_performance_payload(
         )
 
     if schema is None:
-        s_ver = version or (performance_data.get("schema_version") if isinstance(performance_data, dict) else None) or SCHEMA_VERSION
+        s_ver = (
+            version
+            or (
+                performance_data.get("schema_version")
+                if isinstance(performance_data, dict)
+                else None
+            )
+            or SCHEMA_VERSION
+        )
         schema = load_performance_schema(str(s_ver))
 
     jsonschema.validate(instance=performance_data, schema=schema)

@@ -50,19 +50,17 @@ class ArtifactPublisher:
         schema_to_use = None
         if self.schema is not None:
             schema_to_use = self.schema
-        elif relative_path == "performance.json" or (
-            isinstance(payload, dict) and "stages" in payload and "provider" in payload
-        ):
-            if isinstance(payload, dict) and "schema_version" in payload:
-                s_ver = payload["schema_version"]
+        elif relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
+            s_ver = payload.get("schema_version")
+            if s_ver:
                 schema_to_use = load_schema_for_version("performance", str(s_ver))
             validate_performance_payload(payload, schema=schema_to_use)
             return
         elif (
             relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
-        ) or (isinstance(payload, dict) and "recommendations" in payload):
-            if isinstance(payload, dict) and "schema_version" in payload:
-                s_ver = payload["schema_version"]
+        ) or ("recommendations" in payload):
+            s_ver = payload.get("schema_version")
+            if s_ver:
                 schema_to_use = load_schema_for_version("recommendations", str(s_ver))
 
         validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
