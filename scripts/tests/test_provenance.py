@@ -33,7 +33,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         self.valid_provenance = {
             "data_as_of": self.canonical_date,
             "generated_at": "2026-03-31T12:00:00+00:00",
-            "pipeline_version": "2.0",
+            "pipeline_version": "2.0.0",
             "signal_model_version": "2.0",
             "quantitative_config_version": {
                 "quant_version": "1.0.0",
@@ -68,7 +68,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """1. Verify ProvenanceManifest dataclass serialization and deserialization completeness."""
         manifest = ProvenanceManifest.from_dict(self.valid_provenance)
         self.assertEqual(manifest.data_as_of, self.canonical_date)
-        self.assertEqual(manifest.pipeline_version, "2.0")
+        self.assertEqual(manifest.pipeline_version, "2.0.0")
         self.assertEqual(manifest.signal_model_version, "2.0")
         self.assertEqual(manifest.quantitative_config_version["quant_version"], "1.0.0")
 
@@ -526,6 +526,37 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         manifest = builder.build()
 
         self.assertEqual(manifest.pipeline_version, PIPELINE_VERSION)
+        self.assertEqual(manifest.pipeline_version, "2.0.0")
+
+    def test_24_pipeline_version_and_signal_model_version_are_independent(self):
+        """24. Verify pipeline_version and signal_model_version are distinct independent metadata fields."""
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+
+        self.assertEqual(manifest.pipeline_version, "2.0.0")
+        self.assertEqual(manifest.signal_model_version, "2.0")
+        self.assertNotEqual(manifest.pipeline_version, manifest.signal_model_version)
+
+    def test_25_changing_model_version_does_not_change_pipeline_version(self):
+        """25. Verify modifying signal_model_version in payload does not alter pipeline_version."""
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+        context.recommendations_payload = {"signal_model_version": "2.1-custom"}
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+
+        self.assertEqual(manifest.pipeline_version, "2.0.0")
+        self.assertEqual(manifest.signal_model_version, "2.1-custom")
 
 
 if __name__ == "__main__":

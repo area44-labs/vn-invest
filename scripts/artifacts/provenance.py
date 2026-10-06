@@ -9,10 +9,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.lib.config import PIPELINE_VERSION, QUANT_VERSION, SIGNAL_MODEL_VERSION
+from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 logger = logging.getLogger(__name__)
+
+# Canonical Pipeline Software Implementation Version
+PIPELINE_VERSION = "2.0.0"
 
 # Required top-level keys in a machine-readable Provenance Manifest
 REQUIRED_PROVENANCE_KEYS = (
@@ -350,6 +353,7 @@ class ProvenanceBuilder:
 
         generated_at = getattr(context, "generated_at", None) or datetime.now(UTC).isoformat()
 
+        pipe_ver = getattr(context, "pipeline_version", None) or PIPELINE_VERSION
         rec_payload = getattr(context, "recommendations_payload", {}) or {}
 
         sig_model_ver = rec_payload.get("signal_model_version") or SIGNAL_MODEL_VERSION
@@ -401,7 +405,7 @@ class ProvenanceBuilder:
         return cls(
             data_as_of=data_as_of,
             generated_at=generated_at,
-            pipeline_version=PIPELINE_VERSION,
+            pipeline_version=pipe_ver,
             signal_model_version=sig_model_ver,
             quant_version=q_ver,
             config_hash=cfg_hash,

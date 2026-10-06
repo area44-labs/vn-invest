@@ -12,6 +12,7 @@ from scripts.domain.universe import Universe, UniverseScanResult
 from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.vietnam_market import UniverseProvider
 from scripts.monitoring import PipelineMonitoringResult
+from scripts.pipeline.constants import PIPELINE_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
@@ -26,9 +27,10 @@ class PipelineContext:
     use_cache: bool | None = None
     throttle: float = 0.0
 
-    # Execution timestamps & reference date
+    # Execution timestamps, versions & reference date
     reference_date: str | None = None
     generated_at: str | None = None
+    pipeline_version: str = PIPELINE_VERSION
 
     # 2. Historical execution parameters
     is_historical: bool = False

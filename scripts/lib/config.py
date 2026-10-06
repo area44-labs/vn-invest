@@ -12,7 +12,7 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 # Signal and Configuration Versions
 QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
 SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
-PIPELINE_VERSION = DEFAULT_QUANT_CONFIG.model_version
+PIPELINE_VERSION = "2.0.0"
 QUANT_VERSION_CONTRACT = DEFAULT_QUANT_CONFIG.version_contract
 
 # Component weights for composite signal score
