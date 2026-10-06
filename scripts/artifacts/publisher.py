@@ -5,6 +5,10 @@ import os
 import shutil
 
 from scripts.artifacts.manifest import ArtifactManifest, ArtifactManifestBuilder
+from scripts.artifacts.provenance import (
+    ProvenanceValidationError,
+    validate_provenance_manifest,
+)
 from scripts.artifacts.transaction import GENERATED_DIR, ArtifactLock, ArtifactTransaction
 
 logger = logging.getLogger(__name__)
@@ -17,9 +21,11 @@ class ArtifactPublisher:
         self,
         target_dir: str | None = None,
         schema: dict | None = None,
+        strict_provenance: bool = True,
     ):
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
         self.schema = schema
+        self.strict_provenance = strict_provenance
 
     def validate_artifact(self, relative_path: str, payload: dict) -> None:
         """Validate artifact payload prior to publication.
@@ -28,6 +34,10 @@ class ArtifactPublisher:
         """
         if not isinstance(payload, dict):
             raise TypeError(f"Artifact '{relative_path}' payload must be a dict")
+
+        if relative_path == "provenance.json":
+            validate_provenance_manifest(payload)
+            return
 
         from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
 
@@ -59,6 +69,25 @@ class ArtifactPublisher:
         # Step 1: Pre-publish schema and payload integrity validation of all manifest artifacts
         for rel_path, payload in manifest.artifacts.items():
             self.validate_artifact(rel_path, payload)
+
+        # Step 1b: Pre-publish provenance validation
+        batch_paths = set(manifest.artifacts.keys())
+        canonical_data_as_of = None
+        for rel_path, payload in manifest.artifacts.items():
+            if isinstance(payload, dict) and "data_as_of" in payload and payload["data_as_of"]:
+                canonical_data_as_of = payload["data_as_of"]
+                break
+
+        if "provenance.json" in manifest.artifacts:
+            validate_provenance_manifest(
+                manifest.artifacts["provenance.json"],
+                batch_artifacts=batch_paths,
+                canonical_data_as_of=canonical_data_as_of,
+            )
+        elif self.strict_provenance:
+            raise ProvenanceValidationError(
+                "Missing required provenance manifest artifact 'provenance.json' in publication batch"
+            )
 
         # Step 2: Acquire single-writer lock and execute atomic transaction
         target_dir = os.path.abspath(manifest.target_dir)
@@ -123,10 +152,12 @@ class ArtifactPublisher:
 
 
 def publish_artifacts_atomically(
-    artifacts: dict[str, dict] | ArtifactManifest, target_dir: str | None = None
+    artifacts: dict[str, dict] | ArtifactManifest,
+    target_dir: str | None = None,
+    strict_provenance: bool = True,
 ) -> ArtifactManifest:
     """Publish multiple JSON artifacts or ArtifactManifest atomically using ArtifactPublisher."""
-    publisher = ArtifactPublisher(target_dir=target_dir)
+    publisher = ArtifactPublisher(target_dir=target_dir, strict_provenance=strict_provenance)
     return publisher.publish(artifacts)
 
 

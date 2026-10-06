@@ -7,7 +7,12 @@ import time
 
 import pandas as pd
 
-from scripts.artifacts import ArtifactPublisher, load_history_index, publish_artifacts_atomically
+from scripts.artifacts import (
+    ArtifactPublisher,
+    ProvenanceBuilder,
+    load_history_index,
+    publish_artifacts_atomically,
+)
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
 from scripts.data.models import CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
@@ -958,6 +963,12 @@ class ArtifactPublishingStage(PipelineStage):
                 os.path.join("history", f"{data_as_of}.json"): context.history_payload,
                 os.path.join("history", "index.json"): index_payload,
             }
+
+            # Build provenance manifest for historical publication batch
+            batch_keys = list(historical_artifacts.keys()) + ["provenance.json"]
+            prov_builder = ProvenanceBuilder.from_context(context, batch_artifacts=batch_keys)
+            historical_artifacts["provenance.json"] = prov_builder.build().to_dict()
+
             context.artifacts_to_publish = historical_artifacts
             if context.publish_artifacts:
                 publisher = ArtifactPublisher(target_dir=context.generated_dir)
@@ -991,6 +1002,11 @@ class ArtifactPublishingStage(PipelineStage):
             logger.warning(
                 "data_as_of is None. Skipping creation of historical date JSON artifact and history index update."
             )
+
+        # Build provenance manifest for production publication batch
+        batch_keys = list(context.artifacts_to_publish.keys()) + ["provenance.json"]
+        prov_builder = ProvenanceBuilder.from_context(context, batch_artifacts=batch_keys)
+        context.artifacts_to_publish["provenance.json"] = prov_builder.build().to_dict()
 
         if context.publish_artifacts:
             publisher = ArtifactPublisher(target_dir=context.generated_dir)

@@ -35,7 +35,9 @@ class TestArtifactTransactionSuite(unittest.TestCase):
 
     def test_1_successful_transaction_lifecycle(self):
         """1. Verify successful transaction completes STAGING -> BACKUP -> COMMIT -> CLEANUP cleanly."""
-        publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
+        publish_artifacts_atomically(
+            self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
+        )
 
         # Check published files exist
         recs_path = os.path.join(self.target_dir, "recommendations.json")
@@ -192,7 +194,9 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             patch("os.replace", side_effect=failing_replace),
             self.assertRaises(OSError),
         ):
-            publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
+            publish_artifacts_atomically(
+                self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
+            )
 
         # Target must be restored byte-for-byte to pre-commit state
         with open(target_file, "r", encoding="utf-8") as f:
@@ -219,7 +223,9 @@ class TestArtifactTransactionSuite(unittest.TestCase):
             patch("os.replace", side_effect=failing_replace_during_commit_and_rollback),
             self.assertRaises(RuntimeError) as cm,
         ):
-            publish_artifacts_atomically(self.sample_artifacts, target_dir=self.target_dir)
+            publish_artifacts_atomically(
+                self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
+            )
 
         self.assertIn("Directory-level atomic artifact publish rollback failed", str(cm.exception))
         # State file and backup directory must be preserved for future recovery
@@ -262,7 +268,9 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         bad_artifacts = {"bad_file.json": {"unserializable": object()}}
 
         with self.assertRaises(TypeError):
-            publish_artifacts_atomically(bad_artifacts, target_dir=self.target_dir)
+            publish_artifacts_atomically(
+                bad_artifacts, target_dir=self.target_dir, strict_provenance=False
+            )
 
         # Original data preserved
         with open(target_file, "r", encoding="utf-8") as f:

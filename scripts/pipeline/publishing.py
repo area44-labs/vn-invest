@@ -5,6 +5,8 @@ Actual implementation resides in scripts.artifacts.
 """
 
 from scripts.artifacts import (
+    PIPELINE_VERSION,
+    REQUIRED_PROVENANCE_KEYS,
     ArtifactLock,
     ArtifactLockError,
     ArtifactManifest,
@@ -12,6 +14,10 @@ from scripts.artifacts import (
     ArtifactPublisher,
     ArtifactTransaction,
     ArtifactTransactionError,
+    ProvenanceBuilder,
+    ProvenanceManifest,
+    ProvenanceValidationError,
+    detect_secrets_in_dict,
     load_history_index,
     publish_artifacts_atomically,
     recover_interrupted_publish,
@@ -19,9 +25,12 @@ from scripts.artifacts import (
     save_json_files,
     update_history_index,
     validate_journal_metadata,
+    validate_provenance_manifest,
 )
 
 __all__ = [
+    "PIPELINE_VERSION",
+    "REQUIRED_PROVENANCE_KEYS",
     "ArtifactLock",
     "ArtifactLockError",
     "ArtifactManifest",
@@ -29,6 +38,10 @@ __all__ = [
     "ArtifactPublisher",
     "ArtifactTransaction",
     "ArtifactTransactionError",
+    "ProvenanceBuilder",
+    "ProvenanceManifest",
+    "ProvenanceValidationError",
+    "detect_secrets_in_dict",
     "load_history_index",
     "publish_artifacts_atomically",
     "recover_interrupted_publish",
@@ -36,4 +49,5 @@ __all__ = [
     "save_json_files",
     "update_history_index",
     "validate_journal_metadata",
+    "validate_provenance_manifest",
 ]

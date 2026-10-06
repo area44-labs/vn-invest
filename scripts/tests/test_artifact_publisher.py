@@ -73,7 +73,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_schema_validation_before_publish(self):
         """Verify schema validation occurs before publishing and rejects invalid payloads before disk mutation."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
         invalid_artifacts = {
             "recommendations.json": {
@@ -91,7 +91,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_validation_failure_prevents_transaction_start(self):
         """Verify validation failure prevents transaction start (no staging dir, no backup, no state file)."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
         invalid_artifacts = {
             "recommendations.json": {
@@ -119,7 +119,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_invalid_partial_artifacts_not_published(self):
         """Verify that if any artifact in a batch is invalid, no partial artifacts are published."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
         valid_market = {"data_as_of": "2026-03-31", "market": {"regime": "BULL"}}
         invalid_rec = {"recommendations": [{"symbol": "AAA", "signal_score": -10.0}]}
@@ -138,7 +138,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_publisher_always_creates_and_consumes_artifact_manifest(self):
         """Verify ArtifactPublisher creates and consumes ArtifactManifest when given a dict batch."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
         batch = {
             "recommendations.json": {"recommendations": []},
             "market.json": {"market": {}},
@@ -151,7 +151,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_successful_publish_and_replacement(self):
         """Verify successful atomic publish and subsequent replacement of existing artifacts."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
         # 1. First publish
         batch_v1 = {
@@ -176,7 +176,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_successful_publish_leaves_no_leftover_artifacts(self):
         """Verify successful transaction leaves no staging, backup, or journal state files in parent dir."""
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
         publisher.publish(self.sample_artifacts)
 
         # Verify parent directory contains ONLY target_dir and no .generated_txn.json or generated_bak
@@ -189,7 +189,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         with open(initial_file, "w", encoding="utf-8") as f:
             f.write('{"v": "initial_data"}\n')
 
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
         bad_batch = {"bad_file.json": {"bad": object()}}  # Non-serializable object fails json.dump
 
         with self.assertRaises(TypeError):
@@ -208,7 +208,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         with open(initial_file, "w", encoding="utf-8") as f:
             f.write('{"v": "original_valid"}\n')
 
-        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
         real_replace = os.replace
 
@@ -252,7 +252,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         self.assertIs(LegacyLock, ArtifactLock)
 
         # Test legacy function execution
-        legacy_publish({"test.json": {"a": 1}}, target_dir=self.target_dir)
+        legacy_publish({"test.json": {"a": 1}}, target_dir=self.target_dir, strict_provenance=False)
         self.assertTrue(os.path.exists(os.path.join(self.target_dir, "test.json")))
 
     def test_pipeline_stage_artifact_publisher_integration(self):
