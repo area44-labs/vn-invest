@@ -21,7 +21,7 @@ from scripts.lib.vietnam_market import (
 )
 from scripts.monitoring import evaluate_production_monitoring
 from scripts.pipeline.context import PipelineContext
-from scripts.pipeline.publishing import load_history_index, publish_artifacts_atomically
+from scripts.artifacts import ArtifactPublisher, load_history_index, publish_artifacts_atomically
 from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
 from scripts.quant import (
     CandidateSpec,
@@ -960,7 +960,8 @@ class ArtifactPublishingStage(PipelineStage):
             }
             context.artifacts_to_publish = historical_artifacts
             if context.publish_artifacts:
-                publish_artifacts_atomically(historical_artifacts, target_dir=context.generated_dir)
+                publisher = ArtifactPublisher(target_dir=context.generated_dir)
+                publisher.publish(historical_artifacts)
             return
 
         context.artifacts_to_publish = {
@@ -992,13 +993,13 @@ class ArtifactPublishingStage(PipelineStage):
             )
 
         if context.publish_artifacts:
-            publish_artifacts_atomically(
-                context.artifacts_to_publish, target_dir=context.generated_dir
-            )
+            publisher = ArtifactPublisher(target_dir=context.generated_dir)
+            publisher.publish(context.artifacts_to_publish)
 
 
 __all__ = [
     "ArtifactPublishingStage",
+    "publish_artifacts_atomically",
     "DataAcquisitionStage",
     "DataValidationStage",
     "MarketAnalysisStage",
