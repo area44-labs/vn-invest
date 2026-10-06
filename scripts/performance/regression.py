@@ -47,40 +47,50 @@ def evaluate_performance_regression(
         actual_seconds = float(st.get("elapsed_seconds", 0.0))
         exec_status = str(st.get("status", "SUCCESS"))
 
-        baseline_seconds = float(baselines.get(stage_name, actual_seconds))
-        deg_mult, fail_mult, noise_floor = thresholds.get(stage_name, (2.0, 4.0, 1.0))
+        if stage_name in baselines:
+            baseline_seconds = float(baselines[stage_name])
+            deg_mult, fail_mult, noise_floor = thresholds.get(stage_name, (2.0, 4.0, 1.0))
 
-        deg_threshold = max(baseline_seconds * deg_mult, noise_floor)
-        fail_threshold = max(baseline_seconds * fail_mult, noise_floor)
+            deg_threshold = max(baseline_seconds * deg_mult, noise_floor)
+            fail_threshold = max(baseline_seconds * fail_mult, noise_floor)
 
-        exceeded_ratio = (
-            round(actual_seconds / baseline_seconds, 4) if baseline_seconds > 0 else 1.0
-        )
-
-        if exec_status == "FAILED":
-            status = "FAILED"
-            message = f"Stage '{stage_name}' failed during execution"
-        elif actual_seconds > fail_threshold:
-            status = "FAILED"
-            message = (
-                f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded FAILED threshold "
-                f"{fail_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
+            exceeded_ratio = (
+                round(actual_seconds / baseline_seconds, 4) if baseline_seconds > 0 else 1.0
             )
-        elif actual_seconds > deg_threshold:
-            status = "DEGRADED"
-            message = (
-                f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded DEGRADED threshold "
-                f"{deg_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
-            )
-        elif exec_status == "DEGRADED":
-            status = "DEGRADED"
-            message = f"Stage '{stage_name}' marked DEGRADED during execution"
+
+            if exec_status == "FAILED":
+                status = "FAILED"
+                message = f"Stage '{stage_name}' failed during execution"
+            elif actual_seconds > fail_threshold:
+                status = "FAILED"
+                message = (
+                    f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded FAILED threshold "
+                    f"{fail_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
+                )
+            elif actual_seconds > deg_threshold:
+                status = "DEGRADED"
+                message = (
+                    f"Stage '{stage_name}' duration {actual_seconds:.4f}s exceeded DEGRADED threshold "
+                    f"{deg_threshold:.4f}s (baseline={baseline_seconds:.4f}s, exceeded_ratio={exceeded_ratio:.2f}x)"
+                )
+            elif exec_status == "DEGRADED":
+                status = "DEGRADED"
+                message = f"Stage '{stage_name}' marked DEGRADED during execution"
+            else:
+                status = "PASS"
+                message = (
+                    f"Stage '{stage_name}' duration {actual_seconds:.4f}s within thresholds "
+                    f"(baseline={baseline_seconds:.4f}s)"
+                )
         else:
-            status = "PASS"
-            message = (
-                f"Stage '{stage_name}' duration {actual_seconds:.4f}s within thresholds "
-                f"(baseline={baseline_seconds:.4f}s)"
-            )
+            baseline_seconds = 0.0
+            exceeded_ratio = 1.0
+            if exec_status == "FAILED":
+                status = "FAILED"
+                message = f"Stage '{stage_name}' failed during execution"
+            else:
+                status = "UNBASELINED"
+                message = f"Stage '{stage_name}' has no baseline defined"
 
         if status == "FAILED":
             overall_status = "FAILED"

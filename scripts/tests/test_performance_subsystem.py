@@ -2,7 +2,7 @@
 
 Tests PerformanceTracker, StageMetricsCollector, provider_metrics, budget evaluation,
 performance regression detection, CI enforcement toggles, fail-safe isolation,
-and quantitative output invariance.
+schema compliance, and quantitative output invariance.
 """
 
 import os
@@ -20,6 +20,7 @@ from scripts.performance.provider_metrics import (
 from scripts.performance.regression import evaluate_performance_regression
 from scripts.performance.stage_metrics import StageMetricsCollector
 from scripts.performance.tracker import PerformanceTracker, create_default_performance_payload
+from scripts.pipeline.validation import validate_performance_payload
 from scripts.quant.regime import detect_market_regime
 
 
@@ -141,14 +142,34 @@ class TestPerformanceBudget(unittest.TestCase):
         self.assertEqual(res["overall_status"], "PASS")
         self.assertEqual(len(res["violations"]), 0)
 
-    def test_evaluate_provider_budget_violations_degraded_by_default(self):
+    def test_evaluate_provider_budget_call_count_violation(self):
         payload = {
-            "provider": {"total_calls": 200, "total_elapsed_seconds": 100.0},
-            "duplicate_operations": [{"symbol": "FPT"}] * 10,
+            "provider": {"total_calls": 200, "total_elapsed_seconds": 5.0},
+            "duplicate_operations": [],
         }
         res = evaluate_provider_budget(payload, enforce_ci_budget=False)
         self.assertEqual(res["overall_status"], "DEGRADED")
-        self.assertEqual(len(res["violations"]), 3)
+        self.assertTrue(any("Total provider calls (200)" in v for v in res["violations"]))
+
+    def test_evaluate_provider_budget_duplicate_operation_violation(self):
+        payload = {
+            "provider": {"total_calls": 10, "total_elapsed_seconds": 5.0},
+            "duplicate_operations": [{"symbol": f"SYM_{i}"} for i in range(10)],
+        }
+        res = evaluate_provider_budget(payload, enforce_ci_budget=False)
+        self.assertEqual(res["overall_status"], "DEGRADED")
+        self.assertTrue(any("Duplicate operations count (10)" in v for v in res["violations"]))
+
+    def test_evaluate_provider_budget_elapsed_time_violation(self):
+        payload = {
+            "provider": {"total_calls": 10, "total_elapsed_seconds": 120.0},
+            "duplicate_operations": [],
+        }
+        res = evaluate_provider_budget(payload, enforce_ci_budget=False)
+        self.assertEqual(res["overall_status"], "DEGRADED")
+        self.assertTrue(
+            any("Total provider elapsed time (120.0000s)" in v for v in res["violations"])
+        )
 
     def test_evaluate_provider_budget_violations_failed_when_ci_enforced(self):
         payload = {
@@ -219,6 +240,22 @@ class TestPerformanceRegression(unittest.TestCase):
         res = evaluate_performance_regression(payload)
         self.assertEqual(res["overall_status"], "FAILED")
 
+    def test_unbaselined_stage_evaluates_as_unbaselined(self):
+        payload = {
+            "stages": [
+                {"stage": "custom_new_stage", "elapsed_seconds": 5.0, "status": "SUCCESS"},
+            ]
+        }
+        res = evaluate_performance_regression(payload)
+        # Unbaselined stage MUST NOT trigger overall status failure or degradation
+        self.assertEqual(res["overall_status"], "PASS")
+        self.assertEqual(len(res["stage_evaluations"]), 1)
+        st_eval = res["stage_evaluations"][0]
+        self.assertEqual(st_eval["stage"], "custom_new_stage")
+        self.assertEqual(st_eval["status"], "UNBASELINED")
+        self.assertEqual(st_eval["baseline_seconds"], 0.0)
+        self.assertIn("has no baseline defined", st_eval["message"])
+
 
 class TestPerformanceTrackerSubsystem(unittest.TestCase):
     """Unit tests for PerformanceTracker and integration invariants."""
@@ -241,9 +278,10 @@ class TestPerformanceTrackerSubsystem(unittest.TestCase):
         self.assertEqual(stages[0]["stage"], "benchmark_fetch")
         self.assertEqual(stages[1]["stage"], "stock_fetch")
 
-    def test_get_performance_payload_valid_structure(self):
+    def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")
         self.tracker.record_stage("market_calculation", 0.1)
+        self.tracker.record_stage("stock_fetch", 0.2)
 
         payload = self.tracker.get_performance_payload(pipeline_elapsed=1.0)
         self.assertIn("stages", payload)
@@ -252,6 +290,9 @@ class TestPerformanceTrackerSubsystem(unittest.TestCase):
         self.assertIn("regression", payload)
         self.assertIn("budget", payload)
         self.assertEqual(payload["stages"][0]["stage"], "pipeline")
+
+        # Must conform strictly to performance JSON schema Draft 2020-12
+        validate_performance_payload(payload)
 
     def test_fail_safe_isolation_returns_valid_payload_on_non_critical_error(self):
         tracker = PerformanceTracker()
@@ -265,11 +306,13 @@ class TestPerformanceTrackerSubsystem(unittest.TestCase):
             self.assertIn("stages", payload)
             self.assertIn("provider", payload)
             self.assertEqual(payload["stages"][0]["stage"], "pipeline")
+            validate_performance_payload(payload)
 
     def test_create_default_performance_payload(self):
         default_payload = create_default_performance_payload()
         self.assertEqual(default_payload["stages"][0]["stage"], "pipeline")
         self.assertEqual(default_payload["provider"]["total_calls"], 0)
+        validate_performance_payload(default_payload)
 
 
 class TestQuantitativeOutputInvariance(unittest.TestCase):
