@@ -768,6 +768,100 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         self.assertIn("schema_version", m_dict)
         self.assertEqual(m_dict["schema_version"], "2.0")
 
+    def test_32_unsupported_schema_version_rejected_before_publication_transaction(self):
+        """32. Verify ArtifactPublisher rejects artifacts with unsupported schema_version before transaction."""
+        valid_recs_unsupported_schema = {
+            "schema_version": "3.0",  # Unsupported schema version
+            "signal_model_version": "2.0",
+            "quant_version": "1.0.0",
+            "config_hash": "a1b2c3d4e5f6",
+            "generated_at": "2026-03-31T12:00:00+00:00",
+            "data_as_of": self.canonical_date,
+            "source_date": self.canonical_date,
+            "data_source": "REAL_DATA",
+            "universe_info": {
+                "universe_type": "MARKET",
+                "universe_size": 0,
+            },
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.8,
+                "metrics": {
+                    "vnindex_value": 1200.0,
+                    "vnindex_change_pct": 1.0,
+                    "market_breadth_ratio": 0.6,
+                },
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        artifacts = {
+            "recommendations.json": valid_recs_unsupported_schema,
+            "market.json": {"data_as_of": self.canonical_date},
+            "provenance.json": self.valid_provenance,
+        }
+
+        publisher = ArtifactPublisher(target_dir=self.target_dir)
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            publisher.publish(artifacts, canonical_data_as_of=self.canonical_date)
+
+        self.assertIn("unsupported schema_version '3.0'", str(cm.exception))
+        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+
+    def test_33_version_aware_schema_selection_via_registry(self):
+        """33. Verify load_schema_for_version and find_payload_integrity_issues use version-aware registry."""
+        from scripts.pipeline.validation import (
+            find_payload_integrity_issues,
+            get_supported_schema_versions,
+            load_schema_for_version,
+        )
+
+        self.assertIn("2.0", get_supported_schema_versions())
+        schema = load_schema_for_version("2.0")
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+
+        # Payload with unsupported schema version
+        payload_unsupported = {"schema_version": "99.0", "data_as_of": "2026-03-31"}
+        issues = find_payload_integrity_issues(payload_unsupported)
+        self.assertTrue(
+            any("Unsupported top-level 'schema_version' '99.0'" in iss for iss in issues),
+            f"Expected unsupported schema version issue in {issues}",
+        )
+
+    def test_34_no_circular_import_dependencies_across_modules(self):
+        """34. Verify clean import dependencies without circular imports across module entry points."""
+        import subprocess
+        import sys
+
+        snippet = (
+            "from scripts.artifacts.provenance import SCHEMA_VERSION\n"
+            "from scripts.pipeline.constants import SCHEMA_VERSION as s2\n"
+            "from scripts.lib.config import SCHEMA_VERSION as s3\n"
+            "from scripts.pipeline.publishing import SCHEMA_VERSION as s4\n"
+            "from scripts.pipeline.validation import SCHEMA_REGISTRY\n"
+            "assert SCHEMA_VERSION == s2 == s3 == s4 == '2.0'\n"
+            "assert '2.0' in SCHEMA_REGISTRY\n"
+        )
+
+        res = subprocess.run(
+            [sys.executable, "-c", snippet],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            res.returncode,
+            0,
+            f"Subprocess import test failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

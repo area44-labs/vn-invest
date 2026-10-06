@@ -224,6 +224,14 @@ def validate_provenance_manifest(
     if not isinstance(schema_ver, str) or not schema_ver.strip():
         raise ProvenanceValidationError("Provenance 'schema_version' must be a non-empty string")
 
+    from scripts.pipeline.validation import SCHEMA_REGISTRY
+
+    if schema_ver not in SCHEMA_REGISTRY:
+        supported = sorted(SCHEMA_REGISTRY.keys())
+        raise ProvenanceValidationError(
+            f"Provenance 'schema_version' '{schema_ver}' is unsupported. Supported versions: {supported}"
+        )
+
     q_config = payload["quantitative_config_version"]
     if not isinstance(q_config, dict):
         raise ProvenanceValidationError(

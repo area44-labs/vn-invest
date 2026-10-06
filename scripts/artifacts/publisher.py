@@ -41,7 +41,11 @@ class ArtifactPublisher:
             validate_provenance_manifest(payload)
             return
 
-        from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
+        from scripts.pipeline.validation import (
+            SCHEMA_REGISTRY,
+            load_schema_for_version,
+            validate_final_payload_integrity,
+        )
 
         schema_to_use = None
         if self.schema is not None:
@@ -49,7 +53,18 @@ class ArtifactPublisher:
         elif (
             relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
         ) and "schema_version" in payload:
-            schema_to_use = load_schema()
+            schema_ver = payload.get("schema_version")
+            if not isinstance(schema_ver, str) or not schema_ver.strip():
+                raise ProvenanceValidationError(
+                    f"Artifact '{relative_path}' missing or invalid 'schema_version' string"
+                )
+            if schema_ver not in SCHEMA_REGISTRY:
+                supported = sorted(SCHEMA_REGISTRY.keys())
+                raise ProvenanceValidationError(
+                    f"Artifact '{relative_path}' specifies unsupported schema_version '{schema_ver}'. "
+                    f"Supported versions: {supported}"
+                )
+            schema_to_use = load_schema_for_version(schema_ver)
 
         validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
 
