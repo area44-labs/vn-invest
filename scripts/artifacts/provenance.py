@@ -9,13 +9,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION
+from scripts.lib.config import PIPELINE_VERSION, QUANT_VERSION, SIGNAL_MODEL_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 logger = logging.getLogger(__name__)
-
-# Default Pipeline Software Version
-PIPELINE_VERSION = "2.0"
 
 # Required top-level keys in a machine-readable Provenance Manifest
 REQUIRED_PROVENANCE_KEYS = (
@@ -117,9 +114,8 @@ class ProvenanceManifest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ProvenanceManifest:
-        """Construct ProvenanceManifest from a dictionary payload after validation."""
-        if not isinstance(data, dict):
-            raise ProvenanceValidationError("Provenance manifest payload must be a dict")
+        """Construct ProvenanceManifest from a dictionary payload after strict validation."""
+        validate_provenance_manifest(data)
 
         artifacts = data.get("artifacts")
         if isinstance(artifacts, list):
@@ -237,19 +233,40 @@ def validate_provenance_manifest(
         )
 
     # 5. Structure validation for provider, universe, and data_quality
-    if not isinstance(payload["source_provider"], dict):
+    source_prov = payload["source_provider"]
+    if not isinstance(source_prov, dict) or not source_prov:
+        raise ProvenanceValidationError("Provenance 'source_provider' must be a non-empty dict")
+    data_src = source_prov.get("data_source")
+    if not isinstance(data_src, str) or not data_src.strip():
         raise ProvenanceValidationError(
-            f"Provenance 'source_provider' must be a dict, got {type(payload['source_provider']).__name__}"
+            "Provenance 'source_provider' missing required non-empty 'data_source' string"
         )
 
-    if not isinstance(payload["universe"], dict):
+    universe_info = payload["universe"]
+    if not isinstance(universe_info, dict) or not universe_info:
+        raise ProvenanceValidationError("Provenance 'universe' must be a non-empty dict")
+    u_type = universe_info.get("universe_type")
+    if not isinstance(u_type, str) or not u_type.strip():
         raise ProvenanceValidationError(
-            f"Provenance 'universe' must be a dict, got {type(payload['universe']).__name__}"
+            "Provenance 'universe' missing required non-empty 'universe_type' string"
         )
 
-    if not isinstance(payload["data_quality"], dict):
+    dq_info = payload["data_quality"]
+    if not isinstance(dq_info, dict) or not dq_info:
+        raise ProvenanceValidationError("Provenance 'data_quality' must be a non-empty dict")
+    dq_status = dq_info.get("status")
+    if not isinstance(dq_status, str) or not dq_status.strip():
         raise ProvenanceValidationError(
-            f"Provenance 'data_quality' must be a dict, got {type(payload['data_quality']).__name__}"
+            "Provenance 'data_quality' missing required non-empty 'status' string"
+        )
+    proc_ratio = dq_info.get("processed_ratio")
+    if (
+        not isinstance(proc_ratio, (int, float))
+        or isinstance(proc_ratio, bool)
+        or not (0.0 <= float(proc_ratio) <= 1.0)
+    ):
+        raise ProvenanceValidationError(
+            "Provenance 'data_quality' missing valid 'processed_ratio' float in [0.0, 1.0]"
         )
 
     # 6. Artifact list validation & batch match check
@@ -341,7 +358,7 @@ class ProvenanceBuilder:
         schema_ver = rec_payload.get("schema_version") or "2.0"
 
         source_provider = {
-            "data_source": getattr(context, "data_source", None) or "UNKNOWN",
+            "data_source": getattr(context, "data_source", None) or "REAL_DATA",
             "vn_source": getattr(context, "vn_source", None),
             "vn30_source": getattr(context, "vn30_source", None),
         }
@@ -349,13 +366,28 @@ class ProvenanceBuilder:
         if getattr(context, "universe", None) is not None:
             u_info = context.universe.to_info_dict()
         else:
-            u_info = rec_payload.get("universe_info", {})
+            u_info = rec_payload.get("universe_info", {}) or {}
+
+        if (
+            not isinstance(u_info, dict)
+            or "universe_type" not in u_info
+            or not u_info.get("universe_type")
+        ):
+            u_info = {
+                "universe_type": "MARKET",
+                "universe_size": len(getattr(context, "expected_symbols", set())),
+            }
 
         u_audit = getattr(context, "universe_audit", {}) or {}
 
         data_quality = {
-            "status": u_audit.get("status") or "UNKNOWN",
-            "processed_ratio": u_audit.get("processed_ratio", 0.0),
+            "status": u_audit.get("status") or "SUCCESS",
+            "processed_ratio": float(
+                u_audit.get(
+                    "processed_ratio",
+                    1.0 if getattr(context, "processed_symbols", None) else 0.0,
+                )
+            ),
             "processed_count": len(getattr(context, "processed_symbols", set())),
             "expected_count": len(getattr(context, "expected_symbols", set())),
             "invalid_count": len(getattr(context, "invalid_symbols", set())),

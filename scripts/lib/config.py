@@ -12,6 +12,7 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 # Signal and Configuration Versions
 QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
 SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
+PIPELINE_VERSION = DEFAULT_QUANT_CONFIG.model_version
 QUANT_VERSION_CONTRACT = DEFAULT_QUANT_CONFIG.version_contract
 
 # Component weights for composite signal score
@@ -332,6 +333,7 @@ def is_recoverable_category(category: str) -> bool:
 
 __all__ = [
     "DEFAULT_QUANT_CONFIG",
+    "PIPELINE_VERSION",
     "QUANT_VERSION",
     "QUANT_VERSION_CONTRACT",
     "SIGNAL_MODEL_VERSION",

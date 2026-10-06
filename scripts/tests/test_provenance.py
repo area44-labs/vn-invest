@@ -445,6 +445,88 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         for item in os.listdir(self.temp_dir):
             self.assertNotIn("staging", item)
 
+    def test_19_empty_nested_structures_cause_fail_closed_rejection(self):
+        """19. Verify passing empty dicts {} for source_provider, universe, or data_quality fails closed."""
+        for field in ("source_provider", "universe", "data_quality"):
+            bad_prov = dict(self.valid_provenance)
+            bad_prov[field] = {}
+            with self.assertRaises(ProvenanceValidationError) as cm:
+                validate_provenance_manifest(bad_prov)
+            self.assertIn("must be a non-empty dict", str(cm.exception))
+
+    def test_20_missing_required_nested_keys_cause_fail_closed_rejection(self):
+        """20. Verify missing required nested keys (data_source, universe_type, status, processed_ratio) fail closed."""
+        # Missing data_source
+        p1 = dict(self.valid_provenance)
+        p1["source_provider"] = {"other_key": "val"}
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(p1)
+        self.assertIn("data_source", str(cm.exception))
+
+        # Missing universe_type
+        p2 = dict(self.valid_provenance)
+        p2["universe"] = {"other_key": "val"}
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(p2)
+        self.assertIn("universe_type", str(cm.exception))
+
+        # Missing status in data_quality
+        p3 = dict(self.valid_provenance)
+        p3["data_quality"] = {"processed_ratio": 1.0}
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(p3)
+        self.assertIn("status", str(cm.exception))
+
+        # Missing processed_ratio in data_quality
+        p4 = dict(self.valid_provenance)
+        p4["data_quality"] = {"status": "SUCCESS"}
+        with self.assertRaises(ProvenanceValidationError) as cm:
+            validate_provenance_manifest(p4)
+        self.assertIn("processed_ratio", str(cm.exception))
+
+    def test_21_malformed_nested_field_values_cause_fail_closed_rejection(self):
+        """21. Verify malformed values for status or out-of-bound processed_ratio fail closed."""
+        # Empty status string
+        p1 = dict(self.valid_provenance)
+        p1["data_quality"] = {"status": "  ", "processed_ratio": 1.0}
+        with self.assertRaises(ProvenanceValidationError):
+            validate_provenance_manifest(p1)
+
+        # processed_ratio > 1.0
+        p2 = dict(self.valid_provenance)
+        p2["data_quality"] = {"status": "SUCCESS", "processed_ratio": 1.5}
+        with self.assertRaises(ProvenanceValidationError):
+            validate_provenance_manifest(p2)
+
+        # processed_ratio < 0.0
+        p3 = dict(self.valid_provenance)
+        p3["data_quality"] = {"status": "SUCCESS", "processed_ratio": -0.1}
+        with self.assertRaises(ProvenanceValidationError):
+            validate_provenance_manifest(p3)
+
+    def test_22_from_dict_strictly_enforces_validation_contract(self):
+        """22. Verify ProvenanceManifest.from_dict() validates the payload and rejects invalid inputs."""
+        invalid_payload = dict(self.valid_provenance)
+        invalid_payload["data_quality"] = {}  # Empty dict
+
+        with self.assertRaises(ProvenanceValidationError):
+            ProvenanceManifest.from_dict(invalid_payload)
+
+    def test_23_pipeline_version_propagates_from_canonical_config_source(self):
+        """23. Verify PIPELINE_VERSION matches canonical config source and propagates to provenance."""
+        from scripts.lib.config import PIPELINE_VERSION
+
+        context = PipelineContext(
+            generated_dir=self.target_dir,
+            reference_date="2026-03-31T00:00:00Z",
+        )
+        context.data_as_of = "2026-03-31"
+
+        builder = ProvenanceBuilder.from_context(context)
+        manifest = builder.build()
+
+        self.assertEqual(manifest.pipeline_version, PIPELINE_VERSION)
+
 
 if __name__ == "__main__":
     unittest.main()
