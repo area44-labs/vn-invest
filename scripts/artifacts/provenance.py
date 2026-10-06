@@ -116,7 +116,7 @@ class ProvenanceManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ProvenanceManifest":
+    def from_dict(cls, data: dict[str, Any]) -> ProvenanceManifest:
         """Construct ProvenanceManifest from a dictionary payload after validation."""
         if not isinstance(data, dict):
             raise ProvenanceValidationError("Provenance manifest payload must be a dict")
@@ -303,7 +303,7 @@ class ProvenanceBuilder:
         cls,
         context: Any,
         batch_artifacts: list[str] | set[str] | tuple[str, ...] | None = None,
-    ) -> "ProvenanceBuilder":
+    ) -> ProvenanceBuilder:
         """Build ProvenanceBuilder from a PipelineContext instance."""
         data_as_of = getattr(context, "data_as_of", None) or "1970-01-01"
         generated_at = getattr(context, "generated_at", None) or datetime.now(UTC).isoformat()
@@ -357,7 +357,7 @@ class ProvenanceBuilder:
 
     def set_artifacts(
         self, batch_artifacts: list[str] | set[str] | tuple[str, ...]
-    ) -> "ProvenanceBuilder":
+    ) -> ProvenanceBuilder:
         """Update batch artifacts in builder."""
         self.artifacts = tuple(sorted(batch_artifacts))
         return self

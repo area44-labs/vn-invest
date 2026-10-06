@@ -223,7 +223,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
 
     def test_11_pipeline_stage_generates_and_validates_provenance(self):
         """11. Verify ArtifactPublishingStage generates and validates provenance.json in pipeline."""
-        from scripts.domain import Recommendation, TradePlan, RiskAssessment
+        from scripts.domain import Recommendation, RiskAssessment, TradePlan
         from scripts.domain.universe import Universe, UniverseCandidate
 
         context = PipelineContext(
