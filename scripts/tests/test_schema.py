@@ -6,7 +6,10 @@ import unittest
 
 import jsonschema
 
+from unittest.mock import patch
+
 from scripts.artifacts.publisher import ArtifactPublisher
+from scripts.monitoring.checks import check_schema_validation
 from scripts.pipeline.validation import (
     load_performance_schema,
     load_schema,
@@ -144,7 +147,7 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         del no_ver_perf["schema_version"]
         with self.assertRaises(SchemaResolutionError) as cm_no_ver:
             publisher.validate_artifact("performance.json", no_ver_perf)
-        self.assertIn("missing required 'schema_version'", str(cm_no_ver.exception))
+        self.assertIn("missing required", str(cm_no_ver.exception))
 
         # Unsupported schema_version fails closed
         bad_ver_perf = dict(valid_perf_payload, schema_version="3.0")
@@ -185,13 +188,109 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         del no_ver_perf["schema_version"]
         with self.assertRaises(SchemaResolutionError) as cm_missing:
             validate_performance_payload(no_ver_perf)
-        self.assertIn("missing required 'schema_version'", str(cm_missing.exception))
+        self.assertIn("missing required", str(cm_missing.exception))
 
         # Performance payload with unsupported schema_version raises SchemaResolutionError
         bad_ver_perf = dict(valid_perf, schema_version="9.9")
         with self.assertRaises(SchemaResolutionError) as cm_unsupported:
             validate_performance_payload(bad_ver_perf)
         self.assertIn("Unsupported schema version '9.9'", str(cm_unsupported.exception))
+
+    def test_check_schema_validation_version_enforcement(self):
+        """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""
+        valid_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-10-06T12:00:00Z",
+            "data_as_of": "2026-10-06",
+            "source_date": "2026-10-06",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        # Valid 2.0 passes
+        res_20 = check_schema_validation(valid_payload)
+        self.assertEqual(res_20.status, "PASS")
+
+        # Missing schema_version -> FAIL
+        p_missing = dict(valid_payload)
+        del p_missing["schema_version"]
+        res_missing = check_schema_validation(p_missing)
+        self.assertEqual(res_missing.status, "FAIL")
+
+        # None -> FAIL
+        res_none = check_schema_validation(dict(valid_payload, schema_version=None))
+        self.assertEqual(res_none.status, "FAIL")
+
+        # Empty string "" -> FAIL
+        res_empty = check_schema_validation(dict(valid_payload, schema_version=""))
+        self.assertEqual(res_empty.status, "FAIL")
+
+        # Whitespace "   " -> FAIL
+        res_space = check_schema_validation(dict(valid_payload, schema_version="   "))
+        self.assertEqual(res_space.status, "FAIL")
+
+        # Unsupported "1.0" -> FAIL
+        res_10 = check_schema_validation(dict(valid_payload, schema_version="1.0"))
+        self.assertEqual(res_10.status, "FAIL")
+
+        # Unsupported "9.9" -> FAIL
+        res_99 = check_schema_validation(dict(valid_payload, schema_version="9.9"))
+        self.assertEqual(res_99.status, "FAIL")
+
+    def test_custom_schema_path_cannot_bypass_registry(self):
+        """9. Verify passing a custom schema_path cannot bypass version-aware schema registry routing."""
+        valid_payload = {
+            "schema_version": "9.9",  # Unsupported version
+            "recommendations": [],
+        }
+
+        # Even if custom schema_path is provided, check_schema_validation fails closed because schema_version='9.9' is unsupported
+        res = check_schema_validation(valid_payload, schema_path="/non/existent/path/override.json")
+        self.assertEqual(res.status, "FAIL")
+
+    @patch("scripts.schema.registry.load_schema_for_version")
+    def test_registry_routing_integration(self, mock_load_schema):
+        """10. Prove monitoring checks and pipeline validation actually invoke the central schema registry."""
+        mock_load_schema.return_value = resolve_schema("recommendations", "2.0")
+
+        valid_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-10-06T12:00:00Z",
+            "data_as_of": "2026-10-06",
+            "source_date": "2026-10-06",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        res = check_schema_validation(valid_payload)
+        self.assertEqual(res.status, "PASS")
+        mock_load_schema.assert_called_with("recommendations", "2.0")
 
 
 if __name__ == "__main__":

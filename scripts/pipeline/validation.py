@@ -19,7 +19,7 @@ def validate_performance_payload(
 ) -> None:
     """Validate canonical performance object structure and schema.
 
-    Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
+    Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
     if not isinstance(performance_data, dict):
         raise TypeError(
@@ -28,11 +28,13 @@ def validate_performance_payload(
 
     if schema is None:
         s_ver = version or performance_data.get("schema_version")
-        if not s_ver:
+        if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
             from scripts.schema import SchemaResolutionError
 
-            raise SchemaResolutionError("Performance payload is missing required 'schema_version'")
-        schema = load_performance_schema(str(s_ver))
+            raise SchemaResolutionError(
+                "Performance payload is missing required non-empty 'schema_version'"
+            )
+        schema = load_performance_schema(s_ver.strip())
 
     jsonschema.validate(instance=performance_data, schema=schema)
 

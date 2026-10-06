@@ -1,10 +1,7 @@
 """Performance payload validation, schemas, and fallback evaluation functions."""
 
-import json
-import os
 from typing import Any
 
-import jsonschema
 
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.regression import evaluate_performance_regression
@@ -17,12 +14,6 @@ def load_performance_schema(
     """Load performance JSON Schema via centralized registry."""
     from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
-    if schema_path is not None:
-        if not os.path.exists(schema_path):
-            raise FileNotFoundError(f"Performance schema file not found at '{schema_path}'")
-        with open(schema_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-
     ver = version or SCHEMA_VERSION
     return load_schema_for_version("performance", str(ver))
 
@@ -32,24 +23,11 @@ def validate_performance_payload(
 ) -> None:
     """Validate canonical performance object structure and schema using version-aware registry.
 
-    Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, FileNotFoundError, or ValueError on validation failure.
+    Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
-    if not isinstance(performance_data, dict):
-        raise TypeError(
-            f"Performance payload must be a dict, got {type(performance_data).__name__}"
-        )
+    from scripts.pipeline.validation import validate_performance_payload as pipeline_val_perf
 
-    if schema is None:
-        from scripts.schema import SchemaResolutionError, load_schema_for_version
-
-        s_ver = version or performance_data.get("schema_version")
-        if not s_ver:
-            raise SchemaResolutionError(
-                "Performance payload missing required 'schema_version' field"
-            )
-        schema = load_schema_for_version("performance", str(s_ver))
-
-    jsonschema.validate(instance=performance_data, schema=schema)
+    pipeline_val_perf(performance_data, schema=schema, version=version)
 
 
 def create_default_performance_payload() -> dict[str, Any]:
