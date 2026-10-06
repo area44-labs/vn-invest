@@ -144,15 +144,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
     def test_backward_compatibility_re_export(self):
         """Verify backward compatibility of imports from scripts.pipeline.publishing."""
-        from scripts.pipeline.publishing import (
-            ArtifactLock as LegacyLock,
-        )
-        from scripts.pipeline.publishing import (
-            ArtifactPublisher as LegacyPublisher,
-        )
-        from scripts.pipeline.publishing import (
-            publish_artifacts_atomically as legacy_publish,
-        )
+        from scripts.pipeline.publishing import ArtifactLock as LegacyLock
+        from scripts.pipeline.publishing import ArtifactPublisher as LegacyPublisher
+        from scripts.pipeline.publishing import publish_artifacts_atomically as legacy_publish
 
         self.assertIs(LegacyPublisher, ArtifactPublisher)
         self.assertIs(LegacyLock, ArtifactLock)
