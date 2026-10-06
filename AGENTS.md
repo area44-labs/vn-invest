@@ -10,7 +10,7 @@ This document is the authoritative operational playbook for AI coding agents wor
 
 - **Python Quantitative Engine (`scripts/`)**: Handles all market data collection, canonical OHLCV validation, technical indicators, Signal Scoring, T+2.5 risk modeling, Market Regime detection, portfolio backtesting, operational monitoring, and data/model drift tracking.
 - **React SSG Frontend (`src/`)**: Renders static web pages using TanStack Start and Vite+ (`vp`). It reads generated JSON artifacts exclusively from `generated/` (or `dist/client/generated/` in production builds). **Zero financial calculations occur in the frontend.**
-- **Validated JSON Contracts (`schemas/`)**: All exported report artifacts must strictly comply with `schemas/recommendations.schema.json` and `schemas/performance.schema.json`.
+- **Validated JSON Contracts (`schemas/`)**: Schema resolution is explicitly version-aware via `scripts/schema/registry.py` (`load_schema_for_version`, `resolve_schema`). Schemas are organized by version (e.g. `schemas/v2/recommendations.schema.json` and `schemas/v2/performance.schema.json`). Artifact validation selects schema by artifact type and declared `schema_version`, failing closed on unknown or malformed versions without silent fallback to latest schema.
 - **Static Artifacts (`generated/`)**: Single source of truth for generated report payloads (`recommendations.json`, `market.json`, `monitoring.json`, `history/index.json`, `history/YYYY-MM-DD.json`).
 
 ### B. Execution Flow (9 Pipeline Stages)

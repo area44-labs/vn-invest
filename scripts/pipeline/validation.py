@@ -8,17 +8,17 @@ import jsonschema
 
 from scripts.lib.backtest import _parse_canonical_date
 from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH, SCHEMA_PATH
+from scripts.schema import SCHEMA_VERSION, SchemaResolutionError, load_schema_for_version
 
 
-def load_performance_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
-    if not os.path.exists(PERFORMANCE_SCHEMA_PATH):
-        raise FileNotFoundError(f"Performance schema file not found at '{PERFORMANCE_SCHEMA_PATH}'")
-    with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+def load_performance_schema(version: str = SCHEMA_VERSION) -> dict:
+    """Load performance JSON Schema for a given version (default '2.0')."""
+    return load_schema_for_version("performance", version)
 
 
-def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
+def validate_performance_payload(
+    performance_data: dict, schema: dict | None = None, version: str | None = None
+) -> None:
     """Validate canonical performance object structure and schema.
 
     Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
@@ -29,15 +29,15 @@ def validate_performance_payload(performance_data: dict, schema: dict | None = N
         )
 
     if schema is None:
-        schema = load_performance_schema()
+        s_ver = version or (performance_data.get("schema_version") if isinstance(performance_data, dict) else None) or SCHEMA_VERSION
+        schema = load_performance_schema(str(s_ver))
 
     jsonschema.validate(instance=performance_data, schema=schema)
 
 
-def load_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
-    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+def load_schema(version: str = SCHEMA_VERSION) -> dict:
+    """Load recommendations JSON Schema for a given version (default '2.0')."""
+    return load_schema_for_version("recommendations", version)
 
 
 def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> list[str]:

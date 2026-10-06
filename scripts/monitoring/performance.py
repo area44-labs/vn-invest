@@ -45,6 +45,7 @@ def create_default_performance_payload() -> dict[str, Any]:
     MUST NOT be used in production monitoring to swallow or replace missing performance data.
     """
     payload = {
+        "schema_version": "2.0",
         "stages": [
             {"stage": "pipeline", "elapsed_seconds": 0.0, "status": "SUCCESS"},
         ],

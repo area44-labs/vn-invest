@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 def create_default_performance_payload() -> dict[str, Any]:
     """Construct a minimal valid performance payload for test harness or fallback contexts."""
     payload: dict[str, Any] = {
+        "schema_version": "2.0",
         "stages": [
             {"stage": "pipeline", "elapsed_seconds": 0.0, "status": "SUCCESS"},
         ],
@@ -104,6 +105,7 @@ class PerformanceTracker:
             stages_list.extend(self.stage_collector.get_stages())
 
             payload: dict[str, Any] = {
+                "schema_version": "2.0",
                 "stages": stages_list,
                 "provider": provider_summary,
                 "duplicate_operations": duplicates,

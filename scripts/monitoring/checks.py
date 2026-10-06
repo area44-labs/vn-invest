@@ -82,26 +82,41 @@ def check_required_artifacts(
 def check_schema_validation(
     recommendations_payload: dict, schema_path: str = DEFAULT_SCHEMA_PATH
 ) -> CheckResult:
-    """Validate recommendations payload against canonical JSON schema."""
-    if not os.path.exists(schema_path):
-        return CheckResult(
-            check_name="schema_validation",
-            status="FAIL",
-            measured_value={"schema_path": schema_path},
-            expected_condition=f"Schema file exists at {schema_path}",
-            message=f"JSON Schema file not found at {schema_path}",
-        )
+    """Validate recommendations payload against canonical JSON schema using version-aware resolution."""
+    schema_ver = recommendations_payload.get("schema_version") if isinstance(recommendations_payload, dict) else None
 
     try:
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema = json.load(f)
+        from scripts.schema import SchemaResolutionError, load_schema_for_version
+
+        if schema_ver:
+            schema = load_schema_for_version("recommendations", str(schema_ver))
+        else:
+            if not os.path.exists(schema_path):
+                return CheckResult(
+                    check_name="schema_validation",
+                    status="FAIL",
+                    measured_value={"schema_path": schema_path},
+                    expected_condition=f"Schema file exists at {schema_path}",
+                    message=f"JSON Schema file not found at {schema_path}",
+                )
+            with open(schema_path, "r", encoding="utf-8") as f:
+                schema = json.load(f)
+
         jsonschema.validate(instance=recommendations_payload, schema=schema)
         return CheckResult(
             check_name="schema_validation",
             status="PASS",
-            measured_value={"schema_version": recommendations_payload.get("schema_version")},
-            expected_condition="Payload matches recommendations.schema.json",
+            measured_value={"schema_version": schema_ver or "2.0"},
+            expected_condition="Payload matches versioned recommendations.schema.json",
             message="Recommendations payload passed JSON schema validation",
+        )
+    except SchemaResolutionError as err:
+        return CheckResult(
+            check_name="schema_validation",
+            status="FAIL",
+            measured_value={"schema_version": schema_ver},
+            expected_condition="Payload declares valid supported schema_version",
+            message=f"Schema resolution failed: {err}",
         )
     except jsonschema.ValidationError as err:
         return CheckResult(
