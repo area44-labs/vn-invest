@@ -404,16 +404,30 @@ class PipelineContext:
 
         u_info = self._universe.to_info_dict()
 
-        first_rec = self.scanned_recs[0] if self.scanned_recs else None
-        if isinstance(first_rec, dict):
-            cfg_hash = first_rec.get("config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
-            q_ver = first_rec.get("quant_version", QUANT_VERSION)
-        elif first_rec is not None:
-            cfg_hash = getattr(first_rec, "config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
-            q_ver = getattr(first_rec, "quant_version", QUANT_VERSION)
-        else:
-            cfg_hash = DEFAULT_QUANT_CONFIG.get_config_hash()
+        quant_versions = set()
+        config_hashes = set()
+
+        for r in self.scanned_recs:
+            if isinstance(r, dict):
+                qv = r.get("quant_version", QUANT_VERSION)
+                ch = r.get("config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            else:
+                qv = getattr(r, "quant_version", QUANT_VERSION)
+                ch = getattr(r, "config_hash", DEFAULT_QUANT_CONFIG.get_config_hash())
+            quant_versions.add(qv)
+            config_hashes.add(ch)
+
+        if not self.scanned_recs:
             q_ver = QUANT_VERSION
+            cfg_hash = DEFAULT_QUANT_CONFIG.get_config_hash()
+        elif len(quant_versions) == 1 and len(config_hashes) == 1:
+            q_ver = next(iter(quant_versions))
+            cfg_hash = next(iter(config_hashes))
+        else:
+            raise ValueError(
+                f"Mixed quantitative configuration versions {sorted(quant_versions)} "
+                f"or config hashes {sorted(config_hashes)} detected in recommendations batch."
+            )
 
         self.recommendations_payload = {
             "schema_version": "2.0",

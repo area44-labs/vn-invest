@@ -9,6 +9,7 @@ Verifies:
 6. Existing quantitative behavior is preserved intact under DEFAULT_QUANT_CONFIG.
 7. QuantConfig nested fields cannot be mutated in-place.
 8. Production and backtest outputs carry identical quant_version and config_hash for the same config.
+9. PipelineContext validates batch quant_version and config_hash consistency, failing closed on mixed configs.
 """
 
 import unittest
@@ -17,8 +18,10 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 
+from scripts.domain import Universe
 from scripts.lib import config as legacy_config
 from scripts.lib.portfolio_backtest import PortfolioConfig, run_portfolio_backtest
+from scripts.pipeline.context import PipelineContext
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 from scripts.quant.contracts import (
     CandidateSpec,
@@ -250,6 +253,73 @@ class TestQuantitativeConfigAndVersionContract(unittest.TestCase):
         self.assertEqual(rec.model_version, custom_cfg.model_version)
         self.assertEqual(rec.quant_version, custom_cfg.quant_version)
         self.assertEqual(rec.config_hash, custom_cfg.get_config_hash())
+
+    def test_batch_quant_config_validation_in_pipeline_context(self):
+        """9. Verify PipelineContext.build_payloads() validates batch quant version/hash consistency."""
+        dates = pd.date_range("2026-01-01", periods=60)
+        df_stock = pd.DataFrame(
+            {
+                "time": dates.strftime("%Y-%m-%d"),
+                "open": np.linspace(50, 70, 60),
+                "high": np.linspace(51, 71, 60),
+                "low": np.linspace(49, 69, 60),
+                "close": np.linspace(50, 70, 60),
+                "volume": [1000000.0] * 60,
+            }
+        )
+        market_regime = {"regime": "BULL", "regime_score": 70.0}
+
+        cfg_a = DEFAULT_QUANT_CONFIG
+        cfg_b = replace(DEFAULT_QUANT_CONFIG, score_threshold_buy=70.0)
+
+        rec_a1 = generate_single_recommendation(
+            symbol="HPG",
+            company_name="Hoa Phat Group",
+            sector="Thép",
+            exchange="HOSE",
+            df_stock=df_stock,
+            market_regime_info=market_regime,
+            config=cfg_a,
+        )
+        rec_a2 = generate_single_recommendation(
+            symbol="FPT",
+            company_name="FPT Corp",
+            sector="Công nghệ",
+            exchange="HOSE",
+            df_stock=df_stock,
+            market_regime_info=market_regime,
+            config=cfg_a,
+        )
+        rec_b1 = generate_single_recommendation(
+            symbol="VNM",
+            company_name="Vinamilk",
+            sector="Thực phẩm",
+            exchange="HOSE",
+            df_stock=df_stock,
+            market_regime_info=market_regime,
+            config=cfg_b,
+        )
+
+        u = Universe(universe_type="TEST", candidates=[])
+
+        # Case 1: Batch with identical configuration -> build_payloads succeeds
+        ctx_ok = PipelineContext()
+        ctx_ok.set_universe(u)
+        ctx_ok.scanned_recs = [rec_a1, rec_a2]
+        recs_payload, _, _ = ctx_ok.build_payloads()
+
+        self.assertEqual(recs_payload["quant_version"], cfg_a.quant_version)
+        self.assertEqual(recs_payload["config_hash"], cfg_a.get_config_hash())
+
+        # Case 2: Batch with mixed configuration -> build_payloads fails closed with ValueError
+        ctx_mixed = PipelineContext()
+        ctx_mixed.set_universe(u)
+        ctx_mixed.scanned_recs = [rec_a1, rec_b1]
+
+        with self.assertRaises(ValueError) as err_ctx:
+            ctx_mixed.build_payloads()
+
+        self.assertIn("Mixed quantitative configuration versions", str(err_ctx.exception))
 
 
 if __name__ == "__main__":
