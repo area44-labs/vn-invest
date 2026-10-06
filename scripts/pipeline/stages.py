@@ -15,7 +15,7 @@ from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY
-from scripts.lib.monitoring import evaluate_production_monitoring
+from scripts.monitoring import evaluate_production_monitoring
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,

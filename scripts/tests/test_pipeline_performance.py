@@ -707,6 +707,14 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         payload = make_valid_performance_payload()
         with (
             patch(
+                "scripts.monitoring.models.DEFAULT_PERFORMANCE_SCHEMA_PATH",
+                "/non/existent/path/performance.schema.json",
+            ),
+            patch(
+                "scripts.monitoring.performance.DEFAULT_PERFORMANCE_SCHEMA_PATH",
+                "/non/existent/path/performance.schema.json",
+            ),
+            patch(
                 "scripts.lib.monitoring.DEFAULT_PERFORMANCE_SCHEMA_PATH",
                 "/non/existent/path/performance.schema.json",
             ),

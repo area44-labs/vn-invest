@@ -370,7 +370,7 @@ class UniverseScanResult:
         self, update_data: bool = False, performance_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Convert scan result directly to production 'universe_audit' dictionary payload."""
-        from scripts.lib.monitoring import validate_performance_payload
+        from scripts.monitoring import validate_performance_payload
 
         failed_stage = self.computed_failed_stage
         pipeline_status = self.computed_pipeline_status(update_data=update_data)

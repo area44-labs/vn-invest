@@ -11,7 +11,7 @@ from scripts.data_provider import ProviderRateLimitError
 from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date
 from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
-from scripts.lib.monitoring import (
+from scripts.monitoring import (
     evaluate_performance_regression,
     evaluate_production_monitoring,
     evaluate_provider_budget,
