@@ -20,12 +20,12 @@ from scripts.data.providers import VnstockMarketProvider
 from scripts.data.validation import validate_canonical_market_data
 from scripts.data_provider import ProviderRateLimitError
 from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
-from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.lib.vietnam_market import (
     UniverseProvider,
     validate_temporal_integrity,
 )
 from scripts.monitoring import evaluate_production_monitoring
+from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.validation import validate_final_payload_integrity
 from scripts.quant import (

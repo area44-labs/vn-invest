@@ -383,17 +383,17 @@ The audit identified production references that must be migrated before removal 
 
 ## 6.1 Summary
 
-| Module                              | Classification     | Current situation                                                      | Target                                                                                 |
-| ----------------------------------- | ------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `scripts/lib/config.py`             | `REMOVED`          | All callers migrated to canonical modules; deleted in M2                | N/A                                                                                    |
-| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; test dependency remains                    | `scripts/quant/features.py`                                                            |
-| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; tests still reference it                      | `scripts/monitoring/*`                                                                 |
-| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                                         | `scripts/quant/recommendation.py` / related quant contracts                            |
-| `scripts/lib/regime.py`             | `MIGRATE`          | Production and legacy backtest callers remain                          | `scripts/quant/regime.py`                                                              |
-| `scripts/lib/risk.py`               | `MIGRATE`          | Contains active risk/liquidity logic and legacy exports                | `scripts/quant/risk.py`                                                                |
-| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Large legacy market-data/universe surface with production callers      | `scripts/data/*`, `scripts/domain/universe.py`                                         |
-| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting implementation but located in legacy package         | Dedicated canonical backtest location                                                  |
-| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid portfolio backtesting implementation; primarily test/offline use | Dedicated canonical backtest location                                                  |
+| Module                              | Classification     | Current situation                                                      | Target                                                      |
+| ----------------------------------- | ------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `scripts/lib/config.py`             | `REMOVED`          | All callers migrated to canonical modules; deleted in M2               | N/A                                                         |
+| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; test dependency remains                    | `scripts/quant/features.py`                                 |
+| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; tests still reference it                      | `scripts/monitoring/*`                                      |
+| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                                         | `scripts/quant/recommendation.py` / related quant contracts |
+| `scripts/lib/regime.py`             | `MIGRATE`          | Production and legacy backtest callers remain                          | `scripts/quant/regime.py`                                   |
+| `scripts/lib/risk.py`               | `MIGRATE`          | Contains active risk/liquidity logic and legacy exports                | `scripts/quant/risk.py`                                     |
+| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Large legacy market-data/universe surface with production callers      | `scripts/data/*`, `scripts/domain/universe.py`              |
+| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting implementation but located in legacy package         | Dedicated canonical backtest location                       |
+| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid portfolio backtesting implementation; primarily test/offline use | Dedicated canonical backtest location                       |
 
 ---
 
@@ -918,18 +918,18 @@ The frontend is not the producer of these artifacts.
 
 # 13. Compatibility Layer Inventory
 
-| Component                           | Classification     | Reason                                              |
-| ----------------------------------- | ------------------ | --------------------------------------------------- |
-| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; no known production caller |
-| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; remaining test imports  |
-| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                      |
-| `scripts/lib/regime.py`             | `MIGRATE`          | Production/legacy callers remain                    |
-| `scripts/lib/risk.py`               | `MIGRATE`          | Contains substantive remaining logic                |
+| Component                           | Classification     | Reason                                                             |
+| ----------------------------------- | ------------------ | ------------------------------------------------------------------ |
+| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; no known production caller                |
+| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; remaining test imports                 |
+| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                                     |
+| `scripts/lib/regime.py`             | `MIGRATE`          | Production/legacy callers remain                                   |
+| `scripts/lib/risk.py`               | `MIGRATE`          | Contains substantive remaining logic                               |
 | `scripts/lib/config.py`             | `REMOVED`          | All callers migrated to canonical subsystem modules; deleted in M2 |
-| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Major production dependency surface                 |
-| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |
-| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |
-| `scripts/tests/run_tests.py`        | `MIGRATE → REMOVE` | Replaced by pytest in M1                            |
+| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Major production dependency surface                                |
+| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location                        |
+| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location                        |
+| `scripts/tests/run_tests.py`        | `MIGRATE → REMOVE` | Replaced by pytest in M1                                           |
 
 No new compatibility layers should be introduced merely to make M1/M2 easier.
 
