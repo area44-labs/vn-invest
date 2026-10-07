@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from scripts.quant.recommendation import generate_recommendation
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.provider_metrics import (
     aggregate_provider_performance,
@@ -21,6 +20,7 @@ from scripts.performance.regression import evaluate_performance_regression
 from scripts.performance.stage_metrics import StageMetricsCollector
 from scripts.performance.tracker import PerformanceTracker, create_default_performance_payload
 from scripts.pipeline.validation import validate_performance_payload
+from scripts.quant.recommendation import generate_recommendation
 from scripts.quant.regime import detect_market_regime
 
 

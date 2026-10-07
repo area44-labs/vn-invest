@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 from scripts.generate_report import run_pipeline
 from scripts.quant.recommendation import generate_recommendation
 from scripts.quant.regime import detect_market_regime
-from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 
 
 def make_valid_df(num_rows: int = 30, start_date: str = "2026-08-01") -> pd.DataFrame:

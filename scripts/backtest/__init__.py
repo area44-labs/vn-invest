@@ -1,9 +1,5 @@
 """Canonical Backtesting Subsystem for VN Invest Quantitative Signals."""
 
-from scripts.quant.recommendation import (
-    generate_single_recommendation as generate_recommendation,
-)
-from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
 from scripts.backtest.engine import (
     DEFAULT_CONFIDENCE_BUCKETS,
     DEFAULT_HORIZONS,
@@ -65,6 +61,10 @@ from scripts.backtest.portfolio import (
     run_portfolio_backtest,
     validate_portfolio_weights,
 )
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
+)
+from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
 
 __all__ = [
     "DEFAULT_CONFIDENCE_BUCKETS",

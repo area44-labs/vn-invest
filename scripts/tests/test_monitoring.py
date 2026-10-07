@@ -8,8 +8,6 @@ import tempfile
 import pandas as pd
 import pytest
 
-from scripts.quant.recommendation import generate_recommendation
-from scripts.quant.regime import detect_market_regime
 from scripts.monitoring import (
     CheckResult,
     check_data_freshness,
@@ -25,6 +23,8 @@ from scripts.monitoring import (
     validate_monitoring_payload,
 )
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
+from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.regime import detect_market_regime
 
 SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 

@@ -181,7 +181,6 @@ def normalize_raw_market_data(
 __all__ = [
     "AVG_TRADING_VALUE_UNIT",
     "INDEX_SYMBOLS",
-    "MarketDataNormalizer",
     "PRICE_UNIT",
     "SOURCE_PRICE_UNIT_VNSTOCK",
     "SOURCE_VOLUME_UNIT_VNSTOCK",
@@ -189,6 +188,7 @@ __all__ = [
     "VALID_PRICE_UNITS",
     "VALID_VOLUME_UNITS",
     "VOLUME_UNIT",
+    "MarketDataNormalizer",
     "normalize_ohlcv_units",
     "normalize_raw_market_data",
     "normalize_symbol",

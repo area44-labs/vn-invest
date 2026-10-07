@@ -19,7 +19,7 @@ Every audited component is assigned one or more of the following architectural s
 | `REMOVE`       | Confirmed obsolete/dead/compatibility-only component that can be deleted after its remaining callers are migrated. |
 | `KEEP`         | Valid implementation that must remain; relocation is not currently required.                                       |
 | `MIGRATE`      | Active code that must be moved or have callers redirected to the canonical architecture.                           |
-| `REMOVED`      | Obsolete legacy component that has been completely migrated and removed from the codebase.                          |
+| `REMOVED`      | Obsolete legacy component that has been completely migrated and removed from the codebase.                         |
 
 ---
 
@@ -106,6 +106,7 @@ scripts/domain/
 ### Responsibility
 
 Owns domain-level models and contracts:
+
 - `Universe`, `UniverseCandidate`, `UniverseScanResult` (`scripts/domain/universe.py`)
 - `OHLCVData` (`scripts/domain/ohlcv.py`)
 - `DataQuality` (`scripts/domain/data_quality.py`)
@@ -131,6 +132,7 @@ scripts/data/
 ### Responsibility
 
 Owns market-data acquisition, provider boundary integration, normalization, and validation:
+
 - `acquisition.py`: `MarketDataAcquirer`, `acquire_raw_market_data`, `get_historical_data`
 - `normalization.py`: `MarketDataNormalizer`, `normalize_raw_market_data`, `normalize_symbol`, `normalize_ohlcv_units`, unit constants (`PRICE_UNIT`, `VOLUME_UNIT`, etc.)
 - `validation.py`: `CanonicalMarketValidator`, `validate_canonical_market_data`, `validate_ohlcv_data`, `get_clean_ohlcv_data`, `validate_temporal_integrity`, `extract_latest_trading_date`, `round_tick_size`, `get_exchange_price_limits`, `clamp_price_limits`
@@ -151,6 +153,7 @@ scripts/pipeline/
 ### Responsibility
 
 Owns production orchestration, pipeline context lifecycle, and 9 explicit execution stages:
+
 - `runner.py`: `ProductionPipeline`, `run_pipeline`
 - `context.py`: `PipelineContext`
 - `stages.py`: 9 explicit stage classes (`DataAcquisitionStage`, `DataValidationStage`, `UniverseValidationStage`, `MarketAnalysisStage`, `SignalRecommendationGenerationStage`, `RiskTradePlanStage`, `PerformanceStage`, `MonitoringStage`, `ArtifactPublishingStage`)
@@ -173,6 +176,7 @@ scripts/quant/
 ### Responsibility
 
 Owns quantitative engines, signal calculations, risk metrics, trade plans, market regime detection, and configuration:
+
 - `config.py`: `QuantConfig` (frozen dataclass), `DEFAULT_QUANT_CONFIG`, version contracts (`quant_version`, `model_version`, `config_hash`)
 - `contracts.py`: Typed input/output contracts (`SignalInput`, `SignalResult`, `RiskInput`, `RiskResult`, `RecommendationInput`, `RecommendationResult`, `RegimeInput`, `RegimeResult`, `MarketAnalysisInput`, `CandidateSpec`)
 - `features.py`: Multi-timeframe technical indicator calculations and divergence detection
@@ -196,6 +200,7 @@ scripts/backtest/
 ### Responsibility
 
 Owns point-in-time signal evaluation, forward historical outcomes, execution eligibility, walk-forward validation, and portfolio-level backtesting:
+
 - `engine.py`: `get_as_of_dataset`, `evaluate_forward_outcomes`, `evaluate_execution_eligibility`, `run_backtest_for_symbol`, `run_backtest_for_universe`, `run_walk_forward_backtest`, `evaluate_market_regimes`, `evaluate_signal_components`, `evaluate_confidence_calibration`
 - `portfolio.py`: `PortfolioConfig`, `PortfolioPosition`, `PortfolioEvaluation`, `PortfolioBacktestResult`, `evaluate_portfolio_at_date`, `run_portfolio_backtest`, `aggregate_portfolio_results`
 - `__init__.py`: Public re-exports for the backtest subsystem
@@ -257,17 +262,17 @@ The legacy directory `scripts/lib/` has been **completely removed**.
 
 ## 6.1 Final Migration Summary
 
-| Module                              | Status    | Final Canonical Owner                                                                                     |
-| ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
-| `scripts/lib/config.py`             | `REMOVED` | `scripts/quant/config.py`, `scripts/pipeline/constants.py`, `scripts/data/validation.py`                |
-| `scripts/lib/features.py`           | `REMOVED` | `scripts/quant/features.py`                                                                               |
-| `scripts/lib/monitoring.py`         | `REMOVED` | `scripts/monitoring/*`                                                                                    |
-| `scripts/lib/recommendation.py`     | `REMOVED` | `scripts/quant/recommendation.py`, `scripts/quant/signal.py`, `scripts/quant/risk.py`                  |
-| `scripts/lib/regime.py`             | `REMOVED` | `scripts/quant/regime.py`                                                                                 |
-| `scripts/lib/risk.py`               | `REMOVED` | `scripts/quant/risk.py`                                                                                   |
+| Module                              | Status    | Final Canonical Owner                                                                                                      |
+| ----------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/lib/config.py`             | `REMOVED` | `scripts/quant/config.py`, `scripts/pipeline/constants.py`, `scripts/data/validation.py`                                   |
+| `scripts/lib/features.py`           | `REMOVED` | `scripts/quant/features.py`                                                                                                |
+| `scripts/lib/monitoring.py`         | `REMOVED` | `scripts/monitoring/*`                                                                                                     |
+| `scripts/lib/recommendation.py`     | `REMOVED` | `scripts/quant/recommendation.py`, `scripts/quant/signal.py`, `scripts/quant/risk.py`                                      |
+| `scripts/lib/regime.py`             | `REMOVED` | `scripts/quant/regime.py`                                                                                                  |
+| `scripts/lib/risk.py`               | `REMOVED` | `scripts/quant/risk.py`                                                                                                    |
 | `scripts/lib/vietnam_market.py`     | `REMOVED` | `scripts/data/validation.py`, `scripts/data/normalization.py`, `scripts/data/acquisition.py`, `scripts/domain/universe.py` |
-| `scripts/lib/backtest.py`           | `REMOVED` | `scripts/backtest/engine.py` (`scripts/backtest/`)                                                       |
-| `scripts/lib/portfolio_backtest.py` | `REMOVED` | `scripts/backtest/portfolio.py` (`scripts/backtest/`)                                                    |
+| `scripts/lib/backtest.py`           | `REMOVED` | `scripts/backtest/engine.py` (`scripts/backtest/`)                                                                         |
+| `scripts/lib/portfolio_backtest.py` | `REMOVED` | `scripts/backtest/portfolio.py` (`scripts/backtest/`)                                                                      |
 
 ---
 
