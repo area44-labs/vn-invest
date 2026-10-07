@@ -132,7 +132,7 @@ Every module under `scripts/lib/` has been systematically audited. Classificatio
 - **Test Callers**: `test_downstream_data_validation.py`, `test_output_integrity.py`, `test_recommendation.py`, `test_risk.py`, `test_unit_normalization.py`.
 - **Canonical Replacement**: `scripts/quant/risk.py`
 - **Classification**: `MIGRATE`
-- **Rationale**: `normalize_universe_liquidity_scores` and T+2.5 return helpers belong natively in `scripts/quant/risk.py`. Once moved to `scripts.quant.risk.py` and caller in `generate_report.py` is updated, this module can be removed.
+- **Rationale**: `normalize_universe_liquidity_scores` and T+2.5 return helpers belong natively in `scripts/quant/risk.py`. Once moved to `scripts/quant/risk.py` and caller in `generate_report.py` is updated, this module can be removed.
 - **Trace**: `scripts/lib/risk.py` → `generate_report.py` → `scripts/quant/risk.py` → Migration required: relocate liquidity normalization functions to `scripts/quant/risk.py` and update callers → Safe to remove in M1.
 - **Target Phase**: M1
 
