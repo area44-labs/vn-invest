@@ -61,7 +61,7 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
             except jsonschema.ValidationError as err:
                 path_str = "/".join(str(p) for p in err.path)
                 issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
-            except Exception as err:
+            except (jsonschema.SchemaError, TypeError, ValueError) as err:
                 issues.append(f"JSON Schema validation error: {err}")
     elif schema:
         try:
