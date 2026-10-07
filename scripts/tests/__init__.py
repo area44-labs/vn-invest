@@ -26,5 +26,3 @@ def enforce_network_isolation() -> None:
     socket.socket._network_guard_installed = True
 
 
-# Automatically enforce network isolation whenever scripts.tests is imported
-enforce_network_isolation()

@@ -4,6 +4,7 @@ Tests performance timing instrumentation, stage ordering, provider timing aggreg
 duplicate work detection, fail-closed guarantees, and output invariance without live network access.
 """
 
+import pytest
 import copy
 import json
 import tempfile
@@ -11,7 +12,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.data_provider import (
     ProviderRateLimitError,

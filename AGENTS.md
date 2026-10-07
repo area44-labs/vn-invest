@@ -37,12 +37,12 @@ To avoid unnecessary, slow, network-dependent pipeline runs during small targete
 2. **Read Relevant Code & Tests**: Inspect existing implementation contracts and corresponding test files in `scripts/tests/`.
 3. **Find Invariants & Schema Contracts**: Verify relevant JSON Schemas (`schemas/`) or frozen domain dataclasses (`scripts/domain/`).
 4. **Run Smallest Targeted Test First**: Execute module-specific unit tests for instant feedback (sub-second):
-   - Domain Contracts: `uv run --frozen python -m unittest scripts/tests/test_domain.py`
-   - Recommendation & Signals: `uv run --frozen python -m unittest scripts/tests/test_recommendation.py`
-   - Pipeline Stages & Context: `uv run --frozen python -m unittest scripts/tests/test_pipeline.py`
-   - Backtest & Execution Costs: `uv run --frozen python -m unittest scripts/tests/test_portfolio_backtest.py`
-   - Risk & T+2.5 Metrics: `uv run --frozen python -m unittest scripts/tests/test_risk.py`
-   - Monitoring & Drift: `uv run --frozen python -m unittest scripts/tests/test_monitoring.py scripts/tests/test_drift_monitoring.py`
+   - Domain Contracts: `uv run --frozen pytest scripts/tests/test_domain.py`
+   - Recommendation & Signals: `uv run --frozen pytest scripts/tests/test_recommendation.py`
+   - Pipeline Stages & Context: `uv run --frozen pytest scripts/tests/test_pipeline.py`
+   - Backtest & Execution Costs: `uv run --frozen pytest scripts/tests/test_portfolio_backtest.py`
+   - Risk & T+2.5 Metrics: `uv run --frozen pytest scripts/tests/test_risk.py`
+   - Monitoring & Drift: `uv run --frozen pytest scripts/tests/test_monitoring.py scripts/tests/test_drift_monitoring.py`
 5. **Implement Targeted Code Change**: Make minimal, focused edits satisfying existing contracts.
 6. **Run Targeted Verification**: Re-run targeted unit test and Ruff linter.
 7. **Run Authoritative CI Checks**: Execute full test discovery and linting prior to submitting work.

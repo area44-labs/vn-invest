@@ -18,10 +18,10 @@ This module provides test-only validation proving that when all existing layers 
 all invariants established in previous PRs are strictly preserved.
 """
 
+import pytest
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.lib.backtest import (
     ExecutionConfig,

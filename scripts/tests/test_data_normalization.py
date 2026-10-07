@@ -1,7 +1,8 @@
 """Unit tests for normalization boundary in scripts/data/normalization.py."""
 
-import pandas as pd
 import pytest
+
+import pandas as pd
 
 from scripts.data.acquisition import RawMarketDataPayload
 from scripts.data.normalization import normalize_raw_market_data

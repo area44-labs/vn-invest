@@ -10,9 +10,10 @@ Verifies that:
 7. End-to-end generate_recommendation behavior remains invariant.
 """
 
+import pytest
+
 import numpy as np
 import pandas as pd
-import pytest
 
 from scripts.lib import config, recommendation
 from scripts.lib.recommendation import (
