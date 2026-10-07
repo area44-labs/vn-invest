@@ -18,6 +18,7 @@ from scripts.pipeline import (
     ArtifactPublishingStage,
     PipelineContext,
 )
+from scripts.schema import SchemaResolutionError
 
 
 class TestArtifactPublisherSuite(unittest.TestCase):
@@ -27,10 +28,35 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.target_dir = os.path.join(self.temp_dir, "generated")
         os.makedirs(self.target_dir, exist_ok=True)
+
+        def _make_valid_rec_payload(date_str="2026-03-31"):
+            return {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": f"{date_str}T00:00:00Z",
+                "data_as_of": date_str,
+                "source_date": date_str,
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+
+        self.make_valid_rec_payload = _make_valid_rec_payload
         self.sample_artifacts = {
-            "recommendations.json": {"v": 1, "status": "ok"},
-            "market.json": {"regime": "BULL"},
-            "history/2026-03-31.json": {"data": "historical"},
+            "recommendations.json": _make_valid_rec_payload("2026-03-31"),
+            "market.json": {"schema_version": "2.0", "market": {"regime": "BULL"}},
+            "history/2026-03-31.json": _make_valid_rec_payload("2026-03-31"),
         }
 
     def tearDown(self):
@@ -77,8 +103,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         invalid_artifacts = {
             "recommendations.json": {
-                # Non-dict or invalid numeric
-                "recommendations": [{"symbol": "AAA", "signal_score": 150.0}]
+                "schema_version": "2.0",
+                # Invalid numeric score out of range
+                "recommendations": [{"symbol": "AAA", "signal_score": 150.0}],
             }
         }
 
@@ -88,6 +115,42 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         self.assertIn("out of range", str(cm.exception))
         # Ensure no artifacts were created in target_dir
         self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+
+    def test_publisher_rejects_missing_schema_version(self):
+        """Verify ArtifactPublisher rejects payloads missing schema_version regardless of custom schema parameter."""
+        # Even if custom schema dict is passed to publisher constructor, registry enforcement rejects missing schema_version
+        publisher = ArtifactPublisher(
+            target_dir=self.target_dir,
+            schema={"type": "object"},
+            strict_provenance=False,
+        )
+
+        missing_ver_artifacts = {
+            "recommendations.json": {
+                "recommendations": [],
+            }
+        }
+
+        with self.assertRaises(SchemaResolutionError) as cm:
+            publisher.publish(missing_ver_artifacts)
+
+        self.assertIn("missing required", str(cm.exception))
+
+    def test_publisher_rejects_unsupported_schema_version(self):
+        """Verify ArtifactPublisher rejects payloads with unsupported schema_version."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
+
+        bad_ver_artifacts = {
+            "recommendations.json": {
+                "schema_version": "9.9",
+                "recommendations": [],
+            }
+        }
+
+        with self.assertRaises(SchemaResolutionError) as cm:
+            publisher.publish(bad_ver_artifacts)
+
+        self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
 
     def test_validation_failure_prevents_transaction_start(self):
         """Verify validation failure prevents transaction start (no staging dir, no backup, no state file)."""
@@ -140,8 +203,8 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         """Verify ArtifactPublisher creates and consumes ArtifactManifest when given a dict batch."""
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
         batch = {
-            "recommendations.json": {"recommendations": []},
-            "market.json": {"market": {}},
+            "recommendations.json": self.make_valid_rec_payload("2026-03-31"),
+            "market.json": {"schema_version": "2.0", "market": {}},
         }
 
         published_manifest = publisher.publish(batch)
@@ -155,8 +218,8 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         # 1. First publish
         batch_v1 = {
-            "recommendations.json": {"recommendations": []},
-            "market.json": {"market": {"regime": "BULL"}},
+            "recommendations.json": self.make_valid_rec_payload("2026-03-31"),
+            "market.json": {"schema_version": "2.0", "market": {"regime": "BULL"}},
         }
         publisher.publish(batch_v1)
 
@@ -165,8 +228,8 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         # 2. Second publish replacing existing
         batch_v2 = {
-            "recommendations.json": {"recommendations": []},
-            "market.json": {"market": {"regime": "BEAR"}},
+            "recommendations.json": self.make_valid_rec_payload("2026-03-31"),
+            "market.json": {"schema_version": "2.0", "market": {"regime": "BEAR"}},
         }
         publisher.publish(batch_v2)
 
@@ -190,7 +253,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             f.write('{"v": "initial_data"}\n')
 
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
-        bad_batch = {"bad_file.json": {"bad": object()}}  # Non-serializable object fails json.dump
+        bad_batch = {
+            "bad_file.json": {"schema_version": "2.0", "bad": object()}
+        }  # Non-serializable object fails json.dump
 
         with self.assertRaises(TypeError):
             publisher.publish(bad_batch)
@@ -252,7 +317,11 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         self.assertIs(LegacyLock, ArtifactLock)
 
         # Test legacy function execution
-        legacy_publish({"test.json": {"a": 1}}, target_dir=self.target_dir, strict_provenance=False)
+        legacy_publish(
+            {"test.json": {"schema_version": "2.0", "a": 1}},
+            target_dir=self.target_dir,
+            strict_provenance=False,
+        )
         self.assertTrue(os.path.exists(os.path.join(self.target_dir, "test.json")))
 
     def test_pipeline_stage_artifact_publisher_integration(self):
@@ -260,7 +329,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         context = PipelineContext(publish_artifacts=True, generated_dir=self.target_dir)
         context.data_as_of = "2026-03-31"
         context.generated_at = "2026-03-31T00:00:00Z"
-        context.recommendations_payload = {"recommendations": []}
+        context.recommendations_payload = self.make_valid_rec_payload("2026-03-31")
         context.market_payload = {"market": {}}
         context.history_payload = context.recommendations_payload
         context.monitoring_dict = {"status": "PASS"}

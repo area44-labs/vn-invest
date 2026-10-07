@@ -45,22 +45,29 @@ class ArtifactPublisher:
             validate_final_payload_integrity,
             validate_performance_payload,
         )
-        from scripts.schema import load_schema_for_version
+        from scripts.schema import SchemaResolutionError, load_schema_for_version
 
         schema_to_use = None
-        if self.schema is not None:
-            schema_to_use = self.schema
-        elif relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
-            s_ver = payload.get("schema_version")
-            schema_to_use = load_schema_for_version("performance", str(s_ver)) if s_ver else None
+
+        if relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
+            schema_ver = payload.get("schema_version")
+            if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():
+                raise SchemaResolutionError(
+                    f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
+                )
+            schema_to_use = load_schema_for_version("performance", schema_ver.strip())
             validate_performance_payload(payload, schema=schema_to_use)
             return
-        elif (
+
+        if (
             relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
         ) or ("recommendations" in payload):
-            s_ver = payload.get("schema_version")
-            if s_ver:
-                schema_to_use = load_schema_for_version("recommendations", str(s_ver))
+            schema_ver = payload.get("schema_version")
+            if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():
+                raise SchemaResolutionError(
+                    f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
+                )
+            schema_to_use = load_schema_for_version("recommendations", schema_ver.strip())
 
         validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
 

@@ -533,7 +533,29 @@ class TestOutputIntegritySuite(unittest.TestCase):
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write('{"old": 1}\n')
 
-            artifacts = {"recommendations.json": {"new": 1}}
+            artifacts = {
+                "recommendations.json": {
+                    "schema_version": "2.0",
+                    "signal_model_version": "2.0",
+                    "generated_at": "2026-09-25T14:00:00Z",
+                    "data_as_of": "2026-09-25",
+                    "source_date": "2026-09-25",
+                    "market": {
+                        "regime": "BULL",
+                        "confidence": 0.9,
+                        "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                    },
+                    "summary": {
+                        "total_scanned": 0,
+                        "buy_count": 0,
+                        "watch_count": 0,
+                        "hold_count": 0,
+                        "sell_count": 0,
+                        "avoid_count": 0,
+                    },
+                    "recommendations": [],
+                }
+            }
 
             real_os_replace = os.replace
 

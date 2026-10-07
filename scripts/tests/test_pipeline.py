@@ -544,8 +544,28 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             context = PipelineContext(publish_artifacts=True, generated_dir=tmpdir)
             context.data_as_of = "2026-09-29"
-            context.recommendations_payload = {"recommendations": []}
-            context.market_payload = {"market": {}}
+            context.recommendations_payload = {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": "2026-09-29T12:00:00Z",
+                "data_as_of": "2026-09-29",
+                "source_date": "2026-09-29",
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+            context.market_payload = {"schema_version": "2.0", "market": {}}
             context.monitoring_dict = {"status": "PASS"}
 
             stage = ArtifactPublishingStage()
