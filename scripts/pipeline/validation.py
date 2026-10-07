@@ -37,7 +37,7 @@ def validate_performance_payload(
             "Performance payload is missing required non-empty 'schema_version'"
         )
 
-    schema_to_use = load_performance_schema(s_ver.strip())
+    schema_to_use = load_schema_for_version("performance", s_ver.strip())
     jsonschema.validate(instance=performance_data, schema=schema_to_use)
 
 
