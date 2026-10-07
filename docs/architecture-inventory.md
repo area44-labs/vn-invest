@@ -29,14 +29,14 @@ The purpose is to establish an evidence-based baseline from which M1–M5 can be
 
 Every audited component is assigned one or more of the following architectural statuses.
 
-| Classification | Meaning |
-|---|---|
-| `CANONICAL` | Current authoritative implementation and intended architectural home. |
-| `LEGACY` | Existing implementation that remains functional but belongs to an older architecture. |
-| `REMOVE` | Confirmed obsolete/dead/compatibility-only component that can be deleted after its remaining callers are migrated. |
-| `KEEP` | Valid implementation that must remain; relocation is not currently required. |
-| `MIGRATE` | Active code that must be moved or have callers redirected to the canonical architecture. |
-| `UNKNOWN` | Insufficient evidence or unresolved architectural decision. Must not be deleted based on assumption. |
+| Classification | Meaning                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `CANONICAL`    | Current authoritative implementation and intended architectural home.                                              |
+| `LEGACY`       | Existing implementation that remains functional but belongs to an older architecture.                              |
+| `REMOVE`       | Confirmed obsolete/dead/compatibility-only component that can be deleted after its remaining callers are migrated. |
+| `KEEP`         | Valid implementation that must remain; relocation is not currently required.                                       |
+| `MIGRATE`      | Active code that must be moved or have callers redirected to the canonical architecture.                           |
+| `UNKNOWN`      | Insufficient evidence or unresolved architectural decision. Must not be deleted based on assumption.               |
 
 ### Important rule
 
@@ -106,13 +106,13 @@ Frontend
 
 # 4. Production Entry Points
 
-| Entry point | Purpose | Status |
-|---|---|---|
-| `scripts/generate_report.py` | Main production CLI for pipeline/report generation | `CANONICAL` |
-| `.github/workflows/update-data.yml` | Scheduled/manual production data update | `CANONICAL` |
-| `.github/workflows/tests.yml` | Python CI test execution | `CANONICAL`, migration planned in M1 |
-| `.github/workflows/pages.yml` | Frontend/static deployment | `CANONICAL` |
-| `src/data/loader.ts` | Frontend runtime data loading | `CANONICAL` |
+| Entry point                         | Purpose                                            | Status                               |
+| ----------------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `scripts/generate_report.py`        | Main production CLI for pipeline/report generation | `CANONICAL`                          |
+| `.github/workflows/update-data.yml` | Scheduled/manual production data update            | `CANONICAL`                          |
+| `.github/workflows/tests.yml`       | Python CI test execution                           | `CANONICAL`, migration planned in M1 |
+| `.github/workflows/pages.yml`       | Frontend/static deployment                         | `CANONICAL`                          |
+| `src/data/loader.ts`                | Frontend runtime data loading                      | `CANONICAL`                          |
 
 ### Production command
 
@@ -383,17 +383,17 @@ The audit identified production references that must be migrated before removal 
 
 ## 6.1 Summary
 
-| Module | Classification | Current situation | Target |
-|---|---|---|---|
-| `scripts/lib/config.py` | `MIGRATE` | Production configuration adapter still referenced | `scripts/pipeline/constants.py`, `scripts/quant/config.py`, monitoring-owned constants |
-| `scripts/lib/features.py` | `REMOVE` candidate | No known production caller; test dependency remains | `scripts/quant/features.py` |
-| `scripts/lib/monitoring.py` | `REMOVE` candidate | Compatibility re-export; tests still reference it | `scripts/monitoring/*` |
-| `scripts/lib/recommendation.py` | `MIGRATE` | Production/test callers remain | `scripts/quant/recommendation.py` / related quant contracts |
-| `scripts/lib/regime.py` | `MIGRATE` | Production and legacy backtest callers remain | `scripts/quant/regime.py` |
-| `scripts/lib/risk.py` | `MIGRATE` | Contains active risk/liquidity logic and legacy exports | `scripts/quant/risk.py` |
-| `scripts/lib/vietnam_market.py` | `MIGRATE` | Large legacy market-data/universe surface with production callers | `scripts/data/*`, `scripts/domain/universe.py` |
-| `scripts/lib/backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting implementation but located in legacy package | Dedicated canonical backtest location |
-| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid portfolio backtesting implementation; primarily test/offline use | Dedicated canonical backtest location |
+| Module                              | Classification     | Current situation                                                      | Target                                                                                 |
+| ----------------------------------- | ------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `scripts/lib/config.py`             | `MIGRATE`          | Production configuration adapter still referenced                      | `scripts/pipeline/constants.py`, `scripts/quant/config.py`, monitoring-owned constants |
+| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; test dependency remains                    | `scripts/quant/features.py`                                                            |
+| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; tests still reference it                      | `scripts/monitoring/*`                                                                 |
+| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                                         | `scripts/quant/recommendation.py` / related quant contracts                            |
+| `scripts/lib/regime.py`             | `MIGRATE`          | Production and legacy backtest callers remain                          | `scripts/quant/regime.py`                                                              |
+| `scripts/lib/risk.py`               | `MIGRATE`          | Contains active risk/liquidity logic and legacy exports                | `scripts/quant/risk.py`                                                                |
+| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Large legacy market-data/universe surface with production callers      | `scripts/data/*`, `scripts/domain/universe.py`                                         |
+| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting implementation but located in legacy package         | Dedicated canonical backtest location                                                  |
+| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid portfolio backtesting implementation; primarily test/offline use | Dedicated canonical backtest location                                                  |
 
 ---
 
@@ -823,28 +823,28 @@ scripts/tests/run_tests.py
 
 The mapping below records the major ownership boundaries.
 
-| Test area | Primary production owner |
-|---|---|
-| `test_domain.py` | `scripts/domain/` |
-| `test_data_*.py` | `scripts/data/` and data-provider boundaries |
-| `test_pipeline*.py` | `scripts/pipeline/` |
-| `test_engines.py` | `scripts/quant/` |
-| `test_recommendation.py` | `scripts/quant/` |
-| `test_regime.py` | `scripts/quant/regime.py` |
-| `test_risk.py` | `scripts/quant/risk.py` |
-| `test_performance*.py` | `scripts/performance/` |
-| `test_monitoring*.py` | `scripts/monitoring/` |
-| `test_artifact*.py` | `scripts/artifacts/` |
-| `test_provenance.py` | `scripts/artifacts/provenance.py` |
-| `test_schema.py` | `scripts/schema/` + `schemas/v2/` |
-| `test_historical_report.py` | `scripts/generate_report.py` / pipeline history |
-| `test_history_index.py` | history/report generation |
-| `test_output_integrity.py` | pipeline/artifact validation |
-| `test_e2e_backtest_integrity.py` | backtesting subsystem |
-| `test_execution_costs.py` | backtesting subsystem |
-| `test_portfolio_backtest.py` | portfolio backtesting |
-| `test_parity.py` | pipeline/report parity |
-| `test_ssg_html.py` | frontend/static artifact integration |
+| Test area                        | Primary production owner                        |
+| -------------------------------- | ----------------------------------------------- |
+| `test_domain.py`                 | `scripts/domain/`                               |
+| `test_data_*.py`                 | `scripts/data/` and data-provider boundaries    |
+| `test_pipeline*.py`              | `scripts/pipeline/`                             |
+| `test_engines.py`                | `scripts/quant/`                                |
+| `test_recommendation.py`         | `scripts/quant/`                                |
+| `test_regime.py`                 | `scripts/quant/regime.py`                       |
+| `test_risk.py`                   | `scripts/quant/risk.py`                         |
+| `test_performance*.py`           | `scripts/performance/`                          |
+| `test_monitoring*.py`            | `scripts/monitoring/`                           |
+| `test_artifact*.py`              | `scripts/artifacts/`                            |
+| `test_provenance.py`             | `scripts/artifacts/provenance.py`               |
+| `test_schema.py`                 | `scripts/schema/` + `schemas/v2/`               |
+| `test_historical_report.py`      | `scripts/generate_report.py` / pipeline history |
+| `test_history_index.py`          | history/report generation                       |
+| `test_output_integrity.py`       | pipeline/artifact validation                    |
+| `test_e2e_backtest_integrity.py` | backtesting subsystem                           |
+| `test_execution_costs.py`        | backtesting subsystem                           |
+| `test_portfolio_backtest.py`     | portfolio backtesting                           |
+| `test_parity.py`                 | pipeline/report parity                          |
+| `test_ssg_html.py`               | frontend/static artifact integration            |
 
 ### Legacy test dependencies
 
@@ -910,15 +910,15 @@ rather than immediate `REMOVE`.
 
 Generated artifacts are runtime outputs and should be treated as part of the production contract.
 
-| Artifact | Producer | Architectural owner |
-|---|---|---|
-| `generated/recommendations.json` | Recommendation/quant pipeline + artifact publishing | `scripts/quant/`, `scripts/pipeline/`, `scripts/artifacts/` |
-| `generated/market.json` | Market analysis pipeline stage | `scripts/pipeline/` + `scripts/quant/` |
-| `generated/performance.json` | Performance pipeline stage | `scripts/performance/` |
-| `generated/monitoring.json` | Monitoring pipeline stage | `scripts/monitoring/` |
-| `generated/provenance.json` | Artifact publishing/provenance | `scripts/artifacts/` |
-| `generated/history/index.json` | Historical report/index generation | `scripts/generate_report.py` + artifact layer |
-| `generated/history/YYYY-MM-DD.json` | Historical report generation | `scripts/generate_report.py` + pipeline/artifact layer |
+| Artifact                            | Producer                                            | Architectural owner                                         |
+| ----------------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `generated/recommendations.json`    | Recommendation/quant pipeline + artifact publishing | `scripts/quant/`, `scripts/pipeline/`, `scripts/artifacts/` |
+| `generated/market.json`             | Market analysis pipeline stage                      | `scripts/pipeline/` + `scripts/quant/`                      |
+| `generated/performance.json`        | Performance pipeline stage                          | `scripts/performance/`                                      |
+| `generated/monitoring.json`         | Monitoring pipeline stage                           | `scripts/monitoring/`                                       |
+| `generated/provenance.json`         | Artifact publishing/provenance                      | `scripts/artifacts/`                                        |
+| `generated/history/index.json`      | Historical report/index generation                  | `scripts/generate_report.py` + artifact layer               |
+| `generated/history/YYYY-MM-DD.json` | Historical report generation                        | `scripts/generate_report.py` + pipeline/artifact layer      |
 
 ### Artifact invariant
 
@@ -930,18 +930,18 @@ The frontend is not the producer of these artifacts.
 
 # 13. Compatibility Layer Inventory
 
-| Component | Classification | Reason |
-|---|---|---|
-| `scripts/lib/monitoring.py` | `REMOVE` candidate | Compatibility re-export; no known production caller |
-| `scripts/lib/features.py` | `REMOVE` candidate | No known production caller; remaining test imports |
-| `scripts/lib/recommendation.py` | `MIGRATE` | Production/test callers remain |
-| `scripts/lib/regime.py` | `MIGRATE` | Production/legacy callers remain |
-| `scripts/lib/risk.py` | `MIGRATE` | Contains substantive remaining logic |
-| `scripts/lib/config.py` | `MIGRATE` | Production callers remain |
-| `scripts/lib/vietnam_market.py` | `MIGRATE` | Major production dependency surface |
-| `scripts/lib/backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location |
-| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location |
-| `scripts/tests/run_tests.py` | `MIGRATE → REMOVE` | Replaced by pytest in M1 |
+| Component                           | Classification     | Reason                                              |
+| ----------------------------------- | ------------------ | --------------------------------------------------- |
+| `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; no known production caller |
+| `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; remaining test imports  |
+| `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                      |
+| `scripts/lib/regime.py`             | `MIGRATE`          | Production/legacy callers remain                    |
+| `scripts/lib/risk.py`               | `MIGRATE`          | Contains substantive remaining logic                |
+| `scripts/lib/config.py`             | `MIGRATE`          | Production callers remain                           |
+| `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Major production dependency surface                 |
+| `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |
+| `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |
+| `scripts/tests/run_tests.py`        | `MIGRATE → REMOVE` | Replaced by pytest in M1                            |
 
 No new compatibility layers should be introduced merely to make M1/M2 easier.
 
