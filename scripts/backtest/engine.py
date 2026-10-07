@@ -74,7 +74,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
+from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 from scripts.quant.features import compute_market_breadth
 from scripts.quant.recommendation import (
     generate_single_recommendation as generate_recommendation,

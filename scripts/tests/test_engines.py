@@ -416,8 +416,8 @@ class TestQuantRecommendationEngine:
         assert engine_dict == single_dict
 
     def test_legacy_wrapper_backward_compatibility(self):
-        """8. Backward compatibility -> legacy scripts.lib wrapper delegates to scripts.quant with exact payload equivalence."""
-        from scripts.lib.recommendation import generate_recommendation as legacy_generate_rec
+        """8. Backward compatibility -> legacy scripts.quant wrapper delegates to scripts.quant with exact payload equivalence."""
+        from scripts.quant.recommendation import generate_recommendation as legacy_generate_rec
 
         legacy_rec = legacy_generate_rec(
             symbol="VNM",
@@ -460,8 +460,8 @@ class TestQuantUnificationAndBacktestParity:
 
     def test_backtest_uses_quant_engine_directly(self):
         """Verify backtest modules use detect_market_regime and generate_recommendation from scripts.quant."""
-        import scripts.lib.backtest as bt
-        import scripts.lib.portfolio_backtest as pbt
+        import scripts.backtest.engine as bt
+        import scripts.backtest.portfolio as pbt
         from scripts.quant.regime import lib_detect_market_regime
 
         assert bt.detect_market_regime is lib_detect_market_regime
@@ -471,7 +471,7 @@ class TestQuantUnificationAndBacktestParity:
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""
-        from scripts.lib.backtest import (
+        from scripts.backtest.engine import (
             calculate_as_of_market_breadth,
             get_as_of_dataset,
             run_backtest_for_symbol,
@@ -534,7 +534,7 @@ class TestQuantUnificationAndBacktestParity:
 
     def test_pit_dataset_no_lookahead_isolation(self):
         """Verify future mutations (> as_of_date) do not alter quantitative signal outputs at as_of_date."""
-        from scripts.lib.backtest import run_backtest_for_symbol
+        from scripts.backtest.engine import run_backtest_for_symbol
 
         # Run 1: original data
         res1 = run_backtest_for_symbol(

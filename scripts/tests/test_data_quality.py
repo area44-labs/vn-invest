@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 
 from scripts.generate_report import run_pipeline
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.vietnam_market import get_clean_ohlcv_data, validate_ohlcv_data
+from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.regime import detect_market_regime
+from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 
 
 def make_valid_df(num_rows: int = 30, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -287,7 +287,7 @@ class TestHardenedPerSymbolDataValidation:
     def setup_method(self):
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_p = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
@@ -302,10 +302,10 @@ class TestHardenedPerSymbolDataValidation:
 
     def test_1_valid_ohlcv_returns_real_data(self):
         """1. Valid OHLCV DataFrame -> 'REAL_DATA' tag."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, issues = get_historical_data("FPT")
             assert tag == "REAL_DATA"
@@ -330,7 +330,7 @@ class TestHardenedPerSymbolDataValidation:
 
     def test_4_nan_in_close_fails(self):
         """4. NaN in close -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[10, "close"] = None
@@ -339,14 +339,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "nan_values" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_5_inf_in_volume_fails(self):
         """5. Inf in volume -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df["volume"] = df["volume"].astype(float)
@@ -356,14 +356,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "infinite_values" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_6_negative_price_fails(self):
         """6. Negative price -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[3, "open"] = -10.0
@@ -372,14 +372,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "non_positive_prices" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_7_negative_volume_fails(self):
         """7. Negative volume -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[7, "volume"] = -100
@@ -388,14 +388,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "negative_volume" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_8_invalid_ohlc_relationship_fails(self):
         """8. Invalid OHLC relationship -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[2, "high"] = 10.0
@@ -405,14 +405,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "invalid_ohlc_relationship" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_9_duplicate_dates_fail(self):
         """9. Duplicate dates -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[10, "time"] = df.loc[9, "time"]
@@ -421,14 +421,14 @@ class TestHardenedPerSymbolDataValidation:
         assert "duplicate_dates" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_10_non_monotonic_dates_fail(self):
         """10. Non-monotonic dates -> failure."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         tmp = df.loc[5, "time"]
@@ -439,17 +439,17 @@ class TestHardenedPerSymbolDataValidation:
         assert "non_monotonic_dates" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = df
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
     def test_11_insufficient_history(self):
         """11. Insufficient history -> 'INSUFFICIENT_HISTORICAL_DATA'."""
-        from scripts.lib.vietnam_market import get_historical_data
+        from scripts.data.acquisition import get_historical_data
 
         short_df = make_valid_df(5)
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov_cls.return_value.fetch_ohlcv.return_value = short_df
             _df_res, tag, issues = get_historical_data("FPT")
             assert tag == "INSUFFICIENT_HISTORICAL_DATA"

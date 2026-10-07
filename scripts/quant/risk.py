@@ -312,7 +312,7 @@ def normalize_universe_liquidity_scores(
 
 def compute_stock_risk_and_trade_plan(input_data: RiskInput) -> RiskResult:
     """Compute risk assessment, confidence, risk-adjusted score, trade plan, and invalidation rules."""
-    from scripts.lib.vietnam_market import (
+    from scripts.data.validation import (
         clamp_price_limits,
         round_tick_size,
     )

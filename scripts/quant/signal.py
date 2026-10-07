@@ -288,7 +288,7 @@ def classify_action(
 
 def compute_signal(input_data: SignalInput) -> SignalResult:
     """Compute stock signals, scores, and components from clean OHLCV data."""
-    from scripts.lib.vietnam_market import (
+    from scripts.data.validation import (
         get_clean_ohlcv_data,
         validate_ohlcv_data,
     )

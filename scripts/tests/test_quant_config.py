@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from scripts.domain import Universe
-from scripts.lib.portfolio_backtest import PortfolioConfig, run_portfolio_backtest
+from scripts.backtest.portfolio import PortfolioConfig, run_portfolio_backtest
 from scripts.pipeline.context import PipelineContext
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 from scripts.quant.contracts import (

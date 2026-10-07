@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from scripts.lib.recommendation import generate_recommendation
+from scripts.quant.recommendation import generate_recommendation
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.provider_metrics import (
     aggregate_provider_performance,
@@ -380,7 +380,7 @@ class TestQuantitativeOutputInvariance:
             "Technology",
             "HOSE",
             df_stock,
-            res_baseline.market_regime,
+            res_baseline if isinstance(res_baseline, dict) else res_baseline.market_regime,
             df_vnindex=df_index,
         )
 
@@ -391,7 +391,7 @@ class TestQuantitativeOutputInvariance:
                 "Technology",
                 "HOSE",
                 df_stock,
-                res_baseline.market_regime,
+                res_baseline if isinstance(res_baseline, dict) else res_baseline.market_regime,
                 df_vnindex=df_index,
             )
 

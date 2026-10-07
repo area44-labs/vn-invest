@@ -19,9 +19,9 @@ from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers.base import MarketDataProvider
 from scripts.data.validation import validate_canonical_market_data
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.vietnam_market import UniverseProvider
+from scripts.quant.recommendation import generate_single_recommendation as generate_recommendation
+from scripts.quant.regime import detect_market_regime
+from scripts.domain.universe import UniverseProvider
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.stages import (
     DataAcquisitionStage,

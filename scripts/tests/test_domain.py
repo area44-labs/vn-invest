@@ -479,7 +479,7 @@ class TestUniverseAndScanResultDomainContracts:
     """Test suite for Issue #173 Universe and UniverseScanResult contracts."""
 
     def test_provider_to_universe_conversion(self):
-        from scripts.lib.vietnam_market import UniverseProvider
+        from scripts.domain.universe import UniverseProvider
 
         provider = UniverseProvider()
         u = provider.get_universe()
@@ -528,7 +528,7 @@ class TestUniverseAndScanResultDomainContracts:
         assert u_default.expected_symbols == frozenset()
 
         # Production benchmarks from UniverseProvider
-        from scripts.lib.vietnam_market import UniverseProvider
+        from scripts.domain.universe import UniverseProvider
 
         u_prod = UniverseProvider().get_universe()
         assert u_prod.benchmarks == ("VNINDEX", "VN30")
@@ -677,8 +677,8 @@ class TestUniverseAndScanResultDomainContracts:
             ctx.processed_symbols = {"FPT"}
 
     def test_legacy_candidate_stocks_isolation(self):
-        import scripts.lib.vietnam_market as vnm_module
-        from scripts.lib.vietnam_market import CANDIDATE_STOCKS, UniverseProvider
+        import scripts.domain.universe as vnm_module
+        from scripts.domain.universe import CANDIDATE_STOCKS, UniverseProvider
 
         u = UniverseProvider().get_universe()
         assert len(CANDIDATE_STOCKS) == u.universe_size
@@ -751,7 +751,7 @@ class TestIssue173ArchitectureInvariants:
         assert "VNINDEX" not in audit_custom["expected_symbols"]
         assert "VN30" not in audit_custom["expected_symbols"]
 
-        from scripts.lib.vietnam_market import UniverseProvider
+        from scripts.domain.universe import UniverseProvider
 
         u_prod = UniverseProvider().get_universe()
         scan_prod = UniverseScanResult(
@@ -868,8 +868,8 @@ class TestIssue173ArchitectureInvariants:
 
     def test_g_legacy_candidate_stocks_isolation_under_monkeypatching(self):
         """G. Monkeypatching legacy CANDIDATE_STOCKS does not alter UniverseProvider or Pipeline execution."""
-        import scripts.lib.vietnam_market as vnm_module
-        from scripts.lib.vietnam_market import UniverseProvider
+        import scripts.domain.universe as vnm_module
+        from scripts.domain.universe import UniverseProvider
 
         orig_stocks = list(vnm_module.CANDIDATE_STOCKS)
         try:

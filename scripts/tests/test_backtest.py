@@ -5,7 +5,7 @@ import math
 import pandas as pd
 import pytest
 
-from scripts.lib.backtest import (
+from scripts.backtest.engine import (
     REASON_BELOW_MIN_PRICE,
     REASON_BELOW_MIN_TRADED_VALUE,
     REASON_BELOW_MIN_VOLUME,
@@ -41,8 +41,8 @@ from scripts.lib.backtest import (
     run_backtest_for_universe,
     run_walk_forward_backtest,
 )
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
+from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.regime import detect_market_regime
 
 
 def math_sin(x: float) -> float:
@@ -2264,7 +2264,7 @@ class TestMarketRegimeValidationFramework:
 
     def test_regime_val_12_parse_canonical_date_contract_rigorous(self):
         """Test Regime Val 12: _parse_canonical_date accepts YYYY-MM-DD and naive calendar pd.Timestamp, rejecting time components, timezones, booleans, and invalid inputs."""
-        from scripts.lib.backtest import _parse_canonical_date
+        from scripts.backtest.engine import _parse_canonical_date
 
         # 1. "2025-01-10" -> accepted and canonicalized
         assert _parse_canonical_date("2025-01-10") == "2025-01-10"

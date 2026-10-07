@@ -18,9 +18,9 @@ import pandas as pd
 import pytest
 
 from scripts.generate_report import generate_historical_report
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.risk import calculate_t25_risk_metrics, normalize_universe_liquidity_scores
+from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import calculate_t25_risk_metrics, normalize_universe_liquidity_scores
 
 
 def create_mock_ohlcv(

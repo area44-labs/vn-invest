@@ -50,7 +50,7 @@ def generate_single_recommendation(
     config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> Recommendation:
     """Generate a single stock recommendation object by composing quant signal and risk modules."""
-    from scripts.lib.vietnam_market import validate_ohlcv_data
+    from scripts.data.validation import validate_ohlcv_data
 
     comp_clean = (
         company_name.strip()
@@ -351,8 +351,11 @@ class SignalRecommendationEngine:
         return RecommendationResult(recommendations=scanned_recs)
 
 
+generate_recommendation = generate_single_recommendation
+
 __all__ = [
     "CandidateSpec",
     "SignalRecommendationEngine",
+    "generate_recommendation",
     "generate_single_recommendation",
 ]

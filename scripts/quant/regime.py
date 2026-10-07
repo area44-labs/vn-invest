@@ -219,39 +219,46 @@ def detect_market_regime(
     breadth_ratio: float | None = None,
     detector: Callable[..., dict[str, Any]] | None = None,
     config: QuantConfig = DEFAULT_QUANT_CONFIG,
-) -> RegimeResult:
+    df_vnindex: pd.DataFrame | None = None,
+) -> RegimeResult | dict:
     """Detect market regime given index datasets and market breadth ratio.
 
-    Accepts RegimeInput or raw position arguments for backward compatibility.
-    Returns RegimeResult containing market_regime dictionary.
+    Accepts RegimeInput or raw position/keyword arguments for backward compatibility.
+    Returns RegimeResult when passed RegimeInput, or dict when passed raw arguments.
     """
     if isinstance(input_data, RegimeInput):
-        df_vnindex = input_data.df_vnindex
+        df_vnindex_val = input_data.df_vnindex
         df_vn30_val = input_data.df_vn30
         breadth_val = input_data.breadth_ratio
         cfg = input_data.config
+        is_typed = True
     else:
-        df_vnindex = input_data
+        df_vnindex_val = input_data if input_data is not None else df_vnindex
         df_vn30_val = df_vn30
         breadth_val = breadth_ratio
         cfg = config
+        is_typed = False
 
     if detector is not None:
         regime_dict = detector(
-            df_vnindex=df_vnindex,
+            df_vnindex=df_vnindex_val,
             df_vn30=df_vn30_val,
             breadth_ratio=breadth_val,
         )
     else:
         regime_dict = lib_detect_market_regime(
-            df_vnindex=df_vnindex,
+            df_vnindex=df_vnindex_val,
             df_vn30=df_vn30_val,
             breadth_ratio=breadth_val,
             config=cfg,
         )
-    return RegimeResult(market_regime=regime_dict)
+
+    if is_typed:
+        return RegimeResult(market_regime=regime_dict)
+    return regime_dict
 
 
 __all__ = [
     "detect_market_regime",
+    "lib_detect_market_regime",
 ]

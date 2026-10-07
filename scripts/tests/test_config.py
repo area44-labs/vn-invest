@@ -2,7 +2,7 @@
 
 Verifies that:
 1. Centralized parameter values match expected defaults.
-2. Re-exported constants in scripts/lib/recommendation.py remain identical.
+2. Re-exported constants in quant modules remain identical.
 3. SIGNAL_MODEL_VERSION remains unchanged ("2.0").
 4. Scoring functions preserve exact quantitative outputs across threshold boundaries.
 5. Market regime classification logic behaves deterministically across all regimes.
@@ -14,21 +14,28 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.lib import recommendation
-from scripts.lib.recommendation import (
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
+)
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import (
     calculate_confidence,
+    calculate_risk_adjusted_score,
+)
+from scripts.quant.signal import (
+    DIVERGENCE_TIMEFRAME_WEIGHTS,
+    SIGNAL_MODEL_VERSION,
+    SIGNAL_WEIGHTS,
+    VALID_MARKET_REGIMES,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
-    calculate_risk_adjusted_score,
     calculate_signal_score,
     calculate_trend_score,
     calculate_volume_score,
     classify_action,
-    generate_recommendation,
 )
-from scripts.lib.regime import detect_market_regime
-from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
 @pytest.mark.unit
@@ -36,15 +43,15 @@ class TestCentralizedConfigConstants:
     def test_version_unchanged(self):
         """Verify SIGNAL_MODEL_VERSION is '2.0' and identical across modules."""
         assert DEFAULT_QUANT_CONFIG.model_version == "2.0"
-        assert recommendation.SIGNAL_MODEL_VERSION == "2.0"
+        assert SIGNAL_MODEL_VERSION == "2.0"
 
     def test_reexported_constants(self):
-        """Verify backwards-compatible re-exported constants in recommendation module."""
-        assert recommendation.SIGNAL_WEIGHTS == dict(DEFAULT_QUANT_CONFIG.signal_weights)
-        assert recommendation.DIVERGENCE_TIMEFRAME_WEIGHTS == dict(
+        """Verify backwards-compatible re-exported constants in quant modules."""
+        assert SIGNAL_WEIGHTS == dict(DEFAULT_QUANT_CONFIG.signal_weights)
+        assert DIVERGENCE_TIMEFRAME_WEIGHTS == dict(
             DEFAULT_QUANT_CONFIG.divergence_timeframe_weights
         )
-        assert recommendation.VALID_MARKET_REGIMES == set(DEFAULT_QUANT_CONFIG.valid_market_regimes)
+        assert VALID_MARKET_REGIMES == set(DEFAULT_QUANT_CONFIG.valid_market_regimes)
 
     def test_weights_sum_to_one(self):
         """Verify signal weights and divergence timeframe weights sum to 1.0."""

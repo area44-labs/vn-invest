@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.lib.backtest import get_as_of_dataset
-from scripts.lib.risk import (
+from scripts.backtest.engine import get_as_of_dataset
+from scripts.quant.risk import (
     calculate_t25_returns,
     calculate_t25_risk_metrics,
     normalize_universe_liquidity_scores,
 )
-from scripts.lib.vietnam_market import get_clean_ohlcv_data
+from scripts.data.validation import get_clean_ohlcv_data
 
 
 @pytest.mark.unit

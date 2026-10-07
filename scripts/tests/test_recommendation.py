@@ -7,27 +7,27 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.lib.backtest import _safe_float as backtest_safe_float
-from scripts.lib.portfolio_backtest import _safe_float as portfolio_safe_float
-from scripts.lib.recommendation import (
+from scripts.backtest.engine import _safe_float as backtest_safe_float
+from scripts.backtest.portfolio import _safe_float as portfolio_safe_float
+from scripts.quant.signal import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
+    _safe_float as recommendation_safe_float,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
-    calculate_risk_adjusted_score,
     calculate_signal_score,
     calculate_trend_score,
     calculate_volume_score,
     classify_action,
-    generate_recommendation,
 )
-from scripts.lib.recommendation import (
-    _safe_float as recommendation_safe_float,
+from scripts.quant.risk import calculate_risk_adjusted_score
+from scripts.quant.recommendation import (
+    generate_single_recommendation as generate_recommendation,
 )
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.risk import normalize_universe_liquidity_scores
-from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import normalize_universe_liquidity_scores
+from scripts.data.validation import clamp_price_limits, get_exchange_price_limits
 from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
 
 
@@ -183,7 +183,7 @@ class TestVNInvestSignalEngine:
 
     def test_confidence_reflects_signal_agreement(self):
         """1. Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
-        from scripts.lib.recommendation import calculate_confidence
+        from scripts.quant.risk import calculate_confidence
 
         risk_metrics = {"volatility_60d": 0.15, "max_drawdown": -0.10}
 
@@ -218,7 +218,7 @@ class TestVNInvestSignalEngine:
 
         Proves semantic clarification != model modification.
         """
-        from scripts.lib.recommendation import calculate_confidence
+        from scripts.quant.risk import calculate_confidence
 
         # Case 1: INSUFFICIENT data quality -> exactly 0.10
         conf_insufficient = calculate_confidence(
@@ -900,7 +900,7 @@ class TestVNInvestSignalEngine:
 
     @patch("scripts.data.acquisition.time.sleep")
     @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.lib.vietnam_market.time.sleep")
+    @patch("scripts.pipeline.stages.time.sleep")
     @patch(
         "scripts.pipeline.stages.UniverseProvider._get_candidates",
         return_value=[

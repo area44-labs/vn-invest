@@ -4,7 +4,7 @@ import math
 
 import jsonschema
 
-from scripts.lib.backtest import _parse_canonical_date
+from scripts.backtest import _parse_canonical_date
 from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH
 from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 

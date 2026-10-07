@@ -8,8 +8,8 @@ import tempfile
 import pandas as pd
 import pytest
 
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
+from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.regime import detect_market_regime
 from scripts.monitoring import (
     CheckResult,
     check_data_freshness,
