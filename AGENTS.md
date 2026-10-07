@@ -10,7 +10,7 @@ This document is the authoritative operational playbook for AI coding agents wor
 
 - **Python Quantitative Engine (`scripts/`)**: Handles all market data collection, canonical OHLCV validation, technical indicators, Signal Scoring, T+2.5 risk modeling, Market Regime detection, portfolio backtesting, operational monitoring, and data/model drift tracking.
 - **React SSG Frontend (`src/`)**: Renders static web pages using TanStack Start and Vite+ (`vp`). It reads generated JSON artifacts exclusively from `generated/` (or `dist/client/generated/` in production builds). **Zero financial calculations occur in the frontend.**
-- **Validated JSON Contracts (`schemas/`)**: All exported report artifacts must strictly comply with `schemas/recommendations.schema.json` and `schemas/performance.schema.json`.
+- **Validated JSON Contracts (`schemas/`)**: Schema resolution is explicitly version-aware via `scripts/schema/registry.py` (`load_schema_for_version`, `resolve_schema`). Schemas are organized by version (e.g. `schemas/v2/recommendations.schema.json` and `schemas/v2/performance.schema.json`). Artifact validation selects schema by artifact type and declared `schema_version`, failing closed on unknown or malformed versions without silent fallback to latest schema.
 - **Static Artifacts (`generated/`)**: Single source of truth for generated report payloads (`recommendations.json`, `market.json`, `monitoring.json`, `history/index.json`, `history/YYYY-MM-DD.json`).
 
 ### B. Execution Flow (9 Pipeline Stages)
@@ -110,7 +110,7 @@ Use the repository's actual configuration as the sole source of truth.
 
 ### C. Monitoring, Performance & Drift Contracts
 
-- **Schema Compliance**: Payload outputs must pass JSON Schema validation against `schemas/recommendations.schema.json`.
+- **Schema Compliance**: Payload outputs must pass JSON Schema validation against versioned schema files (e.g., `schemas/v2/recommendations.schema.json`).
 - **Baseline Qualification**: Operational drift monitoring (`evaluate_data_and_model_drift()`) evaluates qualified historical reports with coverage ratio `processed_ratio >= 0.80` in reverse chronological order $< T$.
 - **Baseline Insufficiency vs. Drift**: When qualified historical reports are fewer than `min_baseline_reports` (5), monitoring returns `INSUFFICIENT` status and `WARNING` checks. Data insufficiency must strictly be distinguished from genuine quantitative model drift.
 

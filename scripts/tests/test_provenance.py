@@ -176,9 +176,31 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """8. Verify provenance validation occurs BEFORE atomic transaction starts (no disk mutations)."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
+        valid_rec = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-03-31T00:00:00Z",
+            "data_as_of": "2026-03-31",
+            "source_date": "2026-03-31",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
         bad_batch = {
-            "recommendations.json": {"data_as_of": "2026-03-31", "v": 1},
-            "market.json": {"data_as_of": "2026-03-31", "regime": "BULL"},
+            "recommendations.json": valid_rec,
+            "market.json": {"schema_version": "2.0", "data_as_of": "2026-03-31", "market": {}},
             "provenance.json": {
                 "data_as_of": "2026-03-31",
                 # Missing required fields...
@@ -197,9 +219,31 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """9. Verify publisher in strict mode rejects artifact batch lacking provenance.json."""
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=True)
 
+        valid_rec = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-03-31T00:00:00Z",
+            "data_as_of": "2026-03-31",
+            "source_date": "2026-03-31",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
         batch_no_prov = {
-            "recommendations.json": {"v": 1},
-            "market.json": {"regime": "BULL"},
+            "recommendations.json": valid_rec,
+            "market.json": {"schema_version": "2.0", "market": {}},
         }
 
         with self.assertRaises(ProvenanceValidationError) as cm:
@@ -211,9 +255,35 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """10. Verify successful publication with valid provenance manifest."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
+        valid_rec = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": f"{self.canonical_date}T00:00:00Z",
+            "data_as_of": self.canonical_date,
+            "source_date": self.canonical_date,
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
         batch = {
-            "recommendations.json": {"data_as_of": self.canonical_date, "recommendations": []},
-            "market.json": {"data_as_of": self.canonical_date, "market": {}},
+            "recommendations.json": valid_rec,
+            "market.json": {
+                "schema_version": "2.0",
+                "data_as_of": self.canonical_date,
+                "market": {},
+            },
             "provenance.json": self.valid_provenance,
         }
 
@@ -392,10 +462,33 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """16. Verify conflicting data_as_of dates across artifacts (e.g. recs=2026-10-06 vs mkt=2026-10-05) fails closed."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
+        def _make_rec_payload(d_str):
+            return {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": f"{d_str}T00:00:00Z",
+                "data_as_of": d_str,
+                "source_date": d_str,
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+
         # Batch where recommendations date is 2026-10-06 and market date is 2026-10-05
         conflicting_batch = {
-            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
-            "market.json": {"data_as_of": "2026-10-05", "market": {}},
+            "recommendations.json": _make_rec_payload("2026-10-06"),
+            "market.json": {"schema_version": "2.0", "data_as_of": "2026-10-05", "market": {}},
             "provenance.json": {
                 **self.valid_provenance,
                 "data_as_of": "2026-10-06",
@@ -411,9 +504,32 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """17. Verify when all artifacts contain matching data_as_of, publication succeeds cleanly."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
+        def _make_rec_payload(d_str):
+            return {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": f"{d_str}T00:00:00Z",
+                "data_as_of": d_str,
+                "source_date": d_str,
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+
         matching_batch = {
-            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
-            "market.json": {"data_as_of": "2026-10-06", "market": {}},
+            "recommendations.json": _make_rec_payload("2026-10-06"),
+            "market.json": {"schema_version": "2.0", "data_as_of": "2026-10-06", "market": {}},
             "provenance.json": {
                 **self.valid_provenance,
                 "data_as_of": "2026-10-06",
@@ -428,9 +544,32 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         """18. Verify mismatched data_as_of validation occurs BEFORE atomic transaction/staging starts."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
+        def _make_rec_payload(d_str):
+            return {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": f"{d_str}T00:00:00Z",
+                "data_as_of": d_str,
+                "source_date": d_str,
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+
         conflicting_batch = {
-            "recommendations.json": {"data_as_of": "2026-10-06", "recommendations": []},
-            "market.json": {"data_as_of": "2026-10-05", "market": {}},
+            "recommendations.json": _make_rec_payload("2026-10-06"),
+            "market.json": {"schema_version": "2.0", "data_as_of": "2026-10-05", "market": {}},
             "provenance.json": {
                 **self.valid_provenance,
                 "data_as_of": "2026-10-06",

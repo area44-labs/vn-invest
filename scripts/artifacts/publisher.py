@@ -20,19 +20,20 @@ class ArtifactPublisher:
     def __init__(
         self,
         target_dir: str | None = None,
-        schema: dict | None = None,
         strict_provenance: bool = True,
         canonical_data_as_of: str | None = None,
     ):
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
-        self.schema = schema
         self.strict_provenance = strict_provenance
         self.canonical_data_as_of = canonical_data_as_of
 
     def validate_artifact(self, relative_path: str, payload: dict) -> None:
-        """Validate artifact payload prior to publication.
+        """Validate artifact payload prior to publication using central Schema Registry.
 
-        Publisher strictly validates without altering quantitative results or investment signals.
+        Authoritative artifact publication validation. Resolves schema strictly from
+        payload["schema_version"] via central Schema Registry.
+
+        Caller-supplied schema, version, or schema_path overrides are forbidden.
         """
         if not isinstance(payload, dict):
             raise TypeError(f"Artifact '{relative_path}' payload must be a dict")
@@ -41,17 +42,32 @@ class ArtifactPublisher:
             validate_provenance_manifest(payload)
             return
 
-        from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
+        from scripts.pipeline.validation import (
+            validate_final_payload_integrity,
+            validate_performance_payload,
+        )
+        from scripts.schema import SchemaResolutionError, load_schema_for_version
 
-        schema_to_use = None
-        if self.schema is not None:
-            schema_to_use = self.schema
-        elif (
+        if relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
+            schema_ver = payload.get("schema_version")
+            if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():
+                raise SchemaResolutionError(
+                    f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
+                )
+            validate_performance_payload(payload)
+            return
+
+        if (
             relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
-        ) and "schema_version" in payload:
-            schema_to_use = load_schema()
+        ) or ("recommendations" in payload):
+            schema_ver = payload.get("schema_version")
+            if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():
+                raise SchemaResolutionError(
+                    f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
+                )
+            load_schema_for_version("recommendations", schema_ver.strip())
 
-        validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
+        validate_final_payload_integrity(payload, payload_name=relative_path)
 
     def publish(
         self,

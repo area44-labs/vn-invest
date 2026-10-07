@@ -42,6 +42,7 @@ from scripts.lib.monitoring import (
 def make_valid_performance_payload():
     """Construct a valid canonical performance payload for schema testing."""
     return {
+        "schema_version": "2.0",
         "stages": [
             {
                 "stage": "pipeline",
@@ -602,7 +603,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         invalid_payload = {"data_as_of": "INVALID_DATE"}
 
         with self.assertRaises(ValueError), tracker.measure_stage("payload_validation"):
-            validate_final_payload_integrity(invalid_payload, schema=None)
+            validate_final_payload_integrity(invalid_payload)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
@@ -615,9 +616,15 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         tracker = PerformanceTracker()
         valid_payload = {
             "schema_version": "2.0",
+            "signal_model_version": "2.0",
             "generated_at": "2026-08-25T00:00:00Z",
             "data_as_of": "2026-08-25",
             "source_date": "2026-08-25",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
             "summary": {
                 "total_scanned": 0,
                 "buy_count": 0,
@@ -630,7 +637,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         }
 
         with tracker.measure_stage("payload_validation"):
-            validate_final_payload_integrity(valid_payload, schema=None)
+            validate_final_payload_integrity(valid_payload)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
@@ -707,24 +714,8 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         payload = make_valid_performance_payload()
         with (
             patch(
-                "scripts.monitoring.models.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.monitoring.performance.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.lib.monitoring.DEFAULT_PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.pipeline.constants.PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
-            ),
-            patch(
-                "scripts.pipeline.validation.PERFORMANCE_SCHEMA_PATH",
-                "/non/existent/path/performance.schema.json",
+                "scripts.schema.registry.SCHEMA_REGISTRY",
+                {("performance", "2.0"): Path("/non/existent/path/performance.schema.json")},
             ),
             self.assertRaises(FileNotFoundError),
         ):
@@ -1349,6 +1340,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
@@ -1581,6 +1573,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                 ],
@@ -1649,6 +1642,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {

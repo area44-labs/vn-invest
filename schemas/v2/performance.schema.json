@@ -1,11 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "VN Invest Production Performance Payload Schema",
-  "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload",
+  "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload v2.0",
   "type": "object",
-  "required": ["stages", "provider", "duplicate_operations"],
+  "required": ["schema_version", "stages", "provider", "duplicate_operations"],
   "additionalProperties": false,
   "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "2.0"
+    },
     "stages": {
       "type": "array",
       "items": {

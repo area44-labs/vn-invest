@@ -1,57 +1,82 @@
 """Payload validation utilities for VN Invest pipeline orchestration."""
 
-import json
 import math
-import os
 
 import jsonschema
 
 from scripts.lib.backtest import _parse_canonical_date
-from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH, SCHEMA_PATH
+from scripts.pipeline.constants import PERFORMANCE_SCHEMA_PATH
+from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
 
-def load_performance_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/performance.schema.json."""
-    if not os.path.exists(PERFORMANCE_SCHEMA_PATH):
-        raise FileNotFoundError(f"Performance schema file not found at '{PERFORMANCE_SCHEMA_PATH}'")
-    with open(PERFORMANCE_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+def load_performance_schema(version: str = SCHEMA_VERSION) -> dict:
+    """Load performance JSON Schema for a given version (default '2.0').
+
+    UTILITY ONLY: Must NOT be used for authoritative artifact validation.
+    Authoritative validation MUST route through validate_performance_payload(payload),
+    which resolves schema strictly from payload["schema_version"].
+    """
+    return load_schema_for_version("performance", version)
 
 
-def validate_performance_payload(performance_data: dict, schema: dict | None = None) -> None:
+def validate_performance_payload(performance_data: dict) -> None:
     """Validate canonical performance object structure and schema.
 
-    Raises jsonschema.ValidationError, TypeError, FileNotFoundError, or ValueError on validation failure.
+    Authoritative performance artifact validation API. Resolves schema strictly from
+    performance_data["schema_version"] via central Schema Registry.
+
+    Caller-supplied schema, version, or schema_path overrides are forbidden.
+
+    Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
     if not isinstance(performance_data, dict):
         raise TypeError(
             f"Performance payload must be a dict, got {type(performance_data).__name__}"
         )
 
-    if schema is None:
-        schema = load_performance_schema()
+    s_ver = performance_data.get("schema_version")
+    if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
+        from scripts.schema import SchemaResolutionError
 
-    jsonschema.validate(instance=performance_data, schema=schema)
+        raise SchemaResolutionError(
+            "Performance payload is missing required non-empty 'schema_version'"
+        )
+
+    schema_to_use = load_schema_for_version("performance", s_ver.strip())
+    jsonschema.validate(instance=performance_data, schema=schema_to_use)
 
 
-def load_schema() -> dict:
-    """Load JSON Schema Draft 2020-12 from schemas/recommendations.schema.json."""
-    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+def load_schema(version: str = SCHEMA_VERSION) -> dict:
+    """Load recommendations JSON Schema for a given version (default '2.0').
+
+    UTILITY ONLY: Must NOT be used for authoritative artifact validation.
+    Authoritative validation MUST route through payload["schema_version"] via
+    validate_final_payload_integrity(payload) or check_schema_validation(payload).
+    """
+    return load_schema_for_version("recommendations", version)
 
 
-def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> list[str]:
-    """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
+def find_payload_integrity_issues(payload: dict) -> list[str]:
+    """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency.
+
+    Authoritative payload integrity validation API. Resolves schema strictly from
+    payload["schema_version"] via central Schema Registry. Caller overrides are forbidden.
+    """
     issues = []
 
-    if schema:
-        try:
-            jsonschema.validate(instance=payload, schema=schema)
-        except jsonschema.ValidationError as err:
-            path_str = "/".join(str(p) for p in err.path)
-            issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
-        except (jsonschema.SchemaError, TypeError, ValueError) as err:
-            issues.append(f"JSON Schema validation error: {err}")
+    if isinstance(payload, dict) and "recommendations" in payload:
+        s_ver = payload.get("schema_version")
+        if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
+            issues.append("Payload is missing required non-empty 'schema_version'")
+        else:
+            try:
+                canonical_schema = load_schema_for_version("recommendations", s_ver.strip())
+                jsonschema.validate(instance=payload, schema=canonical_schema)
+            except jsonschema.ValidationError as err:
+                path_str = "/".join(str(p) for p in err.path)
+                issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
+            except (jsonschema.SchemaError, TypeError, ValueError) as err:
+                issues.append(f"JSON Schema validation error: {err}")
 
     def _walk_check(obj, path=""):
         if obj is None:
@@ -248,11 +273,15 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     return issues
 
 
-def validate_final_payload_integrity(
-    payload: dict, schema: dict | None = None, payload_name: str = "payload"
-) -> list[dict]:
-    """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
-    issues = find_payload_integrity_issues(payload, schema)
+def validate_final_payload_integrity(payload: dict, payload_name: str = "payload") -> list[dict]:
+    """Validate final report payload integrity.
+
+    Authoritative payload integrity validation API. Resolves schema strictly from
+    payload["schema_version"] via central Schema Registry. Caller overrides are forbidden.
+
+    Raises ValueError if any integrity check fails.
+    """
+    issues = find_payload_integrity_issues(payload)
     if issues:
         diagnostics = [
             {

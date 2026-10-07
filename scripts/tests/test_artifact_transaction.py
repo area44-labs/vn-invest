@@ -24,10 +24,35 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.target_dir = os.path.join(self.temp_dir, "generated")
         os.makedirs(self.target_dir, exist_ok=True)
+
+        def _make_valid_rec_payload(date_str="2026-03-31"):
+            return {
+                "schema_version": "2.0",
+                "signal_model_version": "2.0",
+                "generated_at": f"{date_str}T00:00:00Z",
+                "data_as_of": date_str,
+                "source_date": date_str,
+                "market": {
+                    "regime": "BULL",
+                    "confidence": 0.9,
+                    "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+                },
+                "summary": {
+                    "total_scanned": 0,
+                    "buy_count": 0,
+                    "watch_count": 0,
+                    "hold_count": 0,
+                    "sell_count": 0,
+                    "avoid_count": 0,
+                },
+                "recommendations": [],
+            }
+
+        self.make_valid_rec_payload = _make_valid_rec_payload
         self.sample_artifacts = {
-            "recommendations.json": {"v": 1, "status": "ok"},
-            "market.json": {"regime": "BULL"},
-            "history/2026-03-31.json": {"data": "historical"},
+            "recommendations.json": _make_valid_rec_payload("2026-03-31"),
+            "market.json": {"schema_version": "2.0", "market": {"regime": "BULL"}},
+            "history/2026-03-31.json": _make_valid_rec_payload("2026-03-31"),
         }
 
     def tearDown(self):
@@ -49,7 +74,7 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         self.assertTrue(os.path.exists(hist_path))
 
         with open(recs_path, "r", encoding="utf-8") as f:
-            self.assertEqual(json.load(f)["v"], 1)
+            self.assertEqual(json.load(f)["schema_version"], "2.0")
 
         # Verify no backup, staging, or state files remain
         bak_dir = f"{self.target_dir}_bak"
@@ -625,7 +650,7 @@ class TestArtifactTransactionSuite(unittest.TestCase):
         recs_file = os.path.join(self.target_dir, "recommendations.json")
         self.assertTrue(os.path.exists(recs_file))
         with open(recs_file, "r", encoding="utf-8") as f:
-            self.assertEqual(json.load(f)["v"], 1)
+            self.assertEqual(json.load(f)["schema_version"], "2.0")
 
         # Backup and journal cleaned up safely
         self.assertFalse(os.path.exists(bak_dir))

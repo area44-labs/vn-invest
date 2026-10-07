@@ -137,6 +137,7 @@ class TestProductionMonitoring(unittest.TestCase):
             },
         ]
         self.healthy_performance = {
+            "schema_version": "2.0",
             "stages": [
                 {"stage": "pipeline", "elapsed_seconds": 1.0, "status": "SUCCESS"},
                 {"stage": "benchmark_fetch", "elapsed_seconds": 0.1, "status": "SUCCESS"},
@@ -580,11 +581,11 @@ class TestProductionMonitoring(unittest.TestCase):
     def test_schema_invalid_artifact_fails(self):
         """Verify schema-invalid payload produces schema validation check failure ('FAIL')."""
         bad_payload = copy.deepcopy(self.healthy_payload)
-        del bad_payload["schema_version"]  # Missing required top-level key
+        del bad_payload["signal_model_version"]  # Missing required top-level key
 
         chk = check_schema_validation(bad_payload)
         self.assertEqual(chk.status, "FAIL")
-        self.assertIn("schema_version", chk.message)
+        self.assertIn("signal_model_version", chk.message)
 
     def test_summary_action_count_mismatch_fails(self):
         """Verify summary action count mismatch with actual recommendations produces status 'FAIL'."""
