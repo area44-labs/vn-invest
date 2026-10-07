@@ -1,7 +1,8 @@
 """Unit tests for VN Invest Domain Contracts."""
 
-import pytest
 from dataclasses import FrozenInstanceError
+
+import pytest
 
 from scripts.domain import (
     DataQuality,

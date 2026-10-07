@@ -1,9 +1,9 @@
 """Unit tests for acquisition boundary in scripts/data/acquisition.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from scripts.data.acquisition import (
     ExplicitlyInvalidDataError,

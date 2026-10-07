@@ -1,9 +1,10 @@
 """Regression unit tests for provenance manifest, provenance builder, secret scanning, fail-closed validation, and artifact publisher integration."""
 
-import pytest
 import os
 import shutil
 import tempfile
+
+import pytest
 
 from scripts.artifacts import (
     ArtifactPublisher,

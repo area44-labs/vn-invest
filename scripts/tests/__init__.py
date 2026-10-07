@@ -24,5 +24,3 @@ def enforce_network_isolation() -> None:
 
     socket.socket.connect = _blocked_connect
     socket.socket._network_guard_installed = True
-
-
