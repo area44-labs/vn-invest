@@ -5,10 +5,10 @@ execution cost assumptions, slippage semantics, execution prices, effective retu
 and portfolio-level returns after costs in the backtesting framework.
 """
 
-import pytest
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 from scripts.lib.backtest import (
     ExecutionConfig,

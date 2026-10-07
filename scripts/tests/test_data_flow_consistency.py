@@ -8,7 +8,6 @@ Validates:
 5. Deterministic aggregate metrics without NaN, Inf, or division-by-zero.
 """
 
-import pytest
 import json
 import shutil
 import tempfile
@@ -16,6 +15,7 @@ from unittest.mock import patch
 
 import jsonschema
 import pandas as pd
+import pytest
 
 from scripts.domain.universe import Universe
 from scripts.generate_report import (

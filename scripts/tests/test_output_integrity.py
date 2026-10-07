@@ -1,6 +1,5 @@
 """Deterministic offline unit and regression tests for final payload & output integrity."""
 
-import pytest
 import copy
 import json
 import os
@@ -9,6 +8,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from scripts.generate_report import (
     find_payload_integrity_issues,

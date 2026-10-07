@@ -11,11 +11,11 @@ Verifies:
 8. Denominator and count correctness for breadth, regime, and liquidity percentile ranking.
 """
 
-import pytest
 import math
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.generate_report import generate_historical_report
 from scripts.lib.recommendation import generate_recommendation

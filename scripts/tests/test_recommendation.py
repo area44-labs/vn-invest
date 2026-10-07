@@ -1,11 +1,11 @@
 """Unit tests for VN Invest Signal Engine in scripts/lib/recommendation.py."""
 
-import pytest
 import math
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.lib.backtest import _safe_float as backtest_safe_float
 from scripts.lib.features import calculate_single_tf_indicators, detect_divergence

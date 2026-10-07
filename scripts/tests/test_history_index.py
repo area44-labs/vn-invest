@@ -1,11 +1,12 @@
 """Unit tests for fail-closed history index persistence loader."""
 
-import pytest
 import json
 import os
 import sys
 import tempfile
 from unittest.mock import patch
+
+import pytest
 
 from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
 
