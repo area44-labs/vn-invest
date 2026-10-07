@@ -843,12 +843,10 @@ class MonitoringStage(PipelineStage):
         return "monitoring"
 
     def execute(self, context: PipelineContext) -> None:
-        schema = load_schema()
-
         if context.is_historical:
             with context.tracker.measure_stage("payload_validation"):
-                validate_final_payload_integrity(context.recommendations_payload, schema=schema)
-                validate_final_payload_integrity(context.market_payload, schema=None)
+                validate_final_payload_integrity(context.recommendations_payload)
+                validate_final_payload_integrity(context.market_payload)
 
             context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
             context.performance_data = context.tracker.get_performance_payload(
@@ -894,11 +892,11 @@ class MonitoringStage(PipelineStage):
         context.monitoring_dict = context.monitoring_result.to_dict()
 
         with context.tracker.measure_stage("payload_validation"):
-            validate_final_payload_integrity(context.recommendations_payload, schema=schema)
-            validate_final_payload_integrity(context.market_payload, schema=None)
+            validate_final_payload_integrity(context.recommendations_payload)
+            validate_final_payload_integrity(context.market_payload)
             if context.history_payload is not context.recommendations_payload:
-                validate_final_payload_integrity(context.history_payload, schema=schema)
-            validate_final_payload_integrity(context.monitoring_dict, schema=None)
+                validate_final_payload_integrity(context.history_payload)
+            validate_final_payload_integrity(context.monitoring_dict)
 
         context.pipeline_elapsed = time.perf_counter() - context.tracker.t_pipeline_start
         context.performance_data = context.tracker.get_performance_payload(

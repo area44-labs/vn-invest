@@ -447,6 +447,7 @@ class PipelineContext:
         }
 
         self.market_payload = {
+            "schema_version": "2.0",
             "data_as_of": self.data_as_of,
             "source_date": self.source_date,
             "generated_at": self.generated_at,

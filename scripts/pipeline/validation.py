@@ -50,7 +50,20 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
     """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
     issues = []
 
-    if schema:
+    if isinstance(payload, dict) and "recommendations" in payload:
+        s_ver = payload.get("schema_version")
+        if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
+            issues.append("Payload is missing required non-empty 'schema_version'")
+        else:
+            try:
+                canonical_schema = load_schema(s_ver.strip())
+                jsonschema.validate(instance=payload, schema=canonical_schema)
+            except jsonschema.ValidationError as err:
+                path_str = "/".join(str(p) for p in err.path)
+                issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
+            except Exception as err:
+                issues.append(f"JSON Schema validation error: {err}")
+    elif schema:
         try:
             jsonschema.validate(instance=payload, schema=schema)
         except jsonschema.ValidationError as err:

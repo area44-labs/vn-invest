@@ -616,9 +616,15 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         tracker = PerformanceTracker()
         valid_payload = {
             "schema_version": "2.0",
+            "signal_model_version": "2.0",
             "generated_at": "2026-08-25T00:00:00Z",
             "data_as_of": "2026-08-25",
             "source_date": "2026-08-25",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
             "summary": {
                 "total_scanned": 0,
                 "buy_count": 0,
