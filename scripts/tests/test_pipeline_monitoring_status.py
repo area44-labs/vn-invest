@@ -11,7 +11,7 @@ import pytest
 
 from scripts.data_provider import ProviderRateLimitError
 from scripts.generate_report import main
-from scripts.lib.monitoring import evaluate_data_and_model_drift
+from scripts.monitoring import evaluate_data_and_model_drift
 
 
 def make_test_payload(

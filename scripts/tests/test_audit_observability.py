@@ -8,7 +8,7 @@ import tempfile
 import pytest
 
 from scripts.lib.config import SIGNAL_MODEL_VERSION
-from scripts.lib.monitoring import (
+from scripts.monitoring import (
     check_universe_audit_invariants,
     evaluate_production_monitoring,
 )

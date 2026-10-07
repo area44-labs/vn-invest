@@ -2,9 +2,8 @@
 
 Verifies:
 1. Subsystem module decomposition and clean internal contracts.
-2. Complete backward-compatibility of legacy imports via `scripts.lib.monitoring`.
-3. Output schema, invariant structure, and payload integrity preservation.
-4. Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
+2. Output schema, invariant structure, and payload integrity preservation.
+3. Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
 """
 
 import json
@@ -101,55 +100,6 @@ class TestMonitoringSubsystem:
         payload = create_default_performance_payload()
         assert "stages" in payload
         validate_performance_payload(payload)
-
-
-@pytest.mark.unit
-class TestBackwardCompatibilityImports:
-    """Verify that all public symbols re-exported via `scripts.lib.monitoring` match `scripts.monitoring`."""
-
-    def test_reexported_symbols_identity(self):
-        import scripts.lib.monitoring as legacy_mon
-        import scripts.monitoring as new_mon
-
-        exported_names = [
-            "evaluate_production_monitoring",
-            "validate_monitoring_payload",
-            "evaluate_data_and_model_drift",
-            "check_required_artifacts",
-            "check_schema_validation",
-            "check_data_freshness",
-            "check_numeric_sanity",
-            "check_symbol_processing_counts",
-            "check_market_regime_status",
-            "check_history_index_status",
-            "check_ohlcv_data_quality",
-            "check_universe_audit_invariants",
-            "extract_recommendation_metrics",
-            "normalize_market_payload",
-            "classify_confidence_bucket",
-            "is_canonical_yyyy_mm_dd",
-            "validate_performance_payload",
-            "load_performance_schema",
-            "create_default_performance_payload",
-            "CheckResult",
-            "PipelineMonitoringResult",
-            "DriftObservation",
-            "DriftCheckResult",
-            "DriftMonitoringResult",
-            "DEFAULT_GENERATED_DIR",
-            "DEFAULT_SCHEMA_PATH",
-            "DEFAULT_PERFORMANCE_SCHEMA_PATH",
-        ]
-
-        for name in exported_names:
-            assert hasattr(legacy_mon, name), (
-                f"Legacy scripts.lib.monitoring missing re-export '{name}'"
-            )
-            legacy_attr = getattr(legacy_mon, name)
-            new_attr = getattr(new_mon, name)
-            assert legacy_attr is new_attr, (
-                f"Attribute '{name}' in scripts.lib.monitoring is not identical to scripts.monitoring"
-            )
 
 
 @pytest.mark.unit

@@ -32,7 +32,7 @@ from scripts.generate_report import (
     main as generate_report_main,
 )
 from scripts.lib.config import PERFORMANCE_STAGE_BASELINES
-from scripts.lib.monitoring import (
+from scripts.monitoring import (
     evaluate_performance_regression,
     evaluate_production_monitoring,
     evaluate_provider_budget,
@@ -419,7 +419,7 @@ class TestPipelinePerformanceProfiling:
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_11_instrumentation_does_not_alter_monitoring_status(self, mock_fetch_ohlcv):
         """11. Production monitoring status is unchanged by performance tracking."""
-        from scripts.lib.monitoring import evaluate_production_monitoring
+        from scripts.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
         mock_fetch_ohlcv.return_value = valid_df
@@ -793,7 +793,7 @@ class TestPerformanceSchemaValidation:
     def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(
         self, mock_fetch_ohlcv
     ):
-        from scripts.lib.monitoring import evaluate_production_monitoring
+        from scripts.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
         mock_fetch_ohlcv.return_value = valid_df

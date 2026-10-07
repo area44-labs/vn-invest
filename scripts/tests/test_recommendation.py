@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 
 from scripts.lib.backtest import _safe_float as backtest_safe_float
-from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.portfolio_backtest import _safe_float as portfolio_safe_float
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
@@ -29,6 +28,7 @@ from scripts.lib.recommendation import (
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
+from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
 
 
 @pytest.mark.unit

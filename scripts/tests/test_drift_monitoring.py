@@ -1,4 +1,4 @@
-"""Unit tests for Data and Model Drift Detection Module (scripts/lib/monitoring.py).
+"""Unit tests for Data and Model Drift Detection Module (scripts/monitoring/drift.py).
 
 Verifies operational data drift, model-output drift, baseline contracts, threshold checks,
 strict fail-closed temporal safety, and production monitoring pipeline integration.
@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from scripts.lib.monitoring import (
+from scripts.monitoring import (
     classify_confidence_bucket,
     evaluate_data_and_model_drift,
     evaluate_production_monitoring,
@@ -701,7 +701,7 @@ class TestFeedbackRegressionCases:
 
     def test_canonical_date_validation_cases(self):
         """Verify strict canonical YYYY-MM-DD calendar date validation rules."""
-        from scripts.lib.monitoring import is_canonical_yyyy_mm_dd
+        from scripts.monitoring import is_canonical_yyyy_mm_dd
 
         assert is_canonical_yyyy_mm_dd("2026-09-17")
         assert not is_canonical_yyyy_mm_dd("2026-9-17")
@@ -905,7 +905,7 @@ class TestFeedbackRegressionCases:
         curr = make_mock_payload(data_as_of="2026-09-17")
         baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
 
-        import scripts.lib.monitoring as mon
+        import scripts.monitoring as mon
 
         # Test warn < 0
         orig_proc_thresh = mon.DRIFT_THRESHOLD_PROCESSED_RATIO
