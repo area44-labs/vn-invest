@@ -1,11 +1,11 @@
 """Unit tests for ProductionPipeline, PipelineContext, and pipeline stage execution order."""
 
-import pytest
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from scripts.domain.universe import Universe
 from scripts.pipeline import (

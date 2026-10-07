@@ -4,7 +4,6 @@ Deterministic tests without network access covering all 13 canonical validator r
 and provider boundary conversion/validation.
 """
 
-import pytest
 import json
 import tempfile
 from pathlib import Path
@@ -12,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 from vnai.beam.quota import RateLimitExceeded
 
 from scripts.data.acquisition import InvalidSymbolError
