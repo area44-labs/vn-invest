@@ -218,6 +218,15 @@ def validate_provenance_manifest(
     if not isinstance(schema_ver, str) or not schema_ver.strip():
         raise ProvenanceValidationError("Provenance 'schema_version' must be a non-empty string")
 
+    try:
+        from scripts.schema import load_schema_for_version
+
+        load_schema_for_version("recommendations", schema_ver.strip())
+    except Exception as err:
+        raise ProvenanceValidationError(
+            f"Provenance 'schema_version' {schema_ver!r} resolution failed: {err}"
+        ) from err
+
     q_config = payload["quantitative_config_version"]
     if not isinstance(q_config, dict):
         raise ProvenanceValidationError(

@@ -317,6 +317,150 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         validate_performance_payload(valid_perf)
         mock_load_perf_schema.assert_called_with("performance", "2.0")
 
+    def test_caller_supplied_schema_or_version_or_path_cannot_override_or_bypass(self):
+        """12. Test directly that caller-supplied schema, version, or schema_path parameters raise TypeError."""
+        valid_perf = {
+            "schema_version": "2.0",
+            "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.2,
+                "average_call_seconds": 0.2,
+                "calls_by_source": {"vnstock": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        valid_rec = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-10-06T12:00:00Z",
+            "data_as_of": "2026-10-06",
+            "source_date": "2026-10-06",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        fake_schema = {"type": "object", "properties": {}}
+
+        # Attempt passing schema, version, schema_path to validate_performance_payload -> TypeError
+        with self.assertRaises(TypeError):
+            validate_performance_payload(valid_perf, schema=fake_schema)  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            validate_performance_payload(valid_perf, version="1.0")  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            validate_performance_payload(valid_perf, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
+
+        # Attempt passing schema, version, schema_path to check_schema_validation -> TypeError
+        with self.assertRaises(TypeError):
+            check_schema_validation(valid_rec, schema=fake_schema)  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            check_schema_validation(valid_rec, version="1.0")  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            check_schema_validation(valid_rec, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
+
+        # Attempt passing schema, version, schema_path to validate_final_payload_integrity -> TypeError
+        with self.assertRaises(TypeError):
+            validate_final_payload_integrity(valid_rec, schema=fake_schema)  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            validate_final_payload_integrity(valid_rec, version="1.0")  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            validate_final_payload_integrity(valid_rec, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
+
+        # Attempt passing schema, version, schema_path to ArtifactPublisher.validate_artifact -> TypeError
+        publisher = ArtifactPublisher(strict_provenance=False)
+        with self.assertRaises(TypeError):
+            publisher.validate_artifact("recommendations.json", valid_rec, schema=fake_schema)  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            publisher.validate_artifact("recommendations.json", valid_rec, version="1.0")  # type: ignore[call-arg]
+
+        with self.assertRaises(TypeError):
+            publisher.validate_artifact(
+                "recommendations.json", valid_rec, schema_path="/tmp/fake.json"
+            )  # type: ignore[call-arg]
+
+    @patch("scripts.pipeline.validation.load_schema_for_version")
+    @patch("scripts.schema.load_schema_for_version")
+    def test_publisher_always_resolves_via_registry_for_all_schema_governed_artifacts(
+        self, mock_load_schema_registry, mock_load_schema_pipeline
+    ):
+        """13. Prove ArtifactPublisher always resolves schema via central registry using payload's schema_version."""
+        mock_load_schema_registry.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
+        mock_load_schema_pipeline.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
+
+        publisher = ArtifactPublisher(strict_provenance=False)
+
+        valid_perf = {
+            "schema_version": "2.0",
+            "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.2,
+                "average_call_seconds": 0.2,
+                "calls_by_source": {"vnstock": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        valid_rec = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.0",
+            "generated_at": "2026-10-06T12:00:00Z",
+            "data_as_of": "2026-10-06",
+            "source_date": "2026-10-06",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.9,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+            "recommendations": [],
+        }
+
+        # 1. Performance artifact
+        publisher.validate_artifact("performance.json", valid_perf)
+        mock_load_schema_pipeline.assert_called_with("performance", "2.0")
+
+        # 2. Recommendations artifact
+        publisher.validate_artifact("recommendations.json", valid_rec)
+        mock_load_schema_registry.assert_called_with("recommendations", "2.0")
+
+        # 3. History report artifact
+        publisher.validate_artifact("history/2026-10-06.json", valid_rec)
+        mock_load_schema_registry.assert_called_with("recommendations", "2.0")
+
 
 if __name__ == "__main__":
     unittest.main()

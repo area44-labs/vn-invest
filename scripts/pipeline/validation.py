@@ -10,15 +10,22 @@ from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
 
 def load_performance_schema(version: str = SCHEMA_VERSION) -> dict:
-    """Load performance JSON Schema for a given version (default '2.0')."""
+    """Load performance JSON Schema for a given version (default '2.0').
+
+    UTILITY ONLY: Must NOT be used for authoritative artifact validation.
+    Authoritative validation MUST route through validate_performance_payload(payload),
+    which resolves schema strictly from payload["schema_version"].
+    """
     return load_schema_for_version("performance", version)
 
 
 def validate_performance_payload(performance_data: dict) -> None:
     """Validate canonical performance object structure and schema.
 
-    Enforces that schema_version declared inside performance_data is resolved strictly
-    via the central Schema Registry. Caller overrides are forbidden.
+    Authoritative performance artifact validation API. Resolves schema strictly from
+    performance_data["schema_version"] via central Schema Registry.
+
+    Caller-supplied schema, version, or schema_path overrides are forbidden.
 
     Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
@@ -40,12 +47,21 @@ def validate_performance_payload(performance_data: dict) -> None:
 
 
 def load_schema(version: str = SCHEMA_VERSION) -> dict:
-    """Load recommendations JSON Schema for a given version (default '2.0')."""
+    """Load recommendations JSON Schema for a given version (default '2.0').
+
+    UTILITY ONLY: Must NOT be used for authoritative artifact validation.
+    Authoritative validation MUST route through payload["schema_version"] via
+    validate_final_payload_integrity(payload) or check_schema_validation(payload).
+    """
     return load_schema_for_version("recommendations", version)
 
 
 def find_payload_integrity_issues(payload: dict) -> list[str]:
-    """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
+    """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency.
+
+    Authoritative payload integrity validation API. Resolves schema strictly from
+    payload["schema_version"] via central Schema Registry. Caller overrides are forbidden.
+    """
     issues = []
 
     if isinstance(payload, dict) and "recommendations" in payload:
@@ -258,7 +274,13 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
 
 
 def validate_final_payload_integrity(payload: dict, payload_name: str = "payload") -> list[dict]:
-    """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
+    """Validate final report payload integrity.
+
+    Authoritative payload integrity validation API. Resolves schema strictly from
+    payload["schema_version"] via central Schema Registry. Caller overrides are forbidden.
+
+    Raises ValueError if any integrity check fails.
+    """
     issues = find_payload_integrity_issues(payload)
     if issues:
         diagnostics = [
