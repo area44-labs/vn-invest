@@ -257,9 +257,7 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
     return issues
 
 
-def validate_final_payload_integrity(
-    payload: dict, payload_name: str = "payload"
-) -> list[dict]:
+def validate_final_payload_integrity(payload: dict, payload_name: str = "payload") -> list[dict]:
     """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
     issues = find_payload_integrity_issues(payload)
     if issues:

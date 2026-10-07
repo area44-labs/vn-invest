@@ -16,9 +16,7 @@ from scripts.performance.stage_metrics import StageMetricsCollector
 from scripts.performance.tracker import PerformanceTracker, create_default_performance_payload
 
 
-def validate_performance_payload(
-    performance_data: dict[str, Any]
-) -> None:
+def validate_performance_payload(performance_data: dict[str, Any]) -> None:
     """Validate canonical performance object structure and schema."""
     from scripts.pipeline.validation import validate_performance_payload as _validate
 

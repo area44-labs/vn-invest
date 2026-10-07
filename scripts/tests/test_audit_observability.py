@@ -685,9 +685,7 @@ class TestAuditTrailObservability(unittest.TestCase):
         invalid_payload["recommendations"][0]["signal_score"] = 150.0  # Out of bounds score
 
         with self.assertRaises(ValueError) as cm:
-            validate_final_payload_integrity(
-                invalid_payload, payload_name="recommendations"
-            )
+            validate_final_payload_integrity(invalid_payload, payload_name="recommendations")
 
         exc = cm.exception
         self.assertTrue(hasattr(exc, "diagnostics"))

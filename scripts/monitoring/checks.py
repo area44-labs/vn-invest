@@ -78,9 +78,7 @@ def check_required_artifacts(
     )
 
 
-def check_schema_validation(
-    recommendations_payload: dict
-) -> CheckResult:
+def check_schema_validation(recommendations_payload: dict) -> CheckResult:
     """Validate recommendations payload against canonical JSON schema using version-aware resolution."""
     if not isinstance(recommendations_payload, dict):
         return CheckResult(
