@@ -268,9 +268,9 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         res = check_schema_validation(valid_payload, schema_path="/non/existent/path/override.json")
         self.assertEqual(res.status, "FAIL")
 
-    @patch("scripts.schema.registry.load_schema_for_version")
+    @patch("scripts.schema.load_schema_for_version")
     def test_registry_routing_integration(self, mock_load_schema):
-        """10. Prove monitoring checks and pipeline validation actually invoke the central schema registry."""
+        """10. Prove monitoring checks, publisher, and pipeline validation actually invoke the central schema registry."""
         mock_load_schema.return_value = resolve_schema("recommendations", "2.0")
 
         valid_payload = {
@@ -298,6 +298,34 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         res = check_schema_validation(valid_payload)
         self.assertEqual(res.status, "PASS")
         mock_load_schema.assert_called_with("recommendations", "2.0")
+
+        # Prove ArtifactPublisher.validate_artifact calls load_schema_for_version
+        publisher = ArtifactPublisher(strict_provenance=False)
+        publisher.validate_artifact("recommendations.json", valid_payload)
+        mock_load_schema.assert_called_with("recommendations", "2.0")
+
+    @patch("scripts.pipeline.validation.load_schema_for_version")
+    def test_validate_performance_payload_calls_registry(self, mock_load_perf_schema):
+        """11. Prove validate_performance_payload calls central registry with payload's schema_version."""
+        mock_load_perf_schema.return_value = resolve_schema("performance", "2.0")
+
+        valid_perf = {
+            "schema_version": "2.0",
+            "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
+            "provider": {
+                "total_calls": 1,
+                "successful_calls": 1,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.2,
+                "average_call_seconds": 0.2,
+                "calls_by_source": {"vnstock": 1},
+            },
+            "duplicate_operations": [],
+        }
+
+        validate_performance_payload(valid_perf)
+        mock_load_perf_schema.assert_called_with("performance", "2.0")
 
 
 if __name__ == "__main__":

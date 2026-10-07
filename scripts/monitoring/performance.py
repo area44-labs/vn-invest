@@ -6,10 +6,7 @@ from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.regression import evaluate_performance_regression
 
 
-def load_performance_schema(
-    schema_path: str | None = None,
-    version: str | None = None,
-) -> dict:
+def load_performance_schema(version: str | None = None) -> dict:
     """Load performance JSON Schema via centralized registry."""
     from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
@@ -17,16 +14,14 @@ def load_performance_schema(
     return load_schema_for_version("performance", str(ver))
 
 
-def validate_performance_payload(
-    performance_data: dict, schema: dict | None = None, version: str | None = None
-) -> None:
+def validate_performance_payload(performance_data: dict) -> None:
     """Validate canonical performance object structure and schema using version-aware registry.
 
     Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
     from scripts.pipeline.validation import validate_performance_payload as pipeline_val_perf
 
-    pipeline_val_perf(performance_data, schema=schema, version=version)
+    pipeline_val_perf(performance_data)
 
 
 def create_default_performance_payload() -> dict[str, Any]:

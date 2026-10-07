@@ -117,11 +117,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
 
     def test_publisher_rejects_missing_schema_version(self):
-        """Verify ArtifactPublisher rejects payloads missing schema_version regardless of custom schema parameter."""
-        # Even if custom schema dict is passed to publisher constructor, registry enforcement rejects missing schema_version
+        """Verify ArtifactPublisher rejects payloads missing schema_version."""
         publisher = ArtifactPublisher(
             target_dir=self.target_dir,
-            schema={"type": "object"},
             strict_provenance=False,
         )
 

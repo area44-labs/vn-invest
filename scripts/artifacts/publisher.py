@@ -20,12 +20,10 @@ class ArtifactPublisher:
     def __init__(
         self,
         target_dir: str | None = None,
-        schema: dict | None = None,
         strict_provenance: bool = True,
         canonical_data_as_of: str | None = None,
     ):
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
-        self.schema = schema
         self.strict_provenance = strict_provenance
         self.canonical_data_as_of = canonical_data_as_of
 
