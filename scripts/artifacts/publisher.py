@@ -58,7 +58,8 @@ class ArtifactPublisher:
             return
 
         if (
-            relative_path in ("recommendations.json",) or relative_path.startswith("history/20")
+            relative_path in ("recommendations.json",)
+            or (relative_path.startswith("history/") and relative_path != "history/index.json")
         ) or ("recommendations" in payload):
             schema_ver = payload.get("schema_version")
             if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():

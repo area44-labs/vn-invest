@@ -984,9 +984,6 @@ class ArtifactPublishingStage(PipelineStage):
 
         if data_as_of:
             hist_payload = context.history_payload or context.recommendations_payload
-            if isinstance(hist_payload, dict) and "schema_version" not in hist_payload:
-                hist_payload = dict(hist_payload)
-                hist_payload["schema_version"] = "2.0"
             context.artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = (
                 hist_payload
             )

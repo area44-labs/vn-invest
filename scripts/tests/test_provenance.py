@@ -660,6 +660,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             reference_date="2026-03-31T00:00:00Z",
         )
         context.data_as_of = "2026-03-31"
+        context.recommendations_payload = {"schema_version": "2.0"}
 
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
@@ -674,6 +675,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             reference_date="2026-03-31T00:00:00Z",
         )
         context.data_as_of = "2026-03-31"
+        context.recommendations_payload = {"schema_version": "2.0"}
 
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
@@ -689,7 +691,10 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             reference_date="2026-03-31T00:00:00Z",
         )
         context.data_as_of = "2026-03-31"
-        context.recommendations_payload = {"signal_model_version": "2.1-custom"}
+        context.recommendations_payload = {
+            "schema_version": "2.0",
+            "signal_model_version": "2.1-custom",
+        }
 
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
