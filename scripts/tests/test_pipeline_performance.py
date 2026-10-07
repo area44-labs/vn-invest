@@ -31,12 +31,12 @@ from scripts.generate_report import (
 from scripts.generate_report import (
     main as generate_report_main,
 )
-from scripts.lib.config import PERFORMANCE_STAGE_BASELINES
 from scripts.monitoring import (
     evaluate_performance_regression,
     evaluate_production_monitoring,
     evaluate_provider_budget,
 )
+from scripts.performance.regression import PERFORMANCE_STAGE_BASELINES
 
 
 def make_valid_performance_payload():

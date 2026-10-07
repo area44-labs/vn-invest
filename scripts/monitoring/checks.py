@@ -7,7 +7,6 @@ from typing import Any
 
 import jsonschema
 
-from scripts.lib.config import VALID_MARKET_REGIMES
 from scripts.lib.vietnam_market import validate_ohlcv_data
 from scripts.monitoring.metrics import normalize_market_payload
 from scripts.monitoring.models import (
@@ -15,6 +14,9 @@ from scripts.monitoring.models import (
     CheckResult,
     find_nan_or_inf,
 )
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+VALID_MARKET_REGIMES = set(DEFAULT_QUANT_CONFIG.valid_market_regimes)
 
 
 def check_required_artifacts(

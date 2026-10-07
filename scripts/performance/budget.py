@@ -7,7 +7,11 @@ Supports configurable budget overrides and optional CI budget enforcement toggle
 import os
 from typing import Any
 
-from scripts.lib.config import PROVIDER_BUDGET
+PROVIDER_BUDGET = {
+    "max_total_calls": 120,
+    "max_duplicate_operations": 5,
+    "max_total_elapsed_seconds": 60.0,
+}
 
 
 def evaluate_provider_budget(

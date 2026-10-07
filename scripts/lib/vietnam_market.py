@@ -14,14 +14,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from scripts.data.validation import MAX_BENCHMARK_FUTURE_DAYS, MAX_STOCK_STALENESS_DAYS
 from scripts.data_provider import (
     VnstockDataProvider,
 )
 from scripts.domain.universe import DEFAULT_BENCHMARKS, Universe
-from scripts.lib.config import (
-    MAX_BENCHMARK_FUTURE_DAYS,
-    MAX_STOCK_STALENESS_DAYS,
-)
 
 logger = logging.getLogger(__name__)
 

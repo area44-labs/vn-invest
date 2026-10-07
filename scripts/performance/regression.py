@@ -6,10 +6,31 @@ to detect significant performance degradation.
 
 from typing import Any
 
-from scripts.lib.config import (
-    PERFORMANCE_STAGE_BASELINES,
-    PERFORMANCE_STAGE_THRESHOLDS,
-)
+PERFORMANCE_STAGE_BASELINES = {
+    "pipeline": 10.0,
+    "benchmark_fetch": 1.0,
+    "stock_fetch": 5.0,
+    "temporal_validation": 0.5,
+    "market_calculation": 0.5,
+    "regime_calculation": 0.5,
+    "risk_calculation": 1.0,
+    "recommendation_calculation": 2.0,
+    "monitoring": 1.5,
+    "payload_validation": 0.5,
+}
+
+PERFORMANCE_STAGE_THRESHOLDS = {
+    "pipeline": (1.5, 2.5, 5.0),
+    "benchmark_fetch": (2.0, 4.0, 1.0),
+    "stock_fetch": (1.5, 3.0, 3.0),
+    "temporal_validation": (2.0, 4.0, 0.5),
+    "market_calculation": (2.0, 4.0, 0.5),
+    "regime_calculation": (2.0, 4.0, 0.5),
+    "risk_calculation": (2.0, 4.0, 1.0),
+    "recommendation_calculation": (2.0, 4.0, 1.0),
+    "monitoring": (2.0, 4.0, 1.0),
+    "payload_validation": (2.0, 4.0, 0.5),
+}
 
 
 def evaluate_performance_regression(

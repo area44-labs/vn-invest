@@ -653,7 +653,7 @@ class TestArtifactProvenanceSuite:
 
     def test_23_pipeline_version_propagates_from_canonical_config_source(self):
         """23. Verify PIPELINE_VERSION matches canonical config source and propagates to provenance."""
-        from scripts.lib.config import PIPELINE_VERSION
+        from scripts.pipeline.constants import PIPELINE_VERSION
 
         context = PipelineContext(
             generated_dir=self.target_dir,

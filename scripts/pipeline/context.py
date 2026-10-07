@@ -9,11 +9,14 @@ import pandas as pd
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
 from scripts.domain.universe import Universe, UniverseScanResult
-from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION, is_recoverable_category
 from scripts.lib.vietnam_market import UniverseProvider
 from scripts.monitoring import PipelineMonitoringResult
+from scripts.monitoring.models import is_recoverable_category
 from scripts.pipeline.constants import PIPELINE_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 
 @dataclass

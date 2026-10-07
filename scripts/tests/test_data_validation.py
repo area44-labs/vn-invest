@@ -4,12 +4,21 @@ import pandas as pd
 import pytest
 
 from scripts.data.models import CanonicalMarketData
-from scripts.data.validation import validate_canonical_market_data
+from scripts.data.validation import (
+    MAX_BENCHMARK_FUTURE_DAYS,
+    MAX_STOCK_STALENESS_DAYS,
+    validate_canonical_market_data,
+)
 
 
 @pytest.mark.unit
 class TestMarketDataValidationBoundary:
     """Test CanonicalMarketValidator invariant and temporal rules."""
+
+    def test_market_staleness_and_future_date_constants(self):
+        """Verify market data staleness and future date constants are imported from canonical data validation module."""
+        assert MAX_STOCK_STALENESS_DAYS == 7
+        assert MAX_BENCHMARK_FUTURE_DAYS == 0
 
     def test_valid_canonical_data(self):
         df_valid = pd.DataFrame(

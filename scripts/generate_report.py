@@ -10,7 +10,6 @@ import pandas as pd
 from scripts.data_provider import ProviderRateLimitError
 from scripts.domain import PipelineResult
 from scripts.lib.backtest import _parse_canonical_date
-from scripts.lib.config import DEFAULT_UPDATE_THROTTLE_DELAY, is_recoverable_category
 from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.lib.risk import normalize_universe_liquidity_scores
@@ -27,6 +26,7 @@ from scripts.monitoring import (
     load_performance_schema,
     validate_performance_payload,
 )
+from scripts.monitoring.models import is_recoverable_category
 from scripts.pipeline import (
     GENERATED_DIR,
     PERFORMANCE_SCHEMA_PATH,
@@ -52,6 +52,7 @@ from scripts.pipeline import (
     validate_final_payload_integrity,
     validate_journal_metadata,
 )
+from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)

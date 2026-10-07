@@ -5,10 +5,43 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from scripts.lib.config import (
-    FAILURE_CATEGORIES,
-    PIPELINE_STAGES,
+PIPELINE_STAGES = (
+    "UNIVERSE_DISCOVERY",
+    "BENCHMARK_FETCH",
+    "STOCK_FETCH",
+    "DATA_VALIDATION",
+    "TEMPORAL_VALIDATION",
+    "CALCULATION",
+    "MONITORING",
+    "OUTPUT_VALIDATION",
+    "ARTIFACT_WRITE",
 )
+
+FAILURE_CATEGORIES = (
+    "PROVIDER_FAILURE",
+    "RATE_LIMIT",
+    "INVALID_SYMBOL",
+    "EXPLICITLY_INVALID",
+    "INSUFFICIENT_HISTORICAL_DATA",
+    "TEMPORAL_INVALID",
+    "OUTPUT_VALIDATION_FAILURE",
+    "MONITORING_FAILURE",
+    "UNIVERSE_INCOMPLETE",
+    "OTHER_VALIDATION_FAILURE",
+    "MISSING_SYMBOL",
+    "UNKNOWN",
+)
+
+RECOVERABLE_FAILURE_CATEGORIES = {
+    "PROVIDER_FAILURE",
+    "RATE_LIMIT",
+}
+
+
+def is_recoverable_category(category: str) -> bool:
+    """Return True if failure category is considered transient/recoverable, False otherwise."""
+    return category in RECOVERABLE_FAILURE_CATEGORIES
+
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_GENERATED_DIR = os.path.join(ROOT_DIR, "generated")
@@ -214,6 +247,9 @@ __all__ = [
     "DEFAULT_GENERATED_DIR",
     "DEFAULT_PERFORMANCE_SCHEMA_PATH",
     "DEFAULT_SCHEMA_PATH",
+    "FAILURE_CATEGORIES",
+    "PIPELINE_STAGES",
+    "RECOVERABLE_FAILURE_CATEGORIES",
     "ROOT_DIR",
     "VALID_CHECK_STATUSES",
     "VALID_EXCLUSION_CATEGORIES",
@@ -225,4 +261,5 @@ __all__ = [
     "PipelineMonitoringResult",
     "_sanitize_value_for_json",
     "find_nan_or_inf",
+    "is_recoverable_category",
 ]

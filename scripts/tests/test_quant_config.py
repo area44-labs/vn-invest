@@ -20,7 +20,6 @@ import pandas as pd
 import pytest
 
 from scripts.domain import Universe
-from scripts.lib import config as legacy_config
 from scripts.lib.portfolio_backtest import PortfolioConfig, run_portfolio_backtest
 from scripts.pipeline.context import PipelineContext
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
@@ -73,17 +72,15 @@ class TestQuantitativeConfigAndVersionContract:
         with pytest.raises((TypeError, AttributeError)):
             cfg.regime_score_factors["BULL"] = 2.00
 
-    def test_no_duplicated_configuration(self):
-        """3. Verify legacy scripts.lib.config delegates directly to DEFAULT_QUANT_CONFIG without duplication."""
-        assert legacy_config.QUANT_VERSION == DEFAULT_QUANT_CONFIG.quant_version
-        assert legacy_config.SIGNAL_MODEL_VERSION == DEFAULT_QUANT_CONFIG.model_version
-        assert dict(legacy_config.SIGNAL_WEIGHTS) == dict(DEFAULT_QUANT_CONFIG.signal_weights)
-        assert dict(legacy_config.DIVERGENCE_TIMEFRAME_WEIGHTS) == dict(
-            DEFAULT_QUANT_CONFIG.divergence_timeframe_weights
-        )
-        assert legacy_config.VALID_MARKET_REGIMES == set(DEFAULT_QUANT_CONFIG.valid_market_regimes)
-        assert legacy_config.MA_SHORT_PERIOD == DEFAULT_QUANT_CONFIG.ma_short_period
-        assert legacy_config.MA_LONG_PERIOD == DEFAULT_QUANT_CONFIG.ma_long_period
+    def test_default_quant_config_canonical_defaults(self):
+        """3. Verify DEFAULT_QUANT_CONFIG canonical defaults and weight structure."""
+        assert DEFAULT_QUANT_CONFIG.quant_version == "1.0.0"
+        assert DEFAULT_QUANT_CONFIG.model_version == "2.0"
+        assert sum(DEFAULT_QUANT_CONFIG.signal_weights.values()) == pytest.approx(1.0)
+        assert sum(DEFAULT_QUANT_CONFIG.divergence_timeframe_weights.values()) == pytest.approx(1.0)
+        assert len(DEFAULT_QUANT_CONFIG.valid_market_regimes) == 6
+        assert DEFAULT_QUANT_CONFIG.ma_short_period == 20
+        assert DEFAULT_QUANT_CONFIG.ma_long_period == 50
 
     def test_version_contract_detects_parameter_changes(self):
         """4. Verify modifying configuration parameters changes config_hash and version_contract explicitly."""

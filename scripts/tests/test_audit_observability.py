@@ -7,11 +7,13 @@ import tempfile
 
 import pytest
 
-from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.monitoring import (
     check_universe_audit_invariants,
     evaluate_production_monitoring,
 )
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 
 @pytest.mark.unit
