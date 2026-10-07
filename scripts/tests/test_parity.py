@@ -4,11 +4,11 @@ Validates that run_pipeline() and generate_historical_report() produce equivalen
 quantitative outputs when given identical point-in-time inputs.
 """
 
+import pytest
 import copy
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.domain.universe import Universe
 from scripts.generate_report import generate_historical_report, run_pipeline

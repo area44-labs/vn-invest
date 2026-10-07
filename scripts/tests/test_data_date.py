@@ -1,5 +1,6 @@
 """Regression test suite for data-date semantics in the Python data pipeline."""
 
+import pytest
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import jsonschema
 import pandas as pd
-import pytest
 
 from scripts.data_provider import VnstockDataProvider
 from scripts.generate_report import (

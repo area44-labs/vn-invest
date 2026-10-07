@@ -1,11 +1,11 @@
 """Schema validation and versioned schema registry contract tests."""
 
+import pytest
 import json
 import os
 from unittest.mock import patch
 
 import jsonschema
-import pytest
 
 from scripts.artifacts.publisher import ArtifactPublisher
 from scripts.monitoring.checks import check_schema_validation

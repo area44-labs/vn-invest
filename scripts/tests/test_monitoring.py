@@ -1,12 +1,12 @@
 """Unit tests for Production Monitoring Module (scripts/lib/monitoring.py)."""
 
+import pytest
 import copy
 import json
 import os
 import tempfile
 
 import pandas as pd
-import pytest
 
 from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.lib.monitoring import (

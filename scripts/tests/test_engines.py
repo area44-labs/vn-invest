@@ -1,9 +1,9 @@
 """Unit, boundary, contract, and regression tests for quantitative engines in scripts/quant/ (#174)."""
 
+import pytest
 from collections.abc import Mapping
 
 import pandas as pd
-import pytest
 
 from scripts.quant import (
     CandidateSpec,
