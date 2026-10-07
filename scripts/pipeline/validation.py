@@ -19,6 +19,9 @@ def validate_performance_payload(
 ) -> None:
     """Validate canonical performance object structure and schema.
 
+    Enforces that schema_version declared inside performance_data is the sole authoritative
+    version source. Ignores caller-supplied schema or version overrides to prevent registry bypasses.
+
     Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
     if not isinstance(performance_data, dict):
@@ -26,17 +29,16 @@ def validate_performance_payload(
             f"Performance payload must be a dict, got {type(performance_data).__name__}"
         )
 
-    if schema is None:
-        s_ver = version or performance_data.get("schema_version")
-        if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
-            from scripts.schema import SchemaResolutionError
+    s_ver = performance_data.get("schema_version")
+    if not s_ver or not isinstance(s_ver, str) or not s_ver.strip():
+        from scripts.schema import SchemaResolutionError
 
-            raise SchemaResolutionError(
-                "Performance payload is missing required non-empty 'schema_version'"
-            )
-        schema = load_performance_schema(s_ver.strip())
+        raise SchemaResolutionError(
+            "Performance payload is missing required non-empty 'schema_version'"
+        )
 
-    jsonschema.validate(instance=performance_data, schema=schema)
+    schema_to_use = load_performance_schema(s_ver.strip())
+    jsonschema.validate(instance=performance_data, schema=schema_to_use)
 
 
 def load_schema(version: str = SCHEMA_VERSION) -> dict:

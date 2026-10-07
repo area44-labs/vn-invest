@@ -55,8 +55,7 @@ class ArtifactPublisher:
                 raise SchemaResolutionError(
                     f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
                 )
-            schema_to_use = load_schema_for_version("performance", schema_ver.strip())
-            validate_performance_payload(payload, schema=schema_to_use)
+            validate_performance_payload(payload)
             return
 
         if (

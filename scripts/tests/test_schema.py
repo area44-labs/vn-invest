@@ -195,6 +195,14 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
             validate_performance_payload(bad_ver_perf)
         self.assertIn("Unsupported schema version '9.9'", str(cm_unsupported.exception))
 
+        # Passing custom permissive schema parameter cannot bypass payload's schema_version or registry
+        permissive_schema = {"type": "object"}
+        with self.assertRaises(SchemaResolutionError):
+            validate_performance_payload(bad_ver_perf, schema=permissive_schema)
+
+        # Passing version="1.0" when payload declares schema_version="2.0" cannot force version 1.0 schema
+        validate_performance_payload(valid_perf, version="1.0")
+
     def test_check_schema_validation_version_enforcement(self):
         """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""
         valid_payload = {
