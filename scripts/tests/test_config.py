@@ -15,7 +15,6 @@ import pandas as pd
 import pytest
 
 from scripts.lib import recommendation
-from scripts.quant.config import DEFAULT_QUANT_CONFIG
 from scripts.lib.recommendation import (
     calculate_confidence,
     calculate_divergence_score,
@@ -29,6 +28,7 @@ from scripts.lib.recommendation import (
     generate_recommendation,
 )
 from scripts.lib.regime import detect_market_regime
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 
 @pytest.mark.unit
