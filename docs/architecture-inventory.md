@@ -385,7 +385,7 @@ The audit identified production references that must be migrated before removal 
 
 | Module                              | Classification     | Current situation                                                      | Target                                                                                 |
 | ----------------------------------- | ------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `scripts/lib/config.py`             | `MIGRATE`          | Production configuration adapter still referenced                      | `scripts/pipeline/constants.py`, `scripts/quant/config.py`, monitoring-owned constants |
+| `scripts/lib/config.py`             | `REMOVED`          | All callers migrated to canonical modules; deleted in M2                | N/A                                                                                    |
 | `scripts/lib/features.py`           | `REMOVE` candidate | No known production caller; test dependency remains                    | `scripts/quant/features.py`                                                            |
 | `scripts/lib/monitoring.py`         | `REMOVE` candidate | Compatibility re-export; tests still reference it                      | `scripts/monitoring/*`                                                                 |
 | `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                                         | `scripts/quant/recommendation.py` / related quant contracts                            |
@@ -403,46 +403,36 @@ The audit identified production references that must be migrated before removal 
 
 ### Classification
 
-`MIGRATE`
+`REMOVED`
 
 ### Current role
 
-Compatibility/configuration adapter exposing constants and configuration from multiple canonical subsystems.
+Formerly a compatibility/configuration adapter exposing constants and configuration from multiple canonical subsystems. Deleted in M2.
 
-### Known production dependency areas
+### Canonical Owners
 
-Includes references from areas such as:
-
-```text
-scripts/generate_report.py
-scripts/pipeline/context.py
-scripts/pipeline/stages.py
-scripts/pipeline/constants.py
-scripts/monitoring/*
-scripts/performance/*
-scripts/artifacts/provenance.py
-```
-
-### Target
-
-Split responsibility according to ownership:
+Constant and configuration ownership was relocated to canonical subsystem owners:
 
 ```text
-quantitative configuration
-    → scripts/quant/config.py
+quantitative configuration & versions
+    → scripts/quant/config.py (DEFAULT_QUANT_CONFIG)
 
-pipeline constants/version information
-    → scripts/pipeline/constants.py
+pipeline constants & throttle configuration
+    → scripts/pipeline/constants.py (PIPELINE_VERSION, DEFAULT_UPDATE_THROTTLE_DELAY)
 
-monitoring-specific thresholds
-    → scripts/monitoring/*
+monitoring-specific models & drift thresholds
+    → scripts/monitoring/models.py, scripts/monitoring/drift.py, scripts/monitoring/checks.py
+
+performance budget & regression baselines/thresholds
+    → scripts/performance/budget.py, scripts/performance/regression.py
+
+market staleness parameters
+    → scripts/lib/vietnam_market.py
 ```
 
 ### Action
 
-Migrate callers first.
-
-Do not delete until all production and required test references are gone.
+All production and test callers were migrated to canonical subsystem modules and `scripts/lib/config.py` was deleted.
 
 ---
 
@@ -721,27 +711,25 @@ Important dependency categories include:
 ```text
 scripts/generate_report.py
     ├── scripts.lib.backtest
-    ├── scripts.lib.config
     ├── scripts.lib.recommendation
     ├── scripts.lib.regime
     ├── scripts.lib.risk
     └── scripts.lib.vietnam_market
 
 scripts/pipeline/*
-    ├── scripts.lib.config
     └── scripts.lib.vietnam_market
 
 scripts/quant/*
     └── selected legacy market-data dependencies
 
 scripts/monitoring/*
-    └── selected legacy market-data/config dependencies
+    └── selected legacy market-data dependencies
 
 scripts/performance/*
-    └── selected legacy configuration dependencies
+    └── zero legacy dependencies
 
 scripts/artifacts/*
-    └── selected legacy configuration dependencies
+    └── zero legacy dependencies
 ```
 
 ### M2 acceptance requirement
@@ -937,7 +925,7 @@ The frontend is not the producer of these artifacts.
 | `scripts/lib/recommendation.py`     | `MIGRATE`          | Production/test callers remain                      |
 | `scripts/lib/regime.py`             | `MIGRATE`          | Production/legacy callers remain                    |
 | `scripts/lib/risk.py`               | `MIGRATE`          | Contains substantive remaining logic                |
-| `scripts/lib/config.py`             | `MIGRATE`          | Production callers remain                           |
+| `scripts/lib/config.py`             | `REMOVED`          | All callers migrated to canonical subsystem modules; deleted in M2 |
 | `scripts/lib/vietnam_market.py`     | `MIGRATE`          | Major production dependency surface                 |
 | `scripts/lib/backtest.py`           | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |
 | `scripts/lib/portfolio_backtest.py` | `KEEP` + `MIGRATE` | Valid backtesting engine in legacy location         |

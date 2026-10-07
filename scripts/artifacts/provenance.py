@@ -9,8 +9,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.lib.config import QUANT_VERSION, SIGNAL_MODEL_VERSION
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+QUANT_VERSION = DEFAULT_QUANT_CONFIG.quant_version
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 logger = logging.getLogger(__name__)
 

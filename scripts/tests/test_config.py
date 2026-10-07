@@ -1,4 +1,4 @@
-"""Tests for Centralized Configuration Module (scripts/lib/config.py) and Engine Behavior Preservation.
+"""Tests for Quantitative Configuration Defaults and Engine Behavior Preservation.
 
 Verifies that:
 1. Centralized parameter values match expected defaults.
@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.lib import config, recommendation
+from scripts.lib import recommendation
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
 from scripts.lib.recommendation import (
     calculate_confidence,
     calculate_divergence_score,
@@ -34,19 +35,24 @@ from scripts.lib.regime import detect_market_regime
 class TestCentralizedConfigConstants:
     def test_version_unchanged(self):
         """Verify SIGNAL_MODEL_VERSION is '2.0' and identical across modules."""
-        assert config.SIGNAL_MODEL_VERSION == "2.0"
+        assert DEFAULT_QUANT_CONFIG.model_version == "2.0"
         assert recommendation.SIGNAL_MODEL_VERSION == "2.0"
 
     def test_reexported_constants(self):
         """Verify backwards-compatible re-exported constants in recommendation module."""
-        assert recommendation.SIGNAL_WEIGHTS == config.SIGNAL_WEIGHTS
-        assert recommendation.DIVERGENCE_TIMEFRAME_WEIGHTS == config.DIVERGENCE_TIMEFRAME_WEIGHTS
-        assert recommendation.VALID_MARKET_REGIMES == config.VALID_MARKET_REGIMES
+        assert recommendation.SIGNAL_WEIGHTS == dict(DEFAULT_QUANT_CONFIG.signal_weights)
+        assert recommendation.DIVERGENCE_TIMEFRAME_WEIGHTS == dict(
+            DEFAULT_QUANT_CONFIG.divergence_timeframe_weights
+        )
+        assert recommendation.VALID_MARKET_REGIMES == set(DEFAULT_QUANT_CONFIG.valid_market_regimes)
 
     def test_weights_sum_to_one(self):
         """Verify signal weights and divergence timeframe weights sum to 1.0."""
-        assert round(abs(sum(config.SIGNAL_WEIGHTS.values()) - (1.0)), 6) == 0
-        assert round(abs(sum(config.DIVERGENCE_TIMEFRAME_WEIGHTS.values()) - (1.0)), 6) == 0
+        assert round(abs(sum(DEFAULT_QUANT_CONFIG.signal_weights.values()) - (1.0)), 6) == 0
+        assert (
+            round(abs(sum(DEFAULT_QUANT_CONFIG.divergence_timeframe_weights.values()) - (1.0)), 6)
+            == 0
+        )
 
 
 @pytest.mark.unit
@@ -164,7 +170,7 @@ class TestScoringFunctionsAndThresholds:
     def test_calculate_confidence(self):
         """Verify confidence calculation and risk metric adjustments."""
         # INSUFFICIENT quality
-        assert calculate_confidence("INSUFFICIENT", {}, {}) == config.CONFIDENCE_MIN
+        assert calculate_confidence("INSUFFICIENT", {}, {}) == DEFAULT_QUANT_CONFIG.confidence_min
 
         comps_aligned = {
             "trend": 70.0,

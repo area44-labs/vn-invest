@@ -18,10 +18,9 @@ from scripts.data_provider import (
     VnstockDataProvider,
 )
 from scripts.domain.universe import DEFAULT_BENCHMARKS, Universe
-from scripts.lib.config import (
-    MAX_BENCHMARK_FUTURE_DAYS,
-    MAX_STOCK_STALENESS_DAYS,
-)
+
+MAX_STOCK_STALENESS_DAYS = 7
+MAX_BENCHMARK_FUTURE_DAYS = 0
 
 logger = logging.getLogger(__name__)
 

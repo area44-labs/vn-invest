@@ -5,7 +5,6 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.monitoring.checks import (
     check_data_freshness,
     check_history_index_status,
@@ -31,6 +30,9 @@ from scripts.monitoring.performance import (
 )
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.regression import evaluate_performance_regression
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 
 def validate_monitoring_payload(payload: dict) -> bool:

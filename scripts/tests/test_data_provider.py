@@ -2151,7 +2151,11 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     def test_10_provider_diagnostics_use_existing_stage_category_taxonomy(self):
         """10. Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
-        from scripts.lib.config import FAILURE_CATEGORIES, PIPELINE_STAGES, is_recoverable_category
+        from scripts.monitoring.models import (
+            FAILURE_CATEGORIES,
+            PIPELINE_STAGES,
+            is_recoverable_category,
+        )
 
         assert "BENCHMARK_FETCH" in PIPELINE_STAGES
         assert "STOCK_FETCH" in PIPELINE_STAGES

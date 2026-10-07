@@ -8,7 +8,6 @@ import tempfile
 import pandas as pd
 import pytest
 
-from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 from scripts.monitoring import (
@@ -25,6 +24,9 @@ from scripts.monitoring import (
     normalize_market_payload,
     validate_monitoring_payload,
 )
+from scripts.quant.config import DEFAULT_QUANT_CONFIG
+
+SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
 
 @pytest.mark.unit

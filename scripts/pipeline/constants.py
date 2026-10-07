@@ -10,7 +10,11 @@ PERFORMANCE_SCHEMA_PATH = os.path.join(ROOT_DIR, "schemas", "v2", "performance.s
 # Canonical Pipeline Software Implementation Version
 PIPELINE_VERSION = "2.0.0"
 
+# Production Update Provider Throttle Configuration
+DEFAULT_UPDATE_THROTTLE_DELAY = 3.5
+
 __all__ = [
+    "DEFAULT_UPDATE_THROTTLE_DELAY",
     "GENERATED_DIR",
     "PERFORMANCE_SCHEMA_PATH",
     "PIPELINE_VERSION",
