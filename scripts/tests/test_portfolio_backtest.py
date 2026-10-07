@@ -1,9 +1,9 @@
 """Unit & Integration Tests for Portfolio Backtesting Framework."""
 
+import pytest
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.lib.backtest import (
     ExecutionConfig,
@@ -2086,7 +2086,7 @@ class TestPortfolioTemporalBoundaries:
                 config=cfg,
             )
 
-        assert "not present in dataset price history" in str(ctx_stock.exception)
+        assert "not present in dataset price history" in str(ctx_stock.value)
 
     def test_multiple_evaluation_dates_chronological_ordering_and_isolation(self) -> None:
         """Verify run_portfolio_backtest with multiple evaluation dates.
@@ -2116,7 +2116,7 @@ class TestPortfolioTemporalBoundaries:
                 config=cfg,
                 df_vnindex=self.df_vni,
             )
-        assert "not sorted in chronological order" in str(ctx_unsorted.exception)
+        assert "not sorted in chronological order" in str(ctx_unsorted.value)
 
         # 2. Duplicate dates raise ValueError
         with pytest.raises(ValueError) as ctx_dup:
@@ -2126,7 +2126,7 @@ class TestPortfolioTemporalBoundaries:
                 config=cfg,
                 df_vnindex=self.df_vni,
             )
-        assert "contains duplicate entries" in str(ctx_dup.exception)
+        assert "contains duplicate entries" in str(ctx_dup.value)
 
         # 3. Valid chronological run
         res_multi = run_portfolio_backtest(
@@ -2288,7 +2288,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "cannot be empty" in str(ctx1.exception)
+        assert "cannot be empty" in str(ctx1.value)
 
         # 2. Duplicate evaluation_dates
         t1 = self.df_aaa["date"].iloc[50]
@@ -2298,7 +2298,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "duplicate" in str(ctx2.exception)
+        assert "duplicate" in str(ctx2.value)
 
         # 3. Invalid evaluation date string
         with pytest.raises(ValueError) as ctx3:
@@ -2307,7 +2307,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "canonical 'YYYY-MM-DD'" in str(ctx3.exception)
+        assert "canonical 'YYYY-MM-DD'" in str(ctx3.value)
 
         # 4. Timezone-aware evaluation date
         tz_d = pd.Timestamp("2024-03-01T00:00:00Z")
@@ -2317,7 +2317,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "Timezone-aware" in str(ctx4.exception)
+        assert "Timezone-aware" in str(ctx4.value)
 
         # 5. Evaluation date out of historical range
         with pytest.raises(ValueError) as ctx5:
@@ -2326,7 +2326,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "not present in dataset price history" in str(ctx5.exception)
+        assert "not present in dataset price history" in str(ctx5.value)
 
         # 6. Insufficient historical observations
         early_d = self.df_aaa["date"].iloc[10]  # only 11 sessions <= T
@@ -2336,7 +2336,7 @@ class TestPortfolioTemporalBoundaries:
                 universe_stock_map=self.universe,
                 config=cfg,
             )
-        assert "insufficient history" in str(ctx6.exception)
+        assert "insufficient history" in str(ctx6.value)
 
 
 @pytest.mark.unit

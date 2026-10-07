@@ -1,11 +1,11 @@
 """Schema validation and versioned schema registry contract tests."""
 
+import pytest
 import json
 import os
 from unittest.mock import patch
 
 import jsonschema
-import pytest
 
 from scripts.artifacts.publisher import ArtifactPublisher
 from scripts.monitoring.checks import check_schema_validation
@@ -63,15 +63,15 @@ class TestVersionedSchemaRegistry:
         """2. Verify unsupported versions (1.0, 9.9) are strictly rejected with SchemaResolutionError."""
         with pytest.raises(SchemaResolutionError) as cm_1:
             resolve_schema("recommendations", "1.0")
-        assert "Unsupported schema version '1.0'" in str(cm_1.exception)
+        assert "Unsupported schema version '1.0'" in str(cm_1.value)
 
         with pytest.raises(SchemaResolutionError) as cm_9:
             resolve_schema("recommendations", "9.9")
-        assert "Unsupported schema version '9.9'" in str(cm_9.exception)
+        assert "Unsupported schema version '9.9'" in str(cm_9.value)
 
         with pytest.raises(SchemaResolutionError) as cm_perf:
             resolve_schema("performance", "1.0")
-        assert "Unsupported schema version '1.0'" in str(cm_perf.exception)
+        assert "Unsupported schema version '1.0'" in str(cm_perf.value)
 
     def test_invalid_versions_rejected(self):
         """3. Verify None, empty string, or whitespace version parameters are rejected."""
@@ -145,13 +145,13 @@ class TestVersionedSchemaRegistry:
         del no_ver_perf["schema_version"]
         with pytest.raises(SchemaResolutionError) as cm_no_ver:
             publisher.validate_artifact("performance.json", no_ver_perf)
-        assert "missing required" in str(cm_no_ver.exception)
+        assert "missing required" in str(cm_no_ver.value)
 
         # Unsupported schema_version fails closed
         bad_ver_perf = dict(valid_perf_payload, schema_version="3.0")
         with pytest.raises(SchemaResolutionError) as cm_bad_ver:
             publisher.validate_artifact("performance.json", bad_ver_perf)
-        assert "Unsupported schema version '3.0'" in str(cm_bad_ver.exception)
+        assert "Unsupported schema version '3.0'" in str(cm_bad_ver.value)
 
     def test_no_latest_schema_fallback(self):
         """6. Prove an unknown schema version never silently falls back to the default/latest schema."""
@@ -186,13 +186,13 @@ class TestVersionedSchemaRegistry:
         del no_ver_perf["schema_version"]
         with pytest.raises(SchemaResolutionError) as cm_missing:
             validate_performance_payload(no_ver_perf)
-        assert "missing required" in str(cm_missing.exception)
+        assert "missing required" in str(cm_missing.value)
 
         # Performance payload with unsupported schema_version raises SchemaResolutionError
         bad_ver_perf = dict(valid_perf, schema_version="9.9")
         with pytest.raises(SchemaResolutionError) as cm_unsupported:
             validate_performance_payload(bad_ver_perf)
-        assert "Unsupported schema version '9.9'" in str(cm_unsupported.exception)
+        assert "Unsupported schema version '9.9'" in str(cm_unsupported.value)
 
     def test_check_schema_validation_version_enforcement(self):
         """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""

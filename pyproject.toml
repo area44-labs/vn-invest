@@ -31,11 +31,11 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
-  "unit: Unit tests for domain, data, quant, pipeline, monitoring, schema, risk, performance, artifacts",
-  "integration: Integration tests for pipeline stages, artifact publishing, historical reports",
-  "e2e: End-to-end integration tests",
-  "live: Tests requiring live network or external resources",
-  "slow: Tests taking more than 5 seconds",
+    "unit: Unit tests for domain, data, quant, pipeline, monitoring, schema, risk, performance, artifacts",
+    "integration: Integration tests for pipeline stages, artifact publishing, historical reports",
+    "e2e: End-to-end integration tests",
+    "live: Tests requiring live network or external resources",
+    "slow: Tests taking more than 5 seconds",
 ]
 
 [tool.ruff]

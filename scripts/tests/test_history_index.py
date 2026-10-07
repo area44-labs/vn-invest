@@ -1,12 +1,11 @@
 """Unit tests for fail-closed history index persistence loader."""
 
+import pytest
 import json
 import os
 import sys
 import tempfile
 from unittest.mock import patch
-
-import pytest
 
 from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
 
@@ -23,8 +22,10 @@ class TestHistoryIndexLoader:
         history_dir = os.path.join(GENERATED_DIR, "history")
         os.makedirs(history_dir, exist_ok=True)
         self.temp_dir = tempfile.TemporaryDirectory(dir=history_dir)
-        self.addCleanup(self.temp_dir.cleanup)
         self.index_path = os.path.join(self.temp_dir.name, "index.json")
+
+    def teardown_method(self):
+        self.temp_dir.cleanup()
 
     def test_1_missing_file_returns_initialized_empty_index(self):
         """Test 1: Non-existent history index file initializes an empty index contract."""

@@ -1,8 +1,9 @@
 """Unit tests for T+2.5 Risk Model in scripts/lib/risk.py."""
 
+import pytest
+
 import numpy as np
 import pandas as pd
-import pytest
 
 from scripts.lib.backtest import get_as_of_dataset
 from scripts.lib.risk import (

@@ -5,11 +5,11 @@ performance regression detection, CI enforcement toggles, fail-safe isolation,
 schema compliance, and quantitative output invariance.
 """
 
+import pytest
 import os
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.lib.recommendation import generate_recommendation
 from scripts.performance.budget import evaluate_provider_budget

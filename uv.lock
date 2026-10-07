@@ -963,6 +963,48 @@ wheels = [
 ]
 
 [[package]]
+name = "iniconfig"
+version = "2.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/00/f376f0c29f27d377b21fb3b25f46337cc356616ed3dcd6ca32cb2aa55c82/iniconfig-2.3.1.tar.gz", hash = "sha256:794411f59990ec82631525a818c39be474f88ebbc5a232e01ed00a2ebfbc6be4", size = 11116 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/20/0a497042a9268f7b760773e200cf54199c09c95d909cb4321650bbfbdcf2/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:f0d463b2f5d9620ed946e5ebf8c61e4b9f291079d854497e5ea77efaf7010464", size = 6128 },
+]
+
+[[package]]
+name = "pluggy"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/a1/38b9ccfb24e86749962a933f7422409cdce61d7a3ed1ed7c7faef6bdc1eb/pluggy-1.6.0.tar.gz", hash = "sha256:1a84f3e390c5040f7b0386ea4f9c57d7cfcd366050b467b7ee11e03c4cf0fec3", size = 73934 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/ee/d162f48d9435a298818818c4e09f5ff17b6a48d8883582103fca5f048dcd/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:bc31f909ef4cb003b5736f1c4e78263914aefef512df13d548fb3c29994df517", size = 33816 },
+]
+
+[[package]]
+name = "pygments"
+version = "2.21.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/a6/dfa1f9a263ddcc46077edddfb60fa0f5451eebefcb3745283ff1c8a666e8/pygments-2.21.0.tar.gz", hash = "sha256:d55f4cb63943fcf31215b3c2e39ea65387431f478a220b332304df347ec8ee83", size = 4801128 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/c1/9f7b60a233ec27b14066046e7f25979f42d4b68469d80362241b31a89c92/pygments-2.21.0-py3-none-any.whl", hash = "sha256:fe84c8a245a4eb31a86846618be4643c7b80e46244f7626947ed08d172e27627", size = 1221761 },
+]
+
+[[package]]
+name = "pytest"
+version = "9.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a7/67/6f75608d511855e94b29f7972fb6868cb5a329c3132eb0498ef011986429/pytest-9.1.1.tar.gz", hash = "sha256:a1f0a53ea3023eb39e99a4cf3b75eb20d77109282361687fbe51cfc533e4c4bf", size = 1530948 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/0d/bb8c983a54b38bf22851cfefee312d8a4e32eb24e164f26048d2bc0023a1/pytest-9.1.1-py3-none-any.whl", hash = "sha256:9c12b48bc238531e21b8ae2501a3501a4e3009581903e19eb4a36214edb8cb55", size = 371946 },
+]
+
+[[package]]
 name = "vn-invest"
 version = "0.1.0"
 source = { editable = "." }
@@ -971,6 +1013,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
+    { name = "pytest" },
     { name = "requests" },
     { name = "vnstock" },
 ]
@@ -981,6 +1024,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.0" },
+    { name = "pytest", specifier = ">=8.0.0" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "vnstock", specifier = ">=4.0.8" },
 ]

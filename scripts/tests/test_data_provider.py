@@ -4,6 +4,7 @@ Deterministic tests without network access covering all 13 canonical validator r
 and provider boundary conversion/validation.
 """
 
+import pytest
 import json
 import tempfile
 from pathlib import Path
@@ -11,7 +12,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
-import pytest
 from vnai.beam.quota import RateLimitExceeded
 
 from scripts.data.acquisition import InvalidSymbolError
@@ -60,11 +60,11 @@ class TestCanonicalOHLCVValidator:
         """2. Empty DataFrame or None fails validation."""
         with pytest.raises(CanonicalOHLCVError) as ctx_none:
             validate_canonical_ohlcv(None)
-        assert "Empty dataset" in str(ctx_none.exception)
+        assert "Empty dataset" in str(ctx_none.value)
 
         with pytest.raises(CanonicalOHLCVError) as ctx_empty:
             validate_canonical_ohlcv(pd.DataFrame())
-        assert "Empty dataset" in str(ctx_empty.exception)
+        assert "Empty dataset" in str(ctx_empty.value)
 
     def test_3_missing_required_column_fails(self):
         """3. Missing required OHLCV column fails validation."""
@@ -77,7 +77,7 @@ class TestCanonicalOHLCVValidator:
         df_no_date = df.drop(columns=["time"])
         with pytest.raises(CanonicalOHLCVError) as ctx_date:
             validate_canonical_ohlcv(df_no_date)
-        assert "Missing date column" in str(ctx_date.exception)
+        assert "Missing date column" in str(ctx_date.value)
 
     def test_4_duplicate_dates_fail(self):
         """4. Duplicate dates fail validation."""
@@ -601,7 +601,7 @@ class TestVnstockRealRateLimitRegression:
             provider.fetch_ohlcv("VCB")
 
         assert mock_inst.history.call_count == 0
-        assert "circuit breaker is active" in str(ctx2.exception)
+        assert "circuit breaker is active" in str(ctx2.value)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -753,7 +753,7 @@ class TestVnstockRealRateLimitRegression:
                 with pytest.raises(SystemExit) as ctx2:
                     generate_report_main()
 
-                assert ctx2.exception.code == 1
+                assert ctx2.value.code == 1
 
             # Path 3: Unexpected error converts to SystemExit(1)
             with (
@@ -767,7 +767,7 @@ class TestVnstockRealRateLimitRegression:
                 with pytest.raises(SystemExit) as ctx3:
                     generate_report_main()
 
-                assert ctx3.exception.code == 1
+                assert ctx3.value.code == 1
 
 
 SMALL_TEST_UNIVERSE = [
@@ -1066,7 +1066,7 @@ class TestUniverseCompletenessValidation:
                 with pytest.raises(SystemExit) as ctx_exit:
                     generate_report_main()
 
-                assert ctx_exit.exception.code == 1
+                assert ctx_exit.value.code == 1
 
             # Output file was NOT modified
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
@@ -1110,7 +1110,7 @@ class TestUniverseCompletenessValidation:
                 with patch("sys.argv", ["generate_report.py", "--update"]):
                     with pytest.raises(SystemExit) as ctx_exit:
                         generate_report_main()
-                    assert ctx_exit.exception.code == 1
+                    assert ctx_exit.value.code == 1
 
             # Artifact preserved
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs

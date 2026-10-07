@@ -1,9 +1,9 @@
 """Unit tests for MarketDataProvider boundary interfaces."""
 
+import pytest
 from unittest.mock import MagicMock
 
 import pandas as pd
-import pytest
 
 from scripts.data.providers.base import MarketDataProvider
 from scripts.data.providers.vnstock import VnstockMarketProvider

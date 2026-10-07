@@ -13,11 +13,11 @@ Verifies:
 10. SignalRecommendationEngine propagates QuantConfig to custom recommendation generators and validates matching version/hash outputs.
 """
 
+import pytest
 from dataclasses import replace
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from scripts.domain import Universe
 from scripts.lib import config as legacy_config

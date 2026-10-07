@@ -1,12 +1,11 @@
 """Focused unit tests for artifact transaction safety, single-writer locking, and deterministic recovery."""
 
+import pytest
 import json
 import os
 import shutil
 import tempfile
 from unittest.mock import patch
-
-import pytest
 
 from scripts.generate_report import (
     ArtifactLock,

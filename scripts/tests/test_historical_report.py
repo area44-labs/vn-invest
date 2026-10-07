@@ -1,12 +1,12 @@
 """Unit and integration tests for reproducible historical report generation."""
 
+import pytest
 import json
 import os
 import shutil
 import tempfile
 
 import pandas as pd
-import pytest
 
 from scripts.generate_report import (
     canonicalize_report_for_reproducibility,

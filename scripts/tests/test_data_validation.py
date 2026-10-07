@@ -1,7 +1,8 @@
 """Unit tests for validation boundary in scripts/data/validation.py."""
 
-import pandas as pd
 import pytest
+
+import pandas as pd
 
 from scripts.data.models import CanonicalMarketData
 from scripts.data.validation import validate_canonical_market_data

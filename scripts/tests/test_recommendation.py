@@ -1,11 +1,11 @@
 """Unit tests for VN Invest Signal Engine in scripts/lib/recommendation.py."""
 
+import pytest
 import math
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from scripts.lib.backtest import _safe_float as backtest_safe_float
 from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
@@ -42,45 +42,44 @@ class TestSafeFloatAndExceptionHandling:
         ]
 
         for mod_name, fn in safe_float_funcs:
-            with self.subTest(module=mod_name):
-                # Valid numeric value (float)
-                assert fn(123.45) == 123.45
-                assert fn(-45.6) == -45.6
-                assert fn(0.0) == 0.0
+            # Valid numeric value (float)
+            assert fn(123.45) == 123.45
+            assert fn(-45.6) == -45.6
+            assert fn(0.0) == 0.0
 
-                # Integer input
-                assert fn(100) == 100.0
-                assert fn(0) == 0.0
+            # Integer input
+            assert fn(100) == 100.0
+            assert fn(0) == 0.0
 
-                # Numeric string
-                assert fn("123.45") == 123.45
-                assert fn("100") == 100.0
-                assert fn("-50.5") == -50.5
+            # Numeric string
+            assert fn("123.45") == 123.45
+            assert fn("100") == 100.0
+            assert fn("-50.5") == -50.5
 
-                # None
-                assert fn(None) is None
+            # None
+            assert fn(None) is None
 
-                # NaN (float and string)
-                assert fn(float("nan")) is None
-                assert fn("NaN") is None
-                assert fn("nan") is None
+            # NaN (float and string)
+            assert fn(float("nan")) is None
+            assert fn("NaN") is None
+            assert fn("nan") is None
 
-                # Infinity (float and string)
-                assert fn(float("inf")) is None
-                assert fn(float("-inf")) is None
-                assert fn("Infinity") is None
-                assert fn("inf") is None
-                assert fn("-Infinity") is None
+            # Infinity (float and string)
+            assert fn(float("inf")) is None
+            assert fn(float("-inf")) is None
+            assert fn("Infinity") is None
+            assert fn("inf") is None
+            assert fn("-Infinity") is None
 
-                # Invalid string (triggers ValueError inside float conversion)
-                assert fn("invalid") is None
-                assert fn("abc") is None
-                assert fn("12.34.56") is None
+            # Invalid string (triggers ValueError inside float conversion)
+            assert fn("invalid") is None
+            assert fn("abc") is None
+            assert fn("12.34.56") is None
 
-                # Non-convertible objects (triggers TypeError inside float conversion)
-                assert fn([]) is None
-                assert fn({}) is None
-                assert fn(object()) is None
+            # Non-convertible objects (triggers TypeError inside float conversion)
+            assert fn([]) is None
+            assert fn({}) is None
+            assert fn(object()) is None
 
     def test_vietnam_market_exception_handling_helpers(self):
         """Verify exception handling in get_exchange_price_limits and clamp_price_limits."""

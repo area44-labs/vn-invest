@@ -1,11 +1,11 @@
 """Unit tests for ProductionPipeline, PipelineContext, and pipeline stage execution order."""
 
+import pytest
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from scripts.domain.universe import Universe
 from scripts.pipeline import (
@@ -577,8 +577,10 @@ class TestMonitoringAndPublishingStages:
             assert "market.json" in context.artifacts_to_publish
             assert "monitoring.json" in context.artifacts_to_publish
 
-    def test_artifact_publishing_stage_rejects_monitoring_failure(self):
+    def test_artifact_publishing_stage_rejects_monitoring_failure(self, caplog):
         """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True and logs failed checks."""
+        import logging
+
         mock_check = MagicMock()
         mock_check.check_name = "drift_market_payload_temporal_safety"
         mock_check.status = "FAIL"
@@ -597,13 +599,13 @@ class TestMonitoringAndPublishingStages:
 
         stage = ArtifactPublishingStage()
         with (
-            self.assertLogs("scripts.pipeline.stages", level="ERROR") as cm_logs,
+            caplog.at_level(logging.ERROR, logger="scripts.pipeline.stages"),
             pytest.raises(SystemExit) as cm,
         ):
             stage.execute(context)
 
         assert cm.value.code == 1
-        logged_text = "\n".join(cm_logs.output)
+        logged_text = caplog.text
         assert "Production update rejected due to monitoring failure." in logged_text
         assert "Failed monitoring check count: 1" in logged_text
         assert "drift_market_payload_temporal_safety" in logged_text

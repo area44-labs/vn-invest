@@ -1,7 +1,8 @@
 """Unit tests for CanonicalMarketData model in scripts/data/models.py."""
 
-import pandas as pd
 import pytest
+
+import pandas as pd
 
 from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.domain.data_quality import DataQuality
