@@ -1,10 +1,11 @@
 """Deterministic offline regression tests for production data-quality auditability and observability."""
 
-import pytest
 import copy
 import json
 import os
 import tempfile
+
+import pytest
 
 from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.lib.monitoring import (

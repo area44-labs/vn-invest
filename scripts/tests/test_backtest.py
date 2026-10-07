@@ -1,9 +1,9 @@
 """Unit Test Suite for Deterministic No-Lookahead Backtesting Framework."""
 
-import pytest
 import math
 
 import pandas as pd
+import pytest
 
 from scripts.lib.backtest import (
     REASON_BELOW_MIN_PRICE,

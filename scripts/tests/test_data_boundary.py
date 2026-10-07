@@ -5,10 +5,10 @@ and end-to-end, confirming offline execution, provider replacement via canonical
 and fail-closed behavior on malformed/temporal data.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from scripts.data.acquisition import (
     InvalidSymbolError,

@@ -1,9 +1,8 @@
 """Unit tests for Market Regime in scripts/lib/regime.py."""
 
-import pytest
-
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.lib.regime import detect_market_regime
 

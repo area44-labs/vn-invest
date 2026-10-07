@@ -13,10 +13,9 @@ Covers Tests 1 through 10:
 - 10. Regression test suite compatibility (data_as_of and clean data boundary).
 """
 
-import pytest
-
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.risk import (
