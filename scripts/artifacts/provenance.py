@@ -368,7 +368,7 @@ class ProvenanceBuilder:
         sig_model_ver = rec_payload.get("signal_model_version") or SIGNAL_MODEL_VERSION
         q_ver = rec_payload.get("quant_version") or QUANT_VERSION
         cfg_hash = rec_payload.get("config_hash") or DEFAULT_QUANT_CONFIG.get_config_hash()
-        schema_ver = rec_payload.get("schema_version") or "2.0"
+        schema_ver = rec_payload.get("schema_version")
 
         source_provider = {
             "data_source": getattr(context, "data_source", None) or "REAL_DATA",

@@ -27,7 +27,7 @@ from scripts.lib.vietnam_market import (
 )
 from scripts.monitoring import evaluate_production_monitoring
 from scripts.pipeline.context import PipelineContext
-from scripts.pipeline.validation import load_schema, validate_final_payload_integrity
+from scripts.pipeline.validation import validate_final_payload_integrity
 from scripts.quant import (
     CandidateSpec,
     MarketAnalysisEngine,
@@ -984,11 +984,6 @@ class ArtifactPublishingStage(PipelineStage):
 
         if data_as_of:
             hist_payload = context.history_payload or context.recommendations_payload
-            if isinstance(hist_payload, dict) and "schema_version" not in hist_payload:
-                hist_payload = dict(hist_payload)
-                hist_payload["schema_version"] = load_schema()["properties"]["schema_version"].get(
-                    "const", "2.0"
-                )
             context.artifacts_to_publish[os.path.join("history", f"{data_as_of}.json")] = (
                 hist_payload
             )

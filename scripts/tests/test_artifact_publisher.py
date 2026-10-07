@@ -134,6 +134,22 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         self.assertIn("missing required", str(cm.exception))
 
+    def test_publisher_rejects_history_artifact_missing_schema_version(self):
+        """Verify ArtifactPublisher rejects history report artifacts missing schema_version."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
+
+        missing_hist_artifacts = {
+            "history/2026-03-31.json": {
+                "recommendations": [],
+            }
+        }
+
+        with self.assertRaises(SchemaResolutionError) as cm:
+            publisher.publish(missing_hist_artifacts)
+
+        self.assertIn("missing required", str(cm.exception))
+        self.assertIn("history/2026-03-31.json", str(cm.exception))
+
     def test_publisher_rejects_unsupported_schema_version(self):
         """Verify ArtifactPublisher rejects payloads with unsupported schema_version."""
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
@@ -147,6 +163,22 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         with self.assertRaises(SchemaResolutionError) as cm:
             publisher.publish(bad_ver_artifacts)
+
+        self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
+
+    def test_publisher_rejects_history_artifact_unsupported_schema_version(self):
+        """Verify ArtifactPublisher rejects history report artifacts with unsupported schema_version."""
+        publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
+
+        bad_hist_artifacts = {
+            "history/2026-03-31.json": {
+                "schema_version": "9.9",
+                "recommendations": [],
+            }
+        }
+
+        with self.assertRaises(SchemaResolutionError) as cm:
+            publisher.publish(bad_hist_artifacts)
 
         self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
 
