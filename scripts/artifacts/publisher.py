@@ -45,8 +45,6 @@ class ArtifactPublisher:
         )
         from scripts.schema import SchemaResolutionError, load_schema_for_version
 
-        schema_to_use = None
-
         if relative_path == "performance.json" or ("stages" in payload and "provider" in payload):
             schema_ver = payload.get("schema_version")
             if not schema_ver or not isinstance(schema_ver, str) or not schema_ver.strip():
@@ -64,9 +62,9 @@ class ArtifactPublisher:
                 raise SchemaResolutionError(
                     f"Artifact '{relative_path}' is missing required non-empty 'schema_version'"
                 )
-            schema_to_use = load_schema_for_version("recommendations", schema_ver.strip())
+            load_schema_for_version("recommendations", schema_ver.strip())
 
-        validate_final_payload_integrity(payload, schema=schema_to_use, payload_name=relative_path)
+        validate_final_payload_integrity(payload, payload_name=relative_path)
 
     def publish(
         self,

@@ -14,13 +14,11 @@ def load_performance_schema(version: str = SCHEMA_VERSION) -> dict:
     return load_schema_for_version("performance", version)
 
 
-def validate_performance_payload(
-    performance_data: dict, schema: dict | None = None, version: str | None = None
-) -> None:
+def validate_performance_payload(performance_data: dict) -> None:
     """Validate canonical performance object structure and schema.
 
-    Enforces that schema_version declared inside performance_data is the sole authoritative
-    version source. Ignores caller-supplied schema or version overrides to prevent registry bypasses.
+    Enforces that schema_version declared inside performance_data is resolved strictly
+    via the central Schema Registry. Caller overrides are forbidden.
 
     Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """
@@ -46,7 +44,7 @@ def load_schema(version: str = SCHEMA_VERSION) -> dict:
     return load_schema_for_version("recommendations", version)
 
 
-def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> list[str]:
+def find_payload_integrity_issues(payload: dict) -> list[str]:
     """Audit final report payload for schema compliance, numeric types, NaN/Inf, summary consistency, score ranges, and date consistency."""
     issues = []
 
@@ -56,21 +54,13 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
             issues.append("Payload is missing required non-empty 'schema_version'")
         else:
             try:
-                canonical_schema = load_schema(s_ver.strip())
+                canonical_schema = load_schema_for_version("recommendations", s_ver.strip())
                 jsonschema.validate(instance=payload, schema=canonical_schema)
             except jsonschema.ValidationError as err:
                 path_str = "/".join(str(p) for p in err.path)
                 issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
             except (jsonschema.SchemaError, TypeError, ValueError) as err:
                 issues.append(f"JSON Schema validation error: {err}")
-    elif schema:
-        try:
-            jsonschema.validate(instance=payload, schema=schema)
-        except jsonschema.ValidationError as err:
-            path_str = "/".join(str(p) for p in err.path)
-            issues.append(f"JSON Schema validation error: {err.message} at path '{path_str}'")
-        except (jsonschema.SchemaError, TypeError, ValueError) as err:
-            issues.append(f"JSON Schema validation error: {err}")
 
     def _walk_check(obj, path=""):
         if obj is None:
@@ -268,10 +258,10 @@ def find_payload_integrity_issues(payload: dict, schema: dict | None = None) -> 
 
 
 def validate_final_payload_integrity(
-    payload: dict, schema: dict | None = None, payload_name: str = "payload"
+    payload: dict, payload_name: str = "payload"
 ) -> list[dict]:
     """Validate final report payload integrity. Raises ValueError if any integrity check fails."""
-    issues = find_payload_integrity_issues(payload, schema)
+    issues = find_payload_integrity_issues(payload)
     if issues:
         diagnostics = [
             {

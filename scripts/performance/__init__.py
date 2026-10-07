@@ -17,12 +17,12 @@ from scripts.performance.tracker import PerformanceTracker, create_default_perfo
 
 
 def validate_performance_payload(
-    performance_data: dict[str, Any], schema: dict[str, Any] | None = None
+    performance_data: dict[str, Any]
 ) -> None:
     """Validate canonical performance object structure and schema."""
     from scripts.pipeline.validation import validate_performance_payload as _validate
 
-    _validate(performance_data, schema=schema)
+    _validate(performance_data)
 
 
 __all__ = [

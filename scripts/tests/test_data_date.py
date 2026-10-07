@@ -185,9 +185,8 @@ class TestDataDateSemantics(unittest.TestCase):
             self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
 
             # Final payload integrity validation must pass without raising ValueError
-            schema = load_schema()
-            validate_final_payload_integrity(recs_payload, schema=schema)
-            validate_final_payload_integrity(mkt_payload, schema=None)
+            validate_final_payload_integrity(recs_payload)
+            validate_final_payload_integrity(mkt_payload)
 
             # Every recommendation must use canonical '2026-09-25'
             self.assertTrue(len(recs_payload["recommendations"]) > 0)

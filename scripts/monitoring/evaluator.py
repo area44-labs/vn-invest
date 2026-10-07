@@ -21,7 +21,6 @@ from scripts.monitoring.drift import evaluate_data_and_model_drift
 from scripts.monitoring.metrics import normalize_market_payload
 from scripts.monitoring.models import (
     DEFAULT_GENERATED_DIR,
-    DEFAULT_SCHEMA_PATH,
     VALID_CHECK_STATUSES,
     CheckResult,
     PipelineMonitoringResult,
@@ -78,7 +77,6 @@ def evaluate_production_monitoring(
     recommendations_payload: dict | None = None,
     market_payload: dict | None = None,
     reference_date: str | None = None,
-    schema_path: str | None = None,
     stock_data_map: dict | None = None,
     df_vnindex: Any | None = None,
     df_vn30: Any | None = None,
@@ -96,7 +94,6 @@ def evaluate_production_monitoring(
     - Otherwise overall_status is "PASS".
     """
     g_dir = generated_dir or DEFAULT_GENERATED_DIR
-    s_path = schema_path or DEFAULT_SCHEMA_PATH
 
     checks: list[CheckResult] = []
 
@@ -159,7 +156,7 @@ def evaluate_production_monitoring(
     market_payload = normalize_market_payload(raw_market, data_as_of=data_as_of)
 
     # 2. Schema validation check
-    checks.append(check_schema_validation(recommendations_payload, schema_path=s_path))
+    checks.append(check_schema_validation(recommendations_payload))
 
     # 3. Data freshness check
     checks.append(check_data_freshness(data_as_of, reference_date=reference_date))

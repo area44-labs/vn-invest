@@ -11,7 +11,6 @@ from scripts.lib.config import VALID_MARKET_REGIMES
 from scripts.lib.vietnam_market import validate_ohlcv_data
 from scripts.monitoring.metrics import normalize_market_payload
 from scripts.monitoring.models import (
-    DEFAULT_SCHEMA_PATH,
     VALID_EXCLUSION_CATEGORIES,
     CheckResult,
     find_nan_or_inf,
@@ -80,7 +79,7 @@ def check_required_artifacts(
 
 
 def check_schema_validation(
-    recommendations_payload: dict, schema_path: str = DEFAULT_SCHEMA_PATH
+    recommendations_payload: dict
 ) -> CheckResult:
     """Validate recommendations payload against canonical JSON schema using version-aware resolution."""
     if not isinstance(recommendations_payload, dict):

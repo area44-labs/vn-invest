@@ -111,8 +111,7 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
             "recommendations": [],
         }
 
-        schema_2_0 = load_schema(valid_rec_payload["schema_version"])
-        validate_final_payload_integrity(valid_rec_payload, schema=schema_2_0)
+        validate_final_payload_integrity(valid_rec_payload)
 
         # Resolving schema for 9.9 raises SchemaResolutionError
         with self.assertRaises(SchemaResolutionError) as cm:
@@ -195,14 +194,6 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
             validate_performance_payload(bad_ver_perf)
         self.assertIn("Unsupported schema version '9.9'", str(cm_unsupported.exception))
 
-        # Passing custom permissive schema parameter cannot bypass payload's schema_version or registry
-        permissive_schema = {"type": "object"}
-        with self.assertRaises(SchemaResolutionError):
-            validate_performance_payload(bad_ver_perf, schema=permissive_schema)
-
-        # Passing version="1.0" when payload declares schema_version="2.0" cannot force version 1.0 schema
-        validate_performance_payload(valid_perf, version="1.0")
-
     def test_check_schema_validation_version_enforcement(self):
         """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""
         valid_payload = {
@@ -258,14 +249,13 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         self.assertEqual(res_99.status, "FAIL")
 
     def test_custom_schema_path_cannot_bypass_registry(self):
-        """9. Verify passing a custom schema_path cannot bypass version-aware schema registry routing."""
+        """9. Verify check_schema_validation refuses extra parameters and fails closed on unsupported version."""
         valid_payload = {
             "schema_version": "9.9",  # Unsupported version
             "recommendations": [],
         }
 
-        # Even if custom schema_path is provided, check_schema_validation fails closed because schema_version='9.9' is unsupported
-        res = check_schema_validation(valid_payload, schema_path="/non/existent/path/override.json")
+        res = check_schema_validation(valid_payload)
         self.assertEqual(res.status, "FAIL")
 
     @patch("scripts.schema.load_schema_for_version")

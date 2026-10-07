@@ -686,7 +686,7 @@ class TestAuditTrailObservability(unittest.TestCase):
 
         with self.assertRaises(ValueError) as cm:
             validate_final_payload_integrity(
-                invalid_payload, schema=None, payload_name="recommendations"
+                invalid_payload, payload_name="recommendations"
             )
 
         exc = cm.exception

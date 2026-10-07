@@ -603,7 +603,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         invalid_payload = {"data_as_of": "INVALID_DATE"}
 
         with self.assertRaises(ValueError), tracker.measure_stage("payload_validation"):
-            validate_final_payload_integrity(invalid_payload, schema=None)
+            validate_final_payload_integrity(invalid_payload)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
@@ -637,7 +637,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         }
 
         with tracker.measure_stage("payload_validation"):
-            validate_final_payload_integrity(valid_payload, schema=None)
+            validate_final_payload_integrity(valid_payload)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")

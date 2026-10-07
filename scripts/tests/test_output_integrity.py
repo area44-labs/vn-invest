@@ -146,72 +146,72 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
     def test_valid_payload_passes_integrity_validation(self):
         """Verify clean, schema-compliant valid payload passes integrity check with 0 issues."""
-        issues = find_payload_integrity_issues(self.valid_payload, self.schema)
+        issues = find_payload_integrity_issues(self.valid_payload)
         self.assertEqual(issues, [])
-        validate_final_payload_integrity(self.valid_payload, self.schema)
+        validate_final_payload_integrity(self.valid_payload)
 
     def test_nan_inf_detection(self):
         """Verify float NaN, Inf, -Inf values anywhere in payload are detected."""
         payload_nan = copy.deepcopy(self.valid_payload)
         payload_nan["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
-        issues = find_payload_integrity_issues(payload_nan, self.schema)
+        issues = find_payload_integrity_issues(payload_nan)
         self.assertTrue(any("NaN" in iss for iss in issues))
         with self.assertRaises(ValueError):
-            validate_final_payload_integrity(payload_nan, self.schema)
+            validate_final_payload_integrity(payload_nan)
 
         payload_inf = copy.deepcopy(self.valid_payload)
         payload_inf["recommendations"][0]["trade_plan"]["risk_reward"] = float("inf")
-        issues = find_payload_integrity_issues(payload_inf, self.schema)
+        issues = find_payload_integrity_issues(payload_inf)
         self.assertTrue(any("Infinity" in iss for iss in issues))
         with self.assertRaises(ValueError):
-            validate_final_payload_integrity(payload_inf, self.schema)
+            validate_final_payload_integrity(payload_inf)
 
         payload_str_nan = copy.deepcopy(self.valid_payload)
         payload_str_nan["recommendations"][0]["reasons"][0] = "NaN"
-        issues = find_payload_integrity_issues(payload_str_nan, self.schema)
+        issues = find_payload_integrity_issues(payload_str_nan)
         self.assertTrue(any("Invalid numeric string representation" in iss for iss in issues))
 
     def test_non_serializable_numpy_pandas_scalars(self):
         """Verify non-native numpy/pandas scalar objects in payload are detected."""
         payload_np = copy.deepcopy(self.valid_payload)
         payload_np["recommendations"][0]["risk_metrics"]["volatility_60d"] = np.float64(0.18)
-        issues = find_payload_integrity_issues(payload_np, self.schema)
+        issues = find_payload_integrity_issues(payload_np)
         self.assertTrue(any("Non-serializable float64" in iss for iss in issues))
 
     def test_summary_mismatch_detection(self):
         """Verify summary action count mismatches are caught."""
         payload_mismatch = copy.deepcopy(self.valid_payload)
         payload_mismatch["summary"]["buy_count"] = 5  # Actual is 1
-        issues = find_payload_integrity_issues(payload_mismatch, self.schema)
+        issues = find_payload_integrity_issues(payload_mismatch)
         self.assertTrue(any("Summary mismatch for 'buy_count'" in iss for iss in issues))
 
     def test_score_and_metric_out_of_range(self):
         """Verify score and metric range violations are caught."""
         payload_out = copy.deepcopy(self.valid_payload)
         payload_out["recommendations"][0]["signal_score"] = 150.0  # > 100
-        issues = find_payload_integrity_issues(payload_out, self.schema)
+        issues = find_payload_integrity_issues(payload_out)
         self.assertTrue(any("out of range" in iss for iss in issues))
 
         payload_conf = copy.deepcopy(self.valid_payload)
         payload_conf["recommendations"][0]["confidence"] = 1.5  # > 1.0
-        issues = find_payload_integrity_issues(payload_conf, self.schema)
+        issues = find_payload_integrity_issues(payload_conf)
         self.assertTrue(any("out of range" in iss for iss in issues))
 
     def test_required_fields_none_and_schema_validation(self):
         """Verify mandatory schema fields set to None fail integrity validation."""
         payload_null = copy.deepcopy(self.valid_payload)
         payload_null["recommendations"][0]["action"] = None
-        issues = find_payload_integrity_issues(payload_null, self.schema)
+        issues = find_payload_integrity_issues(payload_null)
         self.assertTrue(len(issues) > 0)
         with self.assertRaises(ValueError):
-            validate_final_payload_integrity(payload_null, self.schema)
+            validate_final_payload_integrity(payload_null)
 
     def test_insufficient_data_quality_invariants(self):
         """Verify symbol with INSUFFICIENT data quality having non-null score fails validation."""
         payload_inv = copy.deepcopy(self.valid_payload)
         # VIC has data_quality INSUFFICIENT
         payload_inv["recommendations"][1]["signal_score"] = 50.0
-        issues = find_payload_integrity_issues(payload_inv, self.schema)
+        issues = find_payload_integrity_issues(payload_inv)
         self.assertTrue(
             any("INSUFFICIENT data quality has non-null signal_score" in iss for iss in issues)
         )
