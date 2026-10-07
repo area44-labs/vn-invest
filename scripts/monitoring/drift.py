@@ -80,15 +80,12 @@ def evaluate_data_and_model_drift(
     if not (0.0 < min_processed_ratio <= 1.0):
         raise ValueError(f"min_processed_ratio must be in (0.0, 1.0], got {min_processed_ratio}")
 
-    # Validate drift threshold configurations dynamically from module globals, scripts.monitoring, and scripts.lib.monitoring
+    # Validate drift threshold configurations dynamically from module globals and scripts.monitoring
     import sys
 
-    mon_lib = sys.modules.get("scripts.lib.monitoring")
     mon_sub = sys.modules.get("scripts.monitoring")
 
     def _get_thresh(name, default):
-        if mon_lib and hasattr(mon_lib, name):
-            return getattr(mon_lib, name)
         if mon_sub and hasattr(mon_sub, name):
             return getattr(mon_sub, name)
         return globals().get(name, default)

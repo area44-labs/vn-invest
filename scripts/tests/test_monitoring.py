@@ -1,4 +1,4 @@
-"""Unit tests for Production Monitoring Module (scripts/lib/monitoring.py)."""
+"""Unit tests for Production Monitoring Module (scripts/monitoring/)."""
 
 import copy
 import json
@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from scripts.lib.config import SIGNAL_MODEL_VERSION
-from scripts.lib.monitoring import (
+from scripts.monitoring import (
     CheckResult,
     check_data_freshness,
     check_history_index_status,

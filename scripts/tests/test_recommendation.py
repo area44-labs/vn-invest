@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 
 from scripts.lib.backtest import _safe_float as backtest_safe_float
-from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.portfolio_backtest import _safe_float as portfolio_safe_float
+from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
 from scripts.lib.recommendation import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
