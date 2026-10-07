@@ -11,8 +11,8 @@ Verifies:
 8. Denominator and count correctness for breadth, regime, and liquidity percentile ranking.
 """
 
+import pytest
 import math
-import unittest
 
 import numpy as np
 import pandas as pd
@@ -54,7 +54,8 @@ def create_mock_ohlcv(
     return pd.DataFrame(records)
 
 
-class TestDownstreamDataValidation(unittest.TestCase):
+@pytest.mark.unit
+class TestDownstreamDataValidation:
     """Test suite ensuring no corrupted/invalid data reaches quantitative calculations."""
 
     def test_1_valid_dataset(self):
@@ -63,7 +64,7 @@ class TestDownstreamDataValidation(unittest.TestCase):
         df_vnindex = create_mock_ohlcv(length=40, start_price=1200.0)
 
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.80)
-        self.assertIn(regime["regime"], ["STRONG_BULL", "BULL", "DEFENSIVE", "NEUTRAL"])
+        assert regime["regime"] in ["STRONG_BULL", "BULL", "DEFENSIVE", "NEUTRAL"]
 
         rec = generate_recommendation(
             symbol="AAA",
@@ -74,11 +75,11 @@ class TestDownstreamDataValidation(unittest.TestCase):
             market_regime_info=regime,
             df_vnindex=df_vnindex,
         )
-        self.assertEqual(rec["data_quality"], "SUFFICIENT")
-        self.assertIsNotNone(rec["signal_score"])
+        assert rec["data_quality"] == "SUFFICIENT"
+        assert rec["signal_score"] is not None
 
         norm = normalize_universe_liquidity_scores([rec], market_regime=regime["regime"])
-        self.assertEqual(norm[0]["risk_metrics"]["liquidity_score"], 100.0)
+        assert norm[0]["risk_metrics"]["liquidity_score"] == 100.0
 
     def test_2_nan_inf_safety(self):
         """2. Datasets with NaN / Inf in price/volume do not leak NaN/Inf to downstream metrics."""
@@ -91,14 +92,14 @@ class TestDownstreamDataValidation(unittest.TestCase):
         metrics = calculate_t25_risk_metrics(df_stock)
         for k, v in metrics.items():
             if v is not None:
-                self.assertFalse(math.isnan(v), f"Key {k} is NaN")
-                self.assertFalse(math.isinf(v), f"Key {k} is Inf")
+                assert not (math.isnan(v)), f"Key {k} is NaN"
+                assert not (math.isinf(v)), f"Key {k} is Inf"
 
         regime = detect_market_regime(df_vnindex=df_stock, breadth_ratio=0.5)
         for k, v in regime["metrics"].items():
             if v is not None:
-                self.assertFalse(math.isnan(v), f"Metric {k} is NaN")
-                self.assertFalse(math.isinf(v), f"Metric {k} is Inf")
+                assert not (math.isnan(v)), f"Metric {k} is NaN"
+                assert not (math.isinf(v)), f"Metric {k} is Inf"
 
     def test_3_insufficient_history(self):
         """3. Insufficient history (<20 rows) returns safe AVOID and null indicators."""
@@ -116,11 +117,11 @@ class TestDownstreamDataValidation(unittest.TestCase):
             df_vnindex=df_vnindex,
         )
 
-        self.assertEqual(rec["action"], "AVOID")
-        self.assertEqual(rec["data_quality"], "INSUFFICIENT")
-        self.assertIsNone(rec["signal_score"])
-        self.assertIsNone(rec["risk_adjusted_score"])
-        self.assertIsNone(rec["risk_metrics"]["var_t25"])
+        assert rec["action"] == "AVOID"
+        assert rec["data_quality"] == "INSUFFICIENT"
+        assert rec["signal_score"] is None
+        assert rec["risk_adjusted_score"] is None
+        assert rec["risk_metrics"]["var_t25"] is None
 
     def test_4_failed_symbol_exclusion(self):
         """4. Failed/empty symbol is excluded from breadth and liquidity denominators."""
@@ -147,14 +148,14 @@ class TestDownstreamDataValidation(unittest.TestCase):
 
         # Breadth ratio denominator should equal valid symbols count (1), so 1/1 = 1.00
         breadth = recs_data["market"]["metrics"]["market_breadth_ratio"]
-        self.assertEqual(breadth, 1.0)
+        assert breadth == 1.0
 
         # BBB recommendation must be AVOID with INSUFFICIENT data_quality
         recs = recs_data["recommendations"]
         rec_b = next(r for r in recs if r["symbol"] == "BBB")
-        self.assertEqual(rec_b["action"], "AVOID")
-        self.assertEqual(rec_b["data_quality"], "INSUFFICIENT")
-        self.assertIsNone(rec_b["risk_metrics"]["liquidity_score"])
+        assert rec_b["action"] == "AVOID"
+        assert rec_b["data_quality"] == "INSUFFICIENT"
+        assert rec_b["risk_metrics"]["liquidity_score"] is None
 
     def test_5_temporal_invalid_symbol(self):
         """5. Symbol with invalid or stale/future date gets empty DF / safe AVOID status."""
@@ -172,8 +173,8 @@ class TestDownstreamDataValidation(unittest.TestCase):
             df_vnindex=df_vnindex,
         )
 
-        self.assertEqual(rec["action"], "AVOID")
-        self.assertEqual(rec["data_quality"], "INSUFFICIENT")
+        assert rec["action"] == "AVOID"
+        assert rec["data_quality"] == "INSUFFICIENT"
 
     def test_6_partial_universe(self):
         """6. Partial universe (some valid, some invalid) evaluates valid symbols correctly."""
@@ -212,12 +213,12 @@ class TestDownstreamDataValidation(unittest.TestCase):
         rec_c = next(r for r in recs if r["symbol"] == "CCC")
         rec_d = next(r for r in recs if r["symbol"] == "DDD")
 
-        self.assertIn(rec_a["data_quality"], ["SUFFICIENT", "PARTIAL"])
-        self.assertIn(rec_b["data_quality"], ["SUFFICIENT", "PARTIAL"])
-        self.assertEqual(rec_c["data_quality"], "INSUFFICIENT")
-        self.assertEqual(rec_c["action"], "AVOID")
-        self.assertEqual(rec_d["data_quality"], "INSUFFICIENT")
-        self.assertEqual(rec_d["action"], "AVOID")
+        assert rec_a["data_quality"] in ["SUFFICIENT", "PARTIAL"]
+        assert rec_b["data_quality"] in ["SUFFICIENT", "PARTIAL"]
+        assert rec_c["data_quality"] == "INSUFFICIENT"
+        assert rec_c["action"] == "AVOID"
+        assert rec_d["data_quality"] == "INSUFFICIENT"
+        assert rec_d["action"] == "AVOID"
 
         # Also test direct recommendation generation on corrupted OHLCV
         df_corrupt = create_mock_ohlcv(length=30, start_price=10.0)
@@ -232,8 +233,8 @@ class TestDownstreamDataValidation(unittest.TestCase):
             market_regime_info=regime,
             df_vnindex=df_vnindex,
         )
-        self.assertEqual(rec_corrupt["action"], "AVOID")
-        self.assertEqual(rec_corrupt["data_quality"], "INSUFFICIENT")
+        assert rec_corrupt["action"] == "AVOID"
+        assert rec_corrupt["data_quality"] == "INSUFFICIENT"
 
     def test_7_zero_valid_symbols(self):
         """7. Zero valid symbols returns safe default breadth (0.50), DEFENSIVE regime, and all AVOID."""
@@ -258,10 +259,10 @@ class TestDownstreamDataValidation(unittest.TestCase):
         market = res[0]["market"]
         recs = res[0]["recommendations"]
 
-        self.assertEqual(market["metrics"]["market_breadth_ratio"], 0.50)
+        assert market["metrics"]["market_breadth_ratio"] == 0.50
         for r in recs:
-            self.assertEqual(r["action"], "AVOID")
-            self.assertEqual(r["data_quality"], "INSUFFICIENT")
+            assert r["action"] == "AVOID"
+            assert r["data_quality"] == "INSUFFICIENT"
 
     def test_8_denominator_count_correctness(self):
         """8. Denominator/count correctness for breadth and liquidity rank across mixed stocks."""
@@ -284,7 +285,7 @@ class TestDownstreamDataValidation(unittest.TestCase):
 
         # S4 must have None liquidity score
         rec_s4 = next(r for r in norm_recs if r["symbol"] == "S4")
-        self.assertIsNone(rec_s4["risk_metrics"]["liquidity_score"])
+        assert rec_s4["risk_metrics"]["liquidity_score"] is None
 
         # S1, S2, S3 must have percentile ranks based on denominator = 3 (approx 33.3, 66.7, 100.0)
         rec_s1 = next(r for r in norm_recs if r["symbol"] == "S1")
@@ -292,10 +293,6 @@ class TestDownstreamDataValidation(unittest.TestCase):
         rec_s3 = next(r for r in norm_recs if r["symbol"] == "S3")
 
         # pd.Series.rank(pct=True) for 3 items produces [1/3, 2/3, 3/3] = [33.3, 66.7, 100.0]
-        self.assertAlmostEqual(rec_s1["risk_metrics"]["liquidity_score"], 33.3, delta=0.5)
-        self.assertAlmostEqual(rec_s2["risk_metrics"]["liquidity_score"], 66.7, delta=0.5)
-        self.assertEqual(rec_s3["risk_metrics"]["liquidity_score"], 100.0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rec_s1["risk_metrics"]["liquidity_score"] == pytest.approx(33.3)
+        assert rec_s2["risk_metrics"]["liquidity_score"] == pytest.approx(66.7)
+        assert rec_s3["risk_metrics"]["liquidity_score"] == 100.0

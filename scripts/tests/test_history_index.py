@@ -1,10 +1,10 @@
 """Unit tests for fail-closed history index persistence loader."""
 
+import pytest
 import json
 import os
 import sys
 import tempfile
-import unittest
 from unittest.mock import patch
 
 from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index
@@ -14,10 +14,11 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 
-class TestHistoryIndexLoader(unittest.TestCase):
+@pytest.mark.unit
+class TestHistoryIndexLoader:
     """Test suite for history index loader and updater fail-closed semantics."""
 
-    def setUp(self):
+    def setup_method(self):
         history_dir = os.path.join(GENERATED_DIR, "history")
         os.makedirs(history_dir, exist_ok=True)
         self.temp_dir = tempfile.TemporaryDirectory(dir=history_dir)
@@ -26,9 +27,9 @@ class TestHistoryIndexLoader(unittest.TestCase):
 
     def test_1_missing_file_returns_initialized_empty_index(self):
         """Test 1: Non-existent history index file initializes an empty index contract."""
-        self.assertFalse(os.path.exists(self.index_path))
+        assert not os.path.exists(self.index_path)
         data = load_history_index(self.index_path)
-        self.assertEqual(data, {"dates": []})
+        assert data == {"dates": []}
 
     def test_2_valid_index_loads_successfully(self):
         """Test 2: Valid JSON and expected structure loads successfully."""
@@ -42,8 +43,8 @@ class TestHistoryIndexLoader(unittest.TestCase):
             json.dump(valid_payload, f)
 
         data = load_history_index(self.index_path)
-        self.assertEqual(data["dates"], ["2026-09-14", "2026-09-13"])
-        self.assertEqual(data["total_reports"], 2)
+        assert data["dates"] == ["2026-09-14", "2026-09-13"]
+        assert data["total_reports"] == 2
 
     def test_3_malformed_json_raises(self):
         """Test 3: Existing file with invalid JSON raises ValueError with file path context."""
@@ -51,11 +52,11 @@ class TestHistoryIndexLoader(unittest.TestCase):
         with open(self.index_path, "w", encoding="utf-8") as f:
             f.write("{ corrupted_json: true, ")
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             load_history_index(self.index_path)
 
-        self.assertIn("invalid JSON", str(ctx.exception))
-        self.assertIn(self.index_path, str(ctx.exception))
+        assert "invalid JSON" in str(ctx.value)
+        assert self.index_path in str(ctx.value)
 
     def test_4_invalid_root_type_raises(self):
         """Test 4: Valid JSON with non-object root type (array, string, int, null) raises TypeError or ValueError."""
@@ -65,11 +66,11 @@ class TestHistoryIndexLoader(unittest.TestCase):
             with open(self.index_path, "w", encoding="utf-8") as f:
                 f.write(invalid_root)
 
-            with self.assertRaises((ValueError, TypeError)) as ctx:
+            with pytest.raises((ValueError, TypeError)) as ctx:
                 load_history_index(self.index_path)
 
-            self.assertIn("Invalid history index structure", str(ctx.exception))
-            self.assertIn(self.index_path, str(ctx.exception))
+            assert "Invalid history index structure" in str(ctx.value)
+            assert self.index_path in str(ctx.value)
 
     def test_5_invalid_structure_raises(self):
         """Test 5: Valid JSON object with invalid or missing 'dates' structure raises TypeError or ValueError."""
@@ -86,11 +87,11 @@ class TestHistoryIndexLoader(unittest.TestCase):
             with open(self.index_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
 
-            with self.assertRaises((ValueError, TypeError)) as ctx:
+            with pytest.raises((ValueError, TypeError)) as ctx:
                 load_history_index(self.index_path)
 
-            self.assertIn("Invalid history index structure", str(ctx.exception))
-            self.assertIn(self.index_path, str(ctx.exception))
+            assert "Invalid history index structure" in str(ctx.value)
+            assert self.index_path in str(ctx.value)
 
     def test_6_permission_read_failure_raises(self):
         """Test 6: Read/Permission filesystem failures raise OSError and are NOT converted into empty index."""
@@ -99,10 +100,10 @@ class TestHistoryIndexLoader(unittest.TestCase):
             json.dump({"dates": ["2026-09-14"]}, f)
 
         with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            with self.assertRaises((PermissionError, OSError)) as ctx:
+            with pytest.raises((PermissionError, OSError)) as ctx:
                 load_history_index(self.index_path)
 
-            self.assertIn("Permission denied", str(ctx.exception))
+            assert "Permission denied" in str(ctx.value)
 
     def test_7_corrupted_file_is_not_overwritten(self):
         """Test 7: Updating history index with an existing corrupted file raises and leaves original file untouched."""
@@ -111,15 +112,11 @@ class TestHistoryIndexLoader(unittest.TestCase):
         with open(self.index_path, "w", encoding="utf-8") as f:
             f.write(corrupted_content)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             update_history_index("2026-09-15", index_path=self.index_path)
 
         # Verify corrupted file content remains unchanged
         with open(self.index_path, "r", encoding="utf-8") as f:
             content_after = f.read()
 
-        self.assertEqual(content_after, corrupted_content)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert content_after == corrupted_content

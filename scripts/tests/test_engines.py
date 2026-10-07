@@ -1,6 +1,6 @@
 """Unit, boundary, contract, and regression tests for quantitative engines in scripts/quant/ (#174)."""
 
-import unittest
+import pytest
 from collections.abc import Mapping
 
 import pandas as pd
@@ -69,7 +69,8 @@ class CustomMapping(Mapping):
         return iter(self._data)
 
 
-class TestQuantContracts(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantContracts:
     """Test CandidateSpec and quantitative contract validation."""
 
     def test_candidate_spec_normalization_and_validation(self):
@@ -79,22 +80,23 @@ class TestQuantContracts(unittest.TestCase):
             sector="Consumer Goods",
             exchange="hose",
         )
-        self.assertEqual(cand.symbol, "VNM")
-        self.assertEqual(cand.company_name, "Vinamilk")
-        self.assertEqual(cand.sector, "Consumer Goods")
-        self.assertEqual(cand.exchange, "HOSE")
+        assert cand.symbol == "VNM"
+        assert cand.company_name == "Vinamilk"
+        assert cand.sector == "Consumer Goods"
+        assert cand.exchange == "HOSE"
 
     def test_candidate_spec_invalid_inputs(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CandidateSpec(symbol="", company_name="Name", sector="Sector")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CandidateSpec(symbol="ABC", company_name="", sector="Sector")
 
 
-class TestQuantMarketAnalysisAndRegimeEngine(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantMarketAnalysisAndRegimeEngine:
     """Test scripts/quant/features.py, scripts/quant/regime.py, and MarketAnalysisEngine."""
 
-    def setUp(self):
+    def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_vn30 = make_sample_ohlcv(days=60, start_price=1250.0, trend=2.0)
         self.stock_a = make_sample_ohlcv(days=30, start_price=50.0, trend=0.5)
@@ -105,15 +107,15 @@ class TestQuantMarketAnalysisAndRegimeEngine(unittest.TestCase):
             stock_data_map={"AAA": self.stock_a, "BBB": self.stock_b},
         )
         res = compute_market_breadth(feature_in)
-        self.assertIsInstance(res, FeatureResult)
-        self.assertEqual(res.breadth_ratio, 0.50)
+        assert isinstance(res, FeatureResult)
+        assert res.breadth_ratio == 0.50
 
     def test_compute_market_breadth_custom_mapping(self):
         """Verify custom Mapping implementation is supported without falling back to 0.50."""
         custom_map = CustomMapping({"AAA": self.stock_a})
         res = compute_market_breadth(custom_map)
-        self.assertIsInstance(res, FeatureResult)
-        self.assertEqual(res.breadth_ratio, 1.0)
+        assert isinstance(res, FeatureResult)
+        assert res.breadth_ratio == 1.0
 
     def test_detect_market_regime_input_contract(self):
         regime_in = RegimeInput(
@@ -122,8 +124,8 @@ class TestQuantMarketAnalysisAndRegimeEngine(unittest.TestCase):
             breadth_ratio=0.60,
         )
         res = detect_market_regime(regime_in)
-        self.assertIsInstance(res, RegimeResult)
-        self.assertIn("regime", res.market_regime)
+        assert isinstance(res, RegimeResult)
+        assert "regime" in res.market_regime
 
     def test_market_analysis_engine_analyze(self):
         input_data = MarketAnalysisInput(
@@ -135,15 +137,16 @@ class TestQuantMarketAnalysisAndRegimeEngine(unittest.TestCase):
             vn30_sufficient=True,
         )
         res = MarketAnalysisEngine.analyze(input_data)
-        self.assertIsInstance(res, RegimeResult)
-        self.assertIn("regime", res.market_regime)
-        self.assertEqual(res.market_regime["metrics"]["market_breadth_ratio"], 0.50)
+        assert isinstance(res, RegimeResult)
+        assert "regime" in res.market_regime
+        assert res.market_regime["metrics"]["market_breadth_ratio"] == 0.50
 
 
-class TestQuantSignalEngine(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantSignalEngine:
     """Test scripts/quant/signal.py decomposed calculations."""
 
-    def setUp(self):
+    def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
         regime_res = detect_market_regime(
@@ -164,16 +167,17 @@ class TestQuantSignalEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
         sig_res = compute_signal(sig_input)
-        self.assertIsInstance(sig_res, SignalResult)
-        self.assertEqual(sig_res.symbol, "VNM")
-        self.assertEqual(sig_res.data_quality, "SUFFICIENT")
-        self.assertIsNotNone(sig_res.score)
+        assert isinstance(sig_res, SignalResult)
+        assert sig_res.symbol == "VNM"
+        assert sig_res.data_quality == "SUFFICIENT"
+        assert sig_res.score is not None
 
 
-class TestQuantRiskEngine(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantRiskEngine:
     """Test scripts/quant/risk.py risk assessment and trade plan calculations."""
 
-    def setUp(self):
+    def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
         regime_res = detect_market_regime(
@@ -205,9 +209,9 @@ class TestQuantRiskEngine(unittest.TestCase):
             action="BUY",
         )
         risk_res = compute_stock_risk_and_trade_plan(risk_input)
-        self.assertIsInstance(risk_res, RiskResult)
-        self.assertIsNotNone(risk_res.risk_adjusted_score)
-        self.assertIsNotNone(risk_res.trade_plan["stop_loss"])
+        assert isinstance(risk_res, RiskResult)
+        assert risk_res.risk_adjusted_score is not None
+        assert risk_res.trade_plan["stop_loss"] is not None
 
     def test_risk_trade_plan_engine_process_risk(self):
         rec = generate_single_recommendation(
@@ -226,13 +230,14 @@ class TestQuantRiskEngine(unittest.TestCase):
             market_regime=self.market_regime,
         )
         recs_out = RiskTradePlanEngine.process_risk(risk_tp_in)
-        self.assertEqual(len(recs_out), 1)
+        assert len(recs_out) == 1
 
 
-class TestQuantRecommendationEngine(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantRecommendationEngine:
     """Test SignalRecommendationEngine unit behavior, contracts, provenance, and parity."""
 
-    def setUp(self):
+    def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=60, start_price=50.0, trend=0.5)
         regime_res = detect_market_regime(
@@ -256,10 +261,10 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             data_source="REAL_DATA",
         )
         res = SignalRecommendationEngine.generate_recommendations(input_data)
-        self.assertIsInstance(res, RecommendationResult)
-        self.assertEqual(len(res.recommendations), 1)
+        assert isinstance(res, RecommendationResult)
+        assert len(res.recommendations) == 1
         rec = res.recommendations[0]
-        self.assertEqual(rec.symbol if hasattr(rec, "symbol") else rec["symbol"], "VNM")
+        assert rec.symbol if hasattr(rec, "symbol") else rec["symbol"] == "VNM"
 
     def test_production_sufficient_stock_provenance(self):
         """1. Production + sufficient stock -> data_source equals actual source tag."""
@@ -278,7 +283,7 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertEqual(rec_dict["data_source"], "REAL_DATA")
+        assert rec_dict["data_source"] == "REAL_DATA"
 
     def test_production_provider_failure_provenance(self):
         """2. Production + provider failure -> data_source is None."""
@@ -297,7 +302,7 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertIsNone(rec_dict["data_source"])
+        assert rec_dict["data_source"] is None
 
     def test_production_insufficient_data_provenance(self):
         """3. Production + insufficient data -> data_source is None."""
@@ -316,7 +321,7 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertIsNone(rec_dict["data_source"])
+        assert rec_dict["data_source"] is None
 
     def test_production_symbol_not_processed_provenance(self):
         """4. Production + symbol not processed -> recommendation created with data_source is None."""
@@ -335,8 +340,8 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertIsNone(rec_dict["data_source"])
-        self.assertEqual(rec_dict["action"], "AVOID")
+        assert rec_dict["data_source"] is None
+        assert rec_dict["action"] == "AVOID"
 
     def test_historical_valid_dataset_provenance(self):
         """5. Historical + valid dataset -> retains correct historical date/source semantics."""
@@ -354,8 +359,8 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertEqual(rec_dict["data_source"], "explicit_historical_input")
-        self.assertEqual(rec_dict["data_as_of"], "2025-01-20")
+        assert rec_dict["data_source"] == "explicit_historical_input"
+        assert rec_dict["data_as_of"] == "2025-01-20"
 
     def test_historical_empty_dataset_provenance(self):
         """6. Historical + empty dataset -> data_source is None."""
@@ -373,7 +378,7 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             if hasattr(res.recommendations[0], "to_dict")
             else res.recommendations[0]
         )
-        self.assertIsNone(rec_dict["data_source"])
+        assert rec_dict["data_source"] is None
 
     def test_engine_and_single_recommendation_parity(self):
         """7. Engine parity -> full payload comparison between SignalRecommendationEngine and generate_single_recommendation."""
@@ -408,7 +413,7 @@ class TestQuantRecommendationEngine(unittest.TestCase):
             else engine_res.recommendations[0]
         )
         single_dict = single_rec.to_dict() if hasattr(single_rec, "to_dict") else single_rec
-        self.assertEqual(engine_dict, single_dict)
+        assert engine_dict == single_dict
 
     def test_legacy_wrapper_backward_compatibility(self):
         """8. Backward compatibility -> legacy scripts.lib wrapper delegates to scripts.quant with exact payload equivalence."""
@@ -440,13 +445,14 @@ class TestQuantRecommendationEngine(unittest.TestCase):
 
         legacy_dict = legacy_rec.to_dict() if hasattr(legacy_rec, "to_dict") else legacy_rec
         quant_dict = quant_rec.to_dict() if hasattr(quant_rec, "to_dict") else quant_rec
-        self.assertEqual(legacy_dict, quant_dict)
+        assert legacy_dict == quant_dict
 
 
-class TestQuantUnificationAndBacktestParity(unittest.TestCase):
+@pytest.mark.unit
+class TestQuantUnificationAndBacktestParity:
     """Test Issue #175: Proof of unification between production and backtest quantitative engines."""
 
-    def setUp(self):
+    def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=80, start_price=1200.0, trend=2.0)
         self.df_vn30 = make_sample_ohlcv(days=80, start_price=1250.0, trend=2.0)
         self.df_stock = make_sample_ohlcv(days=80, start_price=50.0, trend=0.5)
@@ -458,10 +464,10 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
         import scripts.lib.portfolio_backtest as pbt
         from scripts.quant.regime import lib_detect_market_regime
 
-        self.assertIs(bt.detect_market_regime, lib_detect_market_regime)
-        self.assertIs(bt.generate_recommendation, generate_single_recommendation)
-        self.assertIs(pbt.detect_market_regime, lib_detect_market_regime)
-        self.assertIs(pbt.generate_recommendation, generate_single_recommendation)
+        assert bt.detect_market_regime is lib_detect_market_regime
+        assert bt.generate_recommendation is generate_single_recommendation
+        assert pbt.detect_market_regime is lib_detect_market_regime
+        assert pbt.generate_recommendation is generate_single_recommendation
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""
@@ -492,7 +498,7 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
             breadth_ratio=pit_breadth,
             universe_stock_map=universe_map,
         )
-        self.assertEqual(len(results), 1)
+        assert len(results) == 1
         backtest_sig = results[0].signal
 
         # 3. Production engine call with identical point-in-time sliced datasets <= as_of_date
@@ -519,12 +525,12 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
         )
 
         # 4. Assert full quantitative equivalence
-        self.assertEqual(backtest_sig.action, prod_rec.action)
-        self.assertEqual(backtest_sig.signal_score, prod_rec.signal_score)
-        self.assertEqual(backtest_sig.confidence, prod_rec.confidence)
-        self.assertEqual(backtest_sig.market_regime, regime_res.market_regime["regime"])
-        self.assertEqual(backtest_sig.risk_adjusted_score, prod_rec.risk_adjusted_score)
-        self.assertEqual(backtest_sig.score_components, prod_rec.score_components)
+        assert backtest_sig.action == prod_rec.action
+        assert backtest_sig.signal_score == prod_rec.signal_score
+        assert backtest_sig.confidence == prod_rec.confidence
+        assert backtest_sig.market_regime == regime_res.market_regime["regime"]
+        assert backtest_sig.risk_adjusted_score == prod_rec.risk_adjusted_score
+        assert backtest_sig.score_components == prod_rec.score_components
 
     def test_pit_dataset_no_lookahead_isolation(self):
         """Verify future mutations (> as_of_date) do not alter quantitative signal outputs at as_of_date."""
@@ -557,17 +563,13 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
             df_vn30_mutated.loc[future_mask_vn30, col] *= 0.2
 
         # Explicitly verify future VN30 data is mutated
-        self.assertFalse(
-            df_vn30_mutated.loc[future_mask_vn30, "close"].equals(
-                self.df_vn30.loc[future_mask_vn30, "close"]
-            )
+        assert not df_vn30_mutated.loc[future_mask_vn30, "close"].equals(
+            self.df_vn30.loc[future_mask_vn30, "close"]
         )
         # Explicitly verify historical data <= as_of_date is identical
         pit_mask_vn30 = df_vn30_mutated["date"] <= self.as_of_date
-        self.assertTrue(
-            df_vn30_mutated.loc[pit_mask_vn30, "close"].equals(
-                self.df_vn30.loc[pit_mask_vn30, "close"]
-            )
+        assert df_vn30_mutated.loc[pit_mask_vn30, "close"].equals(
+            self.df_vn30.loc[pit_mask_vn30, "close"]
         )
 
         res2 = run_backtest_for_symbol(
@@ -579,10 +581,6 @@ class TestQuantUnificationAndBacktestParity(unittest.TestCase):
         )
 
         # Quantitative signal generated at T MUST be identical
-        self.assertEqual(res1[0].signal.to_dict(), res2[0].signal.to_dict())
+        assert res1[0].signal.to_dict() == res2[0].signal.to_dict()
         # Forward outcomes AFTER T MUST reflect modified future prices
-        self.assertNotEqual(res1[0].outcome.to_dict(), res2[0].outcome.to_dict())
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert res1[0].outcome.to_dict() != res2[0].outcome.to_dict()

@@ -1,6 +1,6 @@
 """Unit tests for MarketDataProvider boundary interfaces."""
 
-import unittest
+import pytest
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -36,25 +36,26 @@ class DummyFakeProvider(MarketDataProvider):
         )
 
 
-class TestDataProviderBoundary(unittest.TestCase):
+@pytest.mark.unit
+class TestDataProviderBoundary:
     """Test MarketDataProvider contract and VnstockMarketProvider adapter."""
 
     def test_dummy_fake_provider(self):
         provider = DummyFakeProvider()
-        self.assertEqual(provider.provider_name, "fake_provider")
+        assert provider.provider_name == "fake_provider"
         df = provider.fetch_ohlcv("FPT")
-        self.assertFalse(df.empty)
-        self.assertEqual(df["close"].iloc[0], 102.0)
+        assert not df.empty
+        assert df["close"].iloc[0] == 102.0
 
     def test_vnstock_market_provider_adapter(self):
         mock_vnstock = MagicMock()
         mock_vnstock.fetch_ohlcv.return_value = pd.DataFrame({"close": [100.0]})
 
         adapter = VnstockMarketProvider(provider_instance=mock_vnstock)
-        self.assertEqual(adapter.provider_name, "vnstock")
+        assert adapter.provider_name == "vnstock"
 
         df = adapter.fetch_ohlcv("VCB")
-        self.assertEqual(df["close"].iloc[0], 100.0)
+        assert df["close"].iloc[0] == 100.0
         mock_vnstock.fetch_ohlcv.assert_called_once_with(
             symbol="VCB",
             start_date=None,
@@ -62,7 +63,3 @@ class TestDataProviderBoundary(unittest.TestCase):
             max_retries=2,
             target_date=None,
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

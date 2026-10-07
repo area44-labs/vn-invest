@@ -4,8 +4,8 @@ Validates that run_pipeline() and generate_historical_report() produce equivalen
 quantitative outputs when given identical point-in-time inputs.
 """
 
+import pytest
 import copy
-import unittest
 from unittest.mock import patch
 
 import pandas as pd
@@ -74,10 +74,11 @@ def extract_quantitative_recommendation(rec: dict) -> dict:
     }
 
 
-class TestProductionHistoricalParity(unittest.TestCase):
+@pytest.mark.integration
+class TestProductionHistoricalParity:
     """Test suite verifying quantitative parity between run_pipeline and generate_historical_report."""
 
-    def setUp(self):
+    def setup_method(self):
         self.periods = 60
         self.start_date = "2025-01-01"
 
@@ -180,15 +181,15 @@ class TestProductionHistoricalParity(unittest.TestCase):
         prod_recs_payload, prod_market_payload, _ = prod_res
         hist_recs_payload, hist_market_payload, _ = hist_res
 
-        self.assertEqual(prod_recs_payload["data_as_of"], self.target_date)
-        self.assertEqual(hist_recs_payload["data_as_of"], self.target_date)
+        assert prod_recs_payload["data_as_of"] == self.target_date
+        assert hist_recs_payload["data_as_of"] == self.target_date
 
         # Market regime structure & quantitative metrics
-        self.assertEqual(prod_recs_payload["market"], hist_recs_payload["market"])
-        self.assertEqual(prod_market_payload["market"], hist_market_payload["market"])
+        assert prod_recs_payload["market"] == hist_recs_payload["market"]
+        assert prod_market_payload["market"] == hist_market_payload["market"]
 
         # Summary counts
-        self.assertEqual(prod_recs_payload["summary"], hist_recs_payload["summary"])
+        assert prod_recs_payload["summary"] == hist_recs_payload["summary"]
 
     def test_2_same_pit_inputs_produce_same_recommendation(self):
         """Test 2: Production recommendation == historical recommendation for all quantitative/model fields."""
@@ -197,16 +198,14 @@ class TestProductionHistoricalParity(unittest.TestCase):
         prod_recs = {r["symbol"]: r for r in prod_res[0]["recommendations"]}
         hist_recs = {r["symbol"]: r for r in hist_res[0]["recommendations"]}
 
-        self.assertEqual(set(prod_recs.keys()), set(hist_recs.keys()))
+        assert set(prod_recs.keys()) == set(hist_recs.keys())
 
         for sym, p_rec in prod_recs.items():
             prod_quant = extract_quantitative_recommendation(p_rec)
             hist_quant = extract_quantitative_recommendation(hist_recs[sym])
 
-            self.assertEqual(
-                prod_quant,
-                hist_quant,
-                f"Quantitative recommendation mismatch for symbol '{sym}'",
+            assert prod_quant == hist_quant, (
+                f"Quantitative recommendation mismatch for symbol '{sym}'"
             )
 
     def test_3_signal_parity(self):
@@ -219,12 +218,12 @@ class TestProductionHistoricalParity(unittest.TestCase):
         for sym, p_rec in prod_recs.items():
             h_rec = hist_recs[sym]
 
-            self.assertEqual(p_rec["action"], h_rec["action"])
-            self.assertEqual(p_rec["signal_score"], h_rec["signal_score"])
-            self.assertEqual(p_rec["risk_adjusted_score"], h_rec["risk_adjusted_score"])
-            self.assertEqual(p_rec["confidence"], h_rec["confidence"])
-            self.assertEqual(p_rec["score_components"], h_rec["score_components"])
-            self.assertEqual(p_rec["divergence"], h_rec["divergence"])
+            assert p_rec["action"] == h_rec["action"]
+            assert p_rec["signal_score"] == h_rec["signal_score"]
+            assert p_rec["risk_adjusted_score"] == h_rec["risk_adjusted_score"]
+            assert p_rec["confidence"] == h_rec["confidence"]
+            assert p_rec["score_components"] == h_rec["score_components"]
+            assert p_rec["divergence"] == h_rec["divergence"]
 
     def test_4_risk_parity(self):
         """Test 4: Compare VaR, Expected Shortfall, volatility, max drawdown, liquidity, and average traded value."""
@@ -236,18 +235,18 @@ class TestProductionHistoricalParity(unittest.TestCase):
         for sym, p_rec in prod_recs.items():
             h_rec = hist_recs[sym]
 
-            self.assertEqual(p_rec["risk_level"], h_rec["risk_level"])
-            self.assertEqual(p_rec["risk_metrics"], h_rec["risk_metrics"])
+            assert p_rec["risk_level"] == h_rec["risk_level"]
+            assert p_rec["risk_metrics"] == h_rec["risk_metrics"]
 
             p_rm = p_rec["risk_metrics"]
             h_rm = h_rec["risk_metrics"]
 
-            self.assertEqual(p_rm["var_t25"], h_rm["var_t25"])
-            self.assertEqual(p_rm["es_t25"], h_rm["es_t25"])
-            self.assertEqual(p_rm["volatility_60d"], h_rm["volatility_60d"])
-            self.assertEqual(p_rm["max_drawdown"], h_rm["max_drawdown"])
-            self.assertEqual(p_rm["liquidity_score"], h_rm["liquidity_score"])
-            self.assertEqual(p_rm["avg_value_20d"], h_rm["avg_value_20d"])
+            assert p_rm["var_t25"] == h_rm["var_t25"]
+            assert p_rm["es_t25"] == h_rm["es_t25"]
+            assert p_rm["volatility_60d"] == h_rm["volatility_60d"]
+            assert p_rm["max_drawdown"] == h_rm["max_drawdown"]
+            assert p_rm["liquidity_score"] == h_rm["liquidity_score"]
+            assert p_rm["avg_value_20d"] == h_rm["avg_value_20d"]
 
     def test_5_trade_plan_parity(self):
         """Test 5: Compare generated trade plan and invalidation quantitative outputs."""
@@ -259,10 +258,10 @@ class TestProductionHistoricalParity(unittest.TestCase):
         for sym, p_rec in prod_recs.items():
             h_rec = hist_recs[sym]
 
-            self.assertEqual(p_rec["trade_plan"], h_rec["trade_plan"])
-            self.assertEqual(p_rec["invalidation"], h_rec["invalidation"])
-            self.assertEqual(p_rec["reasons"], h_rec["reasons"])
-            self.assertEqual(p_rec["warnings"], h_rec["warnings"])
+            assert p_rec["trade_plan"] == h_rec["trade_plan"]
+            assert p_rec["invalidation"] == h_rec["invalidation"]
+            assert p_rec["reasons"] == h_rec["reasons"]
+            assert p_rec["warnings"] == h_rec["warnings"]
 
     def test_6_multi_stock_parity(self):
         """Test 6: Multi-stock parity across diverse stocks producing different actions."""
@@ -271,16 +270,16 @@ class TestProductionHistoricalParity(unittest.TestCase):
         prod_recs = prod_res[0]["recommendations"]
         hist_recs = hist_res[0]["recommendations"]
 
-        self.assertGreaterEqual(len(prod_recs), 3)
-        self.assertEqual(len(prod_recs), len(hist_recs))
+        assert len(prod_recs) >= 3
+        assert len(prod_recs) == len(hist_recs)
 
         actions = {r["action"] for r in prod_recs}
-        self.assertGreater(len(actions), 1, "Multi-stock universe should cover diverse actions")
+        assert len(actions) > 1, "Multi-stock universe should cover diverse actions"
 
         for p_rec, h_rec in zip(prod_recs, hist_recs, strict=True):
             p_quant = extract_quantitative_recommendation(p_rec)
             h_quant = extract_quantitative_recommendation(h_rec)
-            self.assertEqual(p_quant, h_quant)
+            assert p_quant == h_quant
 
     def test_7_reproducibility(self):
         """Test 7: Run same parity comparison more than once and verify Run A == Run B."""
@@ -288,20 +287,18 @@ class TestProductionHistoricalParity(unittest.TestCase):
         prod_res_b, hist_res_b = self._run_both_pipelines(reference_date="2025-03-01T10:00:00Z")
 
         # Production path run A vs run B
-        self.assertEqual(
-            [extract_quantitative_recommendation(r) for r in prod_res_a[0]["recommendations"]],
-            [extract_quantitative_recommendation(r) for r in prod_res_b[0]["recommendations"]],
-        )
-        self.assertEqual(prod_res_a[0]["market"], prod_res_b[0]["market"])
-        self.assertEqual(prod_res_a[0]["summary"], prod_res_b[0]["summary"])
+        assert [
+            extract_quantitative_recommendation(r) for r in prod_res_a[0]["recommendations"]
+        ] == [extract_quantitative_recommendation(r) for r in prod_res_b[0]["recommendations"]]
+        assert prod_res_a[0]["market"] == prod_res_b[0]["market"]
+        assert prod_res_a[0]["summary"] == prod_res_b[0]["summary"]
 
         # Historical path run A vs run B
-        self.assertEqual(
-            [extract_quantitative_recommendation(r) for r in hist_res_a[0]["recommendations"]],
-            [extract_quantitative_recommendation(r) for r in hist_res_b[0]["recommendations"]],
-        )
-        self.assertEqual(hist_res_a[0]["market"], hist_res_b[0]["market"])
-        self.assertEqual(hist_res_a[0]["summary"], hist_res_b[0]["summary"])
+        assert [
+            extract_quantitative_recommendation(r) for r in hist_res_a[0]["recommendations"]
+        ] == [extract_quantitative_recommendation(r) for r in hist_res_b[0]["recommendations"]]
+        assert hist_res_a[0]["market"] == hist_res_b[0]["market"]
+        assert hist_res_a[0]["summary"] == hist_res_b[0]["summary"]
 
     def test_8_temporal_safety_future_data_invariance(self):
         """Test 8: Temporal safety - appending future data > T does not alter historical report at T or create parity divergence."""
@@ -395,16 +392,12 @@ class TestProductionHistoricalParity(unittest.TestCase):
             extract_quantitative_recommendation(r) for r in hist_res_extended[0]["recommendations"]
         ]
 
-        self.assertEqual(base_quants, ext_quants)
-        self.assertEqual(hist_res_base[0]["market"], hist_res_extended[0]["market"])
-        self.assertEqual(hist_res_base[0]["summary"], hist_res_extended[0]["summary"])
+        assert base_quants == ext_quants
+        assert hist_res_base[0]["market"] == hist_res_extended[0]["market"]
+        assert hist_res_base[0]["summary"] == hist_res_extended[0]["summary"]
 
         # Also verify parity between production path (given data sliced at T) and historical path (given extended data as_of T)
         prod_quants = [
             extract_quantitative_recommendation(r) for r in prod_res_base[0]["recommendations"]
         ]
-        self.assertEqual(prod_quants, ext_quants)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert prod_quants == ext_quants

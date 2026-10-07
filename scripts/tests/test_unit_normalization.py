@@ -13,7 +13,7 @@ Covers Tests 1 through 10:
 - 10. Regression test suite compatibility (data_as_of and clean data boundary).
 """
 
-import unittest
+import pytest
 
 import numpy as np
 import pandas as pd
@@ -33,13 +33,14 @@ from scripts.lib.vietnam_market import (
 )
 
 
-class TestUnitNormalizationSuite(unittest.TestCase):
+@pytest.mark.unit
+class TestUnitNormalizationSuite:
     def test_unit_constants(self):
         """Verify canonical internal unit contract metadata constants."""
-        self.assertEqual(PRICE_UNIT, "VND/share")
-        self.assertEqual(VOLUME_UNIT, "shares")
-        self.assertEqual(TRADING_VALUE_UNIT, "VND")
-        self.assertEqual(AVG_TRADING_VALUE_UNIT, "billion_VND")
+        assert PRICE_UNIT == "VND/share"
+        assert VOLUME_UNIT == "shares"
+        assert TRADING_VALUE_UNIT == "VND"
+        assert AVG_TRADING_VALUE_UNIT == "billion_VND"
 
     def test_a_explicit_price_conversion(self):
         """1. Given 50.0 thousand VND/share, normalize_ohlcv_units produces 50,000 VND/share."""
@@ -55,28 +56,28 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         df_norm = normalize_ohlcv_units(
             df_raw, source_price_unit="thousand_VND/share", source_volume_unit="shares"
         )
-        self.assertEqual(df_norm["close"].iloc[0], 50000.0)
-        self.assertEqual(df_norm["open"].iloc[0], 49500.0)
-        self.assertEqual(df_norm["high"].iloc[0], 51000.0)
-        self.assertEqual(df_norm["low"].iloc[0], 49000.0)
+        assert df_norm["close"].iloc[0] == 50000.0
+        assert df_norm["open"].iloc[0] == 49500.0
+        assert df_norm["high"].iloc[0] == 51000.0
+        assert df_norm["low"].iloc[0] == 49000.0
 
     def test_b_no_magnitude_heuristic(self):
         """2. Conversion strictly follows declared source unit contract, independent of numeric magnitude."""
         # Low numeric value (e.g. 0.5) with declared unit 'thousand_VND/share' -> 500.0 VND/share
         df_low = pd.DataFrame({"close": [0.5], "volume": [1000.0]})
         norm_low = normalize_ohlcv_units(df_low, source_price_unit="thousand_VND/share")
-        self.assertEqual(norm_low["close"].iloc[0], 500.0)
+        assert norm_low["close"].iloc[0] == 500.0
 
         # Dataset already in VND/share with declared unit 'VND/share' -> 500.0 VND/share
         df_already_vnd = pd.DataFrame({"close": [500.0], "volume": [1000.0]})
         norm_already_vnd = normalize_ohlcv_units(df_already_vnd, source_price_unit="VND/share")
-        self.assertEqual(norm_already_vnd["close"].iloc[0], 500.0)
+        assert norm_already_vnd["close"].iloc[0] == 500.0
 
     def test_c_volume_preservation(self):
         """3. Given 1,000,000 shares, normalize_ohlcv_units preserves 1,000,000 shares."""
         df = pd.DataFrame({"close": [50000.0], "volume": [1_000_000.0]})
         norm = normalize_ohlcv_units(df, source_volume_unit="shares")
-        self.assertEqual(norm["volume"].iloc[0], 1_000_000.0)
+        assert norm["volume"].iloc[0] == 1_000_000.0
 
     def test_d_trading_value_formula(self):
         """4. 50,000 VND/share x 1,000,000 shares produces 50,000,000,000 VND (50 billion VND)."""
@@ -90,10 +91,10 @@ class TestUnitNormalizationSuite(unittest.TestCase):
             }
         )
         trading_value_vnd = df["close"].iloc[0] * df["volume"].iloc[0]
-        self.assertEqual(trading_value_vnd, 50_000_000_000.0)
+        assert trading_value_vnd == 50_000_000_000.0
 
         metrics = calculate_t25_risk_metrics(df)
-        self.assertEqual(metrics["avg_value_20d"], 50.0)
+        assert metrics["avg_value_20d"] == 50.0
 
     def test_e_20_day_average_exactness(self):
         """5. 20-day average trading value equals mean(trading_value_vnd) / 1e9 exactness."""
@@ -107,16 +108,16 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         expected_avg_bn = round(float(expected_trading_values.mean()) / 1e9, 2)
 
         metrics = calculate_t25_risk_metrics(df)
-        self.assertEqual(metrics["avg_value_20d"], expected_avg_bn)
+        assert metrics["avg_value_20d"] == expected_avg_bn
 
     def test_f_invalid_units_raise_error(self):
         """6. Unsupported source price or volume units raise ValueError loudly."""
         df = pd.DataFrame({"close": [50.0], "volume": [1000.0]})
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             normalize_ohlcv_units(df, source_price_unit="invalid_price_unit")
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             normalize_ohlcv_units(df, source_volume_unit="unknown_volume_unit")
 
     def test_g_no_double_conversion(self):
@@ -142,7 +143,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
 
         # Risk metrics and recommendation consumption directly without re-scaling
         metrics = calculate_t25_risk_metrics(df_norm)
-        self.assertEqual(metrics["avg_value_20d"], 30.0)
+        assert metrics["avg_value_20d"] == 30.0
 
         rec = generate_recommendation(
             symbol="TEST",
@@ -152,7 +153,7 @@ class TestUnitNormalizationSuite(unittest.TestCase):
             df_stock=df_norm,
             market_regime_info={"regime": "BULL"},
         )
-        self.assertEqual(rec["trade_plan"]["current_price"], 30000.0)
+        assert rec["trade_plan"]["current_price"] == 30000.0
 
     def test_h_risk_metrics_invariant(self):
         """8. Verify VaR, ES, Volatility, and Max Drawdown remain unchanged between raw percentage dynamics."""
@@ -168,10 +169,10 @@ class TestUnitNormalizationSuite(unittest.TestCase):
         )
 
         metrics = calculate_t25_risk_metrics(df)
-        self.assertIsNotNone(metrics["var_t25"])
-        self.assertIsNotNone(metrics["es_t25"])
-        self.assertIsNotNone(metrics["volatility_60d"])
-        self.assertIsNotNone(metrics["max_drawdown"])
+        assert metrics["var_t25"] is not None
+        assert metrics["es_t25"] is not None
+        assert metrics["volatility_60d"] is not None
+        assert metrics["max_drawdown"] is not None
 
     def test_i_liquidity_ranking_invariant(self):
         """9. Relative liquidity ordering is preserved after canonical unit normalization."""
@@ -181,13 +182,11 @@ class TestUnitNormalizationSuite(unittest.TestCase):
             {"risk_metrics": {"avg_value_20d": 100.0, "liquidity_score": None}},
         ]
         norm = normalize_universe_liquidity_scores(scanned, market_regime="BULL")
-        self.assertLess(
-            norm[0]["risk_metrics"]["liquidity_score"],
-            norm[1]["risk_metrics"]["liquidity_score"],
+        assert (
+            norm[0]["risk_metrics"]["liquidity_score"] < norm[1]["risk_metrics"]["liquidity_score"]
         )
-        self.assertLess(
-            norm[1]["risk_metrics"]["liquidity_score"],
-            norm[2]["risk_metrics"]["liquidity_score"],
+        assert (
+            norm[1]["risk_metrics"]["liquidity_score"] < norm[2]["risk_metrics"]["liquidity_score"]
         )
 
     def test_j_data_quality_and_date_compatibility(self):
@@ -205,12 +204,8 @@ class TestUnitNormalizationSuite(unittest.TestCase):
 
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
         # Ensure invalid dates fail closed
-        self.assertTrue(clean_df.empty)
-        self.assertEqual(val_res["status"], "INSUFFICIENT")
-        self.assertIn("invalid_dates", val_res["issues"])
+        assert clean_df.empty
+        assert val_res["status"] == "INSUFFICIENT"
+        assert "invalid_dates" in val_res["issues"]
         # Ensure raw DataFrame was not mutated
-        self.assertEqual(len(df_raw), 4)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert len(df_raw) == 4

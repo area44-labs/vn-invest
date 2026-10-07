@@ -7,10 +7,10 @@ Verifies:
 4. Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
 """
 
+import pytest
 import json
 import os
 import tempfile
-import unittest
 
 from scripts.monitoring.evaluator import (
     evaluate_production_monitoring,
@@ -33,35 +33,36 @@ from scripts.monitoring.performance import (
 )
 
 
-class TestMonitoringSubsystem(unittest.TestCase):
+@pytest.mark.unit
+class TestMonitoringSubsystem:
     """Unit test suite for decomposed scripts.monitoring components."""
 
     def test_canonical_date_validation(self):
         """Verify date format check utility."""
-        self.assertTrue(is_canonical_yyyy_mm_dd("2026-03-31"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-3-31"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-02-29"))  # invalid leap year for 2026
-        self.assertFalse(is_canonical_yyyy_mm_dd(True))
-        self.assertFalse(is_canonical_yyyy_mm_dd(None))
+        assert is_canonical_yyyy_mm_dd("2026-03-31")
+        assert not is_canonical_yyyy_mm_dd("2026-3-31")
+        assert not is_canonical_yyyy_mm_dd("2026-02-29")  # invalid leap year for 2026
+        assert not is_canonical_yyyy_mm_dd(True)
+        assert not is_canonical_yyyy_mm_dd(None)
 
     def test_confidence_bucket_classification(self):
         """Verify confidence score bucket classification."""
-        self.assertEqual(classify_confidence_bucket(0.0), "0.0-0.1")
-        self.assertEqual(classify_confidence_bucket(0.55), "0.5-0.6")
-        self.assertEqual(classify_confidence_bucket(1.0), "0.9-1.0")
-        self.assertIsNone(classify_confidence_bucket(None))
-        with self.assertRaises(ValueError):
+        assert classify_confidence_bucket(0.0) == "0.0-0.1"
+        assert classify_confidence_bucket(0.55) == "0.5-0.6"
+        assert classify_confidence_bucket(1.0) == "0.9-1.0"
+        assert classify_confidence_bucket(None) is None
+        with pytest.raises(ValueError):
             classify_confidence_bucket(1.5)
 
     def test_json_sanitization(self):
         """Verify NaN/Inf sanitization for JSON serialization."""
         data = {"a": float("nan"), "b": [float("inf"), float("-inf"), 1.23]}
         sanitized = _sanitize_value_for_json(data)
-        self.assertEqual(sanitized["a"], "NaN")
-        self.assertEqual(sanitized["b"], ["Inf", "-Inf", 1.23])
+        assert sanitized["a"] == "NaN"
+        assert sanitized["b"] == ["Inf", "-Inf", 1.23]
 
         nan_issues = find_nan_or_inf(data)
-        self.assertEqual(len(nan_issues), 3)
+        assert len(nan_issues) == 3
 
     def test_check_result_models(self):
         """Verify dataclasses validate check statuses."""
@@ -72,9 +73,9 @@ class TestMonitoringSubsystem(unittest.TestCase):
             expected_condition=">0",
             message="Passed",
         )
-        self.assertEqual(ck.to_dict()["status"], "PASS")
+        assert ck.to_dict()["status"] == "PASS"
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CheckResult(
                 check_name="invalid",
                 status="UNKNOWN_STATUS",
@@ -87,21 +88,22 @@ class TestMonitoringSubsystem(unittest.TestCase):
         """Verify normalization of market payload shapes."""
         raw = {"regime": "BULLISH", "data_as_of": "2026-03-30", "metrics": {}}
         norm = normalize_market_payload(raw, data_as_of="2026-03-30")
-        self.assertEqual(norm["data_as_of"], "2026-03-30")
-        self.assertEqual(norm["market"]["regime"], "BULLISH")
-        self.assertNotIn("data_as_of", norm["market"])
+        assert norm["data_as_of"] == "2026-03-30"
+        assert norm["market"]["regime"] == "BULLISH"
+        assert "data_as_of" not in norm["market"]
 
     def test_performance_schema_loading_and_validation(self):
         """Verify performance schema validation in performance module."""
         schema = load_performance_schema()
-        self.assertIsInstance(schema, dict)
+        assert isinstance(schema, dict)
 
         payload = create_default_performance_payload()
-        self.assertIn("stages", payload)
+        assert "stages" in payload
         validate_performance_payload(payload)
 
 
-class TestBackwardCompatibilityImports(unittest.TestCase):
+@pytest.mark.unit
+class TestBackwardCompatibilityImports:
     """Verify that all public symbols re-exported via `scripts.lib.monitoring` match `scripts.monitoring`."""
 
     def test_reexported_symbols_identity(self):
@@ -139,29 +141,27 @@ class TestBackwardCompatibilityImports(unittest.TestCase):
         ]
 
         for name in exported_names:
-            self.assertTrue(
-                hasattr(legacy_mon, name),
-                f"Legacy scripts.lib.monitoring missing re-export '{name}'",
+            assert hasattr(legacy_mon, name), (
+                f"Legacy scripts.lib.monitoring missing re-export '{name}'"
             )
             legacy_attr = getattr(legacy_mon, name)
             new_attr = getattr(new_mon, name)
-            self.assertIs(
-                legacy_attr,
-                new_attr,
-                f"Attribute '{name}' in scripts.lib.monitoring is not identical to scripts.monitoring",
+            assert legacy_attr is new_attr, (
+                f"Attribute '{name}' in scripts.lib.monitoring is not identical to scripts.monitoring"
             )
 
 
-class TestMonitoringFailSafeAndIsolation(unittest.TestCase):
+@pytest.mark.unit
+class TestMonitoringFailSafeAndIsolation:
     """Verify monitoring subsystem isolation and fail-closed behaviors."""
 
     def test_evaluate_production_monitoring_missing_payload_fail_closed(self):
         """Verify missing payload causes evaluate_production_monitoring to return overall_status == FAIL without crashing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             res = evaluate_production_monitoring(generated_dir=tmpdir)
-            self.assertIsInstance(res, PipelineMonitoringResult)
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertIn("error", res.metrics)
+            assert isinstance(res, PipelineMonitoringResult)
+            assert res.overall_status == "FAIL"
+            assert "error" in res.metrics
 
     def test_monitoring_failure_does_not_mutate_business_payloads(self):
         """Verify that running monitoring checks does not mutate input recommendation or market payloads."""
@@ -221,10 +221,6 @@ class TestMonitoringFailSafeAndIsolation(unittest.TestCase):
                 reference_date="2026-03-31",
             )
 
-            self.assertIsInstance(res, PipelineMonitoringResult)
-            self.assertEqual(rec_payload, rec_payload_copy)
-            self.assertEqual(market_payload, market_payload_copy)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert isinstance(res, PipelineMonitoringResult)
+            assert rec_payload == rec_payload_copy
+            assert market_payload == market_payload_copy

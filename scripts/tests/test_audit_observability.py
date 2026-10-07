@@ -1,10 +1,10 @@
 """Deterministic offline regression tests for production data-quality auditability and observability."""
 
+import pytest
 import copy
 import json
 import os
 import tempfile
-import unittest
 
 from scripts.lib.config import SIGNAL_MODEL_VERSION
 from scripts.lib.monitoring import (
@@ -13,10 +13,11 @@ from scripts.lib.monitoring import (
 )
 
 
-class TestAuditTrailObservability(unittest.TestCase):
+@pytest.mark.unit
+class TestAuditTrailObservability:
     """Offline regression tests covering universe audit coverage, exclusion reasons, and invariant cross-checks."""
 
-    def setUp(self):
+    def setup_method(self):
         self.reference_date = "2026-09-25"
         self.data_as_of = "2026-09-25"
 
@@ -209,8 +210,8 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [],
         }
         res = check_universe_audit_invariants(audit, self.healthy_payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["summary"]["diagnostic_count"], 0)
+        assert res.status == "PASS"
+        assert audit["summary"]["diagnostic_count"] == 0
 
     def test_scenario_2_one_invalid_symbol(self):
         """Scenario 2: One invalid symbol in candidates universe."""
@@ -252,9 +253,9 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["category"], "INVALID_SYMBOL")
-        self.assertEqual(audit["exclusions"][0]["stage"], "STOCK_FETCH")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["category"] == "INVALID_SYMBOL"
+        assert audit["exclusions"][0]["stage"] == "STOCK_FETCH"
 
     def test_scenario_3_one_insufficient_history_symbol(self):
         """Scenario 3: One symbol with insufficient historical data."""
@@ -296,8 +297,8 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["category"], "INSUFFICIENT_HISTORICAL_DATA")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["category"] == "INSUFFICIENT_HISTORICAL_DATA"
 
     def test_scenario_4_one_provider_failure(self):
         """Scenario 4: One symbol encountering provider failure."""
@@ -339,8 +340,8 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["category"], "PROVIDER_FAILURE")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["category"] == "PROVIDER_FAILURE"
 
     def test_scenario_5_one_temporal_invalid_symbol(self):
         """Scenario 5: One symbol failing temporal validation."""
@@ -382,9 +383,9 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["stage"], "TEMPORAL_VALIDATION")
-        self.assertEqual(audit["exclusions"][0]["category"], "TEMPORAL_INVALID")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["stage"] == "TEMPORAL_VALIDATION"
+        assert audit["exclusions"][0]["category"] == "TEMPORAL_INVALID"
 
     def test_scenario_6_mixed_classifications(self):
         """Scenario 6: Universe containing mixed symbol classifications."""
@@ -465,17 +466,16 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": exclusions,
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
+        assert res.status == "PASS"
 
         # Verify sum invariant: expected == processed + invalid + insufficient + failed + missing
         c = audit["counts"]
-        self.assertEqual(
-            c["expected_count"],
+        assert c["expected_count"] == (
             c["processed_count"]
             + c["invalid_count"]
             + c["insufficient_history_count"]
             + c["failed_count"]
-            + c["missing_count"],
+            + c["missing_count"]
         )
 
     def test_scenario_7_missing_symbol_detection(self):
@@ -515,9 +515,9 @@ class TestAuditTrailObservability(unittest.TestCase):
             "diagnostics": [ex_record],
         }
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["category"], "UNIVERSE_INCOMPLETE")
-        self.assertEqual(audit["exclusions"][0]["status"], "MISSING")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["category"] == "UNIVERSE_INCOMPLETE"
+        assert audit["exclusions"][0]["status"] == "MISSING"
 
     def test_scenario_8_duplicate_classification_detection(self):
         """Scenario 8: Detection of duplicate classification (symbol in multiple disjoint sets)."""
@@ -559,8 +559,8 @@ class TestAuditTrailObservability(unittest.TestCase):
             ],
         }
         res = check_universe_audit_invariants(audit, self.healthy_payload)
-        self.assertEqual(res.status, "FAIL")
-        self.assertIn("Duplicate symbol classification detected", res.message)
+        assert res.status == "FAIL"
+        assert "Duplicate symbol classification detected" in res.message
 
     def test_scenario_9_monitoring_count_consistency(self):
         """Scenario 9: Verification that production monitoring consumes exact pipeline universe_audit counts."""
@@ -611,7 +611,7 @@ class TestAuditTrailObservability(unittest.TestCase):
             )
 
             mon_dict = mon_res.to_dict()
-            self.assertEqual(mon_dict["metrics"]["universe_audit"], audit_input)
+            assert mon_dict["metrics"]["universe_audit"] == audit_input
 
     def test_scenario_10_monitoring_count_mismatch_internal_consistency_failure(self):
         """Scenario 10: Count mismatch between set lengths and reported counts raises internal consistency failure."""
@@ -638,8 +638,8 @@ class TestAuditTrailObservability(unittest.TestCase):
         }
 
         res = check_universe_audit_invariants(audit_mismatched, self.healthy_payload)
-        self.assertEqual(res.status, "FAIL")
-        self.assertIn("Count mismatch for expected", res.message)
+        assert res.status == "FAIL"
+        assert "Count mismatch for expected" in res.message
 
     def test_scenario_11_monitoring_fail_diagnostic_identifies_failed_check(self):
         """Scenario 11: When monitoring produces FAIL, diagnostics explicitly identify the failed check."""
@@ -663,19 +663,17 @@ class TestAuditTrailObservability(unittest.TestCase):
             )
 
             mon_dict = mon_res.to_dict()
-            self.assertEqual(mon_dict["overall_status"], "FAIL")
+            assert mon_dict["overall_status"] == "FAIL"
 
             # Check that failed monitoring diagnostics exist
             diag = mon_dict["metrics"]["monitoring_diagnostics"]
-            self.assertGreater(len(diag), 0)
+            assert len(diag) > 0
             failed_checks = [d["check"] for d in diag]
-            self.assertTrue(
-                any(c in failed_checks for c in ("data_freshness", "artifact_existence"))
-            )
+            assert any(c in failed_checks for c in ("data_freshness", "artifact_existence"))
             for d in diag:
-                self.assertEqual(d["stage"], "MONITORING")
-                self.assertEqual(d["category"], "MONITORING_FAILURE")
-                self.assertEqual(d["status"], "FAIL")
+                assert d["stage"] == "MONITORING"
+                assert d["category"] == "MONITORING_FAILURE"
+                assert d["status"] == "FAIL"
 
     def test_scenario_12_output_validation_failure_correct_stage_category(self):
         """Scenario 12: Payload validation failure identifies stage = OUTPUT_VALIDATION, category = OUTPUT_VALIDATION_FAILURE."""
@@ -684,17 +682,17 @@ class TestAuditTrailObservability(unittest.TestCase):
         invalid_payload = copy.deepcopy(self.healthy_payload)
         invalid_payload["recommendations"][0]["signal_score"] = 150.0  # Out of bounds score
 
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             validate_final_payload_integrity(invalid_payload, payload_name="recommendations")
 
-        exc = cm.exception
-        self.assertTrue(hasattr(exc, "diagnostics"))
-        self.assertGreater(len(exc.diagnostics), 0)
+        exc = cm.value
+        assert hasattr(exc, "diagnostics")
+        assert len(exc.diagnostics) > 0
         diag = exc.diagnostics[0]
-        self.assertEqual(diag["stage"], "OUTPUT_VALIDATION")
-        self.assertEqual(diag["category"], "OUTPUT_VALIDATION_FAILURE")
-        self.assertEqual(diag["payload"], "recommendations")
-        self.assertEqual(diag["status"], "FAIL")
+        assert diag["stage"] == "OUTPUT_VALIDATION"
+        assert diag["category"] == "OUTPUT_VALIDATION_FAILURE"
+        assert diag["payload"] == "recommendations"
+        assert diag["status"] == "FAIL"
 
     def test_scenario_13_rate_limit_failure(self):
         """Scenario 13: Rate limit failure produces stage = STOCK_FETCH, category = RATE_LIMIT."""
@@ -738,8 +736,8 @@ class TestAuditTrailObservability(unittest.TestCase):
         }
 
         res = check_universe_audit_invariants(audit, payload)
-        self.assertEqual(res.status, "PASS")
-        self.assertEqual(audit["exclusions"][0]["category"], "RATE_LIMIT")
+        assert res.status == "PASS"
+        assert audit["exclusions"][0]["category"] == "RATE_LIMIT"
 
     def test_scenario_14_artifact_preservation_remains_unchanged(self):
         """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk byte-for-byte."""
@@ -777,29 +775,29 @@ class TestAuditTrailObservability(unittest.TestCase):
             corrupted_payload = copy.deepcopy(self.healthy_payload)
             corrupted_payload["recommendations"][0]["signal_score"] = -999.0  # Out of bounds
 
-            with self.assertRaises(ValueError) as cm:
+            with pytest.raises(ValueError) as cm:
                 validate_final_payload_integrity(corrupted_payload, payload_name="recommendations")
 
-            self.assertIn("stage OUTPUT_VALIDATION", str(cm.exception))
+            assert "stage OUTPUT_VALIDATION" in str(cm.value)
 
             # Verify every pre-existing artifact is byte-for-byte unchanged
             for fpath, original_bytes in bytes_before.items():
                 with open(fpath, "rb") as f:
                     current_bytes = f.read()
-                self.assertEqual(
-                    current_bytes,
-                    original_bytes,
-                    f"Artifact '{os.path.basename(fpath)}' was modified during validation failure",
+                assert current_bytes == original_bytes, (
+                    f"Artifact '{os.path.basename(fpath)}' was modified during validation failure"
                 )
 
             # Verify no unexpected partial or temp files were left in tmpdir
             all_files_in_root = set(os.listdir(tmpdir))
             all_files_in_hist = set(os.listdir(hist_dir))
-            self.assertEqual(
-                all_files_in_root,
-                {"recommendations.json", "market.json", "monitoring.json", "history"},
-            )
-            self.assertEqual(all_files_in_hist, {"index.json", "2026-09-25.json"})
+            assert all_files_in_root == {
+                "recommendations.json",
+                "market.json",
+                "monitoring.json",
+                "history",
+            }
+            assert all_files_in_hist == {"index.json", "2026-09-25.json"}
 
     def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
         """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
@@ -888,14 +886,10 @@ class TestAuditTrailObservability(unittest.TestCase):
         audit_run_2 = build_universe_audit(scan_result=scan_2, update_data=False)
 
         # Assert exact equality across runs
-        self.assertEqual(audit_run_1, audit_run_2)
+        assert audit_run_1 == audit_run_2
 
         # Assert symbol lists are deterministically sorted
-        self.assertEqual(audit_run_1["expected_symbols"], sorted(audit_run_1["expected_symbols"]))
-        self.assertEqual(audit_run_1["processed_symbols"], sorted(audit_run_1["processed_symbols"]))
+        assert audit_run_1["expected_symbols"] == sorted(audit_run_1["expected_symbols"])
+        assert audit_run_1["processed_symbols"] == sorted(audit_run_1["processed_symbols"])
         symbols_in_diagnostics = [d["symbol"] for d in audit_run_1["diagnostics"]]
-        self.assertEqual(symbols_in_diagnostics, sorted(symbols_in_diagnostics))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert symbols_in_diagnostics == sorted(symbols_in_diagnostics)

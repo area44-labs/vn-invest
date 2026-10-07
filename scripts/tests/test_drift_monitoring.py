@@ -4,7 +4,7 @@ Verifies operational data drift, model-output drift, baseline contracts, thresho
 strict fail-closed temporal safety, and production monitoring pipeline integration.
 """
 
-import unittest
+import pytest
 from datetime import UTC, datetime
 
 from scripts.lib.monitoring import (
@@ -114,34 +114,36 @@ def make_mock_payload(
     }
 
 
-class TestConfidenceBucketClassification(unittest.TestCase):
+@pytest.mark.unit
+class TestConfidenceBucketClassification:
     """Test suite for classify_confidence_bucket logic and edge cases."""
 
     def test_valid_confidence_scores(self):
-        self.assertEqual(classify_confidence_bucket(0.0), "0.0-0.1")
-        self.assertEqual(classify_confidence_bucket(0.05), "0.0-0.1")
-        self.assertEqual(classify_confidence_bucket(0.10), "0.1-0.2")
-        self.assertEqual(classify_confidence_bucket(0.55), "0.5-0.6")
-        self.assertEqual(classify_confidence_bucket(0.95), "0.9-1.0")
-        self.assertEqual(classify_confidence_bucket(1.00), "0.9-1.0")
-        self.assertIsNone(classify_confidence_bucket(None))
+        assert classify_confidence_bucket(0.0) == "0.0-0.1"
+        assert classify_confidence_bucket(0.05) == "0.0-0.1"
+        assert classify_confidence_bucket(0.10) == "0.1-0.2"
+        assert classify_confidence_bucket(0.55) == "0.5-0.6"
+        assert classify_confidence_bucket(0.95) == "0.9-1.0"
+        assert classify_confidence_bucket(1.00) == "0.9-1.0"
+        assert classify_confidence_bucket(None) is None
 
     def test_invalid_confidence_scores_raise_errors(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             classify_confidence_bucket(-0.1)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             classify_confidence_bucket(1.1)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             classify_confidence_bucket(float("nan"))
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             classify_confidence_bucket(float("inf"))
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             classify_confidence_bucket("0.8")
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             classify_confidence_bucket(True)
 
 
-class TestDriftBaselineValidation(unittest.TestCase):
+@pytest.mark.unit
+class TestDriftBaselineValidation:
     """Test suite for historical baseline contract, sufficiency, and invalid baseline error handling."""
 
     def test_sufficient_baseline_data(self):
@@ -155,9 +157,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
-        self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
-        self.assertEqual(res.baseline_summary["report_count"], 5)
+        assert res.overall_status == "PASS"
+        assert res.baseline_summary["status"] == "SUFFICIENT"
+        assert res.baseline_summary["report_count"] == 5
 
     def test_insufficient_baseline_data(self):
         """Verify baseline with fewer than 5 historical reports returns WARNING status."""
@@ -170,14 +172,12 @@ class TestDriftBaselineValidation(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(res.overall_status, "WARNING")
-        self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
-        self.assertEqual(res.baseline_summary["available_reports"], 3)
-        self.assertEqual(len(res.drift_checks), 1)
-        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
-        self.assertIn(
-            "INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message
-        )
+        assert res.overall_status == "WARNING"
+        assert res.baseline_summary["status"] == "INSUFFICIENT"
+        assert res.baseline_summary["available_reports"] == 3
+        assert len(res.drift_checks) == 1
+        assert res.drift_checks[0].check_name == "drift_baseline_sufficiency"
+        assert "INSUFFICIENT baseline historical data" in res.drift_checks[0].observation.message
 
     def test_missing_history_index_file_fails_closed(self):
         """Verify missing history/index.json fails closed with FAIL status."""
@@ -192,9 +192,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
                 history_index_data=None,
             )
 
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertEqual(res.baseline_summary["status"], "FAIL")
-            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+            assert res.overall_status == "FAIL"
+            assert res.baseline_summary["status"] == "FAIL"
+            assert res.drift_checks[0].check_name == "drift_history_index"
 
     def test_malformed_history_index_file_fails_closed(self):
         """Verify malformed JSON history/index.json fails closed with FAIL status."""
@@ -214,9 +214,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
                 generated_dir=tmpdir,
             )
 
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertEqual(res.baseline_summary["status"], "FAIL")
-            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+            assert res.overall_status == "FAIL"
+            assert res.baseline_summary["status"] == "FAIL"
+            assert res.drift_checks[0].check_name == "drift_history_index"
 
     def test_injected_history_index_data_none_with_missing_disk_index_fails_closed(self):
         """Verify explicit history_index_data=None when no disk index exists fails closed with FAIL status."""
@@ -231,9 +231,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
                 history_index_data=None,
             )
 
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertEqual(res.baseline_summary["status"], "FAIL")
-            self.assertEqual(res.drift_checks[0].check_name, "drift_history_index")
+            assert res.overall_status == "FAIL"
+            assert res.baseline_summary["status"] == "FAIL"
+            assert res.drift_checks[0].check_name == "drift_history_index"
 
     def test_valid_history_index_with_fewer_than_min_baseline_reports_yields_warning(self):
         """Verify valid history index with 1 to 4 baseline reports yields WARNING status and INSUFFICIENT baseline."""
@@ -260,10 +260,10 @@ class TestDriftBaselineValidation(unittest.TestCase):
                 generated_dir=tmpdir,
             )
 
-            self.assertEqual(res.overall_status, "WARNING")
-            self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
-            self.assertEqual(res.baseline_summary["available_reports"], 3)
-            self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
+            assert res.overall_status == "WARNING"
+            assert res.baseline_summary["status"] == "INSUFFICIENT"
+            assert res.baseline_summary["available_reports"] == 3
+            assert res.drift_checks[0].check_name == "drift_baseline_sufficiency"
 
     def test_valid_history_index_with_min_baseline_reports_runs_drift_calculation(self):
         """Verify valid history index with >= min_baseline_reports executes normal drift calculation."""
@@ -297,9 +297,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
                 generated_dir=tmpdir,
             )
 
-            self.assertEqual(res.overall_status, "PASS")
-            self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
-            self.assertEqual(res.baseline_summary["report_count"], 5)
+            assert res.overall_status == "PASS"
+            assert res.baseline_summary["status"] == "SUFFICIENT"
+            assert res.baseline_summary["report_count"] == 5
 
     def test_history_index_duplicate_dates_fail_closed(self):
         """Verify duplicate dates in history index fail closed (FAIL status)."""
@@ -312,9 +312,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
             history_index_data=index_data,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_history_index_duplicates")
-        self.assertIn("duplicate date entries", res.drift_checks[0].observation.message)
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_history_index_duplicates"
+        assert "duplicate date entries" in res.drift_checks[0].observation.message
 
     def test_history_index_unsorted_dates_fail_closed(self):
         """Verify unsorted dates in history index fail closed (FAIL status)."""
@@ -327,9 +327,9 @@ class TestDriftBaselineValidation(unittest.TestCase):
             history_index_data=index_data,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_history_index_order")
-        self.assertIn("descending chronological order", res.drift_checks[0].observation.message)
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_history_index_order"
+        assert "descending chronological order" in res.drift_checks[0].observation.message
 
     def test_injected_future_baseline_reports_fail_closed(self):
         """Verify injected baseline report date >= T fails closed (FAIL status)."""
@@ -348,15 +348,16 @@ class TestDriftBaselineValidation(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_temporal_safety")
-        self.assertIn("Temporal safety violation", res.drift_checks[0].observation.message)
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_temporal_safety"
+        assert "Temporal safety violation" in res.drift_checks[0].observation.message
 
 
-class TestDistributionAndNumericDrift(unittest.TestCase):
+@pytest.mark.unit
+class TestDistributionAndNumericDrift:
     """Test suite for distribution drift, numeric drift, and deterministic repeatability."""
 
-    def setUp(self):
+    def setup_method(self):
         self.curr = make_mock_payload(
             data_as_of="2026-09-17",
             buy_count=5,
@@ -393,11 +394,9 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
         for chk in res.drift_checks:
-            self.assertEqual(
-                chk.status, "PASS", f"Check {chk.check_name} failed: {chk.observation.message}"
-            )
+            assert chk.status == "PASS", f"Check {chk.check_name} failed: {chk.observation.message}"
 
     def test_drift_under_threshold_yields_pass(self):
         """Verify small metric shift below warning thresholds yields PASS."""
@@ -420,7 +419,7 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
 
     def test_action_distribution_drift_exceeding_threshold_yields_warning_or_fail(self):
         """Verify massive action proportion shift (> 0.20 warning, > 0.35 fail) flags WARNING/FAIL."""
@@ -439,12 +438,12 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         action_chk = next(
             c for c in res.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(action_chk.status, "FAIL")
-        self.assertGreater(action_chk.observation.absolute_difference["max_difference"], 0.35)
+        assert action_chk.status == "FAIL"
+        assert action_chk.observation.absolute_difference["max_difference"] > 0.35
 
     def test_action_distribution_boundary_tolerance_semantics(self):
         """Verify exact boundary tolerance semantics for action distribution drift:
@@ -472,8 +471,8 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
         chk_35 = next(c for c in res_35.drift_checks if c.check_name == "drift_action_distribution")
-        self.assertEqual(chk_35.status, "WARNING")
-        self.assertEqual(chk_35.observation.absolute_difference["max_difference"], 0.35)
+        assert chk_35.status == "WARNING"
+        assert chk_35.observation.absolute_difference["max_difference"] == 0.35
 
         # 2. Production scenario reproduction: max shift = 0.350340
         # Baseline pooled scanned = 10000, 2500 BUY (25%)
@@ -509,9 +508,10 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
         chk_prod = next(
             c for c in res_prod.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(chk_prod.status, "WARNING")
-        self.assertAlmostEqual(
-            chk_prod.observation.absolute_difference["max_difference"], 0.3502, places=4
+        assert chk_prod.status == "WARNING"
+        assert (
+            round(abs(chk_prod.observation.absolute_difference["max_difference"] - (0.3502)), 4)
+            == 0
         )
 
         # 3. Shift slightly above boundary tolerance: max_action_diff = 0.3515
@@ -532,7 +532,7 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
         chk_above_tol = next(
             c for c in res_above_tol.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(chk_above_tol.status, "FAIL")
+        assert chk_above_tol.status == "FAIL"
 
         # 4. Clearly larger drift: max_action_diff = 0.40
         curr_large_drift = make_mock_payload(
@@ -552,7 +552,7 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
         chk_large = next(
             c for c in res_large.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(chk_large.status, "FAIL")
+        assert chk_large.status == "FAIL"
 
     def test_numeric_score_drift_exceeding_threshold(self):
         """Verify signal score mean drift > 15.0 warning and > 25.0 fail."""
@@ -567,10 +567,10 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         score_chk = next(c for c in res.drift_checks if c.check_name == "drift_signal_score")
-        self.assertEqual(score_chk.status, "FAIL")
-        self.assertEqual(score_chk.observation.absolute_difference, 30.0)
+        assert score_chk.status == "FAIL"
+        assert score_chk.observation.absolute_difference == 30.0
 
     def test_deterministic_repeatability(self):
         """Verify running drift evaluation twice on identical data produces identical outputs."""
@@ -585,10 +585,11 @@ class TestDistributionAndNumericDrift(unittest.TestCase):
             baseline_reports=self.baselines,
         )
 
-        self.assertEqual(res_1.to_dict(), res_2.to_dict())
+        assert res_1.to_dict() == res_2.to_dict()
 
 
-class TestTemporalSafetyRegression(unittest.TestCase):
+@pytest.mark.unit
+class TestTemporalSafetyRegression:
     """Explicit temporal safety regression tests."""
 
     def test_future_observation_appearing_before_t_in_index_fails_closed(self):
@@ -606,11 +607,12 @@ class TestTemporalSafetyRegression(unittest.TestCase):
             history_index_data=index_data,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_history_index_order")
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_history_index_order"
 
 
-class TestFeedbackRegressionCases(unittest.TestCase):
+@pytest.mark.unit
+class TestFeedbackRegressionCases:
     """Regression test suite covering user feedback review items."""
 
     def test_market_metrics_prioritize_market_payload(self):
@@ -639,10 +641,10 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
         breadth_chk = next(c for c in res.drift_checks if c.check_name == "drift_market_breadth")
-        self.assertEqual(breadth_chk.status, "PASS")
-        self.assertEqual(breadth_chk.observation.current_value, 0.60)
+        assert breadth_chk.status == "PASS"
+        assert breadth_chk.observation.current_value == 0.60
 
     def test_invalid_baseline_config_parameters_fail_closed(self):
         """Verify invalid lookback_reports or min_baseline_reports raise TypeError or ValueError."""
@@ -650,19 +652,19 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
 
         # Boolean lookback
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, lookback_reports=True
             )
 
         # Negative lookback
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, lookback_reports=-5
             )
 
         # min_baseline_reports > lookback_reports
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr,
                 baseline_reports=baselines,
@@ -679,12 +681,12 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
             baseline_reports=["not_a_dict"],  # type: ignore[list-item]
         )
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
 
         # Malformed YYYY-MM-DD date string
         bad_date = make_mock_payload(data_as_of="invalid-date")
         res = evaluate_data_and_model_drift(current_payload=curr, baseline_reports=[bad_date])
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
 
         # Unsorted dates in baseline_reports
         unsorted_baselines = [
@@ -694,20 +696,20 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         res = evaluate_data_and_model_drift(
             current_payload=curr, baseline_reports=unsorted_baselines
         )
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
 
     def test_canonical_date_validation_cases(self):
         """Verify strict canonical YYYY-MM-DD calendar date validation rules."""
         from scripts.lib.monitoring import is_canonical_yyyy_mm_dd
 
-        self.assertTrue(is_canonical_yyyy_mm_dd("2026-09-17"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-9-17"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-09-17T00:00:00"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-09-17Z"))
-        self.assertFalse(is_canonical_yyyy_mm_dd("2026-02-30"))
-        self.assertFalse(is_canonical_yyyy_mm_dd(True))
-        self.assertFalse(is_canonical_yyyy_mm_dd(12345))
-        self.assertFalse(is_canonical_yyyy_mm_dd(None))
+        assert is_canonical_yyyy_mm_dd("2026-09-17")
+        assert not is_canonical_yyyy_mm_dd("2026-9-17")
+        assert not is_canonical_yyyy_mm_dd("2026-09-17T00:00:00")
+        assert not is_canonical_yyyy_mm_dd("2026-09-17Z")
+        assert not is_canonical_yyyy_mm_dd("2026-02-30")
+        assert not is_canonical_yyyy_mm_dd(True)
+        assert not is_canonical_yyyy_mm_dd(12345)
+        assert not is_canonical_yyyy_mm_dd(None)
 
     def test_mismatched_data_as_of_between_payload_and_evaluation_date_fails(self):
         """Verify evaluation fails closed when data_as_of parameter mismatches current_payload date."""
@@ -718,8 +720,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_data_as_of_mismatch")
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_data_as_of_mismatch"
 
     def test_non_canonical_data_as_of_fails(self):
         """Verify non-canonical data_as_of strings fail closed."""
@@ -730,7 +732,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
                 data_as_of=bad_date,
                 current_payload=curr_bad,
             )
-            self.assertEqual(res.overall_status, "FAIL")
+            assert res.overall_status == "FAIL"
 
     def test_baseline_report_containing_nan_fails_closed(self):
         """Verify baseline report containing non-finite NaN value fails closed."""
@@ -745,8 +747,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_numeric_sanity")
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_baseline_numeric_sanity"
 
     def test_missing_selected_disk_baseline_artifact_fails_closed(self):
         """Verify selecting a baseline date whose artifact is missing on disk fails closed."""
@@ -761,8 +763,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             generated_dir="/non/existent/dir",
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_missing")
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_history_artifact_missing"
 
     def test_malformed_recommendation_item_fails_closed(self):
         """Verify recommendation items that are non-dict (string, None, list) fail closed."""
@@ -774,8 +776,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
                 data_as_of="2026-09-17",
                 current_payload=curr,
             )
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+            assert res.overall_status == "FAIL"
+            assert res.drift_checks[0].check_name == "drift_current_payload_malformed"
 
     def test_invalid_or_non_finite_model_metrics_fail_closed(self):
         """Verify NaN, Inf, out-of-bounds, or string metrics fail closed (FAIL status)."""
@@ -804,12 +806,10 @@ class TestFeedbackRegressionCases(unittest.TestCase):
                 data_as_of="2026-09-17",
                 current_payload=curr,
             )
-            self.assertEqual(
-                res.overall_status,
-                "FAIL",
-                f"Failed to fail-closed on {field}={bad_val} (got {res.overall_status})",
+            assert res.overall_status == "FAIL", (
+                f"Failed to fail-closed on {field}={bad_val} (got {res.overall_status})"
             )
-            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+            assert res.drift_checks[0].check_name == "drift_current_payload_malformed"
 
     def test_summary_inconsistencies_fail_closed(self):
         """Verify malformed or inconsistent payload summary fails closed with FAIL status."""
@@ -817,14 +817,14 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         curr1 = make_mock_payload(data_as_of="2026-09-17")
         curr1["summary"]["total_scanned"] = -10
         res1 = evaluate_data_and_model_drift(current_payload=curr1)
-        self.assertEqual(res1.overall_status, "FAIL")
-        self.assertEqual(res1.drift_checks[0].check_name, "drift_current_payload_malformed")
+        assert res1.overall_status == "FAIL"
+        assert res1.drift_checks[0].check_name == "drift_current_payload_malformed"
 
         # Case 2: Negative action count
         curr2 = make_mock_payload(data_as_of="2026-09-17")
         curr2["summary"]["buy_count"] = -1
         res2 = evaluate_data_and_model_drift(current_payload=curr2)
-        self.assertEqual(res2.overall_status, "FAIL")
+        assert res2.overall_status == "FAIL"
 
         # Case 3: Action count sum > total_scanned
         curr3 = make_mock_payload(data_as_of="2026-09-17")
@@ -832,39 +832,39 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         curr3["summary"]["buy_count"] = 10
         curr3["summary"]["watch_count"] = 5  # sum = 15 > total_scanned 10
         res3 = evaluate_data_and_model_drift(current_payload=curr3)
-        self.assertEqual(res3.overall_status, "FAIL")
+        assert res3.overall_status == "FAIL"
 
         # Case 4: total_scanned != len(recommendations)
         curr4 = make_mock_payload(data_as_of="2026-09-17")
         curr4["summary"]["total_scanned"] = 30  # len(recs) is 20
         res4 = evaluate_data_and_model_drift(current_payload=curr4)
-        self.assertEqual(res4.overall_status, "FAIL")
+        assert res4.overall_status == "FAIL"
 
         # Case 5: Summary action count does not match actual recommendation actions
         curr5 = make_mock_payload(data_as_of="2026-09-17")
         curr5["summary"]["buy_count"] = 10  # Actual BUY is 5
         curr5["summary"]["watch_count"] = 0
         res5 = evaluate_data_and_model_drift(current_payload=curr5)
-        self.assertEqual(res5.overall_status, "FAIL")
+        assert res5.overall_status == "FAIL"
 
         # Case 6: Sum of action counts < total_scanned
         curr6 = make_mock_payload(data_as_of="2026-09-17")
         curr6["summary"]["total_scanned"] = 20
         curr6["summary"]["buy_count"] = 0  # Sum = 15 < 20
         res6 = evaluate_data_and_model_drift(current_payload=curr6)
-        self.assertEqual(res6.overall_status, "FAIL")
+        assert res6.overall_status == "FAIL"
 
         # Case 7: Non-integer action count
         curr7 = make_mock_payload(data_as_of="2026-09-17")
         curr7["summary"]["buy_count"] = 5.5  # type: ignore[typeddict-item]
         res7 = evaluate_data_and_model_drift(current_payload=curr7)
-        self.assertEqual(res7.overall_status, "FAIL")
+        assert res7.overall_status == "FAIL"
 
         # Case 8: Bool count
         curr8 = make_mock_payload(data_as_of="2026-09-17")
         curr8["summary"]["buy_count"] = True  # type: ignore[typeddict-item]
         res8 = evaluate_data_and_model_drift(current_payload=curr8)
-        self.assertEqual(res8.overall_status, "FAIL")
+        assert res8.overall_status == "FAIL"
 
     def test_invalid_recommendation_action_value_fails_closed(self):
         """Verify missing, invalid, or non-canonical action values fail closed."""
@@ -874,12 +874,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             curr["recommendations"][0]["action"] = bad_action
 
             res = evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
-            self.assertEqual(
-                res.overall_status,
-                "FAIL",
-                f"Failed to fail-closed on action={bad_action}",
-            )
-            self.assertEqual(res.drift_checks[0].check_name, "drift_current_payload_malformed")
+            assert res.overall_status == "FAIL", f"Failed to fail-closed on action={bad_action}"
+            assert res.drift_checks[0].check_name == "drift_current_payload_malformed"
 
     def test_invalid_market_metrics_fail_closed(self):
         """Verify string, bool, NaN, Inf, or out-of-range market metrics fail closed."""
@@ -889,10 +885,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             curr["market"]["metrics"]["market_breadth_ratio"] = bad_breadth
 
             res = evaluate_data_and_model_drift(current_payload=curr)
-            self.assertEqual(
-                res.overall_status,
-                "FAIL",
-                f"Failed to fail-closed on market_breadth_ratio={bad_breadth}",
+            assert res.overall_status == "FAIL", (
+                f"Failed to fail-closed on market_breadth_ratio={bad_breadth}"
             )
 
         # 2. Invalid vnindex_change_pct
@@ -901,10 +895,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             curr["market"]["metrics"]["vnindex_change_pct"] = bad_pct
 
             res = evaluate_data_and_model_drift(current_payload=curr)
-            self.assertEqual(
-                res.overall_status,
-                "FAIL",
-                f"Failed to fail-closed on vnindex_change_pct={bad_pct}",
+            assert res.overall_status == "FAIL", (
+                f"Failed to fail-closed on vnindex_change_pct={bad_pct}"
             )
 
     def test_invalid_threshold_configuration_fails_closed(self):
@@ -918,7 +910,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         orig_proc_thresh = mon.DRIFT_THRESHOLD_PROCESSED_RATIO
         try:
             mon.DRIFT_THRESHOLD_PROCESSED_RATIO = (-0.1, 0.2)  # type: ignore[assignment]
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
         finally:
             mon.DRIFT_THRESHOLD_PROCESSED_RATIO = orig_proc_thresh
@@ -927,7 +919,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
         orig_signal_thresh = mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
         try:
             mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = (20.0, 10.0)  # type: ignore[assignment]
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 evaluate_data_and_model_drift(current_payload=curr, baseline_reports=baselines)
         finally:
             mon.DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN = orig_signal_thresh
@@ -944,8 +936,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             baseline_reports=[b_bad],
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_reports_injected")
+        assert res.overall_status == "FAIL"
+        assert res.drift_checks[0].check_name == "drift_baseline_reports_injected"
 
     def test_market_payload_temporal_consistency(self):
         """Verify strict temporal consistency check for explicit market_payload."""
@@ -969,7 +961,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             market_payload=m_valid,
             baseline_reports=baselines,
         )
-        self.assertEqual(res1.overall_status, "PASS")
+        assert res1.overall_status == "PASS"
 
         # 2. Market payload with date < T -> FAIL
         m_past = dict(m_valid, data_as_of="2026-09-16")
@@ -978,8 +970,8 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
             market_payload=m_past,
         )
-        self.assertEqual(res2.overall_status, "FAIL")
-        self.assertEqual(res2.drift_checks[0].check_name, "drift_market_payload_temporal_safety")
+        assert res2.overall_status == "FAIL"
+        assert res2.drift_checks[0].check_name == "drift_market_payload_temporal_safety"
 
         # 3. Market payload with date > T -> FAIL
         m_future = dict(m_valid, data_as_of="2026-09-18")
@@ -988,7 +980,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
             market_payload=m_future,
         )
-        self.assertEqual(res3.overall_status, "FAIL")
+        assert res3.overall_status == "FAIL"
 
         # 4. Malformed/non-canonical date -> FAIL
         m_bad_date = dict(m_valid, data_as_of="2026-9-17")
@@ -997,7 +989,7 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
             market_payload=m_bad_date,
         )
-        self.assertEqual(res4.overall_status, "FAIL")
+        assert res4.overall_status == "FAIL"
 
         # 5. Market payload missing data_as_of -> FAIL
         m_no_date = {
@@ -1014,10 +1006,11 @@ class TestFeedbackRegressionCases(unittest.TestCase):
             current_payload=curr,
             market_payload=m_no_date,
         )
-        self.assertEqual(res5.overall_status, "FAIL")
+        assert res5.overall_status == "FAIL"
 
 
-class TestProductionMonitoringIntegration(unittest.TestCase):
+@pytest.mark.unit
+class TestProductionMonitoringIntegration:
     """Test suite verifying integration of drift detection into evaluate_production_monitoring()."""
 
     def test_monitoring_runs_drift_checks_and_validates_payload(self):
@@ -1058,14 +1051,14 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
             )
 
             payload_dict = res.to_dict()
-            self.assertTrue(validate_monitoring_payload(payload_dict))
-            self.assertIn("drift_monitoring", res.metrics)
+            assert validate_monitoring_payload(payload_dict)
+            assert "drift_monitoring" in res.metrics
 
             # Check that drift check results are present in checks array
             check_names = [c.check_name for c in res.checks]
-            self.assertIn("drift_processed_ratio", check_names)
-            self.assertIn("drift_action_distribution", check_names)
-            self.assertIn("drift_signal_score", check_names)
+            assert "drift_processed_ratio" in check_names
+            assert "drift_action_distribution" in check_names
+            assert "drift_signal_score" in check_names
 
     def test_drift_fail_causes_overall_monitoring_fail(self):
         """Verify drift FAIL result forces evaluate_production_monitoring overall_status to FAIL.
@@ -1127,15 +1120,16 @@ class TestProductionMonitoringIntegration(unittest.TestCase):
                 reference_date="2026-09-17",
             )
 
-            self.assertEqual(res.metrics["drift_monitoring"]["overall_status"], "FAIL")
+            assert res.metrics["drift_monitoring"]["overall_status"] == "FAIL"
             drift_action_chk = next(
                 c for c in res.checks if c.check_name == "drift_action_distribution"
             )
-            self.assertEqual(drift_action_chk.status, "FAIL")
-            self.assertEqual(res.overall_status, "FAIL")
+            assert drift_action_chk.status == "FAIL"
+            assert res.overall_status == "FAIL"
 
 
-class TestBaselineAggregationSemantics(unittest.TestCase):
+@pytest.mark.unit
+class TestBaselineAggregationSemantics:
     """Test suite verifying pooled recommendation observation aggregation vs report-level market metrics aggregation."""
 
     def test_pooled_baseline_aggregation_with_unequal_recommendation_counts(self):
@@ -1204,27 +1198,28 @@ class TestBaselineAggregationSemantics(unittest.TestCase):
         b_metrics = res.baseline_summary["baseline_metrics"]
 
         # Action distribution from pooled counts: 21 BUY / 140 pooled scanned = 0.15
-        self.assertEqual(b_metrics["action_proportions"]["BUY"], round(21 / 140, 6))
+        assert b_metrics["action_proportions"]["BUY"] == round(21 / 140, 6)
 
         # Processed ratio: 134 processed / 140 scanned
-        self.assertEqual(b_metrics["processed_ratio"], round(134 / 140, 6))
+        assert b_metrics["processed_ratio"] == round(134 / 140, 6)
 
         # Confidence bucket distribution
-        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.8-0.9"], round(10 / 134, 6))
-        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.5-0.6"], round(100 / 134, 6))
-        self.assertEqual(b_metrics["confidence_bucket_proportions"]["0.6-0.7"], round(24 / 134, 6))
+        assert b_metrics["confidence_bucket_proportions"]["0.8-0.9"] == round(10 / 134, 6)
+        assert b_metrics["confidence_bucket_proportions"]["0.5-0.6"] == round(100 / 134, 6)
+        assert b_metrics["confidence_bucket_proportions"]["0.6-0.7"] == round(24 / 134, 6)
 
         # Pooled numeric means across 134 valid observations
-        self.assertEqual(b_metrics["signal_score_mean"], round(7240.0 / 134, 4))
-        self.assertEqual(b_metrics["risk_adjusted_score_mean"], round(6570.0 / 134, 4))
-        self.assertEqual(b_metrics["confidence_mean"], round(79.1 / 134, 4))
+        assert b_metrics["signal_score_mean"] == round(7240.0 / 134, 4)
+        assert b_metrics["risk_adjusted_score_mean"] == round(6570.0 / 134, 4)
+        assert b_metrics["confidence_mean"] == round(79.1 / 134, 4)
 
         # Market metrics remain daily/report-level mean across 5 reports
-        self.assertEqual(b_metrics["market_breadth_ratio"], 0.600000)
-        self.assertEqual(b_metrics["vnindex_change_pct"], 2.0000)
+        assert b_metrics["market_breadth_ratio"] == 0.600000
+        assert b_metrics["vnindex_change_pct"] == 2.0000
 
 
-class TestQualityAwareDriftMonitoring(unittest.TestCase):
+@pytest.mark.unit
+class TestQualityAwareDriftMonitoring:
     """Test suite for quality-aware drift monitoring, coverage filtering, and diagnostics."""
 
     def test_incomplete_historical_reports_excluded_from_baseline(self):
@@ -1264,16 +1259,17 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             min_processed_ratio=0.80,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
-        self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
-        self.assertEqual(res.baseline_summary["considered_reports_count"], 8)
-        self.assertEqual(res.baseline_summary["excluded_reports_count"], 3)
-        self.assertEqual(res.baseline_summary["qualified_reports_count"], 5)
-        self.assertEqual(res.baseline_summary["baseline_metrics"]["processed_ratio"], 1.0)
-        self.assertEqual(
-            res.baseline_summary["baseline_period"]["excluded_dates"],
-            ["2026-09-11", "2026-09-10", "2026-09-09"],
-        )
+        assert res.overall_status == "PASS"
+        assert res.baseline_summary["status"] == "SUFFICIENT"
+        assert res.baseline_summary["considered_reports_count"] == 8
+        assert res.baseline_summary["excluded_reports_count"] == 3
+        assert res.baseline_summary["qualified_reports_count"] == 5
+        assert res.baseline_summary["baseline_metrics"]["processed_ratio"] == 1.0
+        assert res.baseline_summary["baseline_period"]["excluded_dates"] == [
+            "2026-09-11",
+            "2026-09-10",
+            "2026-09-09",
+        ]
 
     def test_full_universe_report_does_not_fail_due_to_low_coverage_historical_reports(self):
         """Verify full-universe current report passes drift check when older reports had low coverage."""
@@ -1309,10 +1305,10 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             baseline_reports=qualified + low_coverage,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
         proc_chk = next(c for c in res.drift_checks if c.check_name == "drift_processed_ratio")
-        self.assertEqual(proc_chk.status, "PASS")
-        self.assertEqual(proc_chk.observation.baseline_value, 1.0)
+        assert proc_chk.status == "PASS"
+        assert proc_chk.observation.baseline_value == 1.0
 
     def test_insufficient_quality_qualified_baseline_returns_warning_not_false_fail(self):
         """Verify when qualified reports < min_baseline_reports, status is WARNING and INSUFFICIENT baseline."""
@@ -1348,19 +1344,15 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             baseline_reports=qualified + incomplete,
         )
 
-        self.assertEqual(res.overall_status, "WARNING")
-        self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
-        self.assertEqual(res.baseline_summary["considered_reports_count"], 7)
-        self.assertEqual(res.baseline_summary["excluded_reports_count"], 5)
-        self.assertEqual(res.baseline_summary["qualified_reports_count"], 2)
-        self.assertEqual(len(res.drift_checks), 1)
-        self.assertEqual(res.drift_checks[0].check_name, "drift_baseline_sufficiency")
-        self.assertIn(
-            "INSUFFICIENT baseline historical data", res.drift_checks[0].observation.message
-        )
-        self.assertIn(
-            "excluded 5 for insufficient coverage", res.drift_checks[0].observation.message
-        )
+        assert res.overall_status == "WARNING"
+        assert res.baseline_summary["status"] == "INSUFFICIENT"
+        assert res.baseline_summary["considered_reports_count"] == 7
+        assert res.baseline_summary["excluded_reports_count"] == 5
+        assert res.baseline_summary["qualified_reports_count"] == 2
+        assert len(res.drift_checks) == 1
+        assert res.drift_checks[0].check_name == "drift_baseline_sufficiency"
+        assert "INSUFFICIENT baseline historical data" in res.drift_checks[0].observation.message
+        assert "excluded 5 for insufficient coverage" in res.drift_checks[0].observation.message
 
     def test_comparable_full_coverage_reports_still_detect_genuine_drift(self):
         """Verify genuine drift between comparable full-coverage reports triggers FAIL status."""
@@ -1379,10 +1371,10 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             baseline_reports=qualified_baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         sig_chk = next(c for c in res.drift_checks if c.check_name == "drift_signal_score")
-        self.assertEqual(sig_chk.status, "FAIL")
-        self.assertEqual(sig_chk.observation.absolute_difference, 30.0)
+        assert sig_chk.status == "FAIL"
+        assert sig_chk.observation.absolute_difference == 30.0
 
     def test_action_distribution_drift_detected_on_comparable_baseline(self):
         """Verify action distribution drift is detected when baseline is comparable."""
@@ -1412,11 +1404,11 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
             baseline_reports=qualified_baselines,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         action_chk = next(
             c for c in res.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(action_chk.status, "FAIL")
+        assert action_chk.status == "FAIL"
 
     def test_invalid_min_processed_ratio_fails_closed(self):
         """Verify invalid min_processed_ratio parameter types/values raise TypeError or ValueError."""
@@ -1424,37 +1416,37 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
         baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
 
         # Boolean
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=True
             )
 
         # Non-numeric string
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio="0.80"
             )
 
         # Non-positive
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=0.0
             )
 
         # Negative
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=-0.5
             )
 
         # > 1.0
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=1.5
             )
 
         # Non-finite NaN
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_data_and_model_drift(
                 current_payload=curr, baseline_reports=baselines, min_processed_ratio=float("nan")
             )
@@ -1518,12 +1510,12 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
                 min_baseline_reports=5,
             )
 
-            self.assertEqual(res.overall_status, "PASS")
-            self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
+            assert res.overall_status == "PASS"
+            assert res.baseline_summary["status"] == "SUFFICIENT"
             # First 20 candidates yielded only 4 qualified reports; candidate 21 yielded the 5th qualified report
-            self.assertEqual(res.baseline_summary["considered_reports_count"], 21)
-            self.assertEqual(res.baseline_summary["excluded_reports_count"], 16)
-            self.assertEqual(res.baseline_summary["qualified_reports_count"], 5)
+            assert res.baseline_summary["considered_reports_count"] == 21
+            assert res.baseline_summary["excluded_reports_count"] == 16
+            assert res.baseline_summary["qualified_reports_count"] == 5
 
     def test_scanning_stops_when_lookback_reports_qualified_reports_collected(self):
         """Verify scanning stops as soon as lookback_reports qualified reports are collected."""
@@ -1571,9 +1563,9 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
                 min_baseline_reports=3,
             )
 
-            self.assertEqual(res.overall_status, "PASS")
-            self.assertEqual(res.baseline_summary["qualified_reports_count"], 3)
-            self.assertEqual(res.baseline_summary["considered_reports_count"], 3)
+            assert res.overall_status == "PASS"
+            assert res.baseline_summary["qualified_reports_count"] == 3
+            assert res.baseline_summary["considered_reports_count"] == 3
 
     def test_diagnostics_accurately_describe_expanded_scan(self):
         """Verify considered, excluded, and qualified dates accurately describe an expanded candidate scan."""
@@ -1636,14 +1628,14 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
                 min_baseline_reports=5,
             )
 
-            self.assertEqual(res.overall_status, "WARNING")
-            self.assertEqual(res.baseline_summary["status"], "INSUFFICIENT")
-            self.assertEqual(res.baseline_summary["considered_reports_count"], 10)
-            self.assertEqual(res.baseline_summary["excluded_reports_count"], 6)
-            self.assertEqual(res.baseline_summary["qualified_reports_count"], 4)
-            self.assertEqual(len(res.baseline_summary["considered_dates"]), 10)
-            self.assertEqual(len(res.baseline_summary["excluded_dates"]), 6)
-            self.assertEqual(len(res.baseline_summary["baseline_dates"]), 4)
+            assert res.overall_status == "WARNING"
+            assert res.baseline_summary["status"] == "INSUFFICIENT"
+            assert res.baseline_summary["considered_reports_count"] == 10
+            assert res.baseline_summary["excluded_reports_count"] == 6
+            assert res.baseline_summary["qualified_reports_count"] == 4
+            assert len(res.baseline_summary["considered_dates"]) == 10
+            assert len(res.baseline_summary["excluded_dates"]) == 6
+            assert len(res.baseline_summary["baseline_dates"]) == 4
 
     def test_temporal_integrity_failure_during_extended_scan_fails_closed(self):
         """Verify corrupt artifact encountered during extended scan causes FAIL status."""
@@ -1698,11 +1690,12 @@ class TestQualityAwareDriftMonitoring(unittest.TestCase):
                 generated_dir=tmpdir,
             )
 
-            self.assertEqual(res.overall_status, "FAIL")
-            self.assertEqual(res.drift_checks[0].check_name, "drift_history_artifact_corrupted")
+            assert res.overall_status == "FAIL"
+            assert res.drift_checks[0].check_name == "drift_history_artifact_corrupted"
 
 
-class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
+@pytest.mark.unit
+class TestDriftAuditabilityAndDiagnostics:
     """Test suite for production drift monitoring observability, auditability, and diagnostics."""
 
     def test_complete_baseline_diagnostics_counters_and_dates(self):
@@ -1740,45 +1733,45 @@ class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
             min_processed_ratio=0.80,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
         bs = res.baseline_summary
-        self.assertEqual(bs["status"], "SUFFICIENT")
-        self.assertEqual(bs["baseline_status"], "SUFFICIENT")
-        self.assertEqual(bs["lookback_reports"], 20)
-        self.assertEqual(bs["min_baseline_reports"], 5)
-        self.assertEqual(bs["min_processed_ratio"], 0.80)
-        self.assertEqual(bs["considered_reports_count"], 7)
-        self.assertEqual(bs["excluded_reports_count"], 2)
-        self.assertEqual(bs["qualified_reports_count"], 5)
-        self.assertEqual(
-            bs["considered_dates"],
-            [
-                "2026-09-16",
-                "2026-09-15",
-                "2026-09-14",
-                "2026-09-13",
-                "2026-09-12",
-                "2026-09-11",
-                "2026-09-10",
-            ],
-        )
-        self.assertEqual(bs["excluded_dates"], ["2026-09-11", "2026-09-10"])
-        self.assertEqual(
-            bs["qualified_dates"],
-            ["2026-09-16", "2026-09-15", "2026-09-14", "2026-09-13", "2026-09-12"],
-        )
-        self.assertEqual(bs["baseline_dates"], bs["qualified_dates"])
+        assert bs["status"] == "SUFFICIENT"
+        assert bs["baseline_status"] == "SUFFICIENT"
+        assert bs["lookback_reports"] == 20
+        assert bs["min_baseline_reports"] == 5
+        assert bs["min_processed_ratio"] == 0.80
+        assert bs["considered_reports_count"] == 7
+        assert bs["excluded_reports_count"] == 2
+        assert bs["qualified_reports_count"] == 5
+        assert bs["considered_dates"] == [
+            "2026-09-16",
+            "2026-09-15",
+            "2026-09-14",
+            "2026-09-13",
+            "2026-09-12",
+            "2026-09-11",
+            "2026-09-10",
+        ]
+        assert bs["excluded_dates"] == ["2026-09-11", "2026-09-10"]
+        assert bs["qualified_dates"] == [
+            "2026-09-16",
+            "2026-09-15",
+            "2026-09-14",
+            "2026-09-13",
+            "2026-09-12",
+        ]
+        assert bs["baseline_dates"] == bs["qualified_dates"]
 
         bp = res.drift_checks[0].observation.baseline_period
-        self.assertEqual(bp["lookback_reports"], 20)
-        self.assertEqual(bp["min_baseline_reports"], 5)
-        self.assertEqual(bp["min_processed_ratio"], 0.80)
-        self.assertEqual(bp["considered_reports_count"], 7)
-        self.assertEqual(bp["excluded_reports_count"], 2)
-        self.assertEqual(bp["qualified_reports_count"], 5)
-        self.assertEqual(bp["considered_dates"], bs["considered_dates"])
-        self.assertEqual(bp["excluded_dates"], bs["excluded_dates"])
-        self.assertEqual(bp["qualified_dates"], bs["qualified_dates"])
+        assert bp["lookback_reports"] == 20
+        assert bp["min_baseline_reports"] == 5
+        assert bp["min_processed_ratio"] == 0.80
+        assert bp["considered_reports_count"] == 7
+        assert bp["excluded_reports_count"] == 2
+        assert bp["qualified_reports_count"] == 5
+        assert bp["considered_dates"] == bs["considered_dates"]
+        assert bp["excluded_dates"] == bs["excluded_dates"]
+        assert bp["qualified_dates"] == bs["qualified_dates"]
 
     def test_low_coverage_exclusion_reason_explicit(self):
         """Verify low-coverage historical reports have explicit exclusion reason details."""
@@ -1812,12 +1805,12 @@ class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
         )
 
         exclusions = res.baseline_summary["exclusions"]
-        self.assertEqual(len(exclusions), 1)
+        assert len(exclusions) == 1
         ex = exclusions[0]
-        self.assertEqual(ex["date"], "2026-09-10")
-        self.assertEqual(ex["reason"], "processed_ratio_below_threshold")
-        self.assertEqual(ex["processed_ratio"], 0.0)
-        self.assertEqual(ex["min_processed_ratio"], 0.80)
+        assert ex["date"] == "2026-09-10"
+        assert ex["reason"] == "processed_ratio_below_threshold"
+        assert ex["processed_ratio"] == 0.0
+        assert ex["min_processed_ratio"] == 0.80
 
     def test_insufficient_baseline_diagnostics_and_status(self):
         """Verify insufficient baseline produces baseline_status INSUFFICIENT, overall WARNING, and diagnostic message."""
@@ -1853,22 +1846,22 @@ class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
             min_processed_ratio=0.80,
         )
 
-        self.assertEqual(res.overall_status, "WARNING")
+        assert res.overall_status == "WARNING"
         bs = res.baseline_summary
-        self.assertEqual(bs["status"], "INSUFFICIENT")
-        self.assertEqual(bs["baseline_status"], "INSUFFICIENT")
-        self.assertEqual(bs["considered_reports_count"], 5)
-        self.assertEqual(bs["excluded_reports_count"], 2)
-        self.assertEqual(bs["qualified_reports_count"], 3)
-        self.assertEqual(bs["min_baseline_reports"], 5)
-        self.assertEqual(bs["min_processed_ratio"], 0.80)
+        assert bs["status"] == "INSUFFICIENT"
+        assert bs["baseline_status"] == "INSUFFICIENT"
+        assert bs["considered_reports_count"] == 5
+        assert bs["excluded_reports_count"] == 2
+        assert bs["qualified_reports_count"] == 3
+        assert bs["min_baseline_reports"] == 5
+        assert bs["min_processed_ratio"] == 0.80
 
         msg = res.drift_checks[0].observation.message
-        self.assertIn("considered 5 historical reports", msg)
-        self.assertIn("excluded 2 for insufficient coverage", msg)
-        self.assertIn("80.0%", msg)
-        self.assertIn("leaving 3 qualified reports", msg)
-        self.assertIn("minimum required is 5", msg)
+        assert "considered 5 historical reports" in msg
+        assert "excluded 2 for insufficient coverage" in msg
+        assert "80.0%" in msg
+        assert "leaving 3 qualified reports" in msg
+        assert "minimum required is 5" in msg
 
     def test_qualified_reports_capped_at_lookback_reports(self):
         """Verify baseline contains exactly qualified reports capped at lookback_reports."""
@@ -1890,14 +1883,17 @@ class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
             min_baseline_reports=3,
         )
 
-        self.assertEqual(res.overall_status, "PASS")
+        assert res.overall_status == "PASS"
         bs = res.baseline_summary
-        self.assertEqual(bs["qualified_reports_count"], 5)
-        self.assertEqual(bs["considered_reports_count"], 5)
-        self.assertEqual(
-            bs["qualified_dates"],
-            ["2026-09-16", "2026-09-15", "2026-09-14", "2026-09-13", "2026-09-12"],
-        )
+        assert bs["qualified_reports_count"] == 5
+        assert bs["considered_reports_count"] == 5
+        assert bs["qualified_dates"] == [
+            "2026-09-16",
+            "2026-09-15",
+            "2026-09-14",
+            "2026-09-13",
+            "2026-09-12",
+        ]
 
     def test_genuine_drift_not_converted_to_insufficient(self):
         """Verify a genuine quantitative drift condition triggers FAIL status and is not converted to INSUFFICIENT."""
@@ -1916,12 +1912,8 @@ class TestDriftAuditabilityAndDiagnostics(unittest.TestCase):
             baseline_reports=qualified,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
-        self.assertEqual(res.baseline_summary["status"], "SUFFICIENT")
-        self.assertEqual(res.baseline_summary["baseline_status"], "SUFFICIENT")
+        assert res.overall_status == "FAIL"
+        assert res.baseline_summary["status"] == "SUFFICIENT"
+        assert res.baseline_summary["baseline_status"] == "SUFFICIENT"
         sig_chk = next(c for c in res.drift_checks if c.check_name == "drift_signal_score")
-        self.assertEqual(sig_chk.status, "FAIL")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert sig_chk.status == "FAIL"

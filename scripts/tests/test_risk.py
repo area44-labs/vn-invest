@@ -1,6 +1,6 @@
 """Unit tests for T+2.5 Risk Model in scripts/lib/risk.py."""
 
-import unittest
+import pytest
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,8 @@ from scripts.lib.risk import (
 from scripts.lib.vietnam_market import get_clean_ohlcv_data
 
 
-class TestRiskModel(unittest.TestCase):
+@pytest.mark.unit
+class TestRiskModel:
     def test_risk_metrics_sufficient_data(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
@@ -34,14 +35,14 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df, exchange="HOSE")
 
-        self.assertIsNotNone(metrics["var_t25"])
-        self.assertIsNotNone(metrics["es_t25"])
-        self.assertIsNotNone(metrics["volatility_60d"])
-        self.assertIsNotNone(metrics["max_drawdown"])
-        self.assertIsNotNone(metrics["avg_value_20d"])
+        assert metrics["var_t25"] is not None
+        assert metrics["es_t25"] is not None
+        assert metrics["volatility_60d"] is not None
+        assert metrics["max_drawdown"] is not None
+        assert metrics["avg_value_20d"] is not None
 
-        self.assertLessEqual(metrics["es_t25"], metrics["var_t25"])
-        self.assertLessEqual(metrics["max_drawdown"], 0.0)
+        assert metrics["es_t25"] <= metrics["var_t25"]
+        assert metrics["max_drawdown"] <= 0.0
 
     def test_universe_liquidity_normalization(self):
         scanned = [
@@ -51,18 +52,18 @@ class TestRiskModel(unittest.TestCase):
         ]
         norm = normalize_universe_liquidity_scores(scanned, market_regime="BULL")
 
-        self.assertAlmostEqual(norm[0]["risk_metrics"]["liquidity_score"], 33.3, delta=1.0)
-        self.assertAlmostEqual(norm[2]["risk_metrics"]["liquidity_score"], 100.0, delta=1.0)
+        assert norm[0]["risk_metrics"]["liquidity_score"] == pytest.approx(33.3)
+        assert norm[2]["risk_metrics"]["liquidity_score"] == pytest.approx(100.0)
 
     def test_risk_metrics_missing_data(self):
         df_empty = pd.DataFrame()
         metrics = calculate_t25_risk_metrics(df_empty)
 
-        self.assertIsNone(metrics["var_t25"])
-        self.assertIsNone(metrics["es_t25"])
-        self.assertIsNone(metrics["volatility_60d"])
-        self.assertIsNone(metrics["max_drawdown"])
-        self.assertIsNone(metrics["liquidity_score"])
+        assert metrics["var_t25"] is None
+        assert metrics["es_t25"] is None
+        assert metrics["volatility_60d"] is None
+        assert metrics["max_drawdown"] is None
+        assert metrics["liquidity_score"] is None
 
     def test_risk_metrics_short_data(self):
         dates = pd.date_range("2026-01-01", periods=5, freq="D")
@@ -75,8 +76,8 @@ class TestRiskModel(unittest.TestCase):
         )
         metrics = calculate_t25_risk_metrics(df_short)
 
-        self.assertIsNone(metrics["var_t25"])
-        self.assertIsNone(metrics["es_t25"])
+        assert metrics["var_t25"] is None
+        assert metrics["es_t25"] is None
 
     def test_a_t25_known_return(self):
         """1. Known return: Verify exact T+2.5 return calculation on synthetic prices."""
@@ -86,28 +87,28 @@ class TestRiskModel(unittest.TestCase):
         # Expected index 3: (106.0 - 100.0) / 100.0 = 0.06
         # Expected index 4: (108.12 - 102.0) / 102.0 = 0.06
 
-        self.assertEqual(len(returns), 2)
-        self.assertAlmostEqual(returns.iloc[0], 0.06, places=4)
-        self.assertAlmostEqual(returns.iloc[1], 0.06, places=4)
+        assert len(returns) == 2
+        assert round(abs(returns.iloc[0] - (0.06)), 4) == 0
+        assert round(abs(returns.iloc[1] - (0.06)), 4) == 0
 
     def test_b_t25_insufficient_history(self):
         """2. Insufficient history: Fewer than 4 price observations produces empty series."""
         prices_3 = pd.Series([100.0, 102.0, 104.0])
         returns = calculate_t25_returns(prices_3)
-        self.assertTrue(returns.empty)
+        assert returns.empty
 
         metrics = calculate_t25_risk_metrics(
             pd.DataFrame({"close": [100.0] * 19, "volume": [1000] * 19})
         )
-        self.assertIsNone(metrics["var_t25"])
-        self.assertIsNone(metrics["es_t25"])
+        assert metrics["var_t25"] is None
+        assert metrics["es_t25"] is None
 
     def test_c_t25_exact_minimum_history(self):
         """3. Exact minimum history: 4 price observations produces exactly 1 return observation."""
         prices_4 = pd.Series([100.0, 102.0, 104.0, 110.0])
         returns = calculate_t25_returns(prices_4)
-        self.assertEqual(len(returns), 1)
-        self.assertAlmostEqual(returns.iloc[0], 0.10, places=4)
+        assert len(returns) == 1
+        assert round(abs(returns.iloc[0] - (0.10)), 4) == 0
 
     def test_d_t25_no_look_ahead(self):
         """4. No look-ahead: Changing future prices cannot change earlier T+2.5 returns."""
@@ -119,8 +120,8 @@ class TestRiskModel(unittest.TestCase):
         returns_modified = calculate_t25_returns(prices_modified)
 
         # Returns up to index 4 (D3 -> D0, D4 -> D1) must be identical
-        self.assertAlmostEqual(returns_base.iloc[0], returns_modified.iloc[0], places=6)
-        self.assertAlmostEqual(returns_base.iloc[1], returns_modified.iloc[1], places=6)
+        assert round(abs(returns_base.iloc[0] - (returns_modified.iloc[0])), 6) == 0
+        assert round(abs(returns_base.iloc[1] - (returns_modified.iloc[1])), 6) == 0
 
     def test_e_t25_non_uniform_calendar_dates(self):
         """5. Non-uniform calendar dates: Uses trading-session rows, not calendar day interpolation."""
@@ -131,8 +132,8 @@ class TestRiskModel(unittest.TestCase):
         returns = calculate_t25_returns(prices)
         # Session 0: 10.0 (Fri), Session 1: 12.0 (Mon), Session 2: 14.0 (Tue), Session 3: 15.0 (Wed)
         # T+2.5 (3 sessions) return at Session 3 = (15.0 - 10.0) / 10.0 = 0.50
-        self.assertEqual(len(returns), 2)
-        self.assertAlmostEqual(returns.iloc[0], 0.50, places=4)
+        assert len(returns) == 2
+        assert round(abs(returns.iloc[0] - (0.50)), 4) == 0
 
     def test_f_t25_unsorted_input(self):
         """6. Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
@@ -144,9 +145,9 @@ class TestRiskModel(unittest.TestCase):
 
         # Expected chronological return at 4th session: (106 - 100) / 100 = 0.06
         # If passed unsorted data, pct_change(3) computes (102 - 106) / 106 = -0.0377
-        self.assertAlmostEqual(returns_chrono.iloc[0], 0.06, places=4)
-        self.assertAlmostEqual(returns_unsorted.iloc[0], -0.037736, places=4)
-        self.assertNotEqual(returns_chrono.iloc[0], returns_unsorted.iloc[0])
+        assert round(abs(returns_chrono.iloc[0] - (0.06)), 4) == 0
+        assert round(abs(returns_unsorted.iloc[0] - (-0.037736)), 4) == 0
+        assert returns_chrono.iloc[0] != returns_unsorted.iloc[0]
 
     def test_g_t25_duplicate_invalid_rows_clean_boundary(self):
         """7. Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
@@ -173,9 +174,9 @@ class TestRiskModel(unittest.TestCase):
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
 
         # Under hardened validation, duplicate dates trigger a data corruption failure and return clean_df empty
-        self.assertIn("duplicate_dates", val_res["issues"])
-        self.assertEqual(val_res["status"], "INSUFFICIENT")
-        self.assertTrue(clean_df.empty)
+        assert "duplicate_dates" in val_res["issues"]
+        assert val_res["status"] == "INSUFFICIENT"
+        assert clean_df.empty
 
     def test_i_other_risk_metrics_unchanged(self):
         """8. Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
@@ -198,9 +199,9 @@ class TestRiskModel(unittest.TestCase):
         metrics = calculate_t25_risk_metrics(df, exchange="HOSE")
 
         # Confirm non-T25 fields return expected deterministic values
-        self.assertEqual(metrics["max_drawdown"], 0.0)
-        self.assertIsNotNone(metrics["volatility_60d"])
-        self.assertIsNotNone(metrics["avg_value_20d"])
+        assert metrics["max_drawdown"] == 0.0
+        assert metrics["volatility_60d"] is not None
+        assert metrics["avg_value_20d"] is not None
 
     def test_var_95_deterministic_exact_value(self):
         """Verify Historical VaR 95% is finite, deterministic, and matches exact np.percentile(returns_3d, 5)."""
@@ -221,24 +222,24 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df)
 
-        self.assertIsNotNone(metrics["var_t25"])
-        self.assertIsInstance(metrics["var_t25"], float)
-        self.assertEqual(metrics["var_t25"], expected_var)
+        assert metrics["var_t25"] is not None
+        assert isinstance(metrics["var_t25"], float)
+        assert metrics["var_t25"] == expected_var
 
     def test_var_95_insufficient_history_boundaries(self):
         """Verify VaR 95% returns None when history < 20 rows or returns_3d < 10 items."""
         # 19 rows -> history < 20
         df_19 = pd.DataFrame({"close": np.linspace(10, 20, 19), "volume": [1000] * 19})
         m_19 = calculate_t25_risk_metrics(df_19)
-        self.assertIsNone(m_19["var_t25"])
-        self.assertIsNone(m_19["es_t25"])
+        assert m_19["var_t25"] is None
+        assert m_19["es_t25"] is None
 
         # 20 rows where leading NaNs leave only 8 valid prices yielding 5 return observations (< 10 required)
         prices_with_nans = [np.nan] * 12 + [10.0 + i for i in range(8)]
         df_20_sparse = pd.DataFrame({"close": prices_with_nans, "volume": [1000] * 20})
         m_sparse = calculate_t25_risk_metrics(df_20_sparse)
-        self.assertIsNone(m_sparse["var_t25"])
-        self.assertIsNone(m_sparse["es_t25"])
+        assert m_sparse["var_t25"] is None
+        assert m_sparse["es_t25"] is None
 
     def test_expected_shortfall_deterministic_exact_value(self):
         """Verify Expected Shortfall matches exact mean of tail returns <= var_95_t25 and es_t25 <= var_t25."""
@@ -256,9 +257,9 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df)
 
-        self.assertIsNotNone(metrics["es_t25"])
-        self.assertEqual(metrics["es_t25"], expected_es)
-        self.assertLessEqual(metrics["es_t25"], expected_var)
+        assert metrics["es_t25"] is not None
+        assert metrics["es_t25"] == expected_es
+        assert metrics["es_t25"] <= expected_var
 
     def test_expected_shortfall_constant_returns_equals_var(self):
         """Verify that for constant return series, Expected Shortfall equals Historical VaR 95%."""
@@ -268,11 +269,11 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df)
 
-        self.assertIsNotNone(metrics["var_t25"])
-        self.assertIsNotNone(metrics["es_t25"])
-        self.assertEqual(metrics["var_t25"], 0.0)
-        self.assertEqual(metrics["es_t25"], 0.0)
-        self.assertEqual(metrics["es_t25"], metrics["var_t25"])
+        assert metrics["var_t25"] is not None
+        assert metrics["es_t25"] is not None
+        assert metrics["var_t25"] == 0.0
+        assert metrics["es_t25"] == 0.0
+        assert metrics["es_t25"] == metrics["var_t25"]
 
     def test_var_and_es_invalid_numeric_input(self):
         """Verify clean-data boundary rejects NaN rows and risk metrics match exact calculations on clean prices."""
@@ -292,13 +293,13 @@ class TestRiskModel(unittest.TestCase):
 
         # 1. Verify clean data boundary detects NaN issues and fails closed
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
-        self.assertIn("nan_values", val_res["issues"])
-        self.assertEqual(val_res["status"], "INSUFFICIENT")
-        self.assertTrue(clean_df.empty)
+        assert "nan_values" in val_res["issues"]
+        assert val_res["status"] == "INSUFFICIENT"
+        assert clean_df.empty
 
         metrics = calculate_t25_risk_metrics(clean_df)
-        self.assertIsNone(metrics["var_t25"])
-        self.assertIsNone(metrics["es_t25"])
+        assert metrics["var_t25"] is None
+        assert metrics["es_t25"] is None
 
     def test_var_and_es_repeatability_determinism(self):
         """Verify that identical historical inputs produce identical VaR and ES risk outputs."""
@@ -313,8 +314,8 @@ class TestRiskModel(unittest.TestCase):
         res1 = calculate_t25_risk_metrics(df)
         res2 = calculate_t25_risk_metrics(df)
 
-        self.assertEqual(res1["var_t25"], res2["var_t25"])
-        self.assertEqual(res1["es_t25"], res2["es_t25"])
+        assert res1["var_t25"] == res2["var_t25"]
+        assert res1["es_t25"] == res2["es_t25"]
 
     def test_max_drawdown_monotonic_increase(self):
         """Verify Max Drawdown is 0.0 for a strictly non-decreasing price series."""
@@ -324,7 +325,7 @@ class TestRiskModel(unittest.TestCase):
         df = pd.DataFrame({"time": dates, "close": prices, "volume": [1000.0] * n})
 
         metrics = calculate_t25_risk_metrics(df)
-        self.assertEqual(metrics["max_drawdown"], 0.0)
+        assert metrics["max_drawdown"] == 0.0
 
     def test_max_drawdown_pure_decline(self):
         """Verify Max Drawdown produces exact expected negative drawdown for a strictly declining series."""
@@ -335,7 +336,7 @@ class TestRiskModel(unittest.TestCase):
         df = pd.DataFrame({"time": dates, "close": prices, "volume": [1000.0] * n})
 
         metrics = calculate_t25_risk_metrics(df)
-        self.assertEqual(metrics["max_drawdown"], -0.5)
+        assert metrics["max_drawdown"] == -0.5
 
     def test_max_drawdown_recovery_after_trough(self):
         """Verify Max Drawdown preserves historical peak-to-trough drop even after full price recovery."""
@@ -349,7 +350,7 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df)
         # (60.0 - 100.0) / 100.0 = -0.4000
-        self.assertEqual(metrics["max_drawdown"], -0.4)
+        assert metrics["max_drawdown"] == -0.4
 
     def test_max_drawdown_multiple_drawdowns_selects_largest(self):
         """Verify Max Drawdown selects the global maximum peak-to-trough decline rather than the latest drawdown."""
@@ -367,7 +368,7 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df)
         # Global max drawdown is drop 2: (100.0 - 200.0) / 200.0 = -0.5000
-        self.assertEqual(metrics["max_drawdown"], -0.5)
+        assert metrics["max_drawdown"] == -0.5
 
     def test_t25_3session_eod_proxy_horizon_mapping(self):
         """Verify 3-session EOD return proxy calculates exact (P_{T+3} - P_T) / P_T across trading sessions."""
@@ -377,9 +378,9 @@ class TestRiskModel(unittest.TestCase):
 
         # Session 3 (T3 vs T0): (115.0 - 100.0) / 100.0 = 0.15
         # Session 4 (T4 vs T1): (120.0 - 105.0) / 105.0 = 0.142857...
-        self.assertEqual(len(returns), 2)
-        self.assertAlmostEqual(returns.iloc[0], 0.15, places=4)
-        self.assertAlmostEqual(returns.iloc[1], 0.142857, places=4)
+        assert len(returns) == 2
+        assert round(abs(returns.iloc[0] - (0.15)), 4) == 0
+        assert round(abs(returns.iloc[1] - (0.142857)), 4) == 0
 
     def test_risk_metrics_no_lookahead_temporal_isolation(self):
         """Verify point-in-time risk calculation timestamped <= T is unaffected by future prices > T."""
@@ -419,11 +420,11 @@ class TestRiskModel(unittest.TestCase):
         metrics_sliced = calculate_t25_risk_metrics(df_sliced)
 
         # Risk metrics as of 2026-03-30 MUST remain identical despite future crash
-        self.assertEqual(metrics_baseline["var_t25"], metrics_sliced["var_t25"])
-        self.assertEqual(metrics_baseline["es_t25"], metrics_sliced["es_t25"])
-        self.assertEqual(metrics_baseline["volatility_60d"], metrics_sliced["volatility_60d"])
-        self.assertEqual(metrics_baseline["max_drawdown"], metrics_sliced["max_drawdown"])
-        self.assertEqual(metrics_baseline["avg_value_20d"], metrics_sliced["avg_value_20d"])
+        assert metrics_baseline["var_t25"] == metrics_sliced["var_t25"]
+        assert metrics_baseline["es_t25"] == metrics_sliced["es_t25"]
+        assert metrics_baseline["volatility_60d"] == metrics_sliced["volatility_60d"]
+        assert metrics_baseline["max_drawdown"] == metrics_sliced["max_drawdown"]
+        assert metrics_baseline["avg_value_20d"] == metrics_sliced["avg_value_20d"]
 
     def test_risk_edge_cases_empty_and_none_inputs(self):
         """Verify None and empty DataFrames return null risk metrics dict."""
@@ -431,12 +432,12 @@ class TestRiskModel(unittest.TestCase):
         m_empty = calculate_t25_risk_metrics(pd.DataFrame())
 
         for m in (m_none, m_empty):
-            self.assertIsNone(m["var_t25"])
-            self.assertIsNone(m["es_t25"])
-            self.assertIsNone(m["volatility_60d"])
-            self.assertIsNone(m["max_drawdown"])
-            self.assertIsNone(m["liquidity_score"])
-            self.assertIsNone(m["avg_value_20d"])
+            assert m["var_t25"] is None
+            assert m["es_t25"] is None
+            assert m["volatility_60d"] is None
+            assert m["max_drawdown"] is None
+            assert m["liquidity_score"] is None
+            assert m["avg_value_20d"] is None
 
     def test_risk_edge_cases_constant_prices(self):
         """Verify constant prices yield zero VaR, ES, volatility, and drawdown."""
@@ -444,10 +445,10 @@ class TestRiskModel(unittest.TestCase):
         df_flat = pd.DataFrame({"close": [100.0] * n, "volume": [1000.0] * n})
 
         metrics = calculate_t25_risk_metrics(df_flat)
-        self.assertEqual(metrics["var_t25"], 0.0)
-        self.assertEqual(metrics["es_t25"], 0.0)
-        self.assertEqual(metrics["volatility_60d"], 0.0)
-        self.assertEqual(metrics["max_drawdown"], 0.0)
+        assert metrics["var_t25"] == 0.0
+        assert metrics["es_t25"] == 0.0
+        assert metrics["volatility_60d"] == 0.0
+        assert metrics["max_drawdown"] == 0.0
 
     def test_risk_edge_cases_constant_positive_and_negative_returns(self):
         """Verify constant positive and negative return series produce expected VaR and ES signs."""
@@ -458,18 +459,18 @@ class TestRiskModel(unittest.TestCase):
         m_pos = calculate_t25_risk_metrics(df_pos)
 
         # 3-session return is (1.02)^3 - 1 = 0.061208
-        self.assertGreater(m_pos["var_t25"], 0.0)
-        self.assertGreater(m_pos["es_t25"], 0.0)
-        self.assertEqual(m_pos["max_drawdown"], 0.0)
+        assert m_pos["var_t25"] > 0.0
+        assert m_pos["es_t25"] > 0.0
+        assert m_pos["max_drawdown"] == 0.0
 
         # Constant negative price decay: 100 * (0.98)^i
         prices_neg = [100.0 * (0.98**i) for i in range(n)]
         df_neg = pd.DataFrame({"close": prices_neg, "volume": [1000.0] * n})
         m_neg = calculate_t25_risk_metrics(df_neg)
 
-        self.assertLess(m_neg["var_t25"], 0.0)
-        self.assertLess(m_neg["es_t25"], 0.0)
-        self.assertLess(m_neg["max_drawdown"], 0.0)
+        assert m_neg["var_t25"] < 0.0
+        assert m_neg["es_t25"] < 0.0
+        assert m_neg["max_drawdown"] < 0.0
 
     def test_risk_edge_cases_upcom_exchange_vwap_selection(self):
         """Verify UPCOM exchange uses vwap column when available instead of close column."""
@@ -485,9 +486,9 @@ class TestRiskModel(unittest.TestCase):
         metrics_upcom = calculate_t25_risk_metrics(df_upcom, exchange="UPCOM")
 
         # HOSE uses close (constant 100) -> max_drawdown = 0.0
-        self.assertEqual(metrics_hose["max_drawdown"], 0.0)
+        assert metrics_hose["max_drawdown"] == 0.0
         # UPCOM uses vwap (declining 100 to 50) -> max_drawdown = -0.5
-        self.assertEqual(metrics_upcom["max_drawdown"], -0.5)
+        assert metrics_upcom["max_drawdown"] == -0.5
 
     def test_risk_edge_cases_missing_volume_column(self):
         """Verify missing volume column results in avg_value_20d = None without crashing."""
@@ -496,10 +497,6 @@ class TestRiskModel(unittest.TestCase):
 
         metrics = calculate_t25_risk_metrics(df_no_vol)
 
-        self.assertIsNone(metrics["avg_value_20d"])
-        self.assertIsNotNone(metrics["var_t25"])
-        self.assertIsNotNone(metrics["max_drawdown"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert metrics["avg_value_20d"] is None
+        assert metrics["var_t25"] is not None
+        assert metrics["max_drawdown"] is not None

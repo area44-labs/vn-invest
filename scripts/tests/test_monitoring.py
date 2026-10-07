@@ -1,10 +1,10 @@
 """Unit tests for Production Monitoring Module (scripts/lib/monitoring.py)."""
 
+import pytest
 import copy
 import json
 import os
 import tempfile
-import unittest
 
 import pandas as pd
 
@@ -27,10 +27,11 @@ from scripts.lib.recommendation import generate_recommendation
 from scripts.lib.regime import detect_market_regime
 
 
-class TestProductionMonitoring(unittest.TestCase):
+@pytest.mark.unit
+class TestProductionMonitoring:
     """Test suite for production monitoring checks, fail-closed rules, and serialization."""
 
-    def setUp(self):
+    def setup_method(self):
         self.reference_date = "2026-09-17"
         self.healthy_market = {
             "regime": "STRONG_BULL",
@@ -213,9 +214,9 @@ class TestProductionMonitoring(unittest.TestCase):
             "summary": self.healthy_summary,
         }
         norm_standalone = normalize_market_payload(standalone, data_as_of="2026-09-28")
-        self.assertEqual(norm_standalone["data_as_of"], "2026-09-28")
-        self.assertEqual(norm_standalone["market"]["regime"], "BEAR")
-        self.assertNotIn("data_as_of", norm_standalone["market"])
+        assert norm_standalone["data_as_of"] == "2026-09-28"
+        assert norm_standalone["market"]["regime"] == "BEAR"
+        assert "data_as_of" not in norm_standalone["market"]
 
         # 2. Flat inner market dict with top-level data_as_of
         flat = {
@@ -225,9 +226,9 @@ class TestProductionMonitoring(unittest.TestCase):
             "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
         }
         norm_flat = normalize_market_payload(flat, data_as_of="2026-09-28")
-        self.assertEqual(norm_flat["data_as_of"], "2026-09-28")
-        self.assertEqual(norm_flat["market"]["regime"], "BEAR")
-        self.assertNotIn("data_as_of", norm_flat["market"])
+        assert norm_flat["data_as_of"] == "2026-09-28"
+        assert norm_flat["market"]["regime"] == "BEAR"
+        assert "data_as_of" not in norm_flat["market"]
 
         # 3. Direct inner market dict without data_as_of key
         inner = {
@@ -236,13 +237,13 @@ class TestProductionMonitoring(unittest.TestCase):
             "metrics": {"vnindex_value": 1780.0, "vnindex_change_pct": -0.25},
         }
         norm_inner = normalize_market_payload(inner, data_as_of="2026-09-28")
-        self.assertEqual(norm_inner["data_as_of"], "2026-09-28")
-        self.assertEqual(norm_inner["market"]["regime"], "BEAR")
+        assert norm_inner["data_as_of"] == "2026-09-28"
+        assert norm_inner["market"]["regime"] == "BEAR"
 
         # 4. Non-dict input
         norm_none = normalize_market_payload(None, data_as_of="2026-09-28")
-        self.assertEqual(norm_none["data_as_of"], "2026-09-28")
-        self.assertEqual(norm_none["market"], {})
+        assert norm_none["data_as_of"] == "2026-09-28"
+        assert norm_none["market"] == {}
 
         # 5. Nested market.data_as_of differs from authoritative top-level data_as_of
         conflicting = {
@@ -255,9 +256,9 @@ class TestProductionMonitoring(unittest.TestCase):
             },
         }
         norm_conflicting = normalize_market_payload(conflicting, data_as_of="2026-09-28")
-        self.assertEqual(norm_conflicting["data_as_of"], "2026-09-28")
-        self.assertEqual(norm_conflicting["market"]["regime"], "BEAR")
-        self.assertNotIn("data_as_of", norm_conflicting["market"])
+        assert norm_conflicting["data_as_of"] == "2026-09-28"
+        assert norm_conflicting["market"]["regime"] == "BEAR"
+        assert "data_as_of" not in norm_conflicting["market"]
 
     def test_missing_performance_data_fails_closed(self):
         """Verify missing performance data in universe_audit fails closed with FAIL status rather than defaulting to PASS."""
@@ -271,16 +272,16 @@ class TestProductionMonitoring(unittest.TestCase):
             universe_audit=audit_no_perf,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         perf_chk = next(c for c in res.checks if c.check_name == "performance_payload_integrity")
-        self.assertEqual(perf_chk.status, "FAIL")
-        self.assertIn("missing", perf_chk.message.lower())
+        assert perf_chk.status == "FAIL"
+        assert "missing" in perf_chk.message.lower()
 
         reg_chk = next(c for c in res.checks if c.check_name == "performance_regression")
-        self.assertEqual(reg_chk.status, "FAIL")
+        assert reg_chk.status == "FAIL"
 
         bud_chk = next(c for c in res.checks if c.check_name == "provider_budget")
-        self.assertEqual(bud_chk.status, "FAIL")
+        assert bud_chk.status == "FAIL"
 
     def test_missing_universe_audit_performance_payload_fails_closed(self):
         """Verify when universe_audit is None and recommendations_payload lacks performance, monitoring fails closed."""
@@ -293,9 +294,9 @@ class TestProductionMonitoring(unittest.TestCase):
             universe_audit=None,
         )
 
-        self.assertEqual(res.overall_status, "FAIL")
+        assert res.overall_status == "FAIL"
         perf_chk = next(c for c in res.checks if c.check_name == "performance_payload_integrity")
-        self.assertEqual(perf_chk.status, "FAIL")
+        assert perf_chk.status == "FAIL"
 
     def test_run_37162713439_reproduction_does_not_fail_monitoring(self):
         """Verify that standard production market_payload structure with data_as_of passes monitoring without false positive FAIL."""
@@ -332,10 +333,8 @@ class TestProductionMonitoring(unittest.TestCase):
             )
 
             failed_checks = [c for c in res.checks if c.status == "FAIL"]
-            self.assertEqual(
-                len(failed_checks), 0, f"Expected 0 failed checks, got: {failed_checks}"
-            )
-            self.assertIn(res.overall_status, ("PASS", "WARNING"))
+            assert len(failed_checks) == 0, f"Expected 0 failed checks, got: {failed_checks}"
+            assert res.overall_status in ("PASS", "WARNING")
 
             # Test Form B: Standalone market.json wrapper payload with nested "market"
             market_payload_nested = {
@@ -357,12 +356,10 @@ class TestProductionMonitoring(unittest.TestCase):
             )
 
             failed_nested = [c for c in res_nested.checks if c.status == "FAIL"]
-            self.assertEqual(
-                len(failed_nested),
-                0,
-                f"Expected 0 failed checks for nested market_payload, got: {failed_nested}",
+            assert len(failed_nested) == 0, (
+                f"Expected 0 failed checks for nested market_payload, got: {failed_nested}"
             )
-            self.assertIn(res_nested.overall_status, ("PASS", "WARNING"))
+            assert res_nested.overall_status in ("PASS", "WARNING")
 
     def test_healthy_production_data_passes(self):
         """Verify healthy production data produces overall status 'PASS' when sufficient baseline exists."""
@@ -393,9 +390,9 @@ class TestProductionMonitoring(unittest.TestCase):
                 reference_date=self.reference_date,
                 universe_audit=self.healthy_audit,
             )
-            self.assertEqual(res.overall_status, "PASS")
-            self.assertEqual(res.data_as_of, "2026-09-17")
-            self.assertTrue(validate_monitoring_payload(res.to_dict()))
+            assert res.overall_status == "PASS"
+            assert res.data_as_of == "2026-09-17"
+            assert validate_monitoring_payload(res.to_dict())
 
     def test_payload_supplied_in_memory_with_missing_artifacts_on_disk_fails(self):
         """Test A: In-memory payload supplied but generated_dir on disk is empty -> FAIL."""
@@ -407,10 +404,10 @@ class TestProductionMonitoring(unittest.TestCase):
                 reference_date="2026-09-17",
             )
             check_names = [c.check_name for c in res.checks]
-            self.assertIn("artifact_existence", check_names)
+            assert "artifact_existence" in check_names
             art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
-            self.assertEqual(art_chk.status, "FAIL")
-            self.assertEqual(res.overall_status, "FAIL")
+            assert art_chk.status == "FAIL"
+            assert res.overall_status == "FAIL"
 
     def test_payload_supplied_in_memory_but_history_index_missing_on_disk_fails(self):
         """Test B: In-memory payload supplied, recommendations.json and market.json exist, but history/index.json is missing -> FAIL."""
@@ -427,10 +424,10 @@ class TestProductionMonitoring(unittest.TestCase):
                 reference_date="2026-09-17",
             )
             check_names = [c.check_name for c in res.checks]
-            self.assertIn("history_index_status", check_names)
+            assert "history_index_status" in check_names
             hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")
-            self.assertEqual(hist_chk.status, "FAIL")
-            self.assertEqual(res.overall_status, "FAIL")
+            assert hist_chk.status == "FAIL"
+            assert res.overall_status == "FAIL"
 
     def test_healthy_artifacts_on_disk_and_payload_in_memory_passes(self):
         """Test C: Healthy artifacts exist on disk AND payload supplied in memory -> PASS."""
@@ -464,29 +461,29 @@ class TestProductionMonitoring(unittest.TestCase):
             art_chk = next(c for c in res.checks if c.check_name == "artifact_existence")
             hist_chk = next(c for c in res.checks if c.check_name == "history_index_status")
 
-            self.assertEqual(art_chk.status, "PASS")
-            self.assertEqual(hist_chk.status, "PASS")
-            self.assertEqual(res.overall_status, "PASS")
+            assert art_chk.status == "PASS"
+            assert hist_chk.status == "PASS"
+            assert res.overall_status == "PASS"
             # Ensure no duplicated check names
             check_names = [c.check_name for c in res.checks]
-            self.assertEqual(len(check_names), len(set(check_names)))
+            assert len(check_names) == len(set(check_names))
 
     def test_data_freshness_exact_boundaries(self):
         """Verify exact freshness contract for PASS, WARNING, and FAIL thresholds."""
         # 1. Same date: data_as_of == reference_date -> PASS (0 days old)
         chk_pass = check_data_freshness("2026-09-17", reference_date="2026-09-17")
-        self.assertEqual(chk_pass.status, "PASS")
-        self.assertEqual(chk_pass.measured_value["staleness_days"], 0)
+        assert chk_pass.status == "PASS"
+        assert chk_pass.measured_value["staleness_days"] == 0
 
         # 2. 5 days stale: data_as_of="2026-09-12", reference_date="2026-09-17" -> WARNING
         chk_warn = check_data_freshness("2026-09-12", reference_date="2026-09-17")
-        self.assertEqual(chk_warn.status, "WARNING")
-        self.assertEqual(chk_warn.measured_value["staleness_days"], 5)
+        assert chk_warn.status == "WARNING"
+        assert chk_warn.measured_value["staleness_days"] == 5
 
         # 3. 16 days stale: data_as_of="2026-09-01", reference_date="2026-09-17" -> FAIL (> 14 days)
         chk_fail = check_data_freshness("2026-09-01", reference_date="2026-09-17")
-        self.assertEqual(chk_fail.status, "FAIL")
-        self.assertEqual(chk_fail.measured_value["staleness_days"], 16)
+        assert chk_fail.status == "FAIL"
+        assert chk_fail.measured_value["staleness_days"] == 16
 
     def test_production_script_does_not_pass_data_as_of_as_reference_date(self):
         """Verify scripts/generate_report.py does NOT pass reference_date=data_as_of."""
@@ -498,10 +495,8 @@ class TestProductionMonitoring(unittest.TestCase):
         with open(report_script_path, "r", encoding="utf-8") as f:
             code_text = f.read()
 
-        self.assertNotIn(
-            "reference_date=data_as_of",
-            code_text,
-            "scripts/generate_report.py must NOT pass reference_date=data_as_of to monitoring",
+        assert "reference_date=data_as_of" not in code_text, (
+            "scripts/generate_report.py must NOT pass reference_date=data_as_of to monitoring"
         )
 
     def test_explicit_reference_date_is_deterministic(self):
@@ -514,7 +509,7 @@ class TestProductionMonitoring(unittest.TestCase):
             recommendations_payload=self.healthy_payload,
             reference_date="2026-09-17",
         )
-        self.assertEqual(res_1.to_dict(), res_2.to_dict())
+        assert res_1.to_dict() == res_2.to_dict()
 
     def test_missing_required_artifact_fails(self):
         """Verify missing required JSON artifacts cause check failure ('FAIL') for each artifact."""
@@ -529,8 +524,8 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Case 1: missing recommendations.json => FAIL
             chk1 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk1.status, "FAIL")
-            self.assertIn("recommendations.json", chk1.measured_value["missing"])
+            assert chk1.status == "FAIL"
+            assert "recommendations.json" in chk1.measured_value["missing"]
 
             # Create recommendations.json
             with open(recs_p, "w") as f:
@@ -538,8 +533,8 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Case 2: missing market.json => FAIL
             chk2 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk2.status, "FAIL")
-            self.assertIn("market.json", chk2.measured_value["missing"])
+            assert chk2.status == "FAIL"
+            assert "market.json" in chk2.measured_value["missing"]
 
             # Create market.json
             with open(mkt_p, "w") as f:
@@ -547,8 +542,8 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Case 3: missing history/index.json => FAIL
             chk3 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk3.status, "FAIL")
-            self.assertIn("index.json", chk3.measured_value["missing"])
+            assert chk3.status == "FAIL"
+            assert "index.json" in chk3.measured_value["missing"]
 
             # Create history/index.json
             with open(idx_p, "w") as f:
@@ -556,8 +551,8 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Case 4: missing history/{data_as_of}.json => FAIL
             chk4 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk4.status, "FAIL")
-            self.assertIn("2026-09-17.json", chk4.measured_value["missing"])
+            assert chk4.status == "FAIL"
+            assert "2026-09-17.json" in chk4.measured_value["missing"]
 
             # Create history/{data_as_of}.json
             with open(as_of_p, "w") as f:
@@ -565,7 +560,7 @@ class TestProductionMonitoring(unittest.TestCase):
 
             # Case 5: all required artifacts present => PASS
             chk5 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk5.status, "PASS")
+            assert chk5.status == "PASS"
 
     def test_malformed_artifact_fails(self):
         """Verify malformed non-JSON artifact causes check failure ('FAIL')."""
@@ -575,8 +570,8 @@ class TestProductionMonitoring(unittest.TestCase):
                 f.write("{ invalid json payload ...")
 
             chk = check_required_artifacts(tmpdir)
-            self.assertEqual(chk.status, "FAIL")
-            self.assertIn("Unreadable files", chk.message)
+            assert chk.status == "FAIL"
+            assert "Unreadable files" in chk.message
 
     def test_schema_invalid_artifact_fails(self):
         """Verify schema-invalid payload produces schema validation check failure ('FAIL')."""
@@ -584,8 +579,8 @@ class TestProductionMonitoring(unittest.TestCase):
         del bad_payload["signal_model_version"]  # Missing required top-level key
 
         chk = check_schema_validation(bad_payload)
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("signal_model_version", chk.message)
+        assert chk.status == "FAIL"
+        assert "signal_model_version" in chk.message
 
     def test_summary_action_count_mismatch_fails(self):
         """Verify summary action count mismatch with actual recommendations produces status 'FAIL'."""
@@ -595,8 +590,8 @@ class TestProductionMonitoring(unittest.TestCase):
         bad_payload["summary"]["watch_count"] = 0
 
         chk = check_symbol_processing_counts(bad_payload)
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("buy_count", chk.message)
+        assert chk.status == "FAIL"
+        assert "buy_count" in chk.message
 
     def test_total_scanned_mismatch_fails(self):
         """Verify total_scanned mismatch with recommendations length produces status 'FAIL'."""
@@ -604,8 +599,8 @@ class TestProductionMonitoring(unittest.TestCase):
         bad_payload["summary"]["total_scanned"] = 5
 
         chk = check_symbol_processing_counts(bad_payload)
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("Summary counts mismatch", chk.message)
+        assert chk.status == "FAIL"
+        assert "Summary counts mismatch" in chk.message
 
     def test_invalid_date_string_in_history_index_fails(self):
         """Verify invalid date string in history index produces status 'FAIL'."""
@@ -618,8 +613,8 @@ class TestProductionMonitoring(unittest.TestCase):
                 json.dump({"dates": ["2026-02-30", "2026-09-16"]}, f)  # Invalid calendar date
 
             chk = check_history_index_status(tmpdir)
-            self.assertEqual(chk.status, "FAIL")
-            self.assertIn("invalid date entries", chk.message.lower())
+            assert chk.status == "FAIL"
+            assert "invalid date entries" in chk.message.lower()
 
     def test_missing_history_file_for_index_date_fails(self):
         """Verify date in history index pointing to missing file produces status 'FAIL'."""
@@ -636,8 +631,8 @@ class TestProductionMonitoring(unittest.TestCase):
                 f.write("{}")
 
             chk = check_history_index_status(tmpdir)
-            self.assertEqual(chk.status, "FAIL")
-            self.assertIn("missing report files", chk.message.lower())
+            assert chk.status == "FAIL"
+            assert "missing report files" in chk.message.lower()
 
     def test_invalid_unsorted_duplicate_data_fails(self):
         """Verify duplicate or unsorted dates in history index fail closed ('FAIL')."""
@@ -654,8 +649,8 @@ class TestProductionMonitoring(unittest.TestCase):
                 f.write("{}")
 
             chk = check_history_index_status(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk.status, "FAIL")
-            self.assertIn("duplicate", chk.message.lower())
+            assert chk.status == "FAIL"
+            assert "duplicate" in chk.message.lower()
 
             # Unsorted date entries in index
             with open(index_path, "w") as f:
@@ -665,8 +660,8 @@ class TestProductionMonitoring(unittest.TestCase):
                 f.write("{}")
 
             chk_unsorted = check_history_index_status(tmpdir, data_as_of="2026-09-17")
-            self.assertEqual(chk_unsorted.status, "FAIL")
-            self.assertIn("descending", chk_unsorted.message.lower())
+            assert chk_unsorted.status == "FAIL"
+            assert "descending" in chk_unsorted.message.lower()
 
     def test_ohlcv_duplicate_and_unsorted_fails(self):
         """Verify duplicate or unsorted dates in OHLCV DataFrame produce check failure ('FAIL')."""
@@ -682,7 +677,7 @@ class TestProductionMonitoring(unittest.TestCase):
             }
         )
         chk = check_ohlcv_data_quality(df_unsorted, "TEST_SYM")
-        self.assertEqual(chk.status, "FAIL")
+        assert chk.status == "FAIL"
 
     def test_expected_insufficient_data_condition(self):
         """Verify expected insufficient-data condition for minority stock is tracked as PASS."""
@@ -742,8 +737,8 @@ class TestProductionMonitoring(unittest.TestCase):
         }
 
         chk_large = check_symbol_processing_counts(payload_large)
-        self.assertEqual(chk_large.status, "PASS")
-        self.assertEqual(chk_large.measured_value["processed_ratio"], 0.90)
+        assert chk_large.status == "PASS"
+        assert chk_large.measured_value["processed_ratio"] == 0.90
 
     def test_avoid_with_sufficient_data_quality_not_counted_as_insufficient(self):
         """Verify AVOID action with SUFFICIENT data_quality is NOT counted as insufficient data."""
@@ -764,9 +759,9 @@ class TestProductionMonitoring(unittest.TestCase):
         }
 
         chk = check_symbol_processing_counts(payload)
-        self.assertEqual(chk.status, "PASS")
-        self.assertEqual(chk.measured_value["insufficient_count"], 0)
-        self.assertEqual(chk.measured_value["processed_count"], 3)
+        assert chk.status == "PASS"
+        assert chk.measured_value["insufficient_count"] == 0
+        assert chk.measured_value["processed_count"] == 3
 
     def test_nan_inf_in_market_payload_fails(self):
         """Verify NaN or Inf in market payload causes numeric_sanity check failure ('FAIL')."""
@@ -774,15 +769,15 @@ class TestProductionMonitoring(unittest.TestCase):
         bad_market["metrics"]["vnindex_value"] = float("nan")
 
         chk = check_numeric_sanity(self.healthy_payload, market_payload=bad_market)
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("NaN", chk.message)
+        assert chk.status == "FAIL"
+        assert "NaN" in chk.message
 
         bad_market_inf = copy.deepcopy(self.healthy_market)
         bad_market_inf["metrics"]["volatility"] = float("inf")
 
         chk_inf = check_numeric_sanity(self.healthy_payload, market_payload=bad_market_inf)
-        self.assertEqual(chk_inf.status, "FAIL")
-        self.assertIn("Inf", chk_inf.message)
+        assert chk_inf.status == "FAIL"
+        assert "Inf" in chk_inf.message
 
     def test_nan_inf_detection(self):
         """Verify NaN or Inf float values in recommendations payload cause numeric_sanity check failure ('FAIL')."""
@@ -790,18 +785,18 @@ class TestProductionMonitoring(unittest.TestCase):
         bad_payload["recommendations"][0]["signal_score"] = float("nan")
 
         issues = find_nan_or_inf(bad_payload)
-        self.assertTrue(len(issues) > 0)
+        assert len(issues) > 0
 
         chk = check_numeric_sanity(bad_payload)
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("NaN", chk.message)
+        assert chk.status == "FAIL"
+        assert "NaN" in chk.message
 
         bad_payload_inf = copy.deepcopy(self.healthy_payload)
         bad_payload_inf["recommendations"][0]["risk_metrics"]["var_t25"] = float("inf")
 
         chk_inf = check_numeric_sanity(bad_payload_inf)
-        self.assertEqual(chk_inf.status, "FAIL")
-        self.assertIn("Inf", chk_inf.message)
+        assert chk_inf.status == "FAIL"
+        assert "Inf" in chk_inf.message
 
     def test_benchmark_ohlcv_checks_executed(self):
         """Verify production monitoring executes benchmark OHLCV checks when DataFrames are passed."""
@@ -835,17 +830,17 @@ class TestProductionMonitoring(unittest.TestCase):
         )
 
         check_names = [c.check_name for c in res.checks]
-        self.assertIn("ohlcv_quality_vnindex", check_names)
-        self.assertIn("ohlcv_quality_vn30", check_names)
+        assert "ohlcv_quality_vnindex" in check_names
+        assert "ohlcv_quality_vn30" in check_names
 
         vn_chk = next(c for c in res.checks if c.check_name == "ohlcv_quality_vnindex")
-        self.assertEqual(vn_chk.status, "PASS")
+        assert vn_chk.status == "PASS"
 
     def test_future_data_freshness_fails(self):
         """Verify future data_as_of relative to reference_date causes check failure ('FAIL')."""
         chk = check_data_freshness("2026-09-20", reference_date="2026-09-17")
-        self.assertEqual(chk.status, "FAIL")
-        self.assertIn("future", chk.message.lower())
+        assert chk.status == "FAIL"
+        assert "future" in chk.message.lower()
 
     def test_deterministic_serialization(self):
         """Verify CheckResult and PipelineMonitoringResult produce deterministic serializable dicts."""
@@ -857,7 +852,7 @@ class TestProductionMonitoring(unittest.TestCase):
             message="msg",
         )
         d = chk.to_dict()
-        self.assertEqual(d["measured_value"]["bad_val"], "NaN")
+        assert d["measured_value"]["bad_val"] == "NaN"
 
         res = evaluate_production_monitoring(
             recommendations_payload=self.healthy_payload,
@@ -869,7 +864,7 @@ class TestProductionMonitoring(unittest.TestCase):
         json_str1 = json.dumps(res_dict1, indent=2)
         json_str2 = json.dumps(res_dict2, indent=2)
 
-        self.assertEqual(json_str1, json_str2)
+        assert json_str1 == json_str2
 
     def test_monitoring_does_not_mutate_payloads(self):
         """Verify monitoring execution does not mutate input recommendation or market payloads."""
@@ -881,7 +876,7 @@ class TestProductionMonitoring(unittest.TestCase):
             reference_date=self.reference_date,
         )
 
-        self.assertEqual(payload_copy, payload_orig)
+        assert payload_copy == payload_orig
 
     def test_monitoring_does_not_change_signal_or_regime_outputs(self):
         """Verify monitoring layer does not alter recommendation or market regime calculation outputs."""
@@ -955,9 +950,5 @@ class TestProductionMonitoring(unittest.TestCase):
             df_vnindex=df_vnindex,
         )
 
-        self.assertEqual(regime_1, regime_2)
-        self.assertEqual(rec_1, rec_2)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert regime_1 == regime_2
+        assert rec_1 == rec_2

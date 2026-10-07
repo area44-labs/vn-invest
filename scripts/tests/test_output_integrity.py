@@ -1,11 +1,11 @@
 """Deterministic offline unit and regression tests for final payload & output integrity."""
 
+import pytest
 import copy
 import json
 import os
 import shutil
 import tempfile
-import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -19,10 +19,11 @@ from scripts.generate_report import (
 from scripts.lib.risk import normalize_universe_liquidity_scores
 
 
-class TestOutputIntegritySuite(unittest.TestCase):
+@pytest.mark.integration
+class TestOutputIntegritySuite:
     """Test suite verifying output integrity validation, fail-closed mechanics, and liquidity normalization bounds."""
 
-    def setUp(self):
+    def setup_method(self):
         self.schema = load_schema()
         self.valid_payload = {
             "schema_version": "2.0",
@@ -147,7 +148,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
     def test_valid_payload_passes_integrity_validation(self):
         """Verify clean, schema-compliant valid payload passes integrity check with 0 issues."""
         issues = find_payload_integrity_issues(self.valid_payload)
-        self.assertEqual(issues, [])
+        assert issues == []
         validate_final_payload_integrity(self.valid_payload)
 
     def test_nan_inf_detection(self):
@@ -155,55 +156,55 @@ class TestOutputIntegritySuite(unittest.TestCase):
         payload_nan = copy.deepcopy(self.valid_payload)
         payload_nan["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
         issues = find_payload_integrity_issues(payload_nan)
-        self.assertTrue(any("NaN" in iss for iss in issues))
-        with self.assertRaises(ValueError):
+        assert any("NaN" in iss for iss in issues)
+        with pytest.raises(ValueError):
             validate_final_payload_integrity(payload_nan)
 
         payload_inf = copy.deepcopy(self.valid_payload)
         payload_inf["recommendations"][0]["trade_plan"]["risk_reward"] = float("inf")
         issues = find_payload_integrity_issues(payload_inf)
-        self.assertTrue(any("Infinity" in iss for iss in issues))
-        with self.assertRaises(ValueError):
+        assert any("Infinity" in iss for iss in issues)
+        with pytest.raises(ValueError):
             validate_final_payload_integrity(payload_inf)
 
         payload_str_nan = copy.deepcopy(self.valid_payload)
         payload_str_nan["recommendations"][0]["reasons"][0] = "NaN"
         issues = find_payload_integrity_issues(payload_str_nan)
-        self.assertTrue(any("Invalid numeric string representation" in iss for iss in issues))
+        assert any("Invalid numeric string representation" in iss for iss in issues)
 
     def test_non_serializable_numpy_pandas_scalars(self):
         """Verify non-native numpy/pandas scalar objects in payload are detected."""
         payload_np = copy.deepcopy(self.valid_payload)
         payload_np["recommendations"][0]["risk_metrics"]["volatility_60d"] = np.float64(0.18)
         issues = find_payload_integrity_issues(payload_np)
-        self.assertTrue(any("Non-serializable float64" in iss for iss in issues))
+        assert any("Non-serializable float64" in iss for iss in issues)
 
     def test_summary_mismatch_detection(self):
         """Verify summary action count mismatches are caught."""
         payload_mismatch = copy.deepcopy(self.valid_payload)
         payload_mismatch["summary"]["buy_count"] = 5  # Actual is 1
         issues = find_payload_integrity_issues(payload_mismatch)
-        self.assertTrue(any("Summary mismatch for 'buy_count'" in iss for iss in issues))
+        assert any("Summary mismatch for 'buy_count'" in iss for iss in issues)
 
     def test_score_and_metric_out_of_range(self):
         """Verify score and metric range violations are caught."""
         payload_out = copy.deepcopy(self.valid_payload)
         payload_out["recommendations"][0]["signal_score"] = 150.0  # > 100
         issues = find_payload_integrity_issues(payload_out)
-        self.assertTrue(any("out of range" in iss for iss in issues))
+        assert any("out of range" in iss for iss in issues)
 
         payload_conf = copy.deepcopy(self.valid_payload)
         payload_conf["recommendations"][0]["confidence"] = 1.5  # > 1.0
         issues = find_payload_integrity_issues(payload_conf)
-        self.assertTrue(any("out of range" in iss for iss in issues))
+        assert any("out of range" in iss for iss in issues)
 
     def test_required_fields_none_and_schema_validation(self):
         """Verify mandatory schema fields set to None fail integrity validation."""
         payload_null = copy.deepcopy(self.valid_payload)
         payload_null["recommendations"][0]["action"] = None
         issues = find_payload_integrity_issues(payload_null)
-        self.assertTrue(len(issues) > 0)
-        with self.assertRaises(ValueError):
+        assert len(issues) > 0
+        with pytest.raises(ValueError):
             validate_final_payload_integrity(payload_null)
 
     def test_insufficient_data_quality_invariants(self):
@@ -212,9 +213,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
         # VIC has data_quality INSUFFICIENT
         payload_inv["recommendations"][1]["signal_score"] = 50.0
         issues = find_payload_integrity_issues(payload_inv)
-        self.assertTrue(
-            any("INSUFFICIENT data quality has non-null signal_score" in iss for iss in issues)
-        )
+        assert any("INSUFFICIENT data quality has non-null signal_score" in iss for iss in issues)
 
     def test_liquidity_normalization_excludes_insufficient(self):
         """Verify normalize_universe_liquidity_scores excludes INSUFFICIENT symbols from denominator."""
@@ -251,11 +250,11 @@ class TestOutputIntegritySuite(unittest.TestCase):
         vnm_rec = next(r for r in normalized if r["symbol"] == "VNM")
         ex_rec = next(r for r in normalized if r["symbol"] == "EXCLUDED")
 
-        self.assertEqual(fpt_rec["risk_metrics"]["liquidity_score"], 100.0)
-        self.assertEqual(vnm_rec["risk_metrics"]["liquidity_score"], 50.0)
+        assert fpt_rec["risk_metrics"]["liquidity_score"] == 100.0
+        assert vnm_rec["risk_metrics"]["liquidity_score"] == 50.0
         # EXCLUDED symbol must remain None and not affect rank
-        self.assertIsNone(ex_rec["risk_metrics"]["liquidity_score"])
-        self.assertIsNone(ex_rec["risk_adjusted_score"])
+        assert ex_rec["risk_metrics"]["liquidity_score"] is None
+        assert ex_rec["risk_adjusted_score"] is None
 
     def _make_fake_execute(self, payload):
         from scripts.domain import PipelineResult
@@ -304,14 +303,14 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py"]),
             ):
-                with self.assertRaises(SystemExit) as cm:
+                with pytest.raises(SystemExit) as cm:
                     main()
-                self.assertEqual(cm.exception.code, 1)
+                assert cm.value.code == 1
 
             # Ensure existing file was preserved and not overwritten by invalid pipeline output
             with open(recs_file, "r", encoding="utf-8") as f:
                 content = f.read()
-            self.assertEqual(content, original_content)
+            assert content == original_content
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -363,28 +362,24 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py"]),
             ):
-                with self.assertRaises(SystemExit) as cm:
+                with pytest.raises(SystemExit) as cm:
                     main()
-                self.assertEqual(cm.exception.code, 1)
+                assert cm.value.code == 1
 
             # Verify every pre-existing artifact remains byte-for-byte unchanged
             for filepath, expected_content in original_contents.items():
                 with open(filepath, "r", encoding="utf-8") as f:
                     actual_content = f.read()
-                self.assertEqual(
-                    actual_content,
-                    expected_content,
-                    f"File '{filepath}' was modified when monitoring validation failed!",
+                assert actual_content == expected_content, (
+                    f"File '{filepath}' was modified when monitoring validation failed!"
                 )
 
             # Verify no partial or temporary files exist in gen_dir or hist_dir
             for root, _, files in os.walk(gen_dir):
                 for file in files:
                     full_p = os.path.join(root, file)
-                    self.assertIn(
-                        full_p,
-                        original_contents,
-                        f"Unexpected file created during failed validation: '{full_p}'",
+                    assert full_p in original_contents, (
+                        f"Unexpected file created during failed validation: '{full_p}'"
                     )
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -431,12 +426,12 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 os.path.join(gen_dir, "history", "index.json"),
             ]
             for p in expected_artifacts:
-                self.assertTrue(os.path.exists(p), f"Expected published artifact missing: '{p}'")
+                assert os.path.exists(p), f"Expected published artifact missing: '{p}'"
 
             # Verify no leftover .tmp files
             for root, _, files in os.walk(gen_dir):
                 for f in files:
-                    self.assertFalse(f.endswith(".tmp"), f"Leftover temporary file found: {f}")
+                    assert not (f.endswith(".tmp")), f"Leftover temporary file found: {f}"
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -499,27 +494,25 @@ class TestOutputIntegritySuite(unittest.TestCase):
                 ),
                 patch("os.replace", side_effect=failing_os_replace),
                 patch("sys.argv", ["generate_report.py"]),
-                self.assertRaises(OSError),
+                pytest.raises(OSError),
             ):
                 main()
 
             # Prove that replace #1 succeeded before replace #2 failed
-            self.assertGreaterEqual(replace_count, 2)
+            assert replace_count >= 2
 
             # Verify ALL existing files are restored byte-for-byte unchanged (no mixed old/new artifacts)
             for path, expected in original_contents.items():
                 with open(path, "r", encoding="utf-8") as f:
-                    self.assertEqual(
-                        f.read(),
-                        expected,
-                        f"Artifact '{path}' was modified after mid-commit rollback failure!",
+                    assert f.read() == expected, (
+                        f"Artifact '{path}' was modified after mid-commit rollback failure!"
                     )
 
             # Verify no temporary or backup files remain in gen_dir
             for root, _, files in os.walk(gen_dir):
                 for f in files:
-                    self.assertFalse(f.endswith(".tmp"), f"Leftover temp file: {f}")
-                    self.assertFalse(f.endswith(".bak"), f"Leftover backup file: {f}")
+                    assert not (f.endswith(".tmp")), f"Leftover temp file: {f}"
+                    assert not (f.endswith(".bak")), f"Leftover backup file: {f}"
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -570,15 +563,14 @@ class TestOutputIntegritySuite(unittest.TestCase):
 
             with (
                 patch("os.replace", side_effect=double_failing_replace),
-                self.assertRaises(RuntimeError) as cm,
+                pytest.raises(RuntimeError) as cm,
             ):
                 publish_artifacts_atomically(
                     artifacts, target_dir=temp_dir, strict_provenance=False
                 )
 
-            self.assertIn(
-                "CRITICAL: Directory-level atomic artifact publish rollback failed",
-                str(cm.exception),
+            assert "CRITICAL: Directory-level atomic artifact publish rollback failed" in str(
+                cm.value
             )
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -616,15 +608,15 @@ class TestOutputIntegritySuite(unittest.TestCase):
                     side_effect=RuntimeError("Pipeline failed"),
                 ),
                 patch("sys.argv", ["generate_report.py"]),
-                self.assertRaises(SystemExit) as cm,
+                pytest.raises(SystemExit) as cm,
             ):
                 main()
-            self.assertEqual(cm.exception.code, 1)
+            assert cm.value.code == 1
 
             # Verify artifacts remain unchanged after failure
             for path, expected in original_contents.items():
                 with open(path, "r", encoding="utf-8") as f:
-                    self.assertEqual(f.read(), expected)
+                    assert f.read() == expected
 
             # 2. Retry with valid pipeline output
             valid_p = copy.deepcopy(self.valid_payload)
@@ -656,11 +648,7 @@ class TestOutputIntegritySuite(unittest.TestCase):
             # Verify all artifacts updated to v2 payload
             with open(recs_file, "r", encoding="utf-8") as f:
                 recs_data = json.load(f)
-            self.assertEqual(recs_data["schema_version"], "2.0")
-            self.assertEqual(recs_data["data_as_of"], "2026-09-25")
+            assert recs_data["schema_version"] == "2.0"
+            assert recs_data["data_as_of"] == "2026-09-25"
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-if __name__ == "__main__":
-    unittest.main()

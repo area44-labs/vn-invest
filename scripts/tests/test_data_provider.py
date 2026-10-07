@@ -4,9 +4,9 @@ Deterministic tests without network access covering all 13 canonical validator r
 and provider boundary conversion/validation.
 """
 
+import pytest
 import json
 import tempfile
-import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -49,42 +49,43 @@ def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") 
     return pd.DataFrame(data)
 
 
-class TestCanonicalOHLCVValidator(unittest.TestCase):
+@pytest.mark.unit
+class TestCanonicalOHLCVValidator:
     def test_1_valid_ohlcv_passes(self):
         """1. Valid canonical OHLCV data passes validation."""
         df = make_valid_canonical_df(25)
-        self.assertTrue(validate_canonical_ohlcv(df))
+        assert validate_canonical_ohlcv(df)
 
     def test_2_empty_dataframe_fails(self):
         """2. Empty DataFrame or None fails validation."""
-        with self.assertRaises(CanonicalOHLCVError) as ctx_none:
+        with pytest.raises(CanonicalOHLCVError) as ctx_none:
             validate_canonical_ohlcv(None)
-        self.assertIn("Empty dataset", str(ctx_none.exception))
+        assert "Empty dataset" in str(ctx_none.exception)
 
-        with self.assertRaises(CanonicalOHLCVError) as ctx_empty:
+        with pytest.raises(CanonicalOHLCVError) as ctx_empty:
             validate_canonical_ohlcv(pd.DataFrame())
-        self.assertIn("Empty dataset", str(ctx_empty.exception))
+        assert "Empty dataset" in str(ctx_empty.exception)
 
     def test_3_missing_required_column_fails(self):
         """3. Missing required OHLCV column fails validation."""
         df = make_valid_canonical_df(20)
         df_no_close = df.drop(columns=["close"])
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df_no_close)
-        self.assertIn("Missing required columns", str(ctx.exception))
+        assert "Missing required columns" in str(ctx.value)
 
         df_no_date = df.drop(columns=["time"])
-        with self.assertRaises(CanonicalOHLCVError) as ctx_date:
+        with pytest.raises(CanonicalOHLCVError) as ctx_date:
             validate_canonical_ohlcv(df_no_date)
-        self.assertIn("Missing date column", str(ctx_date.exception))
+        assert "Missing date column" in str(ctx_date.exception)
 
     def test_4_duplicate_dates_fail(self):
         """4. Duplicate dates fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[10, "time"] = df.loc[9, "time"]
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Duplicate dates detected", str(ctx.exception))
+        assert "Duplicate dates detected" in str(ctx.value)
 
     def test_5_unsorted_dates_fail(self):
         """5. Unsorted dates fail validation."""
@@ -93,81 +94,82 @@ class TestCanonicalOHLCVValidator(unittest.TestCase):
         tmp = df.loc[5, "time"]
         df.loc[5, "time"] = df.loc[6, "time"]
         df.loc[6, "time"] = tmp
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Unsorted dates detected", str(ctx.exception))
+        assert "Unsorted dates detected" in str(ctx.value)
 
     def test_6_nan_fails(self):
         """6. NaN values fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[8, "close"] = np.nan
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("NaN values detected", str(ctx.exception))
+        assert "NaN values detected" in str(ctx.value)
 
     def test_7_infinite_value_fails(self):
         """7. Infinite values fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[5, "close"] = np.inf
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Infinite values detected", str(ctx.exception))
+        assert "Infinite values detected" in str(ctx.value)
 
     def test_8_high_less_than_low_fails(self):
         """8. 'high < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[4, "high"] = 40000.0
         df.loc[4, "low"] = 50000.0
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Invalid OHLC relationship", str(ctx.exception))
+        assert "Invalid OHLC relationship" in str(ctx.value)
 
     def test_9_open_greater_than_high_fails(self):
         """9. 'open > high' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[3, "open"] = 60000.0
         df.loc[3, "high"] = 55000.0
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Invalid OHLC relationship", str(ctx.exception))
+        assert "Invalid OHLC relationship" in str(ctx.value)
 
     def test_10_open_less_than_low_fails(self):
         """10. 'open < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[3, "open"] = 45000.0
         df.loc[3, "low"] = 48000.0
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Invalid OHLC relationship", str(ctx.exception))
+        assert "Invalid OHLC relationship" in str(ctx.value)
 
     def test_11_close_greater_than_high_fails(self):
         """11. 'close > high' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[2, "close"] = 60000.0
         df.loc[2, "high"] = 55000.0
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Invalid OHLC relationship", str(ctx.exception))
+        assert "Invalid OHLC relationship" in str(ctx.value)
 
     def test_12_close_less_than_low_fails(self):
         """12. 'close < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[2, "close"] = 40000.0
         df.loc[2, "low"] = 48000.0
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Invalid OHLC relationship", str(ctx.exception))
+        assert "Invalid OHLC relationship" in str(ctx.value)
 
     def test_13_negative_volume_fails(self):
         """13. Negative volume fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[7, "volume"] = -100
-        with self.assertRaises(CanonicalOHLCVError) as ctx:
+        with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
-        self.assertIn("Negative volume detected", str(ctx.exception))
+        assert "Negative volume detected" in str(ctx.value)
 
 
-class TestVnstockProviderBoundary(unittest.TestCase):
+@pytest.mark.unit
+class TestVnstockProviderBoundary:
     @patch("scripts.data_provider.VnQuote")
     def test_provider_boundary_mock_integration(self, mock_vnquote_cls):
         """Demonstrate provider output -> canonical conversion -> validation without live network."""
@@ -195,22 +197,23 @@ class TestVnstockProviderBoundary(unittest.TestCase):
         canonical_df = provider.fetch_ohlcv("FPT", "2026-08-01", "2026-08-10")
 
         # Verify unit normalization (100.0 thousand VND -> 100,000 VND)
-        self.assertEqual(canonical_df.loc[0, "open"], 100000.0)
-        self.assertEqual(canonical_df.loc[0, "close"], 102000.0)
-        self.assertEqual(canonical_df.loc[0, "high"], 105000.0)
-        self.assertEqual(canonical_df.loc[0, "low"], 95000.0)
-        self.assertEqual(canonical_df.loc[0, "volume"], 500000)
+        assert canonical_df.loc[0, "open"] == 100000.0
+        assert canonical_df.loc[0, "close"] == 102000.0
+        assert canonical_df.loc[0, "high"] == 105000.0
+        assert canonical_df.loc[0, "low"] == 95000.0
+        assert canonical_df.loc[0, "volume"] == 500000
 
         # Verify validation passed and DataFrame is canonical
-        self.assertTrue(validate_canonical_ohlcv(canonical_df))
+        assert validate_canonical_ohlcv(canonical_df)
 
 
-class TestDataProviderExceptionHandling(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.unit
+class TestDataProviderExceptionHandling:
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def tearDown(self):
+    def teardown_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
@@ -227,13 +230,13 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("FPT", max_retries=3)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertTrue(is_circuit_breaker_active())
-        self.assertEqual(ctx.exception.cooldown_seconds, 32)
-        self.assertEqual(ctx.exception.symbol, "FPT")
+        assert mock_inst.history.call_count == 1
+        assert is_circuit_breaker_active()
+        assert ctx.value.cooldown_seconds == 32
+        assert ctx.value.symbol == "FPT"
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -249,11 +252,11 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(ProviderRateLimitError):
+        with pytest.raises(ProviderRateLimitError):
             provider.fetch_ohlcv("FPT", max_retries=3)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertTrue(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 1
+        assert is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -270,19 +273,19 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         provider = VnstockDataProvider(is_available=True)
 
         # First request for FPT hits rate limit
-        with self.assertRaises(ProviderRateLimitError):
+        with pytest.raises(ProviderRateLimitError):
             provider.fetch_ohlcv("FPT")
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertTrue(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 1
+        assert is_circuit_breaker_active()
 
         # Second request for HPG should fail immediately via circuit breaker without making any VnQuote calls
         mock_inst.reset_mock()
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("HPG")
 
-        self.assertEqual(mock_inst.history.call_count, 0)
-        self.assertIn("circuit breaker is active", str(ctx.exception))
+        assert mock_inst.history.call_count == 0
+        assert "circuit breaker is active" in str(ctx.value)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -302,13 +305,13 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
             mock_quote.return_value = mock_inst
 
             provider = VnstockDataProvider(is_available=True)
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 provider.fetch_ohlcv("FPT", max_retries=2)
 
-            self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
+            assert "Failed to fetch valid canonical OHLCV" in str(ctx.value)
             # 2 attempts * 2 sources = 4 calls total
-            self.assertEqual(mock_inst.history.call_count, 4)
-            self.assertFalse(is_circuit_breaker_active())
+            assert mock_inst.history.call_count == 4
+            assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -325,13 +328,13 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
             mock_quote.return_value = mock_inst
 
             provider = VnstockDataProvider(is_available=True)
-            with self.assertRaises(Exception) as ctx:
+            with pytest.raises(Exception) as ctx:
                 provider.fetch_ohlcv("FPT", max_retries=3)
 
-            self.assertIn(f"HTTP {status_code} Error", str(ctx.exception))
+            assert f"HTTP {status_code} Error" in str(ctx.value)
             # Fails immediately on 1st call without trying 2nd source or 2nd/3rd attempt
-            self.assertEqual(mock_inst.history.call_count, 1)
-            self.assertFalse(is_circuit_breaker_active())
+            assert mock_inst.history.call_count == 1
+            assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -345,11 +348,11 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(requests.exceptions.RequestException):
+        with pytest.raises(requests.exceptions.RequestException):
             provider.fetch_ohlcv("FPT", max_retries=3)
 
         # Fails fast immediately on 1st call without retrying or trying 2nd source
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -369,10 +372,10 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(HTTP408Error):
+        with pytest.raises(HTTP408Error):
             provider.fetch_ohlcv("FPT", max_retries=3)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -380,46 +383,42 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', 40s/60s, retry_after attr, and fallback."""
         from scripts.data_provider import parse_wait_seconds
 
-        self.assertEqual(parse_wait_seconds("Rate limit. wait 10 seconds"), 12)
-        self.assertEqual(parse_wait_seconds("Rate limit. wait 10 sec"), 12)
-        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 10 giây"), 12)
-        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 40 giây"), 42)
-        self.assertEqual(parse_wait_seconds("Rate limit. Chờ 60 giây"), 62)
-        self.assertEqual(parse_wait_seconds("Rate limit. 40s"), 42)
-        self.assertEqual(parse_wait_seconds("Rate limit. 60s"), 62)
-        self.assertEqual(parse_wait_seconds("Rate limit. 10 sec"), 12)
-        self.assertEqual(parse_wait_seconds("Rate limit. No numbers here"), 15)
+        assert parse_wait_seconds("Rate limit. wait 10 seconds") == 12
+        assert parse_wait_seconds("Rate limit. wait 10 sec") == 12
+        assert parse_wait_seconds("Rate limit. Chờ 10 giây") == 12
+        assert parse_wait_seconds("Rate limit. Chờ 40 giây") == 42
+        assert parse_wait_seconds("Rate limit. Chờ 60 giây") == 62
+        assert parse_wait_seconds("Rate limit. 40s") == 42
+        assert parse_wait_seconds("Rate limit. 60s") == 62
+        assert parse_wait_seconds("Rate limit. 10 sec") == 12
+        assert parse_wait_seconds("Rate limit. No numbers here") == 15
 
         # Test with real RateLimitExceeded instance having retry_after attribute
         exc_40 = RateLimitExceeded("quote.history", "min", 20, 20, retry_after=40.0, tier="guest")
-        self.assertEqual(parse_wait_seconds(str(exc_40), exc=exc_40), 42)
+        assert parse_wait_seconds(str(exc_40), exc=exc_40) == 42
 
         exc_60 = RateLimitExceeded("quote.history", "min", 60, 60, retry_after=60.0, tier="free")
-        self.assertEqual(parse_wait_seconds(str(exc_60), exc=exc_60), 62)
+        assert parse_wait_seconds(str(exc_60), exc=exc_60) == 62
 
         # Test fallback edge cases: invalid/zero/None retry_after attributes
         exc_invalid_retry = RateLimitExceeded(
             "quote.history", "min", 20, 20, retry_after=None, tier="guest"
         )
         exc_invalid_retry.retry_after = "invalid"
-        self.assertEqual(
-            parse_wait_seconds("Rate limit reached. Wait 40 seconds", exc=exc_invalid_retry), 42
+        assert (
+            parse_wait_seconds("Rate limit reached. Wait 40 seconds", exc=exc_invalid_retry) == 42
         )
 
         exc_zero_retry = RateLimitExceeded(
             "quote.history", "min", 20, 20, retry_after=None, tier="guest"
         )
         exc_zero_retry.retry_after = 0
-        self.assertEqual(
-            parse_wait_seconds("Rate limit reached. Wait 60 seconds", exc=exc_zero_retry), 62
-        )
+        assert parse_wait_seconds("Rate limit reached. Wait 60 seconds", exc=exc_zero_retry) == 62
 
         exc_none_retry = RateLimitExceeded(
             "quote.history", "min", 20, 20, retry_after=None, tier="guest"
         )
-        self.assertEqual(
-            parse_wait_seconds("Rate limit reached. Chờ 50 giây", exc=exc_none_retry), 52
-        )
+        assert parse_wait_seconds("Rate limit reached. Chờ 50 giây", exc=exc_none_retry) == 52
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -432,13 +431,13 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError) as ctx:
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
+        assert "Failed to fetch valid canonical OHLCV" in str(ctx.value)
         # It was treated as a transient ConnectionError, so it retried (2 attempts * 2 sources = 4 calls)
-        self.assertEqual(mock_inst.history.call_count, 4)
-        self.assertFalse(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 4
+        assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -451,12 +450,12 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError) as ctx:
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertIn("Failed to fetch valid canonical OHLCV", str(ctx.exception))
-        self.assertEqual(mock_inst.history.call_count, 4)
-        self.assertFalse(is_circuit_breaker_active())
+        assert "Failed to fetch valid canonical OHLCV" in str(ctx.value)
+        assert mock_inst.history.call_count == 4
+        assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -477,10 +476,10 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         provider = VnstockDataProvider(is_available=True)
         df_res = provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertIsNotNone(df_res)
-        self.assertEqual(len(df_res), 10)
-        self.assertEqual(mock_inst.history.call_count, 2)
-        self.assertFalse(is_circuit_breaker_active())
+        assert df_res is not None
+        assert len(df_res) == 10
+        assert mock_inst.history.call_count == 2
+        assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -491,17 +490,17 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(CanonicalOHLCVError):
+        with pytest.raises(CanonicalOHLCVError):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
         mock_inst.reset_mock()
         mock_inst.history.side_effect = OSError("Disk read error")
-        with self.assertRaises(OSError):
+        with pytest.raises(OSError):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -512,11 +511,11 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(SystemExit):
+        with pytest.raises(SystemExit):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertFalse(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 1
+        assert not is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -529,12 +528,12 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertTrue(is_circuit_breaker_active())
-        self.assertEqual(ctx.exception.cooldown_seconds, 12)
+        assert mock_inst.history.call_count == 1
+        assert is_circuit_breaker_active()
+        assert ctx.value.cooldown_seconds == 12
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -545,19 +544,20 @@ class TestDataProviderExceptionHandling(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(KeyboardInterrupt):
+        with pytest.raises(KeyboardInterrupt):
             provider.fetch_ohlcv("FPT", max_retries=2)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
 
-class TestVnstockRealRateLimitRegression(unittest.TestCase):
+@pytest.mark.unit
+class TestVnstockRealRateLimitRegression:
     """Focused regression tests using real Vnstock / Vnai rate-limit exception shapes."""
 
-    def setUp(self):
+    def setup_method(self):
         reset_circuit_breaker()
 
-    def tearDown(self):
+    def teardown_method(self):
         reset_circuit_breaker()
 
     @patch("scripts.data_provider.time.sleep")
@@ -579,29 +579,29 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
 
         provider = VnstockDataProvider(is_available=True)
 
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("FPT", max_retries=3)
 
         # 1. No retries occur (call_count == 1)
-        self.assertEqual(mock_inst.history.call_count, 1)
+        assert mock_inst.history.call_count == 1
 
         # 2. Transformed to ProviderRateLimitError
-        self.assertIsInstance(ctx.exception, ProviderRateLimitError)
-        self.assertEqual(ctx.exception.symbol, "FPT")
+        assert isinstance(ctx.value, ProviderRateLimitError)
+        assert ctx.value.symbol == "FPT"
 
         # 3. Parsed cooldown is preserved (40 + 2 = 42 seconds)
-        self.assertEqual(ctx.exception.cooldown_seconds, 42)
+        assert ctx.value.cooldown_seconds == 42
 
         # 4. Circuit breaker is activated
-        self.assertTrue(is_circuit_breaker_active())
+        assert is_circuit_breaker_active()
 
         # 5. Subsequent provider requests are blocked fast without making network calls
         mock_inst.reset_mock()
-        with self.assertRaises(ProviderRateLimitError) as ctx2:
+        with pytest.raises(ProviderRateLimitError) as ctx2:
             provider.fetch_ohlcv("VCB")
 
-        self.assertEqual(mock_inst.history.call_count, 0)
-        self.assertIn("circuit breaker is active", str(ctx2.exception))
+        assert mock_inst.history.call_count == 0
+        assert "circuit breaker is active" in str(ctx2.exception)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -622,12 +622,12 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
 
         provider = VnstockDataProvider(is_available=True)
 
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("HPG", max_retries=3)
 
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertEqual(ctx.exception.cooldown_seconds, 62)
-        self.assertTrue(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 1
+        assert ctx.value.cooldown_seconds == 62
+        assert is_circuit_breaker_active()
 
     def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
         """Regression test verifying generate_report.py fails cleanly (exit code 1) and preserves generated files."""
@@ -649,15 +649,15 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
                 # Pipeline exits with status code 1 for provider rate limits
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Generated output file was NOT modified or overwritten
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
-            self.assertEqual(saved_content, initial_content)
+            assert saved_content == initial_content
 
     def test_generate_report_three_exit_code_paths(self):
         """Regression test covering the 3 exit paths of generate_report.py:
@@ -750,10 +750,10 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx2:
+                with pytest.raises(SystemExit) as ctx2:
                     generate_report_main()
 
-                self.assertEqual(ctx2.exception.code, 1)
+                assert ctx2.exception.code == 1
 
             # Path 3: Unexpected error converts to SystemExit(1)
             with (
@@ -764,10 +764,10 @@ class TestVnstockRealRateLimitRegression(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx3:
+                with pytest.raises(SystemExit) as ctx3:
                     generate_report_main()
 
-                self.assertEqual(ctx3.exception.code, 1)
+                assert ctx3.exception.code == 1
 
 
 SMALL_TEST_UNIVERSE = [
@@ -777,10 +777,11 @@ SMALL_TEST_UNIVERSE = [
 ]
 
 
-class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
+@pytest.mark.unit
+class TestRateLimitRecoveryAndPipelineReliability:
     """Focused tests for rate-limit recovery, universe scan continuity, and fail-closed report generation."""
 
-    def setUp(self):
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
@@ -795,7 +796,7 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         self.sleep_p3.start()
         self.univ_p.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
@@ -839,15 +840,15 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         recs_data, _market_data, _ = pipeline_res
 
         # Complete universe processed
-        self.assertEqual(recs_data["summary"]["total_scanned"], len(candidates))
-        self.assertEqual(len(recs_data["recommendations"]), len(candidates))
-        self.assertIn("market", recs_data)
+        assert recs_data["summary"]["total_scanned"] == len(candidates)
+        assert len(recs_data["recommendations"]) == len(candidates)
+        assert "market" in recs_data
 
         # HPG was called twice (initial rate limit + successful recovery retry)
-        self.assertEqual(hpg_calls, 2)
+        assert hpg_calls == 2
         # Rate limit recovery occurred and circuit breaker is clear
-        self.assertEqual(get_rate_limit_recovery_count(), 1)
-        self.assertFalse(is_circuit_breaker_active())
+        assert get_rate_limit_recovery_count() == 1
+        assert not is_circuit_breaker_active()
         mock_sleep.assert_any_call(12)
 
     def test_run_pipeline_incomplete_universe_fails_without_generating_report(self):
@@ -888,15 +889,15 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
                 # Pipeline exits with non-zero exit code 1
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Neither recommendations.json nor market.json was modified or overwritten
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
-            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
+            assert json.loads(market_file.read_text(encoding="utf-8")) == initial_market
 
     def test_run_pipeline_invalid_vn30_fails_without_generating_report(self):
         """Regression test verifying that when VN30 benchmark data is invalid/empty,
@@ -916,10 +917,10 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_historical_data,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("VN30", str(ctx.exception))
+            assert "VN30" in str(ctx.value)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -937,19 +938,20 @@ class TestRateLimitRecoveryAndPipelineReliability(unittest.TestCase):
         mock_inst.history.side_effect = rate_limit_exc
         mock_quote.return_value = mock_inst
 
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             # max_rate_limit_retries = 2
             get_historical_data("FPT", max_rate_limit_retries=2)
 
         # Fails after exhausting retries (attempts 0, 1, 2)
-        self.assertEqual(ctx.exception.symbol, "FPT")
-        self.assertEqual(get_rate_limit_recovery_count(), 2)
+        assert ctx.value.symbol == "FPT"
+        assert get_rate_limit_recovery_count() == 2
 
 
-class TestUniverseCompletenessValidation(unittest.TestCase):
+@pytest.mark.unit
+class TestUniverseCompletenessValidation:
     """Offline unit tests verifying complete universe processing and fail-closed validation."""
 
-    def setUp(self):
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
@@ -964,7 +966,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         self.sleep_p3.start()
         self.univ_p.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
@@ -984,8 +986,8 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, market_data, _ = pipeline_res
-            self.assertIn("recommendations", recs_data)
-            self.assertIn("market", market_data)
+            assert "recommendations" in recs_data
+            assert "market" in market_data
 
     def test_2_one_expected_symbol_missing_fails(self):
         """2. One expected symbol missing -> fails closed with RuntimeError and preserves generated files."""
@@ -1042,10 +1044,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     side_effect=mock_get_hist,
                 ),
             ):
-                with self.assertRaises(RuntimeError) as ctx:
+                with pytest.raises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
 
-                self.assertIn("MISSING_SYM", str(ctx.exception))
+                assert "MISSING_SYM" in str(ctx.value)
 
             # Reset dynamic_candidates iter_count for main() test
             dynamic_candidates._iter_count = 0
@@ -1061,13 +1063,13 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx_exit:
+                with pytest.raises(SystemExit) as ctx_exit:
                     generate_report_main()
 
-                self.assertEqual(ctx_exit.exception.code, 1)
+                assert ctx_exit.exception.code == 1
 
             # Output file was NOT modified
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
     def test_3_provider_failure_for_one_symbol_fails(self):
         """3. Provider failure for one symbol -> fails closed with RuntimeError and preserves files."""
@@ -1098,20 +1100,20 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                     side_effect=mock_get_hist,
                 ),
             ):
-                with self.assertRaises(RuntimeError) as ctx:
+                with pytest.raises(RuntimeError) as ctx:
                     run_pipeline(update_data=True)
 
-                self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
-                self.assertIn("Failed: 1", str(ctx.exception))
-                self.assertIn(failed_candidate, str(ctx.exception))
+                assert "Incomplete universe scan in update mode" in str(ctx.value)
+                assert "Failed: 1" in str(ctx.value)
+                assert failed_candidate in str(ctx.value)
 
                 with patch("sys.argv", ["generate_report.py", "--update"]):
-                    with self.assertRaises(SystemExit) as ctx_exit:
+                    with pytest.raises(SystemExit) as ctx_exit:
                         generate_report_main()
-                    self.assertEqual(ctx_exit.exception.code, 1)
+                    assert ctx_exit.exception.code == 1
 
             # Artifact preserved
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
     def test_4_one_explicitly_invalid_symbol_allowed(self):
         """4. One explicitly invalid symbol (with all other symbols valid) -> allowed."""
@@ -1133,13 +1135,13 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _market_data, _ = pipeline_res
-            self.assertIn("recommendations", recs_data)
+            assert "recommendations" in recs_data
             # The invalid symbol is present in recommendations with action AVOID
             invalid_recs = [
                 r for r in recs_data["recommendations"] if r["symbol"] == invalid_candidate
             ]
-            self.assertEqual(len(invalid_recs), 1)
-            self.assertEqual(invalid_recs[0]["action"], "AVOID")
+            assert len(invalid_recs) == 1
+            assert invalid_recs[0]["action"] == "AVOID"
 
     def test_get_historical_data_status_tag_distinctions(self):
         """Verify get_historical_data tags status strictly by issue type."""
@@ -1155,32 +1157,32 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             # 1. Valid data -> REAL_DATA
             mock_prov.fetch_ohlcv.return_value = valid_df
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "REAL_DATA")
+            assert tag == "REAL_DATA"
 
             # 2. Fewer than required valid rows -> INSUFFICIENT_HISTORICAL_DATA
             mock_prov.fetch_ohlcv.return_value = short_df
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "INSUFFICIENT_HISTORICAL_DATA")
+            assert tag == "INSUFFICIENT_HISTORICAL_DATA"
 
             # 3. Empty DataFrame -> PROVIDER_FAILURE
             mock_prov.fetch_ohlcv.return_value = empty_df
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "PROVIDER_FAILURE")
+            assert tag == "PROVIDER_FAILURE"
 
             # 4. Missing required OHLCV column -> PROVIDER_FAILURE
             mock_prov.fetch_ohlcv.return_value = missing_col_df
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "PROVIDER_FAILURE")
+            assert tag == "PROVIDER_FAILURE"
 
             # 5. Missing date column -> PROVIDER_FAILURE
             mock_prov.fetch_ohlcv.return_value = missing_date_df
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "PROVIDER_FAILURE")
+            assert tag == "PROVIDER_FAILURE"
 
             # 6. Provider exception -> PROVIDER_FAILURE
             mock_prov.fetch_ohlcv.side_effect = RuntimeError("API connection timeout")
             _df, tag, _ = get_historical_data("FPT")
-            self.assertEqual(tag, "PROVIDER_FAILURE")
+            assert tag == "PROVIDER_FAILURE"
 
     def test_valid_symbol_with_insufficient_history_fails(self):
         """Valid symbol with insufficient history -> tagged insufficient_history and fails update mode."""
@@ -1200,12 +1202,12 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Insufficient History: 1", err_msg)
-            self.assertIn(insufficient_candidate, err_msg)
+            err_msg = str(ctx.value)
+            assert "Insufficient History: 1" in err_msg
+            assert insufficient_candidate in err_msg
 
     def test_5_duplicate_symbol_does_not_inflate_processed_count(self):
         """5. Duplicate symbols in candidate list -> deduplicated, does not inflate processed count."""
@@ -1232,7 +1234,7 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
         ):
             pipeline_res = run_pipeline(update_data=True)
             recs_data, _, _ = pipeline_res
-            self.assertIn("recommendations", recs_data)
+            assert "recommendations" in recs_data
 
         # Verify that if another symbol fails, duplicate FPT does NOT compensate for the failed symbol
         failed_sym = candidates[1]["symbol"].upper()
@@ -1253,11 +1255,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 side_effect=mock_get_hist_with_failure,
             ),
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Failed: 1", str(ctx.exception))
-            self.assertIn(failed_sym, str(ctx.exception))
+            assert "Failed: 1" in str(ctx.value)
+            assert failed_sym in str(ctx.value)
 
     def test_6_empty_provider_result_fails_unless_explicitly_classified_invalid(self):
         """6. Empty provider result without explicit invalid classification -> treated as failed_symbols and fails closed."""
@@ -1277,11 +1279,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Failed: 1", str(ctx.exception))
-            self.assertIn(empty_candidate, str(ctx.exception))
+            assert "Failed: 1" in str(ctx.value)
+            assert empty_candidate in str(ctx.value)
 
     def test_7_partial_scan_fails(self):
         """7. Partial scan (loop terminates early or misses expected symbols) -> fails closed."""
@@ -1302,11 +1304,11 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Failed: 1", str(ctx.exception))
-            self.assertIn(unprocessed_candidate, str(ctx.exception))
+            assert "Failed: 1" in str(ctx.value)
+            assert unprocessed_candidate in str(ctx.value)
 
     def test_8_rate_limit_exception_propagates_as_existing_behavior(self):
         """8. Rate-limit exception -> propagates ProviderRateLimitError directly without converting to failed_symbols."""
@@ -1326,10 +1328,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(ProviderRateLimitError) as ctx:
+            with pytest.raises(ProviderRateLimitError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertEqual(ctx.exception.symbol, rate_limit_candidate)
+            assert ctx.value.symbol == rate_limit_candidate
 
     def test_9_mixed_successful_invalid_failed_symbols_fails(self):
         """9. Mixed successful + invalid + insufficient history + failed symbols -> fails closed."""
@@ -1355,15 +1357,15 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Invalid: 1", err_msg)
-            self.assertIn("Failed: 1", err_msg)
-            self.assertIn("Insufficient History: 1", err_msg)
-            self.assertIn(failed_candidate, err_msg)
-            self.assertIn(insufficient_candidate, err_msg)
+            err_msg = str(ctx.value)
+            assert "Invalid: 1" in err_msg
+            assert "Failed: 1" in err_msg
+            assert "Insufficient History: 1" in err_msg
+            assert failed_candidate in err_msg
+            assert insufficient_candidate in err_msg
 
     def test_10_completeness_validation_reports_useful_diagnostics(self):
         """10. Completeness validation error message reports all required diagnostic metrics."""
@@ -1383,18 +1385,18 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Incomplete universe scan in update mode", err_msg)
-            self.assertIn("Expected:", err_msg)
-            self.assertIn("Processed:", err_msg)
-            self.assertIn("Invalid:", err_msg)
-            self.assertIn("Failed:", err_msg)
-            self.assertIn("Missing:", err_msg)
-            self.assertIn("Failed symbols:", err_msg)
-            self.assertIn("Missing symbols:", err_msg)
+            err_msg = str(ctx.value)
+            assert "Incomplete universe scan in update mode" in err_msg
+            assert "Expected:" in err_msg
+            assert "Processed:" in err_msg
+            assert "Invalid:" in err_msg
+            assert "Failed:" in err_msg
+            assert "Missing:" in err_msg
+            assert "Failed symbols:" in err_msg
+            assert "Missing symbols:" in err_msg
 
     def test_insufficient_history_symbol_cannot_make_scan_appear_complete(self):
         """Insufficient-history candidate cannot satisfy processed_symbols ∪ invalid_symbols."""
@@ -1414,13 +1416,13 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Incomplete universe scan in update mode", err_msg)
-            self.assertIn("Insufficient History: 1", err_msg)
-            self.assertIn(insufficient_candidate, err_msg)
+            err_msg = str(ctx.value)
+            assert "Incomplete universe scan in update mode" in err_msg
+            assert "Insufficient History: 1" in err_msg
+            assert insufficient_candidate in err_msg
 
     def test_provider_failure_cannot_be_masked_as_invalid_or_insufficient_history(self):
         """Provider failure is tracked strictly as failed_symbols and cannot be masked as invalid or insufficient history."""
@@ -1440,14 +1442,14 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Failed: 1", err_msg)
-            self.assertIn(f"Failed symbols: ['{failed_candidate}']", err_msg)
-            self.assertIn("Invalid symbols: []", err_msg)
-            self.assertIn("Insufficient history symbols: []", err_msg)
+            err_msg = str(ctx.value)
+            assert "Failed: 1" in err_msg
+            assert f"Failed symbols: ['{failed_candidate}']" in err_msg
+            assert "Invalid symbols: []" in err_msg
+            assert "Insufficient history symbols: []" in err_msg
 
     def test_vnindex_insufficient_history_fails_closed(self):
         """Required benchmark VNINDEX with insufficient history -> fails closed."""
@@ -1466,10 +1468,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("VNINDEX", str(ctx.exception))
+            assert "VNINDEX" in str(ctx.value)
 
     def test_vn30_insufficient_history_fails_closed(self):
         """Required benchmark VN30 with insufficient history -> fails closed."""
@@ -1488,10 +1490,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("VN30", str(ctx.exception))
+            assert "VN30" in str(ctx.value)
 
     def test_generated_artifacts_remain_unchanged_when_validation_fails(self):
         """Generated report files remain untouched when update validation fails due to insufficient history or failed symbols."""
@@ -1525,13 +1527,13 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
-            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
+            assert json.loads(market_file.read_text(encoding="utf-8")) == initial_market
 
     def test_vnindex_provider_failure_fails(self):
         """Required benchmark VNINDEX provider failure -> fails closed."""
@@ -1549,10 +1551,10 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("VNINDEX", str(ctx.exception))
+            assert "VNINDEX" in str(ctx.value)
 
     def test_vn30_provider_failure_fails(self):
         """Required benchmark VN30 provider failure -> fails closed."""
@@ -1570,16 +1572,17 @@ class TestUniverseCompletenessValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("VN30", str(ctx.exception))
+            assert "VN30" in str(ctx.value)
 
 
-class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
+@pytest.mark.unit
+class TestReportGenerationValidationAndArtifactPreservation:
     """Deterministic offline unit tests covering universe validation and artifact preservation."""
 
-    def setUp(self):
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
@@ -1594,7 +1597,7 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
         self.sleep_p3.start()
         self.univ_p.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
@@ -1632,9 +1635,9 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 generate_report_main()
 
             # Verify report files were created
-            self.assertTrue((generated_dir / "recommendations.json").exists())
-            self.assertTrue((generated_dir / "market.json").exists())
-            self.assertTrue((generated_dir / "monitoring.json").exists())
+            assert (generated_dir / "recommendations.json").exists()
+            assert (generated_dir / "market.json").exists()
+            assert (generated_dir / "monitoring.json").exists()
 
     def test_scenario_2_one_missing_symbol_preserves_artifacts(self):
         """Scenario 2: One missing symbol -> validation fails, existing artifacts unchanged."""
@@ -1687,13 +1690,13 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # File on disk remains untouched
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
     def test_scenario_3_one_provider_failure_preserves_artifacts(self):
         """Scenario 3: One provider failure -> validation fails, existing artifacts unchanged."""
@@ -1725,12 +1728,12 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
     def test_scenario_4_one_insufficient_history_symbol_preserves_artifacts(self):
         """Scenario 4: One insufficient-history symbol -> validation fails, existing artifacts unchanged."""
@@ -1763,12 +1766,12 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
     def test_scenario_5_benchmark_failure_preserves_artifacts(self):
         """Scenario 5: Benchmark failure (VNINDEX or VN30) -> validation fails, existing artifacts unchanged."""
@@ -1803,12 +1806,12 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                     ),
                     patch("sys.argv", ["generate_report.py", "--update"]),
                 ):
-                    with self.assertRaises(SystemExit) as ctx:
+                    with pytest.raises(SystemExit) as ctx:
                         generate_report_main()
 
-                    self.assertEqual(ctx.exception.code, 1)
+                    assert ctx.value.code == 1
 
-                self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_content)
+                assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
     def test_scenario_6_duplicate_symbol_still_incomplete_when_symbol_fails(self):
         """Scenario 6: Duplicate symbol -> deduplicated, does not inflate completeness count to bypass failure."""
@@ -1835,12 +1838,12 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 side_effect=mock_get_hist,
             ),
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            err_msg = str(ctx.exception)
-            self.assertIn("Failed: 1", err_msg)
-            self.assertIn(failing_symbol, err_msg)
+            err_msg = str(ctx.value)
+            assert "Failed: 1" in err_msg
+            assert failing_symbol in err_msg
 
     def test_scenario_7_partial_in_memory_dataset_blocks_report_generation(self):
         """Scenario 7: Partial in-memory dataset -> report generation blocked before payload generation."""
@@ -1860,11 +1863,11 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Failed: 1", str(ctx.exception))
-            self.assertIn(failing_symbol, str(ctx.exception))
+            assert "Failed: 1" in str(ctx.value)
+            assert failing_symbol in str(ctx.value)
 
     def test_scenario_8_validation_failure_after_some_calculations_preserves_artifacts(self):
         """Scenario 8: Validation failure after partial calculations -> previous artifacts remain unchanged."""
@@ -1907,22 +1910,23 @@ class TestReportGenerationValidationAndArtifactPreservation(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Verify that partial processing occurred before failure
-            self.assertGreater(processed_count, 0)
+            assert processed_count > 0
             # Verify that artifacts on disk remain 100% identical and unchanged
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_recs)
-            self.assertEqual(json.loads(market_file.read_text(encoding="utf-8")), initial_market)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
+            assert json.loads(market_file.read_text(encoding="utf-8")) == initial_market
 
 
-class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
+@pytest.mark.unit
+class TestPR155ProviderReliabilityAndPerformance:
     """Provider Reliability & Performance deterministic offline test suite."""
 
-    def setUp(self):
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
@@ -1938,7 +1942,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         self.sleep_p3.start()
         self.univ_p.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
@@ -1960,17 +1964,17 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         provider = VnstockDataProvider(is_available=True)
         df = provider.fetch_ohlcv("FPT")
 
-        self.assertIsNotNone(df)
+        assert df is not None
         timing = provider.get_last_call_timing()
-        self.assertIsNotNone(timing)
-        self.assertEqual(timing["provider"], "vnstock")
-        self.assertEqual(timing["source"], "kbs")
-        self.assertEqual(timing["operation"], "history")
-        self.assertEqual(timing["symbol"], "FPT")
-        self.assertTrue(timing["success"])
-        self.assertEqual(timing["retry_count"], 0)
-        self.assertIsNone(timing["error"])
-        self.assertGreaterEqual(timing["elapsed_seconds"], 0.0)
+        assert timing is not None
+        assert timing["provider"] == "vnstock"
+        assert timing["source"] == "kbs"
+        assert timing["operation"] == "history"
+        assert timing["symbol"] == "FPT"
+        assert timing["success"]
+        assert timing["retry_count"] == 0
+        assert timing["error"] is None
+        assert timing["elapsed_seconds"] >= 0.0
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -1981,16 +1985,16 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             provider.fetch_ohlcv("VCB", max_retries=1)
 
         history = provider.get_call_history()
-        self.assertGreater(len(history), 0)
+        assert len(history) > 0
         last_call = history[-1]
-        self.assertEqual(last_call["provider"], "vnstock")
-        self.assertEqual(last_call["symbol"], "VCB")
-        self.assertFalse(last_call["success"])
-        self.assertIn("Network read timeout", last_call["error"])
+        assert last_call["provider"] == "vnstock"
+        assert last_call["symbol"] == "VCB"
+        assert not last_call["success"]
+        assert "Network read timeout" in last_call["error"]
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2001,13 +2005,13 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             provider.fetch_ohlcv("SSI", max_retries=2)
 
         # max_retries=2 * 2 sources = exactly 4 attempts total
-        self.assertEqual(mock_inst.history.call_count, 4)
+        assert mock_inst.history.call_count == 4
         history = provider.get_call_history()
-        self.assertEqual(len(history), 4)
+        assert len(history) == 4
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2020,12 +2024,12 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(ProviderRateLimitError):
+        with pytest.raises(ProviderRateLimitError):
             provider.fetch_ohlcv("HPG", max_retries=3)
 
         # Fails immediately on 1st call without retrying
-        self.assertEqual(mock_inst.history.call_count, 1)
-        self.assertTrue(is_circuit_breaker_active())
+        assert mock_inst.history.call_count == 1
+        assert is_circuit_breaker_active()
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2037,11 +2041,11 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             provider.fetch_ohlcv("TCB")
 
-        self.assertEqual(mock_inst.history.call_count, 0)
-        self.assertIn("circuit breaker is active", str(ctx.exception))
+        assert mock_inst.history.call_count == 0
+        assert "circuit breaker is active" in str(ctx.value)
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2068,13 +2072,13 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         provider = VnstockDataProvider(is_available=True)
         df = provider.fetch_ohlcv("FPT", max_retries=1)
 
-        self.assertIsNotNone(df)
+        assert df is not None
         history = provider.get_call_history()
-        self.assertEqual(len(history), 2)
-        self.assertEqual(history[0]["source"], "kbs")
-        self.assertFalse(history[0]["success"])
-        self.assertEqual(history[1]["source"], "msn")
-        self.assertTrue(history[1]["success"])
+        assert len(history) == 2
+        assert history[0]["source"] == "kbs"
+        assert not history[0]["success"]
+        assert history[1]["source"] == "msn"
+        assert history[1]["success"]
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2101,7 +2105,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         provider = VnstockDataProvider(is_available=True)
         res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-15")
 
-        self.assertEqual(res_df["time"].max(), "2026-09-15")
+        assert res_df["time"].max() == "2026-09-15"
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2122,10 +2126,10 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
+            assert "Incomplete universe scan in update mode" in str(ctx.value)
 
     def test_9_canonical_date_invariant_remains_enforced(self):
         """9. In update mode, every processed stock must match VNINDEX data_as_of exactly."""
@@ -2140,23 +2144,23 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             mock_get_hist.return_value = valid_df
             recs_data, market_data, _ = run_pipeline(update_data=True)
 
-            self.assertEqual(market_data["data_as_of"], target_date)
-            self.assertEqual(recs_data["data_as_of"], target_date)
+            assert market_data["data_as_of"] == target_date
+            assert recs_data["data_as_of"] == target_date
             for rec in recs_data["recommendations"]:
-                self.assertEqual(rec["data_as_of"], target_date)
+                assert rec["data_as_of"] == target_date
 
     def test_10_provider_diagnostics_use_existing_stage_category_taxonomy(self):
         """10. Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
         from scripts.lib.config import FAILURE_CATEGORIES, PIPELINE_STAGES, is_recoverable_category
 
-        self.assertIn("BENCHMARK_FETCH", PIPELINE_STAGES)
-        self.assertIn("STOCK_FETCH", PIPELINE_STAGES)
-        self.assertIn("PROVIDER_FAILURE", FAILURE_CATEGORIES)
-        self.assertIn("RATE_LIMIT", FAILURE_CATEGORIES)
+        assert "BENCHMARK_FETCH" in PIPELINE_STAGES
+        assert "STOCK_FETCH" in PIPELINE_STAGES
+        assert "PROVIDER_FAILURE" in FAILURE_CATEGORIES
+        assert "RATE_LIMIT" in FAILURE_CATEGORIES
 
-        self.assertTrue(is_recoverable_category("PROVIDER_FAILURE"))
-        self.assertTrue(is_recoverable_category("RATE_LIMIT"))
-        self.assertFalse(is_recoverable_category("EXPLICITLY_INVALID"))
+        assert is_recoverable_category("PROVIDER_FAILURE")
+        assert is_recoverable_category("RATE_LIMIT")
+        assert not is_recoverable_category("EXPLICITLY_INVALID")
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
@@ -2172,23 +2176,23 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
-        with self.assertRaises(RuntimeError):
+        with pytest.raises(RuntimeError):
             provider.fetch_ohlcv("MBB", max_retries=2)
 
         history = provider.get_call_history()
-        self.assertEqual(len(history), 4)
+        assert len(history) == 4
 
         # Attempt 0 calls
-        self.assertEqual(history[0]["retry_count"], 0)
-        self.assertEqual(history[0]["source"], "kbs")
-        self.assertEqual(history[1]["retry_count"], 0)
-        self.assertEqual(history[1]["source"], "msn")
+        assert history[0]["retry_count"] == 0
+        assert history[0]["source"] == "kbs"
+        assert history[1]["retry_count"] == 0
+        assert history[1]["source"] == "msn"
 
         # Attempt 1 calls
-        self.assertEqual(history[2]["retry_count"], 1)
-        self.assertEqual(history[2]["source"], "kbs")
-        self.assertEqual(history[3]["retry_count"], 1)
-        self.assertEqual(history[3]["source"], "msn")
+        assert history[2]["retry_count"] == 1
+        assert history[2]["source"] == "kbs"
+        assert history[3]["retry_count"] == 1
+        assert history[3]["source"] == "msn"
 
     def test_12_provider_failure_preserves_existing_artifact_behavior(self):
         """12. Provider failure during report update preserves existing generated JSON artifacts on disk."""
@@ -2215,13 +2219,13 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
 
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Artifact on disk remains untouched
-            self.assertEqual(json.loads(recs_file.read_text(encoding="utf-8")), initial_data)
+            assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_data
 
     def test_13_no_duplicate_uncontrolled_provider_calls(self):
         """13. Universe scan deduplicates symbols and does not make duplicate/uncontrolled provider calls."""
@@ -2244,7 +2248,7 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
 
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once
         for sym, cnt in call_counts.items():
-            self.assertEqual(cnt, 1, f"Symbol {sym} was called {cnt} times instead of 1")
+            assert cnt == 1, f"Symbol {sym} was called {cnt} times instead of 1"
 
     def test_14_existing_pr146_freshness_tests_remain_green(self):
         """14. Existing freshness test suite passes cleanly."""
@@ -2253,14 +2257,24 @@ class TestPR155ProviderReliabilityAndPerformance(unittest.TestCase):
             TestTemporalIntegrityValidation,
         )
 
-        loader = unittest.TestLoader()
-        suite = unittest.TestSuite()
-        suite.addTest(loader.loadTestsFromTestCase(TestProductionDataFreshness))
-        suite.addTest(loader.loadTestsFromTestCase(TestTemporalIntegrityValidation))
-        runner = unittest.TextTestRunner()
-        result = runner.run(suite)
-        self.assertTrue(result.wasSuccessful())
+        inst1 = TestProductionDataFreshness()
+        for m in sorted(dir(inst1)):
+            if m.startswith("test_"):
+                if hasattr(inst1, "setup_method"):
+                    inst1.setup_method()
+                try:
+                    getattr(inst1, m)()
+                finally:
+                    if hasattr(inst1, "teardown_method"):
+                        inst1.teardown_method()
 
-
-if __name__ == "__main__":
-    unittest.main()
+        inst2 = TestTemporalIntegrityValidation()
+        for m in sorted(dir(inst2)):
+            if m.startswith("test_"):
+                if hasattr(inst2, "setup_method"):
+                    inst2.setup_method()
+                try:
+                    getattr(inst2, m)()
+                finally:
+                    if hasattr(inst2, "teardown_method"):
+                        inst2.teardown_method()

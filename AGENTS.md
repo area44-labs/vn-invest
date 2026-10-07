@@ -68,9 +68,9 @@ Use the repository's actual configuration as the sole source of truth.
   ```
 - **Authoritative CI Test Suite Command**:
   ```bash
-  uv run --frozen python scripts/tests/run_tests.py
+  uv run --frozen pytest
   ```
-  _Note:_ `scripts/tests/run_tests.py` is the official CI entry point. It contains custom discovery and test filtering logic (e.g., automatically skipping `TestSSGStaticHTML` when frontend build artifacts in `dist/client/index.html` are absent).
+  _Note:_ `uv run --frozen pytest` is the canonical backend test suite command.
 - **Run Production Pipeline**:
   ```bash
   uv run --frozen python scripts/generate_report.py          # Generate report using existing data
@@ -118,7 +118,7 @@ Use the repository's actual configuration as the sole source of truth.
 
 ## 5. CI Workflow Overview (`.github/workflows/`)
 
-- **`tests.yml`**: Runs `uv sync --frozen` followed by `uv run --frozen python scripts/tests/run_tests.py` on Python 3.14.
+- **`tests.yml`**: Runs `uv sync --frozen` followed by `uv run --frozen pytest` on Python 3.14.
 - **`daily-update.yml`**: Schedules market data updates and report generation (`uv run --frozen python scripts/generate_report.py --update`) Monday–Friday after Vietnam market close (11:00 UTC / 18:00 ICT).
 - **`lint-format.yml`**: Runs Ruff autofix/formatting on Python scripts and Vite+ check on frontend code.
 - **`pages.yml`**: Builds Vite+ SSG assets and deploys static artifacts to GitHub Pages.

@@ -18,7 +18,7 @@ This module provides test-only validation proving that when all existing layers 
 all invariants established in previous PRs are strictly preserved.
 """
 
-import unittest
+import pytest
 from unittest.mock import patch
 
 import pandas as pd
@@ -86,10 +86,11 @@ def create_multi_symbol_universe(
     return df_vni, df_vn30, universe
 
 
-class TestE2ETemporalIntegrity(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2ETemporalIntegrity:
     """Test Suite 1 — End-to-End Temporal Integrity & Anti-Lookahead Safety."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
         self.eval_date = self.df_vni["date"].iloc[50]  # Date T
 
@@ -160,53 +161,48 @@ class TestE2ETemporalIntegrity(unittest.TestCase):
         mutated_positions = {p.symbol: p for p in eval_mutated.positions}
 
         # 1. Constituent selection and symbols at T must be 100% identical (PIT Signal Invariant)
-        self.assertEqual(
-            sorted(baseline_positions.keys()),
-            sorted(mutated_positions.keys()),
-        )
+        assert sorted(baseline_positions.keys()) == sorted(mutated_positions.keys())
 
         # 2. Allocation weights at T must be 100% identical
-        self.assertEqual(eval_baseline.allocated_weight, eval_mutated.allocated_weight)
-        self.assertEqual(eval_baseline.unallocated_weight, eval_mutated.unallocated_weight)
+        assert eval_baseline.allocated_weight == eval_mutated.allocated_weight
+        assert eval_baseline.unallocated_weight == eval_mutated.unallocated_weight
 
         for sym, pos_base in baseline_positions.items():
             pos_mut = mutated_positions[sym]
             # Action at T
-            self.assertEqual(pos_base.action, pos_mut.action)
+            assert pos_base.action == pos_mut.action
             # Signal score at T
-            self.assertEqual(pos_base.signal_score, pos_mut.signal_score)
+            assert pos_base.signal_score == pos_mut.signal_score
             # Risk adjusted score at T
-            self.assertEqual(pos_base.risk_adjusted_score, pos_mut.risk_adjusted_score)
+            assert pos_base.risk_adjusted_score == pos_mut.risk_adjusted_score
             # Confidence at T
-            self.assertEqual(pos_base.confidence, pos_mut.confidence)
+            assert pos_base.confidence == pos_mut.confidence
             # Entry price at T
-            self.assertEqual(pos_base.entry_price, pos_mut.entry_price)
+            assert pos_base.entry_price == pos_mut.entry_price
             # Position weight at T
-            self.assertEqual(pos_base.weight, pos_mut.weight)
+            assert pos_base.weight == pos_mut.weight
             # Execution eligibility at T
-            self.assertEqual(pos_base.is_executable, pos_mut.is_executable)
+            assert pos_base.is_executable == pos_mut.is_executable
 
             # 3. Fixture-specific expectation: forward outcomes (> T) update to reflect mutated future price data
             for h in [5, 10, 20]:
                 if pos_base.forward_availability[h]:
-                    self.assertNotEqual(
-                        pos_base.forward_returns[h],
-                        pos_mut.forward_returns[h],
-                    )
+                    assert pos_base.forward_returns[h] != pos_mut.forward_returns[h]
 
         # 4. Fixture-specific expectation: portfolio forward returns update as underlying position outcomes change
         for h in [5, 10, 20]:
             if eval_baseline.horizon_availability[h]:
-                self.assertNotEqual(
-                    eval_baseline.portfolio_forward_returns[h],
-                    eval_mutated.portfolio_forward_returns[h],
+                assert (
+                    eval_baseline.portfolio_forward_returns[h]
+                    != eval_mutated.portfolio_forward_returns[h]
                 )
 
 
-class TestE2EMissingOutcomePropagation(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EMissingOutcomePropagation:
     """Test Suite 2 — Missing Outcome Propagation across position, portfolio, and aggregate summary layers."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
         self.cfg = PortfolioConfig(
             max_positions=2,
@@ -232,17 +228,17 @@ class TestE2EMissingOutcomePropagation(unittest.TestCase):
 
         for pos in eval_res.positions:
             for h in [5, 10, 20]:
-                self.assertTrue(pos.forward_availability[h])
-                self.assertIsInstance(pos.forward_returns[h], float)
+                assert pos.forward_availability[h]
+                assert isinstance(pos.forward_returns[h], float)
 
         for h in [5, 10, 20]:
-            self.assertTrue(eval_res.horizon_availability[h])
-            self.assertIsInstance(eval_res.portfolio_forward_returns[h], float)
+            assert eval_res.horizon_availability[h]
+            assert isinstance(eval_res.portfolio_forward_returns[h], float)
 
         agg = aggregate_portfolio_results([eval_res], horizons=[5, 10, 20])
         for h in [5, 10, 20]:
-            self.assertEqual(agg["horizon_metrics"][h]["valid_evaluation_points"], 1)
-            self.assertIsNotNone(agg["horizon_metrics"][h]["mean"])
+            assert agg["horizon_metrics"][h]["valid_evaluation_points"] == 1
+            assert agg["horizon_metrics"][h]["mean"] is not None
 
     def test_scenario_2_one_horizon_unavailable(self) -> None:
         """Scenario 2: One horizon unavailable (e.g., 5D available, 20D unavailable due to proximity to end of data)."""
@@ -260,18 +256,18 @@ class TestE2EMissingOutcomePropagation(unittest.TestCase):
         )
 
         # 5D is available
-        self.assertTrue(eval_res.horizon_availability[5])
-        self.assertIsNotNone(eval_res.portfolio_forward_returns[5])
+        assert eval_res.horizon_availability[5]
+        assert eval_res.portfolio_forward_returns[5] is not None
 
         # 20D is unavailable
-        self.assertFalse(eval_res.horizon_availability[20])
-        self.assertIsNone(eval_res.portfolio_forward_returns[20])
+        assert not eval_res.horizon_availability[20]
+        assert eval_res.portfolio_forward_returns[20] is None
 
         agg = aggregate_portfolio_results([eval_res], horizons=[5, 20])
-        self.assertEqual(agg["horizon_metrics"][5]["valid_evaluation_points"], 1)
-        self.assertEqual(agg["horizon_metrics"][20]["valid_evaluation_points"], 0)
-        self.assertIsNone(agg["horizon_metrics"][20]["mean"])
-        self.assertIsNone(agg["horizon_metrics"][20]["hit_rate"])
+        assert agg["horizon_metrics"][5]["valid_evaluation_points"] == 1
+        assert agg["horizon_metrics"][20]["valid_evaluation_points"] == 0
+        assert agg["horizon_metrics"][20]["mean"] is None
+        assert agg["horizon_metrics"][20]["hit_rate"] is None
 
     def test_scenario_3_one_symbol_unavailable(self) -> None:
         """Scenario 3: One symbol in portfolio lacks future data for horizon, rendering portfolio outcome None."""
@@ -292,20 +288,20 @@ class TestE2EMissingOutcomePropagation(unittest.TestCase):
         pos2 = next(p for p in eval_res.positions if p.symbol == "SYM2")
 
         # SYM1 has 10D return
-        self.assertTrue(pos1.forward_availability[10])
-        self.assertIsNotNone(pos1.forward_returns[10])
+        assert pos1.forward_availability[10]
+        assert pos1.forward_returns[10] is not None
 
         # SYM2 lacks 10D return -> MUST remain None, NOT 0.0 or loss
-        self.assertFalse(pos2.forward_availability[10])
-        self.assertIsNone(pos2.forward_returns[10])
+        assert not pos2.forward_availability[10]
+        assert pos2.forward_returns[10] is None
 
         # Portfolio level horizon_availability MUST be False, portfolio_forward_returns MUST be None
-        self.assertFalse(eval_res.horizon_availability[10])
-        self.assertIsNone(eval_res.portfolio_forward_returns[10])
+        assert not eval_res.horizon_availability[10]
+        assert eval_res.portfolio_forward_returns[10] is None
 
         agg = aggregate_portfolio_results([eval_res], horizons=[10])
-        self.assertEqual(agg["horizon_metrics"][10]["valid_evaluation_points"], 0)
-        self.assertIsNone(agg["horizon_metrics"][10]["mean"])
+        assert agg["horizon_metrics"][10]["valid_evaluation_points"] == 0
+        assert agg["horizon_metrics"][10]["mean"] is None
 
     def test_scenario_4_multiple_symbols_unavailable(self) -> None:
         """Scenario 4: Multiple symbols in portfolio lack future data for horizon."""
@@ -323,11 +319,11 @@ class TestE2EMissingOutcomePropagation(unittest.TestCase):
         )
 
         for pos in eval_res.positions:
-            self.assertFalse(pos.forward_availability[5])
-            self.assertIsNone(pos.forward_returns[5])
+            assert not pos.forward_availability[5]
+            assert pos.forward_returns[5] is None
 
-        self.assertFalse(eval_res.horizon_availability[5])
-        self.assertIsNone(eval_res.portfolio_forward_returns[5])
+        assert not eval_res.horizon_availability[5]
+        assert eval_res.portfolio_forward_returns[5] is None
 
     def test_scenario_5_entire_horizon_unavailable(self) -> None:
         """Scenario 5: Entire horizon unavailable for all symbols in portfolio."""
@@ -345,21 +341,22 @@ class TestE2EMissingOutcomePropagation(unittest.TestCase):
         )
 
         for h in [5, 10, 20]:
-            self.assertFalse(eval_res.horizon_availability[h])
-            self.assertIsNone(eval_res.portfolio_forward_returns[h])
+            assert not eval_res.horizon_availability[h]
+            assert eval_res.portfolio_forward_returns[h] is None
 
         agg = aggregate_portfolio_results([eval_res], horizons=[5, 10, 20])
         for h in [5, 10, 20]:
-            self.assertEqual(agg["horizon_metrics"][h]["valid_evaluation_points"], 0)
-            self.assertIsNone(agg["horizon_metrics"][h]["mean"])
-            self.assertIsNone(agg["horizon_metrics"][h]["median"])
-            self.assertIsNone(agg["horizon_metrics"][h]["hit_rate"])
+            assert agg["horizon_metrics"][h]["valid_evaluation_points"] == 0
+            assert agg["horizon_metrics"][h]["mean"] is None
+            assert agg["horizon_metrics"][h]["median"] is None
+            assert agg["horizon_metrics"][h]["hit_rate"] is None
 
 
-class TestE2ECostSlippageSingleApplication(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2ECostSlippageSingleApplication:
     """Test Suite 3 — Single-Application Invariant for Transaction Costs & Slippage."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
 
         # BUY stock (100 -> 110 at +5D)
@@ -457,7 +454,7 @@ class TestE2ECostSlippageSingleApplication(unittest.TestCase):
         oracle_net_buy = round(
             (1.0 - c_entry) * (p_exit_buy_exec / p_entry_buy_exec) * (1.0 - c_exit) - 1.0, 6
         )
-        self.assertEqual(oracle_net_buy, 0.094511)
+        assert oracle_net_buy == 0.094511
 
         # 2. SELL_STK Oracle (entry=100, exit=90):
         # p_entry_exec = 100 * (1 - 0.001) = 99.9
@@ -468,7 +465,7 @@ class TestE2ECostSlippageSingleApplication(unittest.TestCase):
         p_exit_sell_exec = round(90.0 * (1.0 + slip), 6)
         slip_ret_sell = round(1.0 - (p_exit_sell_exec / p_entry_sell_exec), 6)
         oracle_net_sell = round((1.0 - c_entry) * (1.0 + slip_ret_sell) * (1.0 - c_exit) - 1.0, 6)
-        self.assertEqual(oracle_net_sell, 0.094906)
+        assert oracle_net_sell == 0.094906
 
         # 3. WATCH_STK Oracle: non-executed -> 0.0
         oracle_net_watch = 0.0
@@ -501,22 +498,23 @@ class TestE2ECostSlippageSingleApplication(unittest.TestCase):
         pos_watch = next(p for p in eval_res.positions if p.symbol == "WATCH_STK")
 
         # Position level net returns must match independent oracles
-        self.assertEqual(pos_buy.forward_returns[5], oracle_net_buy)
-        self.assertEqual(pos_sell.forward_returns[5], oracle_net_sell)
-        self.assertEqual(pos_watch.forward_returns[5], oracle_net_watch)
+        assert pos_buy.forward_returns[5] == oracle_net_buy
+        assert pos_sell.forward_returns[5] == oracle_net_sell
+        assert pos_watch.forward_returns[5] == oracle_net_watch
 
         # Portfolio level net return must match independent oracle exactly
-        self.assertEqual(eval_res.portfolio_forward_returns[5], oracle_portfolio_net)
+        assert eval_res.portfolio_forward_returns[5] == oracle_portfolio_net
 
         # Double-deduction check: if costs were subtracted a second time at portfolio level,
         # portfolio return would be roughly 0.058133 instead of 0.063139
-        self.assertNotEqual(eval_res.portfolio_forward_returns[5], 0.058133)
+        assert eval_res.portfolio_forward_returns[5] != 0.058133
 
 
-class TestE2EActionSemantics(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EActionSemantics:
     """Test Suite 4 — Action Semantics (BUY, SELL, WATCH, HOLD, AVOID)."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.tc = 0.0030
         self.slip = 0.0010
 
@@ -530,9 +528,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 100.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="BUY"
         )
-        self.assertEqual(res.gross_return, 0.0)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertLess(res.net_return, 0.0)
+        assert res.gross_return == 0.0
+        assert res.net_return == oracle_net
+        assert res.net_return < 0.0
 
     def test_flat_sell_action(self) -> None:
         """Flat SELL trade (entry == exit): gross = 0.0, net < 0 due to slippage & transaction costs."""
@@ -545,9 +543,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 100.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="SELL"
         )
-        self.assertEqual(res.gross_return, 0.0)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertLess(res.net_return, 0.0)
+        assert res.gross_return == 0.0
+        assert res.net_return == oracle_net
+        assert res.net_return < 0.0
 
     def test_profitable_buy_action(self) -> None:
         """Profitable BUY trade (exit > entry): gross > 0, net > 0."""
@@ -556,9 +554,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 120.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="BUY"
         )
-        self.assertEqual(res.gross_return, 0.20)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertGreater(res.net_return, 0.0)
+        assert res.gross_return == 0.20
+        assert res.net_return == oracle_net
+        assert res.net_return > 0.0
 
     def test_losing_buy_action(self) -> None:
         """Losing BUY trade (exit < entry): gross < 0, net < gross."""
@@ -567,9 +565,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 80.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="BUY"
         )
-        self.assertEqual(res.gross_return, -0.20)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertLess(res.net_return, -0.20)
+        assert res.gross_return == -0.20
+        assert res.net_return == oracle_net
+        assert res.net_return < -0.20
 
     def test_profitable_sell_action(self) -> None:
         """Profitable SELL trade (exit < entry): price drops 100 -> 80 -> gross = +0.20, net > 0."""
@@ -583,9 +581,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 80.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="SELL"
         )
-        self.assertEqual(res.gross_return, 0.20)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertGreater(res.net_return, 0.0)
+        assert res.gross_return == 0.20
+        assert res.net_return == oracle_net
+        assert res.net_return > 0.0
 
     def test_losing_sell_action(self) -> None:
         """Losing SELL trade (exit > entry): price rises 100 -> 120 -> gross = -0.20, net < 0."""
@@ -599,9 +597,9 @@ class TestE2EActionSemantics(unittest.TestCase):
         res = calculate_execution_return(
             100.0, 120.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action="SELL"
         )
-        self.assertEqual(res.gross_return, -0.20)
-        self.assertEqual(res.net_return, oracle_net)
-        self.assertLess(res.net_return, -0.20)
+        assert res.gross_return == -0.20
+        assert res.net_return == oracle_net
+        assert res.net_return < -0.20
 
     def test_non_executed_actions_earn_zero(self) -> None:
         """WATCH, HOLD, and AVOID actions earn strictly zero return without incurring transaction fees or slippage."""
@@ -609,15 +607,16 @@ class TestE2EActionSemantics(unittest.TestCase):
             res = calculate_execution_return(
                 100.0, 150.0, transaction_cost_pct=self.tc, slippage_pct=self.slip, action=act
             )
-            self.assertEqual(res.gross_return, 0.0)
-            self.assertEqual(res.slippage_adjusted_return, 0.0)
-            self.assertEqual(res.net_return, 0.0)
+            assert res.gross_return == 0.0
+            assert res.slippage_adjusted_return == 0.0
+            assert res.net_return == 0.0
 
 
-class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EPortfolioAllocationInvariants:
     """Test Suite 5 — End-to-End Portfolio Allocation Invariants."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
         self.eval_date = self.df_vni["date"].iloc[50]
 
@@ -635,12 +634,18 @@ class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
             config=cfg,
             df_vnindex=self.df_vni,
         )
-        self.assertEqual(len(eval_res.positions), 1)
-        self.assertEqual(eval_res.positions[0].weight, 1.0)
-        self.assertEqual(eval_res.allocated_weight, 1.0)
-        self.assertEqual(eval_res.unallocated_weight, 0.0)
-        self.assertAlmostEqual(
-            sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight, 1.0, places=6
+        assert len(eval_res.positions) == 1
+        assert eval_res.positions[0].weight == 1.0
+        assert eval_res.allocated_weight == 1.0
+        assert eval_res.unallocated_weight == 0.0
+        assert (
+            round(
+                abs(
+                    sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight - (1.0)
+                ),
+                6,
+            )
+            == 0
         )
 
     def test_multi_position_portfolio_allocation_invariant_and_no_duplicates(self) -> None:
@@ -658,11 +663,11 @@ class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
             df_vnindex=self.df_vni,
         )
         symbols = [p.symbol for p in eval_res.positions]
-        self.assertEqual(len(symbols), len(set(symbols)))  # No duplicate symbols!
+        assert len(symbols) == len(set(symbols))  # No duplicate symbols!
 
         total_w = sum(p.weight for p in eval_res.positions)
-        self.assertEqual(eval_res.allocated_weight, round(total_w, 6))
-        self.assertAlmostEqual(total_w + eval_res.unallocated_weight, 1.0, places=6)
+        assert eval_res.allocated_weight == round(total_w, 6)
+        assert round(abs(total_w + eval_res.unallocated_weight - (1.0)), 6) == 0
 
     def test_partially_allocated_portfolio_due_to_weight_cap(self) -> None:
         """Partially allocated portfolio due to max_weight_per_position hard cap."""
@@ -679,13 +684,19 @@ class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
             config=cfg,
             df_vnindex=self.df_vni,
         )
-        self.assertEqual(len(eval_res.positions), 2)
+        assert len(eval_res.positions) == 2
         for pos in eval_res.positions:
-            self.assertEqual(pos.weight, 0.35)
-        self.assertEqual(eval_res.allocated_weight, 0.70)
-        self.assertEqual(eval_res.unallocated_weight, 0.30)
-        self.assertAlmostEqual(
-            sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight, 1.0, places=6
+            assert pos.weight == 0.35
+        assert eval_res.allocated_weight == 0.70
+        assert eval_res.unallocated_weight == 0.30
+        assert (
+            round(
+                abs(
+                    sum(p.weight for p in eval_res.positions) + eval_res.unallocated_weight - (1.0)
+                ),
+                6,
+            )
+            == 0
         )
 
     @patch("scripts.lib.portfolio_backtest.generate_recommendation")
@@ -729,14 +740,14 @@ class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
             horizons=[5],
         )
 
-        self.assertEqual(len(eval_res.positions), 1)
-        self.assertEqual(eval_res.positions[0].weight, 0.50)
-        self.assertEqual(eval_res.allocated_weight, 0.50)
-        self.assertEqual(eval_res.unallocated_weight, 0.50)
+        assert len(eval_res.positions) == 1
+        assert eval_res.positions[0].weight == 0.50
+        assert eval_res.allocated_weight == 0.50
+        assert eval_res.unallocated_weight == 0.50
         # Position return: 10%
-        self.assertEqual(eval_res.positions[0].forward_returns[5], 0.10)
+        assert eval_res.positions[0].forward_returns[5] == 0.10
         # Portfolio return: 0.50 * 0.10 = 0.05
-        self.assertEqual(eval_res.portfolio_forward_returns[5], 0.05)
+        assert eval_res.portfolio_forward_returns[5] == 0.05
 
     def test_cost_and_slippage_do_not_alter_allocation_weights(self) -> None:
         """Transaction cost and slippage parameters change position net returns, NOT allocation weights."""
@@ -775,15 +786,16 @@ class TestE2EPortfolioAllocationInvariants(unittest.TestCase):
         weights_zero = [p.weight for p in eval_zero.positions]
         weights_cost = [p.weight for p in eval_cost.positions]
 
-        self.assertEqual(weights_zero, weights_cost)
-        self.assertEqual(eval_zero.allocated_weight, eval_cost.allocated_weight)
-        self.assertEqual(eval_zero.unallocated_weight, eval_cost.unallocated_weight)
+        assert weights_zero == weights_cost
+        assert eval_zero.allocated_weight == eval_cost.allocated_weight
+        assert eval_zero.unallocated_weight == eval_cost.unallocated_weight
 
 
-class TestE2EHorizonIsolation(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EHorizonIsolation:
     """Test Suite 6 — Horizon Isolation & Cross-Horizon Independence."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
         self.eval_date = self.df_vni["date"].iloc[50]
         self.cfg = PortfolioConfig(
@@ -826,28 +838,29 @@ class TestE2EHorizonIsolation(unittest.TestCase):
         ret_5_from_run2 = eval_5_10.portfolio_forward_returns[5]
         ret_5_from_run3 = eval_5_10_20.portfolio_forward_returns[5]
 
-        self.assertEqual(ret_5_from_run1, ret_5_from_run2)
-        self.assertEqual(ret_5_from_run1, ret_5_from_run3)
+        assert ret_5_from_run1 == ret_5_from_run2
+        assert ret_5_from_run1 == ret_5_from_run3
 
         # 2. 10D portfolio returns must be strictly identical between [5, 10] and [5, 10, 20]
         ret_10_from_run2 = eval_5_10.portfolio_forward_returns[10]
         ret_10_from_run3 = eval_5_10_20.portfolio_forward_returns[10]
 
-        self.assertEqual(ret_10_from_run2, ret_10_from_run3)
+        assert ret_10_from_run2 == ret_10_from_run3
 
         # 3. Position level 5D returns must be strictly identical
         for pos1 in eval_5.positions:
             pos2 = next(p for p in eval_5_10.positions if p.symbol == pos1.symbol)
             pos3 = next(p for p in eval_5_10_20.positions if p.symbol == pos1.symbol)
 
-            self.assertEqual(pos1.forward_returns[5], pos2.forward_returns[5])
-            self.assertEqual(pos1.forward_returns[5], pos3.forward_returns[5])
+            assert pos1.forward_returns[5] == pos2.forward_returns[5]
+            assert pos1.forward_returns[5] == pos3.forward_returns[5]
 
 
-class TestE2EDeterministicReproducibility(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EDeterministicReproducibility:
     """Test Suite 7 — Deterministic End-to-End Reproducibility (Run A == Run B)."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=90)
         self.eval_dates = [self.df_vni["date"].iloc[40], self.df_vni["date"].iloc[50]]
         self.cfg = PortfolioConfig(
@@ -883,13 +896,14 @@ class TestE2EDeterministicReproducibility(unittest.TestCase):
         dict_b = res_b.to_dict()
 
         # Strict dictionary equivalence without stripping any quantitative fields!
-        self.assertEqual(dict_a, dict_b)
+        assert dict_a == dict_b
 
 
-class TestE2EFailClosedPropagation(unittest.TestCase):
+@pytest.mark.e2e
+class TestE2EFailClosedPropagation:
     """Test Suite 8 — Fail-Closed Boundary Validation Propagation."""
 
-    def setUp(self) -> None:
+    def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=80)
         self.eval_date = self.df_vni["date"].iloc[40]
         self.cfg = PortfolioConfig(min_history=30)
@@ -900,7 +914,7 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
         df_corrupted.loc[10, "volume"] = -500.0  # Critical error: negative volume
         universe_bad = {"SYM1": df_corrupted, "SYM2": self.universe["SYM2"]}
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_bad,
@@ -913,7 +927,7 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
         df_malformed.loc[15, "date"] = "invalid-date-string"
         universe_bad = {"SYM1": df_malformed, "SYM2": self.universe["SYM2"]}
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_bad,
@@ -921,7 +935,7 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
             )
 
         # Exception must be propagated loudly without falling back to insufficient history or empty results
-        self.assertIn("invalid", str(ctx.exception).lower())
+        assert "invalid" in str(ctx.value).lower()
 
     def test_unsorted_chronological_dataset_raises_error(self) -> None:
         """Verify unsorted chronological dates (e.g., T-2, T, T-1) raise explicit ValueError fail-closed."""
@@ -934,26 +948,26 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
 
         universe_bad = {"SYM1": df_unsorted, "SYM2": self.universe["SYM2"]}
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_bad,
                 config=self.cfg,
             )
 
-        self.assertIn("unsorted", str(ctx.exception).lower())
+        assert "unsorted" in str(ctx.value).lower()
 
     def test_invalid_or_timezone_aware_date_raises_error(self) -> None:
         """Timezone-aware dates or invalid date formats raise ValueError loudly."""
         tz_ts = pd.Timestamp("2024-03-01 00:00:00+00:00")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date=tz_ts,
                 universe_stock_map=self.universe,
                 config=self.cfg,
             )
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date="2024-03-01 12:00:00",  # Contains time component
                 universe_stock_map=self.universe,
@@ -966,7 +980,7 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
         df_dup.iloc[5] = df_dup.iloc[4]  # duplicate row
         universe_dup = {"SYM1": df_dup}
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_dup,
@@ -978,7 +992,7 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
         df_missing_col = self.universe["SYM1"].drop(columns=["close"]).copy()
         universe_bad = {"SYM1": df_missing_col}
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             evaluate_portfolio_at_date(
                 evaluation_date=self.eval_date,
                 universe_stock_map=universe_bad,
@@ -987,18 +1001,14 @@ class TestE2EFailClosedPropagation(unittest.TestCase):
 
     def test_invalid_execution_configuration_raises_error(self) -> None:
         """Invalid execution configuration parameters raise ValueError loudly."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ExecutionConfig(min_avg_volume=-500.0)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ExecutionConfig(max_participation_rate=1.5)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             ExecutionConfig(
                 estimated_order_size_shares=1000.0,
                 estimated_order_value_vnd=10_000_000.0,  # Cannot supply both!
             )
-
-
-if __name__ == "__main__":
-    unittest.main()
