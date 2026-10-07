@@ -1,11 +1,11 @@
 """Unit tests for VN Invest Signal Engine in scripts/lib/recommendation.py."""
 
 import math
-import unittest
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.lib.backtest import _safe_float as backtest_safe_float
 from scripts.lib.features import calculate_single_tf_indicators, detect_divergence
@@ -31,7 +31,8 @@ from scripts.lib.risk import normalize_universe_liquidity_scores
 from scripts.lib.vietnam_market import clamp_price_limits, get_exchange_price_limits
 
 
-class TestSafeFloatAndExceptionHandling(unittest.TestCase):
+@pytest.mark.unit
+class TestSafeFloatAndExceptionHandling:
     def test_safe_float_all_implementations(self):
         """Verify _safe_float across recommendation, backtest, and portfolio_backtest modules."""
         safe_float_funcs = [
@@ -41,94 +42,94 @@ class TestSafeFloatAndExceptionHandling(unittest.TestCase):
         ]
 
         for mod_name, fn in safe_float_funcs:
-            with self.subTest(module=mod_name):
-                # Valid numeric value (float)
-                self.assertEqual(fn(123.45), 123.45)
-                self.assertEqual(fn(-45.6), -45.6)
-                self.assertEqual(fn(0.0), 0.0)
+            # Valid numeric value (float)
+            assert fn(123.45) == 123.45
+            assert fn(-45.6) == -45.6
+            assert fn(0.0) == 0.0
 
-                # Integer input
-                self.assertEqual(fn(100), 100.0)
-                self.assertEqual(fn(0), 0.0)
+            # Integer input
+            assert fn(100) == 100.0
+            assert fn(0) == 0.0
 
-                # Numeric string
-                self.assertEqual(fn("123.45"), 123.45)
-                self.assertEqual(fn("100"), 100.0)
-                self.assertEqual(fn("-50.5"), -50.5)
+            # Numeric string
+            assert fn("123.45") == 123.45
+            assert fn("100") == 100.0
+            assert fn("-50.5") == -50.5
 
-                # None
-                self.assertIsNone(fn(None))
+            # None
+            assert fn(None) is None
 
-                # NaN (float and string)
-                self.assertIsNone(fn(float("nan")))
-                self.assertIsNone(fn("NaN"))
-                self.assertIsNone(fn("nan"))
+            # NaN (float and string)
+            assert fn(float("nan")) is None
+            assert fn("NaN") is None
+            assert fn("nan") is None
 
-                # Infinity (float and string)
-                self.assertIsNone(fn(float("inf")))
-                self.assertIsNone(fn(float("-inf")))
-                self.assertIsNone(fn("Infinity"))
-                self.assertIsNone(fn("inf"))
-                self.assertIsNone(fn("-Infinity"))
+            # Infinity (float and string)
+            assert fn(float("inf")) is None
+            assert fn(float("-inf")) is None
+            assert fn("Infinity") is None
+            assert fn("inf") is None
+            assert fn("-Infinity") is None
 
-                # Invalid string (triggers ValueError inside float conversion)
-                self.assertIsNone(fn("invalid"))
-                self.assertIsNone(fn("abc"))
-                self.assertIsNone(fn("12.34.56"))
+            # Invalid string (triggers ValueError inside float conversion)
+            assert fn("invalid") is None
+            assert fn("abc") is None
+            assert fn("12.34.56") is None
 
-                # Non-convertible objects (triggers TypeError inside float conversion)
-                self.assertIsNone(fn([]))
-                self.assertIsNone(fn({}))
-                self.assertIsNone(fn(object()))
+            # Non-convertible objects (triggers TypeError inside float conversion)
+            assert fn([]) is None
+            assert fn({}) is None
+            assert fn(object()) is None
 
     def test_vietnam_market_exception_handling_helpers(self):
         """Verify exception handling in get_exchange_price_limits and clamp_price_limits."""
         # Valid inputs
         ref_p, ceil_p, floor_p = get_exchange_price_limits(10000.0, "HOSE")
-        self.assertEqual(ref_p, 10000.0)
-        self.assertEqual(ceil_p, 10700.0)
-        self.assertEqual(floor_p, 9300.0)
+        assert ref_p == 10000.0
+        assert ceil_p == 10700.0
+        assert floor_p == 9300.0
 
         # Invalid reference price inputs (triggers ValueError or TypeError, falls back to 10000.0)
         ref_p_str, _, _ = get_exchange_price_limits("invalid_ref", "HOSE")
-        self.assertEqual(ref_p_str, 10000.0)
+        assert ref_p_str == 10000.0
 
         ref_p_list, _, _ = get_exchange_price_limits([], "HOSE")
-        self.assertEqual(ref_p_list, 10000.0)
+        assert ref_p_list == 10000.0
 
         # clamp_price_limits with invalid price input (falls back to 0.0)
         clamped_invalid_str = clamp_price_limits("invalid_price", 10000.0, "HOSE")
-        self.assertEqual(clamped_invalid_str, 9300.0)  # max(floor 9300, min(ceil 10700, 0)) = 9300
+        assert clamped_invalid_str == 9300.0  # max(floor 9300, min(ceil 10700, 0)) = 9300
 
         clamped_invalid_type = clamp_price_limits({}, 10000.0, "HOSE")
-        self.assertEqual(clamped_invalid_type, 9300.0)
+        assert clamped_invalid_type == 9300.0
 
 
-class TestVNInvestSignalEngine(unittest.TestCase):
+@pytest.mark.unit
+class TestVNInvestSignalEngine:
     def test_signal_weights_sum_to_one(self):
         """Verify centralized signal weights sum to 1.0."""
         weight_sum = sum(SIGNAL_WEIGHTS.values())
-        self.assertAlmostEqual(weight_sum, 1.0, places=5)
+        assert round(abs(weight_sum - (1.0)), 5) == 0
 
     def test_divergence_weights_sum_to_one(self):
         """Verify divergence timeframe weights sum to 1.0."""
         weight_sum = sum(DIVERGENCE_TIMEFRAME_WEIGHTS.values())
-        self.assertAlmostEqual(weight_sum, 1.0, places=5)
+        assert round(abs(weight_sum - (1.0)), 5) == 0
 
     def test_zero_and_missing_volume_handling(self):
         """Regression test P0: Invalid/zero/missing volume must produce volume_score = None."""
         # Zero volume ratio -> None
-        self.assertIsNone(calculate_volume_score(0.0))
+        assert calculate_volume_score(0.0) is None
         # Negative volume ratio -> None
-        self.assertIsNone(calculate_volume_score(-0.5))
+        assert calculate_volume_score(-0.5) is None
         # NaN / Inf -> None
-        self.assertIsNone(calculate_volume_score(float("nan")))
-        self.assertIsNone(calculate_volume_score(float("inf")))
+        assert calculate_volume_score(float("nan")) is None
+        assert calculate_volume_score(float("inf")) is None
         # None -> None
-        self.assertIsNone(calculate_volume_score(None))
+        assert calculate_volume_score(None) is None
 
         # Valid volume ratio -> score in [0, 100]
-        self.assertEqual(calculate_volume_score(1.5), 85.0)
+        assert calculate_volume_score(1.5) == 85.0
 
     def test_missing_and_invalid_previous_macd_handling(self):
         """Regression test P0: Missing/invalid previous MACD must NOT be treated as 0.0."""
@@ -137,48 +138,48 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         score_prev_zero = calculate_momentum_score(rsi=50.0, macd_hist=0.5, prev_macd_hist=0.0)
 
         # previous_macd_hist = None must NOT behave as previous_macd_hist = 0.0 (which would give +25.0)
-        self.assertNotEqual(score_no_prev, score_prev_zero)
-        self.assertEqual(score_no_prev, 85.0)  # 50 + 20 (RSI) + 15 (hist > 0)
-        self.assertEqual(score_prev_zero, 95.0)  # 50 + 20 (RSI) + 25 (hist > prev_hist)
+        assert score_no_prev != score_prev_zero
+        assert score_no_prev == 85.0  # 50 + 20 (RSI) + 15 (hist > 0)
+        assert score_prev_zero == 95.0  # 50 + 20 (RSI) + 25 (hist > prev_hist)
 
         # Invalid NaN / Inf previous MACD
         score_nan_prev = calculate_momentum_score(
             rsi=50.0, macd_hist=0.5, prev_macd_hist=float("nan")
         )
-        self.assertEqual(score_nan_prev, score_no_prev)
+        assert score_nan_prev == score_no_prev
 
     def test_insufficient_data_semantics(self):
         """Regression test P1: Less than 3 components must produce data_quality = INSUFFICIENT, signal_score = None, action = AVOID."""
         # 0 components available
         score, _components, dq = calculate_signal_score(None, None, None, None, None)
-        self.assertIsNone(score)
-        self.assertEqual(dq, "INSUFFICIENT")
+        assert score is None
+        assert dq == "INSUFFICIENT"
 
         # 1 component available
         score, _components, dq = calculate_signal_score(100.0, None, None, None, None)
-        self.assertIsNone(score)
-        self.assertEqual(dq, "INSUFFICIENT")
+        assert score is None
+        assert dq == "INSUFFICIENT"
 
         # 2 components available
         score, _components, dq = calculate_signal_score(100.0, 90.0, None, None, None)
-        self.assertIsNone(score)
-        self.assertEqual(dq, "INSUFFICIENT")
+        assert score is None
+        assert dq == "INSUFFICIENT"
 
         # Action classification check for None score
-        self.assertEqual(classify_action(None, "STRONG_BULL"), "AVOID")
+        assert classify_action(None, "STRONG_BULL") == "AVOID"
 
         # Risk-adjusted score for None score
-        self.assertIsNone(calculate_risk_adjusted_score(None, "STRONG_BULL"))
+        assert calculate_risk_adjusted_score(None, "STRONG_BULL") is None
 
         # 3 components available -> PARTIAL
         score, _components, dq = calculate_signal_score(100.0, 90.0, 80.0, None, None)
-        self.assertIsNotNone(score)
-        self.assertEqual(dq, "PARTIAL")
+        assert score is not None
+        assert dq == "PARTIAL"
 
         # 5 components available -> SUFFICIENT
         score, _components, dq = calculate_signal_score(100.0, 90.0, 80.0, 70.0, 60.0)
-        self.assertIsNotNone(score)
-        self.assertEqual(dq, "SUFFICIENT")
+        assert score is not None
+        assert dq == "SUFFICIENT"
 
     def test_confidence_reflects_signal_agreement(self):
         """1. Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
@@ -206,11 +207,11 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         }
         conf_conflict = calculate_confidence("SUFFICIENT", conflict_comp, risk_metrics, rsi=50.0)
 
-        self.assertGreater(conf_agree, conf_conflict)
-        self.assertGreaterEqual(conf_agree, 0.10)
-        self.assertLessEqual(conf_agree, 0.95)
-        self.assertGreaterEqual(conf_conflict, 0.10)
-        self.assertLessEqual(conf_conflict, 0.95)
+        assert conf_agree > conf_conflict
+        assert conf_agree >= 0.10
+        assert conf_agree <= 0.95
+        assert conf_conflict >= 0.10
+        assert conf_conflict <= 0.95
 
     def test_deterministic_confidence_exact_numerical_fixtures(self):
         """Verify exact numeric confidence values for representative cases.
@@ -225,7 +226,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             components={"trend": 80.0, "momentum": None},
             risk_metrics={},
         )
-        self.assertEqual(conf_insufficient, 0.10)
+        assert conf_insufficient == 0.10
 
         # Case 2: Standard/Normal confidence
         # SUFFICIENT data quality (base = 0.70), std_dev = 0 (low dispersion < 12 -> +0.10), normal risk (vol < 0.22 & mdd < 0.12 -> +0.05), safe rsi -> 0.70 + 0.10 + 0.05 = 0.85
@@ -241,7 +242,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             risk_metrics={"volatility_60d": 0.15, "max_drawdown": -0.10},
             rsi=50.0,
         )
-        self.assertEqual(conf_high_ideal, 0.85)
+        assert conf_high_ideal == 0.85
 
         # Case 3: High dispersion & high risk & extreme RSI penalties
         # SUFFICIENT (base = 0.70), std_dev = 40 (>30 -> -0.15), high risk (vol > 0.35 -> -0.05), extreme RSI (>78 -> -0.05)
@@ -258,7 +259,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             risk_metrics={"volatility_60d": 0.40, "max_drawdown": -0.30},
             rsi=82.0,
         )
-        self.assertEqual(conf_low_penalized, 0.45)
+        assert conf_low_penalized == 0.45
 
         # Case 4: Upper boundary clamping (0.95 cap)
         # PARTIAL base 0.55 + 0.10 + 0.05 = 0.70
@@ -268,7 +269,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             risk_metrics={"volatility_60d": 0.15, "max_drawdown": -0.10},
             rsi=50.0,
         )
-        self.assertEqual(conf_partial, 0.70)
+        assert conf_partial == 0.70
 
     def test_divergence_timeframe_weighting_and_conflict(self):
         """2. Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
@@ -289,7 +290,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         score_1m = calculate_divergence_score(tf_1m_bull)
 
         # 1D should have higher impact than 1M
-        self.assertGreater(score_1d, score_1m)
+        assert score_1d > score_1m
 
         # Conflict on same timeframe (both bullish and bearish)
         tf_conflict = {
@@ -298,31 +299,31 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             "1m": {"available": True, "divergence": {"rsi_bullish": False, "macd_bullish": False}},
         }
         score_conflict = calculate_divergence_score(tf_conflict)
-        self.assertEqual(score_conflict, 45.0)  # 90 * 0.5 * 0.40 + 50 * 0.30 + 50 * 0.20 = 45.0
+        assert score_conflict == 45.0  # 90 * 0.5 * 0.40 + 50 * 0.30 + 50 * 0.20 = 45.0
 
     def test_component_scores_bounded(self):
         """Verify component scores return values in [0, 100] or None."""
         # Trend
-        self.assertEqual(calculate_trend_score(35.0, 30.0, 25.0), 100.0)
-        self.assertEqual(calculate_trend_score(20.0, 30.0, 35.0), 0.0)
-        self.assertIsNone(calculate_trend_score(None, 30.0, 25.0))
-        self.assertIsNone(calculate_trend_score(float("nan"), 30.0, 25.0))
+        assert calculate_trend_score(35.0, 30.0, 25.0) == 100.0
+        assert calculate_trend_score(20.0, 30.0, 35.0) == 0.0
+        assert calculate_trend_score(None, 30.0, 25.0) is None
+        assert calculate_trend_score(float("nan"), 30.0, 25.0) is None
 
         # Momentum
-        self.assertEqual(calculate_momentum_score(55.0, 0.5, 0.2), 95.0)
-        self.assertEqual(calculate_momentum_score(72.0, -0.5, -0.2), 10.0)
-        self.assertEqual(calculate_momentum_score(80.0, -0.5, -0.2), 0.0)
-        self.assertIsNone(calculate_momentum_score(None, None, None))
+        assert calculate_momentum_score(55.0, 0.5, 0.2) == 95.0
+        assert calculate_momentum_score(72.0, -0.5, -0.2) == 10.0
+        assert calculate_momentum_score(80.0, -0.5, -0.2) == 0.0
+        assert calculate_momentum_score(None, None, None) is None
 
         # Volume
-        self.assertEqual(calculate_volume_score(2.5), 100.0)
-        self.assertEqual(calculate_volume_score(0.2), 20.0)
-        self.assertIsNone(calculate_volume_score(None))
+        assert calculate_volume_score(2.5) == 100.0
+        assert calculate_volume_score(0.2) == 20.0
+        assert calculate_volume_score(None) is None
 
         # Relative Strength
-        self.assertEqual(calculate_relative_strength_score(0.12), 100.0)
-        self.assertEqual(calculate_relative_strength_score(-0.08), 15.0)
-        self.assertIsNone(calculate_relative_strength_score(None))
+        assert calculate_relative_strength_score(0.12) == 100.0
+        assert calculate_relative_strength_score(-0.08) == 15.0
+        assert calculate_relative_strength_score(None) is None
 
     def test_missing_data_renormalizes_weights(self):
         """Verify missing data excludes unavailable components and renormalizes weights without distorting scores."""
@@ -333,14 +334,14 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             relative_strength_score=90.0,
             divergence_score=None,
         )
-        self.assertIsNotNone(score)
-        self.assertEqual(data_quality, "PARTIAL")
-        self.assertIsNone(components["volume"])
-        self.assertIsNone(components["divergence"])
+        assert score is not None
+        assert data_quality == "PARTIAL"
+        assert components["volume"] is None
+        assert components["divergence"] is None
 
         # Expected: weighted across trend (0.30), momentum (0.25), relative_strength (0.15) -> total = 0.70
         expected = round((100.0 * 0.30 + 80.0 * 0.25 + 90.0 * 0.15) / 0.70, 1)
-        self.assertEqual(score, expected)
+        assert score == expected
 
     def test_action_classification_boundary_conditions(self):
         """Test action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
@@ -348,20 +349,20 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         raw_close = 30.0
         raw_ma20 = 25.0
 
-        self.assertEqual(classify_action(34.9, regime, raw_close, raw_ma20), "SELL")
-        self.assertEqual(classify_action(35.0, regime, raw_close, raw_ma20), "SELL")
-        self.assertEqual(classify_action(44.9, regime, raw_close, raw_ma20), "SELL")
-        self.assertEqual(classify_action(45.0, regime, raw_close, raw_ma20), "HOLD")
-        self.assertEqual(classify_action(54.9, regime, raw_close, raw_ma20), "HOLD")
-        self.assertEqual(classify_action(55.0, regime, raw_close, raw_ma20), "WATCH")
-        self.assertEqual(classify_action(64.9, regime, raw_close, raw_ma20), "WATCH")
-        self.assertEqual(classify_action(65.0, regime, raw_close, raw_ma20), "BUY")
-        self.assertEqual(classify_action(74.9, regime, raw_close, raw_ma20), "BUY")
-        self.assertEqual(classify_action(75.0, regime, raw_close, raw_ma20), "BUY")
+        assert classify_action(34.9, regime, raw_close, raw_ma20) == "SELL"
+        assert classify_action(35.0, regime, raw_close, raw_ma20) == "SELL"
+        assert classify_action(44.9, regime, raw_close, raw_ma20) == "SELL"
+        assert classify_action(45.0, regime, raw_close, raw_ma20) == "HOLD"
+        assert classify_action(54.9, regime, raw_close, raw_ma20) == "HOLD"
+        assert classify_action(55.0, regime, raw_close, raw_ma20) == "WATCH"
+        assert classify_action(64.9, regime, raw_close, raw_ma20) == "WATCH"
+        assert classify_action(65.0, regime, raw_close, raw_ma20) == "BUY"
+        assert classify_action(74.9, regime, raw_close, raw_ma20) == "BUY"
+        assert classify_action(75.0, regime, raw_close, raw_ma20) == "BUY"
 
         # DEFENSIVE regime action boundary check
-        self.assertEqual(classify_action(65.0, "DEFENSIVE", raw_close, raw_ma20), "BUY")
-        self.assertEqual(classify_action(75.0, "DEFENSIVE", raw_close, raw_ma20), "WATCH")
+        assert classify_action(65.0, "DEFENSIVE", raw_close, raw_ma20) == "BUY"
+        assert classify_action(75.0, "DEFENSIVE", raw_close, raw_ma20) == "WATCH"
 
     def test_generate_recommendation_output_structure(self):
         n = 60
@@ -389,18 +390,18 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             market_regime_info=regime_bull,
         )
 
-        self.assertIn(rec["action"], ["BUY", "WATCH", "HOLD", "SELL", "AVOID"])
-        self.assertEqual(rec["symbol"], "FPT")
-        self.assertEqual(rec["model_version"], "2.0")
-        self.assertIn(rec["data_quality"], ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"])
-        self.assertIsNotNone(rec["signal_score"])
-        self.assertIsNotNone(rec["risk_adjusted_score"])
-        self.assertIsNotNone(rec["confidence"])
-        self.assertGreaterEqual(rec["confidence"], 0.10)
-        self.assertLessEqual(rec["confidence"], 0.95)
-        self.assertIsInstance(rec["score_components"], dict)
-        self.assertIsInstance(rec["invalidation"], list)
-        self.assertIn("1H", rec["divergence"])
+        assert rec["action"] in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
+        assert rec["symbol"] == "FPT"
+        assert rec["model_version"] == "2.0"
+        assert rec["data_quality"] in ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
+        assert rec["signal_score"] is not None
+        assert rec["risk_adjusted_score"] is not None
+        assert rec["confidence"] is not None
+        assert rec["confidence"] >= 0.10
+        assert rec["confidence"] <= 0.95
+        assert isinstance(rec["score_components"], dict)
+        assert isinstance(rec["invalidation"], list)
+        assert "1H" in rec["divergence"]
 
     def test_risk_adjusted_score_formula(self):
         """Verify risk-adjusted score deterministic calculation."""
@@ -411,8 +412,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             max_drawdown=-0.10,
             liquidity_score=90.0,
         )
-        self.assertGreaterEqual(score, 70.0)
-        self.assertLessEqual(score, 100.0)
+        assert score >= 70.0
+        assert score <= 100.0
 
         # High volatility and drawdown penalty check
         score_high_risk = calculate_risk_adjusted_score(
@@ -422,7 +423,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             max_drawdown=-0.35,
             liquidity_score=20.0,
         )
-        self.assertLess(score_high_risk, score)
+        assert score_high_risk < score
 
     def test_risk_adjusted_score_across_regimes(self):
         """Verify risk_adjusted_score calculation across all market regimes and after universe normalization."""
@@ -451,10 +452,10 @@ class TestVNInvestSignalEngine(unittest.TestCase):
                 market_regime_info={"regime": r_str, "regime_score": 50.0},
             )
 
-            self.assertIsNotNone(rec["risk_adjusted_score"])
+            assert rec["risk_adjusted_score"] is not None
 
             norm_recs = normalize_universe_liquidity_scores([rec], market_regime=r_str)
-            self.assertIsNotNone(norm_recs[0]["risk_adjusted_score"])
+            assert norm_recs[0]["risk_adjusted_score"] is not None
 
     def test_missing_atr_trade_plan_behavior(self):
         """Regression test P1: Missing ATR does not raise error and produces valid trade plan bounds."""
@@ -484,10 +485,10 @@ class TestVNInvestSignalEngine(unittest.TestCase):
 
         tp = rec["trade_plan"]
         if rec["action"] in ["BUY", "WATCH"]:
-            self.assertIsNotNone(tp["stop_loss"])
-            self.assertLess(tp["stop_loss"], tp["entry_low"])
-            self.assertGreater(tp["tp1"], tp["entry_high"])
-            self.assertGreaterEqual(tp["tp2"], tp["tp1"])
+            assert tp["stop_loss"] is not None
+            assert tp["stop_loss"] < tp["entry_low"]
+            assert tp["tp1"] > tp["entry_high"]
+            assert tp["tp2"] >= tp["tp1"]
 
     def test_trade_plan_invariants(self):
         n = 60
@@ -516,16 +517,16 @@ class TestVNInvestSignalEngine(unittest.TestCase):
 
         tp = rec["trade_plan"]
         if rec["action"] in ["BUY", "WATCH"]:
-            self.assertLessEqual(tp["entry_low"], tp["entry_high"])
-            self.assertLess(tp["stop_loss"], tp["entry_low"])
-            self.assertGreater(tp["tp1"], tp["entry_high"])
-            self.assertGreaterEqual(tp["tp2"], tp["tp1"])
-            self.assertGreater(tp["risk_reward"], 0.0)
-            self.assertGreaterEqual(tp["position_percent"], 0.0)
-            self.assertLessEqual(tp["position_percent"], 100.0)
+            assert tp["entry_low"] <= tp["entry_high"]
+            assert tp["stop_loss"] < tp["entry_low"]
+            assert tp["tp1"] > tp["entry_high"]
+            assert tp["tp2"] >= tp["tp1"]
+            assert tp["risk_reward"] > 0.0
+            assert tp["position_percent"] >= 0.0
+            assert tp["position_percent"] <= 100.0
         else:
-            self.assertIsNone(tp["entry_low"])
-            self.assertIsNone(tp["stop_loss"])
+            assert tp["entry_low"] is None
+            assert tp["stop_loss"] is None
 
     def test_anti_lookahead_module_level_regression(self):
         """Module-level regression test for anti-lookahead bias.
@@ -624,14 +625,9 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             val_a = ind_a_at_t[field]
             val_b = ind_b_at_t[field]
             if pd.isna(val_a):
-                self.assertTrue(pd.isna(val_b))
+                assert pd.isna(val_b)
             else:
-                self.assertAlmostEqual(
-                    val_a,
-                    val_b,
-                    places=5,
-                    msg=f"Indicator '{field}' at date T changed when future rows were added!",
-                )
+                assert round(abs(val_a - (val_b)), 5) == 0
 
         # 2. Slice Dataset B at date T and verify recommendation identity
         df_stock_b_sliced = df_stock_b[df_stock_b["time"] <= date_t]
@@ -655,15 +651,15 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         )
 
         # 3. Assert equality across key quantitative fields at date T
-        self.assertEqual(regime_a["regime"], regime_b["regime"])
-        self.assertEqual(regime_a["regime_score"], regime_b["regime_score"])
+        assert regime_a["regime"] == regime_b["regime"]
+        assert regime_a["regime_score"] == regime_b["regime_score"]
 
-        self.assertEqual(rec_a["action"], rec_b["action"])
-        self.assertEqual(rec_a["signal_score"], rec_b["signal_score"])
-        self.assertEqual(rec_a["risk_adjusted_score"], rec_b["risk_adjusted_score"])
-        self.assertEqual(rec_a["score_components"], rec_b["score_components"])
-        self.assertEqual(rec_a["risk_metrics"], rec_b["risk_metrics"])
-        self.assertEqual(rec_a["trade_plan"], rec_b["trade_plan"])
+        assert rec_a["action"] == rec_b["action"]
+        assert rec_a["signal_score"] == rec_b["signal_score"]
+        assert rec_a["risk_adjusted_score"] == rec_b["risk_adjusted_score"]
+        assert rec_a["score_components"] == rec_b["score_components"]
+        assert rec_a["risk_metrics"] == rec_b["risk_metrics"]
+        assert rec_a["trade_plan"] == rec_b["trade_plan"]
 
     def test_divergence_requires_future_pivot_confirmation(self):
         """Targeted temporal-causality regression test for divergence pivot confirmation.
@@ -721,7 +717,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         div_a = detect_divergence(df_a)
 
         # Baseline on Dataset A: date T cannot confirm trough 2 -> macd_bullish is False
-        self.assertFalse(div_a["macd_bullish"])
+        assert not div_a["macd_bullish"]
 
         # Dataset B: Dataset A + future rows T+1 (index 29) and T+2 (index 30)
         dates_b = pd.date_range("2026-01-01", periods=n + 2, freq="D")
@@ -743,13 +739,11 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         div_b = detect_divergence(df_b)
 
         # On full Dataset B (including future rows T+1, T+2): date T is now confirmed as trough 2 -> macd_bullish is True
-        self.assertTrue(div_b["macd_bullish"])
+        assert div_b["macd_bullish"]
 
         # Proves future rows T+1, T+2 change historical divergence outputs evaluated at T
-        self.assertNotEqual(
-            div_a["macd_bullish"],
-            div_b["macd_bullish"],
-            "Confirmed lookahead dependency: detect_divergence() outputs differ at date T when future rows T+1, T+2 are present!",
+        assert div_a["macd_bullish"] != div_b["macd_bullish"], (
+            "Confirmed lookahead dependency: detect_divergence() outputs differ at date T when future rows T+1, T+2 are present!"
         )
 
     def test_extreme_and_invalid_inputs(self):
@@ -778,11 +772,11 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         )
 
         # Volume score should be None due to 0 volume, leaving 4 available components -> PARTIAL data quality
-        self.assertIsNotNone(rec["signal_score"])
-        self.assertFalse(math.isnan(rec["signal_score"]))
-        self.assertFalse(math.isinf(rec["signal_score"]))
-        self.assertGreaterEqual(rec["signal_score"], 0.0)
-        self.assertLessEqual(rec["signal_score"], 100.0)
+        assert rec["signal_score"] is not None
+        assert not math.isnan(rec["signal_score"])
+        assert not math.isinf(rec["signal_score"])
+        assert rec["signal_score"] >= 0.0
+        assert rec["signal_score"] <= 100.0
 
     def test_avoid_action_in_panic(self):
         n = 30
@@ -809,7 +803,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             market_regime_info=regime_panic,
         )
 
-        self.assertEqual(rec["action"], "AVOID")
+        assert rec["action"] == "AVOID"
 
     def test_missing_data_returns_avoid_with_nulls(self):
         rec = generate_recommendation(
@@ -821,11 +815,11 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             market_regime_info={"regime": "DEFENSIVE"},
         )
 
-        self.assertEqual(rec["action"], "AVOID")
-        self.assertEqual(rec["data_quality"], "INSUFFICIENT")
-        self.assertIsNone(rec["signal_score"])
-        self.assertIsNone(rec["risk_metrics"]["var_t25"])
-        self.assertIsNone(rec["trade_plan"]["current_price"])
+        assert rec["action"] == "AVOID"
+        assert rec["data_quality"] == "INSUFFICIENT"
+        assert rec["signal_score"] is None
+        assert rec["risk_metrics"]["var_t25"] is None
+        assert rec["trade_plan"]["current_price"] is None
 
     def test_market_regime_propagation_across_regimes(self):
         """Verify normalization uses explicitly supplied market regime across all regimes."""
@@ -847,10 +841,10 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             norm = normalize_universe_liquidity_scores(recs, market_regime=regime)
             scores[regime] = norm[0]["risk_adjusted_score"]
 
-        self.assertGreater(scores["STRONG_BULL"], scores["BULL"])
-        self.assertGreater(scores["BULL"], scores["NEUTRAL"])
-        self.assertGreater(scores["NEUTRAL"], scores["BEAR"])
-        self.assertGreater(scores["BEAR"], scores["PANIC"])
+        assert scores["STRONG_BULL"] > scores["BULL"]
+        assert scores["BULL"] > scores["NEUTRAL"]
+        assert scores["NEUTRAL"] > scores["BEAR"]
+        assert scores["BEAR"] > scores["PANIC"]
 
     def test_individual_recommendation_regime_cannot_override_explicit_regime(self):
         """Verify recommendation's inner 'market_regime' key cannot override explicit parameter."""
@@ -876,16 +870,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             liquidity_score=100.0,
         )
 
-        self.assertEqual(norm[0]["risk_adjusted_score"], expected_score)
-        self.assertNotEqual(
-            norm[0]["risk_adjusted_score"],
-            calculate_risk_adjusted_score(
-                signal_score=80.0,
-                regime="DEFENSIVE",
-                volatility_60d=0.20,
-                max_drawdown=-0.15,
-                liquidity_score=100.0,
-            ),
+        assert norm[0]["risk_adjusted_score"] == expected_score
+        assert norm[0]["risk_adjusted_score"] != calculate_risk_adjusted_score(
+            signal_score=80.0,
+            regime="DEFENSIVE",
+            volatility_60d=0.20,
+            max_drawdown=-0.15,
+            liquidity_score=100.0,
         )
 
     def test_invalid_market_regime_raises_error(self):
@@ -898,13 +889,13 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             }
         ]
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             normalize_universe_liquidity_scores(recs, market_regime="INVALID_REGIME")
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             normalize_universe_liquidity_scores(recs, market_regime=None)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             calculate_risk_adjusted_score(signal_score=80.0, regime="UNKNOWN")
 
     @patch("scripts.data.acquisition.time.sleep")
@@ -952,10 +943,10 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         }
 
         recs_data_bull, _, _ = run_pipeline(update_data=False)
-        self.assertEqual(recs_data_bull["market"]["regime"], "STRONG_BULL")
+        assert recs_data_bull["market"]["regime"] == "STRONG_BULL"
 
         rec_fpt_bull = next(r for r in recs_data_bull["recommendations"] if r["symbol"] == "FPT")
-        self.assertIsNotNone(rec_fpt_bull["risk_adjusted_score"])
+        assert rec_fpt_bull["risk_adjusted_score"] is not None
 
         expected_strong_bull_score = calculate_risk_adjusted_score(
             signal_score=rec_fpt_bull["signal_score"],
@@ -972,8 +963,8 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             liquidity_score=rec_fpt_bull["risk_metrics"]["liquidity_score"],
         )
 
-        self.assertEqual(rec_fpt_bull["risk_adjusted_score"], expected_strong_bull_score)
-        self.assertNotEqual(rec_fpt_bull["risk_adjusted_score"], defensive_fallback_score)
+        assert rec_fpt_bull["risk_adjusted_score"] == expected_strong_bull_score
+        assert rec_fpt_bull["risk_adjusted_score"] != defensive_fallback_score
 
         # 2. Market regime detected as BEAR
         mock_detect.return_value = {
@@ -984,7 +975,7 @@ class TestVNInvestSignalEngine(unittest.TestCase):
         }
 
         recs_data_bear, _, _ = run_pipeline(update_data=False)
-        self.assertEqual(recs_data_bear["market"]["regime"], "BEAR")
+        assert recs_data_bear["market"]["regime"] == "BEAR"
 
         rec_fpt_bear = next(r for r in recs_data_bear["recommendations"] if r["symbol"] == "FPT")
         expected_bear_score = calculate_risk_adjusted_score(
@@ -995,9 +986,5 @@ class TestVNInvestSignalEngine(unittest.TestCase):
             liquidity_score=rec_fpt_bear["risk_metrics"]["liquidity_score"],
         )
 
-        self.assertEqual(rec_fpt_bear["risk_adjusted_score"], expected_bear_score)
-        self.assertLess(rec_fpt_bear["risk_adjusted_score"], rec_fpt_bull["risk_adjusted_score"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert rec_fpt_bear["risk_adjusted_score"] == expected_bear_score
+        assert rec_fpt_bear["risk_adjusted_score"] < rec_fpt_bull["risk_adjusted_score"]

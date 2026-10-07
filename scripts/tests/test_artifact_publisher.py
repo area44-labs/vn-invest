@@ -4,8 +4,9 @@ import json
 import os
 import shutil
 import tempfile
-import unittest
 from unittest.mock import patch
+
+import pytest
 
 from scripts.artifacts import (
     ArtifactLock,
@@ -21,10 +22,11 @@ from scripts.pipeline import (
 from scripts.schema import SchemaResolutionError
 
 
-class TestArtifactPublisherSuite(unittest.TestCase):
+@pytest.mark.unit
+class TestArtifactPublisherSuite:
     """Independent unit tests for ArtifactPublisher, manifest generation, schema validation, atomic transactions, recovery, and pipeline integration."""
 
-    def setUp(self):
+    def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
         self.target_dir = os.path.join(self.temp_dir, "generated")
         os.makedirs(self.target_dir, exist_ok=True)
@@ -59,7 +61,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             "history/2026-03-31.json": _make_valid_rec_payload("2026-03-31"),
         }
 
-    def tearDown(self):
+    def teardown_method(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_manifest_builder_and_manifest_generation(self):
@@ -72,15 +74,15 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         builder.build_history_index("2026-03-31", generated_at="2026-03-31T00:00:00Z")
 
         manifest = builder.build()
-        self.assertIsInstance(manifest, ArtifactManifest)
-        self.assertEqual(len(manifest.artifacts), 3)
-        self.assertIn("recommendations.json", manifest.artifacts)
-        self.assertIn("market.json", manifest.artifacts)
-        self.assertIn("history/index.json", manifest.artifacts)
+        assert isinstance(manifest, ArtifactManifest)
+        assert len(manifest.artifacts) == 3
+        assert "recommendations.json" in manifest.artifacts
+        assert "market.json" in manifest.artifacts
+        assert "history/index.json" in manifest.artifacts
 
         m_dict = manifest.to_dict()
-        self.assertEqual(m_dict["artifact_count"], 3)
-        self.assertIn("recommendations.json", m_dict["paths"])
+        assert m_dict["artifact_count"] == 3
+        assert "recommendations.json" in m_dict["paths"]
 
     def test_manifest_failure_halts_publishing_without_silent_reset(self):
         """Verify corrupt history/index.json causes build_history_index to fail closed without silent date reset."""
@@ -92,10 +94,10 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             f.write("CORRUPT_JSON_DATA {{{")
 
         builder = ArtifactManifestBuilder(target_dir=self.target_dir)
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             builder.build_history_index("2026-03-31")
 
-        self.assertIn("invalid JSON", str(cm.exception))
+        assert "invalid JSON" in str(cm.value)
 
     def test_schema_validation_before_publish(self):
         """Verify schema validation occurs before publishing and rejects invalid payloads before disk mutation."""
@@ -109,12 +111,12 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             publisher.publish(invalid_artifacts)
 
-        self.assertIn("out of range", str(cm.exception))
+        assert "out of range" in str(cm.value)
         # Ensure no artifacts were created in target_dir
-        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        assert not os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
 
     def test_publisher_rejects_missing_schema_version(self):
         """Verify ArtifactPublisher rejects payloads missing schema_version."""
@@ -129,10 +131,10 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(SchemaResolutionError) as cm:
+        with pytest.raises(SchemaResolutionError) as cm:
             publisher.publish(missing_ver_artifacts)
 
-        self.assertIn("missing required", str(cm.exception))
+        assert "missing required" in str(cm.value)
 
     def test_publisher_rejects_history_artifact_missing_schema_version(self):
         """Verify ArtifactPublisher rejects history report artifacts missing schema_version."""
@@ -144,11 +146,11 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(SchemaResolutionError) as cm:
+        with pytest.raises(SchemaResolutionError) as cm:
             publisher.publish(missing_hist_artifacts)
 
-        self.assertIn("missing required", str(cm.exception))
-        self.assertIn("history/2026-03-31.json", str(cm.exception))
+        assert "missing required" in str(cm.value)
+        assert "history/2026-03-31.json" in str(cm.value)
 
     def test_publisher_rejects_unsupported_schema_version(self):
         """Verify ArtifactPublisher rejects payloads with unsupported schema_version."""
@@ -161,10 +163,10 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(SchemaResolutionError) as cm:
+        with pytest.raises(SchemaResolutionError) as cm:
             publisher.publish(bad_ver_artifacts)
 
-        self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
+        assert "Unsupported schema version '9.9'" in str(cm.value)
 
     def test_publisher_rejects_history_artifact_unsupported_schema_version(self):
         """Verify ArtifactPublisher rejects history report artifacts with unsupported schema_version."""
@@ -177,10 +179,10 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(SchemaResolutionError) as cm:
+        with pytest.raises(SchemaResolutionError) as cm:
             publisher.publish(bad_hist_artifacts)
 
-        self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
+        assert "Unsupported schema version '9.9'" in str(cm.value)
 
     def test_validation_failure_prevents_transaction_start(self):
         """Verify validation failure prevents transaction start (no staging dir, no backup, no state file)."""
@@ -201,14 +203,14 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             }
         }
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             publisher.publish(invalid_artifacts)
 
         # Check no staging directory or state file was created
         for item in os.listdir(self.temp_dir):
-            self.assertNotIn("staging", item)
-            self.assertNotIn("bak", item)
-            self.assertNotIn("_txn", item)
+            assert "staging" not in item
+            assert "bak" not in item
+            assert "_txn" not in item
 
     def test_invalid_partial_artifacts_not_published(self):
         """Verify that if any artifact in a batch is invalid, no partial artifacts are published."""
@@ -222,12 +224,12 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             "recommendations.json": invalid_rec,
         }
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             publisher.publish(batch)
 
         # Neither market.json nor recommendations.json should be published
-        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "market.json")))
-        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        assert not os.path.exists(os.path.join(self.target_dir, "market.json"))
+        assert not os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
 
     def test_publisher_always_creates_and_consumes_artifact_manifest(self):
         """Verify ArtifactPublisher creates and consumes ArtifactManifest when given a dict batch."""
@@ -238,9 +240,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         }
 
         published_manifest = publisher.publish(batch)
-        self.assertIsInstance(published_manifest, ArtifactManifest)
-        self.assertEqual(published_manifest.target_dir, self.target_dir)
-        self.assertIn("recommendations.json", published_manifest.artifacts)
+        assert isinstance(published_manifest, ArtifactManifest)
+        assert published_manifest.target_dir == self.target_dir
+        assert "recommendations.json" in published_manifest.artifacts
 
     def test_successful_publish_and_replacement(self):
         """Verify successful atomic publish and subsequent replacement of existing artifacts."""
@@ -254,7 +256,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         publisher.publish(batch_v1)
 
         rec_path = os.path.join(self.target_dir, "recommendations.json")
-        self.assertTrue(os.path.exists(rec_path))
+        assert os.path.exists(rec_path)
 
         # 2. Second publish replacing existing
         batch_v2 = {
@@ -265,7 +267,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         mkt_path = os.path.join(self.target_dir, "market.json")
         with open(mkt_path, "r", encoding="utf-8") as f:
-            self.assertEqual(json.load(f)["market"]["regime"], "BEAR")
+            assert json.load(f)["market"]["regime"] == "BEAR"
 
     def test_successful_publish_leaves_no_leftover_artifacts(self):
         """Verify successful transaction leaves no staging, backup, or journal state files in parent dir."""
@@ -274,7 +276,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
 
         # Verify parent directory contains ONLY target_dir and no .generated_txn.json or generated_bak
         items = [i for i in os.listdir(self.temp_dir) if not i.endswith(".lock")]
-        self.assertEqual(items, ["generated"])
+        assert items == ["generated"]
 
     def test_staging_failure_triggers_clean_rollback(self):
         """Verify failure during staging phase rolls back cleanly without leaving staging directory."""
@@ -287,15 +289,15 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             "bad_file.json": {"schema_version": "2.0", "bad": object()}
         }  # Non-serializable object fails json.dump
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             publisher.publish(bad_batch)
 
         # Target preserved, no staging directory left behind
         with open(initial_file, "r", encoding="utf-8") as f:
-            self.assertEqual(f.read(), '{"v": "initial_data"}\n')
+            assert f.read() == '{"v": "initial_data"}\n'
 
         items = [i for i in os.listdir(self.temp_dir) if not i.endswith(".lock")]
-        self.assertEqual(items, ["generated"])
+        assert items == ["generated"]
 
     def test_atomic_transaction_and_rollback_recovery(self):
         """Verify atomic transaction rollback restores original target when transaction fails during execute_publish."""
@@ -312,12 +314,12 @@ class TestArtifactPublisherSuite(unittest.TestCase):
                 raise OSError("Simulated replace failure during commit")
             return real_replace(src, dst)
 
-        with patch("os.replace", side_effect=failing_replace), self.assertRaises(OSError):
+        with patch("os.replace", side_effect=failing_replace), pytest.raises(OSError):
             publisher.publish(self.sample_artifacts)
 
         # Verify original target content is preserved
         with open(initial_file, "r", encoding="utf-8") as f:
-            self.assertEqual(f.read(), '{"v": "original_valid"}\n')
+            assert f.read() == '{"v": "original_valid"}\n'
 
     def test_interrupted_transaction_idempotent_recovery(self):
         """Verify recovery from interrupted transaction is idempotent."""
@@ -333,9 +335,9 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         recover_interrupted_publish(self.target_dir)
 
         rec_file = os.path.join(self.target_dir, "recommendations.json")
-        self.assertTrue(os.path.exists(rec_file))
+        assert os.path.exists(rec_file)
         with open(rec_file, "r", encoding="utf-8") as f:
-            self.assertEqual(f.read(), '{"v": "backed_up_good"}\n')
+            assert f.read() == '{"v": "backed_up_good"}\n'
 
     def test_backward_compatibility_re_export(self):
         """Verify backward compatibility of imports from scripts.pipeline.publishing."""
@@ -343,8 +345,8 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         from scripts.pipeline.publishing import ArtifactPublisher as LegacyPublisher
         from scripts.pipeline.publishing import publish_artifacts_atomically as legacy_publish
 
-        self.assertIs(LegacyPublisher, ArtifactPublisher)
-        self.assertIs(LegacyLock, ArtifactLock)
+        assert LegacyPublisher is ArtifactPublisher
+        assert LegacyLock is ArtifactLock
 
         # Test legacy function execution
         legacy_publish(
@@ -352,7 +354,7 @@ class TestArtifactPublisherSuite(unittest.TestCase):
             target_dir=self.target_dir,
             strict_provenance=False,
         )
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "test.json")))
+        assert os.path.exists(os.path.join(self.target_dir, "test.json"))
 
     def test_pipeline_stage_artifact_publisher_integration(self):
         """Verify ArtifactPublishingStage uses ArtifactPublisher cleanly during pipeline execution."""
@@ -367,12 +369,8 @@ class TestArtifactPublisherSuite(unittest.TestCase):
         stage = ArtifactPublishingStage()
         stage.execute(context)
 
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "market.json")))
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "monitoring.json")))
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "history", "2026-03-31.json")))
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "history", "index.json")))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
+        assert os.path.exists(os.path.join(self.target_dir, "market.json"))
+        assert os.path.exists(os.path.join(self.target_dir, "monitoring.json"))
+        assert os.path.exists(os.path.join(self.target_dir, "history", "2026-03-31.json"))
+        assert os.path.exists(os.path.join(self.target_dir, "history", "index.json"))

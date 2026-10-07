@@ -11,11 +11,11 @@ Validates:
 import json
 import shutil
 import tempfile
-import unittest
 from unittest.mock import patch
 
 import jsonschema
 import pandas as pd
+import pytest
 
 from scripts.domain.universe import Universe
 from scripts.generate_report import (
@@ -55,10 +55,11 @@ def load_schema():
         return json.load(f)
 
 
-class TestDataFlowConsistency(unittest.TestCase):
+@pytest.mark.integration
+class TestDataFlowConsistency:
     """Test suite for pipeline data flow consistency and downstream calculations."""
 
-    def setUp(self):
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -75,7 +76,7 @@ class TestDataFlowConsistency(unittest.TestCase):
         self.df_vnm = create_synthetic_ohlcv("2025-01-01", 30, base_price=70000.0)
         self.df_fpt = create_synthetic_ohlcv("2025-01-01", 30, base_price=130000.0)
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
@@ -112,19 +113,19 @@ class TestDataFlowConsistency(unittest.TestCase):
             )
 
             # In update mode, should raise RuntimeError because AAA has insufficient history (< 20 clean rows)
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
-            self.assertIn("Insufficient History: 1", str(ctx.exception))
-            self.assertIn("AAA", str(ctx.exception))
+            assert "Incomplete universe scan in update mode" in str(ctx.value)
+            assert "Insufficient History: 1" in str(ctx.value)
+            assert "AAA" in str(ctx.value)
 
             # In non-update mode, run_pipeline completes, tagging AAA as INSUFFICIENT and AVOID
             recs_data, _market_data, _ = run_pipeline(update_data=False)
-            self.assertEqual(recs_data["summary"]["total_scanned"], 1)
-            self.assertEqual(recs_data["summary"]["avoid_count"], 1)
-            self.assertEqual(recs_data["recommendations"][0]["data_quality"], "INSUFFICIENT")
-            self.assertEqual(recs_data["recommendations"][0]["action"], "AVOID")
+            assert recs_data["summary"]["total_scanned"] == 1
+            assert recs_data["summary"]["avoid_count"] == 1
+            assert recs_data["recommendations"][0]["data_quality"] == "INSUFFICIENT"
+            assert recs_data["recommendations"][0]["action"] == "AVOID"
 
     def test_pipeline_zero_valid_stock_symbols(self):
         """Test pipeline behavior when stock universe contains 0 valid symbols (all insufficient)."""
@@ -163,24 +164,24 @@ class TestDataFlowConsistency(unittest.TestCase):
         jsonschema.validate(instance=recs_data, schema=self.schema)
 
         # Market breadth defaults safely to 0.50 without zero division
-        self.assertEqual(market_data["market"]["metrics"]["market_breadth_ratio"], 0.50)
+        assert market_data["market"]["metrics"]["market_breadth_ratio"] == 0.50
 
         # Summary accounting
         summary = recs_data["summary"]
-        self.assertEqual(summary["total_scanned"], 2)
-        self.assertEqual(summary["avoid_count"], 2)
-        self.assertEqual(summary["buy_count"], 0)
-        self.assertEqual(summary["watch_count"], 0)
-        self.assertEqual(summary["hold_count"], 0)
-        self.assertEqual(summary["sell_count"], 0)
+        assert summary["total_scanned"] == 2
+        assert summary["avoid_count"] == 2
+        assert summary["buy_count"] == 0
+        assert summary["watch_count"] == 0
+        assert summary["hold_count"] == 0
+        assert summary["sell_count"] == 0
 
         # Recommendations check
         for rec in recs_data["recommendations"]:
-            self.assertEqual(rec["action"], "AVOID")
-            self.assertEqual(rec["data_quality"], "INSUFFICIENT")
-            self.assertIsNone(rec["signal_score"])
-            self.assertIsNone(rec["risk_adjusted_score"])
-            self.assertIsNone(rec["risk_metrics"]["liquidity_score"])
+            assert rec["action"] == "AVOID"
+            assert rec["data_quality"] == "INSUFFICIENT"
+            assert rec["signal_score"] is None
+            assert rec["risk_adjusted_score"] is None
+            assert rec["risk_metrics"]["liquidity_score"] is None
 
     def test_pipeline_single_valid_stock_symbol(self):
         """Test pipeline behavior when universe contains exactly 1 valid stock symbol."""
@@ -220,15 +221,15 @@ class TestDataFlowConsistency(unittest.TestCase):
         rec_fpt = next(r for r in recs_data["recommendations"] if r["symbol"] == "FPT")
 
         # VNM has sufficient data and percentile liquidity score == 100.0 (only 1 valid stock)
-        self.assertEqual(rec_vnm["data_quality"], "SUFFICIENT")
-        self.assertIsNotNone(rec_vnm["signal_score"])
-        self.assertEqual(rec_vnm["risk_metrics"]["liquidity_score"], 100.0)
-        self.assertIsNotNone(rec_vnm["risk_adjusted_score"])
+        assert rec_vnm["data_quality"] == "SUFFICIENT"
+        assert rec_vnm["signal_score"] is not None
+        assert rec_vnm["risk_metrics"]["liquidity_score"] == 100.0
+        assert rec_vnm["risk_adjusted_score"] is not None
 
         # FPT is insufficient
-        self.assertEqual(rec_fpt["data_quality"], "INSUFFICIENT")
-        self.assertEqual(rec_fpt["action"], "AVOID")
-        self.assertIsNone(rec_fpt["risk_metrics"]["liquidity_score"])
+        assert rec_fpt["data_quality"] == "INSUFFICIENT"
+        assert rec_fpt["action"] == "AVOID"
+        assert rec_fpt["risk_metrics"]["liquidity_score"] is None
 
     def test_duplicate_candidate_metadata_rejection(self):
         """Test that duplicate symbols in candidate_metadata cause fail-closed ValueError."""
@@ -249,7 +250,7 @@ class TestDataFlowConsistency(unittest.TestCase):
 
         universe_map = {"VNM": self.df_vnm}
 
-        with self.assertRaises(ValueError) as ctx:
+        with pytest.raises(ValueError) as ctx:
             generate_historical_report(
                 data_as_of=self.as_of_date,
                 universe_stock_map=universe_map,
@@ -258,7 +259,7 @@ class TestDataFlowConsistency(unittest.TestCase):
                 candidate_metadata=duplicate_metadata,
             )
 
-        self.assertIn("Duplicate candidate stock symbol 'VNM'", str(ctx.exception))
+        assert "Duplicate candidate stock symbol 'VNM'" in str(ctx.value)
 
     def test_pipeline_fail_closed_update_mode_does_not_write_files(self):
         """Test that update mode failure raises RuntimeError without writing files."""
@@ -287,9 +288,5 @@ class TestDataFlowConsistency(unittest.TestCase):
                 benchmarks=("VNINDEX", "VN30"),
             )
 
-            with self.assertRaises(RuntimeError):
+            with pytest.raises(RuntimeError):
                 run_pipeline(update_data=True)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -2,10 +2,10 @@
 
 import os
 import tempfile
-import unittest
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from scripts.domain.universe import Universe
 from scripts.pipeline import (
@@ -43,30 +43,31 @@ class MockStage(PipelineStage):
         self.execution_log.append(self._name)
 
 
-class TestPipelineContextContractAndLifecycle(unittest.TestCase):
+@pytest.mark.integration
+class TestPipelineContextContractAndLifecycle:
     """Verify PipelineContext contract, typing, lifecycle semantics, and state management helpers."""
 
     def test_pipeline_context_defaults_and_construction(self):
         """Verify default PipelineContext initialization, decoupled tracker, and attribute defaults."""
         ctx = PipelineContext()
 
-        self.assertFalse(ctx.update_data)
-        self.assertFalse(ctx.publish_artifacts)
-        self.assertTrue(ctx.use_cache)
-        self.assertEqual(ctx.throttle, 0.0)
-        self.assertEqual(ctx.generated_dir, "")
-        self.assertIsNone(ctx.reference_date)
-        self.assertIsNotNone(ctx.generated_at)
+        assert not ctx.update_data
+        assert not ctx.publish_artifacts
+        assert ctx.use_cache
+        assert ctx.throttle == 0.0
+        assert ctx.generated_dir == ""
+        assert ctx.reference_date is None
+        assert ctx.generated_at is not None
 
         # Context does NOT instantiate PerformanceTracker directly
-        self.assertIsNone(ctx.tracker)
-        self.assertEqual(len(ctx.expected_symbols), 0)
-        self.assertEqual(len(ctx.processed_symbols), 0)
-        self.assertEqual(len(ctx.exclusions_map), 0)
+        assert ctx.tracker is None
+        assert len(ctx.expected_symbols) == 0
+        assert len(ctx.processed_symbols) == 0
+        assert len(ctx.exclusions_map) == 0
 
         # Update mode defaults use_cache to False
         ctx_update = PipelineContext(update_data=True)
-        self.assertFalse(ctx_update.use_cache)
+        assert not ctx_update.use_cache
 
     def test_pipeline_runner_initializes_context_tracker(self):
         """Verify ProductionPipeline manages PerformanceTracker lifecycle when context.tracker is None."""
@@ -76,34 +77,34 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
                 [{"symbol": "AAA", "companyName": "Co A", "sector": "Tech", "exchange": "HOSE"}]
             )
         )
-        self.assertIsNone(ctx.tracker)
+        assert ctx.tracker is None
 
         pipeline = ProductionPipeline(stages=[MockStage("noop", [])])
         pipeline.execute(ctx)
 
-        self.assertIsInstance(ctx.tracker, PerformanceTracker)
+        assert isinstance(ctx.tracker, PerformanceTracker)
 
     def test_pipeline_context_lifecycle_semantics(self):
         """Verify reference_date, generated_at, data_as_of, and use_cache lifecycle semantics."""
         # reference_date sets generated_at when generated_at is omitted
         ctx = PipelineContext(reference_date="2026-09-01")
-        self.assertEqual(ctx.reference_date, "2026-09-01")
-        self.assertEqual(ctx.generated_at, "2026-09-01")
+        assert ctx.reference_date == "2026-09-01"
+        assert ctx.generated_at == "2026-09-01"
 
         # Explicit generated_at is preserved
         ctx_explicit = PipelineContext(
             reference_date="2026-09-01", generated_at="2026-09-01T12:00:00Z"
         )
-        self.assertEqual(ctx_explicit.generated_at, "2026-09-01T12:00:00Z")
+        assert ctx_explicit.generated_at == "2026-09-01T12:00:00Z"
 
         # Explicit use_cache is preserved regardless of update_data
         ctx_cache = PipelineContext(update_data=True, use_cache=True)
-        self.assertTrue(ctx_cache.use_cache)
+        assert ctx_cache.use_cache
 
         # Tracker passed explicitly is preserved
         custom_tracker = PerformanceTracker()
         ctx_tracker = PipelineContext(tracker=custom_tracker)
-        self.assertIs(ctx_tracker.tracker, custom_tracker)
+        assert ctx_tracker.tracker is custom_tracker
 
     def test_pipeline_context_add_exclusion_helper(self):
         """Verify add_exclusion helper updates status sets and exclusions_map accurately."""
@@ -128,9 +129,9 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
             latest_date="2026-08-30",
             expected_date="2026-09-01",
         )
-        self.assertIn("AAA", ctx.failed_symbols)
-        self.assertIn("AAA", ctx.exclusions_map)
-        self.assertEqual(ctx.exclusions_map["AAA"]["category"], "RATE_LIMIT")
+        assert "AAA" in ctx.failed_symbols
+        assert "AAA" in ctx.exclusions_map
+        assert ctx.exclusions_map["AAA"]["category"] == "RATE_LIMIT"
 
         ctx.add_exclusion(
             symbol="BBB",
@@ -139,7 +140,7 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
             status="INVALID",
             reason="Unrecognized symbol",
         )
-        self.assertIn("BBB", ctx.invalid_symbols)
+        assert "BBB" in ctx.invalid_symbols
 
         ctx.add_exclusion(
             symbol="CCC",
@@ -148,7 +149,7 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
             status="INSUFFICIENT",
             reason="Short history",
         )
-        self.assertIn("CCC", ctx.insufficient_history_symbols)
+        assert "CCC" in ctx.insufficient_history_symbols
 
         ctx.add_exclusion(
             symbol="DDD",
@@ -157,7 +158,7 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
             status="MISSING",
             reason="Not found",
         )
-        self.assertIn("DDD", ctx.missing_symbols)
+        assert "DDD" in ctx.missing_symbols
 
     def test_pipeline_context_update_universe_audit_helper(self):
         """Verify update_universe_audit constructs valid universe_audit payload."""
@@ -181,10 +182,10 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
         )
 
         audit = ctx.update_universe_audit()
-        self.assertEqual(audit["status"], "DEGRADED")
-        self.assertEqual(audit["counts"]["processed_count"], 3)
-        self.assertEqual(audit["counts"]["insufficient_history_count"], 1)
-        self.assertIn("BBB", audit["insufficient_history_symbols"])
+        assert audit["status"] == "DEGRADED"
+        assert audit["counts"]["processed_count"] == 3
+        assert audit["counts"]["insufficient_history_count"] == 1
+        assert "BBB" in audit["insufficient_history_symbols"]
 
     def test_pipeline_context_build_payloads_helper(self):
         """Verify build_payloads constructs recommendations, market, and history payloads."""
@@ -207,13 +208,13 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
 
         recs_payload, market_payload, history_payload = ctx.build_payloads()
 
-        self.assertEqual(recs_payload["data_as_of"], "2026-09-01")
-        self.assertEqual(recs_payload["summary"]["total_scanned"], 2)
-        self.assertEqual(recs_payload["summary"]["buy_count"], 1)
-        self.assertEqual(recs_payload["summary"]["watch_count"], 1)
+        assert recs_payload["data_as_of"] == "2026-09-01"
+        assert recs_payload["summary"]["total_scanned"] == 2
+        assert recs_payload["summary"]["buy_count"] == 1
+        assert recs_payload["summary"]["watch_count"] == 1
 
-        self.assertEqual(market_payload["market"]["regime"], "STRONG_BULL")
-        self.assertIs(history_payload, recs_payload)
+        assert market_payload["market"]["regime"] == "STRONG_BULL"
+        assert history_payload is recs_payload
 
     def test_pipeline_stage_to_stage_state_propagation(self):
         """Verify sequential stage execution propagates context state seamlessly."""
@@ -263,12 +264,13 @@ class TestPipelineContextContractAndLifecycle(unittest.TestCase):
         )
         pipeline.execute(context)
 
-        self.assertEqual(len(context.candidate_stocks), 1)
-        self.assertEqual(context.summary["buy_count"], 1)
-        self.assertIn("recommendations", context.recommendations_payload)
+        assert len(context.candidate_stocks) == 1
+        assert context.summary["buy_count"] == 1
+        assert "recommendations" in context.recommendations_payload
 
 
-class TestPipelineStageOrderAndConstruction(unittest.TestCase):
+@pytest.mark.integration
+class TestPipelineStageOrderAndConstruction:
     """Verify ProductionPipeline stage construction and strict execution order."""
 
     def test_default_stage_construction_and_ordering(self):
@@ -288,17 +290,17 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
             "artifact_publishing",
         ]
 
-        self.assertEqual(stage_names, expected_stages)
-        self.assertEqual(len(pipeline.stages), 9)
-        self.assertIsInstance(pipeline.stages[0], DataAcquisitionStage)
-        self.assertIsInstance(pipeline.stages[1], DataValidationStage)
-        self.assertIsInstance(pipeline.stages[2], UniverseValidationStage)
-        self.assertIsInstance(pipeline.stages[3], MarketAnalysisStage)
-        self.assertIsInstance(pipeline.stages[4], SignalRecommendationGenerationStage)
-        self.assertIsInstance(pipeline.stages[5], RiskTradePlanStage)
-        self.assertIsInstance(pipeline.stages[6], PerformanceStage)
-        self.assertIsInstance(pipeline.stages[7], MonitoringStage)
-        self.assertIsInstance(pipeline.stages[8], ArtifactPublishingStage)
+        assert stage_names == expected_stages
+        assert len(pipeline.stages) == 9
+        assert isinstance(pipeline.stages[0], DataAcquisitionStage)
+        assert isinstance(pipeline.stages[1], DataValidationStage)
+        assert isinstance(pipeline.stages[2], UniverseValidationStage)
+        assert isinstance(pipeline.stages[3], MarketAnalysisStage)
+        assert isinstance(pipeline.stages[4], SignalRecommendationGenerationStage)
+        assert isinstance(pipeline.stages[5], RiskTradePlanStage)
+        assert isinstance(pipeline.stages[6], PerformanceStage)
+        assert isinstance(pipeline.stages[7], MonitoringStage)
+        assert isinstance(pipeline.stages[8], ArtifactPublishingStage)
 
     def test_custom_stage_injection(self):
         """Verify ProductionPipeline accepts custom stage instances."""
@@ -309,7 +311,7 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
         ]
 
         pipeline = ProductionPipeline(stages=custom_stages)
-        self.assertEqual(len(pipeline.stages), 2)
+        assert len(pipeline.stages) == 2
 
         context = PipelineContext()
         context.set_universe(
@@ -319,7 +321,7 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
         )
         pipeline.execute(context)
 
-        self.assertEqual(execution_log, ["stage_a", "stage_b"])
+        assert execution_log == ["stage_a", "stage_b"]
 
     def test_sequential_stage_execution_order(self):
         """Verify stages execute in strict sequential order."""
@@ -345,23 +347,21 @@ class TestPipelineStageOrderAndConstruction(unittest.TestCase):
         )
         pipeline.execute(context)
 
-        self.assertEqual(
-            execution_log,
-            [
-                "1_acquisition",
-                "2_val",
-                "3_universe",
-                "4_market",
-                "5_signals",
-                "6_risk",
-                "7_perf",
-                "8_monitoring",
-                "9_publish",
-            ],
-        )
+        assert execution_log == [
+            "1_acquisition",
+            "2_val",
+            "3_universe",
+            "4_market",
+            "5_signals",
+            "6_risk",
+            "7_perf",
+            "8_monitoring",
+            "9_publish",
+        ]
 
 
-class TestPipelineProgrammaticExecution(unittest.TestCase):
+@pytest.mark.integration
+class TestPipelineProgrammaticExecution:
     """Verify programmatic execution entry points and result structure."""
 
     def test_run_pipeline_returns_valid_pipeline_result(self):
@@ -393,16 +393,16 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
 
             res = run_pipeline(update_data=False, generated_dir=tmpdir)
 
-            self.assertIsInstance(res, PipelineResult)
-            self.assertEqual(len(res), 3)
+            assert isinstance(res, PipelineResult)
+            assert len(res) == 3
 
             recs, market, history = res
-            self.assertIn("recommendations", recs)
-            self.assertIn("market", market)
-            self.assertIn("recommendations", history)
+            assert "recommendations" in recs
+            assert "market" in market
+            assert "recommendations" in history
 
-            self.assertIsNotNone(res.df_vnindex)
-            self.assertIsNotNone(res.universe_audit)
+            assert res.df_vnindex is not None
+            assert res.universe_audit is not None
 
     def test_generate_historical_report_returns_pipeline_result(self):
         """Verify generate_historical_report executes cleanly via pipeline."""
@@ -432,10 +432,10 @@ class TestPipelineProgrammaticExecution(unittest.TestCase):
                 generated_dir=tmpdir,
             )
 
-            self.assertIsInstance(res, PipelineResult)
+            assert isinstance(res, PipelineResult)
             recs, market, _ = res
-            self.assertEqual(recs["data_as_of"], "2025-01-20")
-            self.assertEqual(market["data_as_of"], "2025-01-20")
+            assert recs["data_as_of"] == "2025-01-20"
+            assert market["data_as_of"] == "2025-01-20"
 
 
 SINGLE_STOCK_UNIVERSE = [
@@ -443,8 +443,9 @@ SINGLE_STOCK_UNIVERSE = [
 ]
 
 
-class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.integration
+class TestPipelineErrorAndFailureBehavior:
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -452,7 +453,7 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
 
     """Verify error handling and failure behavior compatibility."""
@@ -466,10 +467,10 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
             )
             mock_provider_cls.return_value = mock_provider
 
-            with self.assertRaises(RuntimeError) as cm:
+            with pytest.raises(RuntimeError) as cm:
                 run_pipeline(update_data=False)
 
-            self.assertIn("Candidate universe is empty or missing", str(cm.exception))
+            assert "Candidate universe is empty or missing" in str(cm.value)
 
     def test_update_mode_incomplete_universe_raises_runtime_error(self):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
@@ -487,14 +488,15 @@ class TestPipelineErrorAndFailureBehavior(unittest.TestCase):
 
             mock_fetch.return_value = empty_df
 
-            with self.assertRaises(RuntimeError) as cm:
+            with pytest.raises(RuntimeError) as cm:
                 run_pipeline(update_data=True)
 
-            self.assertIn("Incomplete universe scan in update mode", str(cm.exception))
-            self.assertTrue(hasattr(cm.exception, "universe_audit"))
+            assert "Incomplete universe scan in update mode" in str(cm.value)
+            assert hasattr(cm.value, "universe_audit")
 
 
-class TestMonitoringAndPublishingStages(unittest.TestCase):
+@pytest.mark.integration
+class TestMonitoringAndPublishingStages:
     """Verify JSON Schema validation preservation and ArtifactPublishingStage behavior."""
 
     def test_monitoring_stage_enforces_json_schema_validation(self):
@@ -534,10 +536,10 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
         context.is_historical = True
 
         stage = MonitoringStage()
-        with self.assertRaises(ValueError) as cm:
+        with pytest.raises(ValueError) as cm:
             stage.execute(context)
 
-        self.assertIn("out of range [0.0, 100.0]", str(cm.exception))
+        assert "out of range [0.0, 100.0]" in str(cm.value)
 
     def test_artifact_publishing_stage_publishes_when_enabled(self):
         """Verify ArtifactPublishingStage executes atomic publication when publish_artifacts=True."""
@@ -571,12 +573,14 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
             stage = ArtifactPublishingStage()
             stage.execute(context)
 
-            self.assertIn("recommendations.json", context.artifacts_to_publish)
-            self.assertIn("market.json", context.artifacts_to_publish)
-            self.assertIn("monitoring.json", context.artifacts_to_publish)
+            assert "recommendations.json" in context.artifacts_to_publish
+            assert "market.json" in context.artifacts_to_publish
+            assert "monitoring.json" in context.artifacts_to_publish
 
-    def test_artifact_publishing_stage_rejects_monitoring_failure(self):
+    def test_artifact_publishing_stage_rejects_monitoring_failure(self, caplog):
         """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True and logs failed checks."""
+        import logging
+
         mock_check = MagicMock()
         mock_check.check_name = "drift_market_payload_temporal_safety"
         mock_check.status = "FAIL"
@@ -595,18 +599,19 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
 
         stage = ArtifactPublishingStage()
         with (
-            self.assertLogs("scripts.pipeline.stages", level="ERROR") as cm_logs,
-            self.assertRaises(SystemExit) as cm,
+            caplog.at_level(logging.ERROR, logger="scripts.pipeline.stages"),
+            pytest.raises(SystemExit) as cm,
         ):
             stage.execute(context)
 
-        self.assertEqual(cm.exception.code, 1)
-        logged_text = "\n".join(cm_logs.output)
-        self.assertIn("Production update rejected due to monitoring failure.", logged_text)
-        self.assertIn("Failed monitoring check count: 1", logged_text)
-        self.assertIn("drift_market_payload_temporal_safety", logged_text)
-        self.assertIn(
-            "Explicit standalone market_payload missing required data_as_of date field", logged_text
+        assert cm.value.code == 1
+        logged_text = caplog.text
+        assert "Production update rejected due to monitoring failure." in logged_text
+        assert "Failed monitoring check count: 1" in logged_text
+        assert "drift_market_payload_temporal_safety" in logged_text
+        assert (
+            "Explicit standalone market_payload missing required data_as_of date field"
+            in logged_text
         )
 
     def test_atomic_rejection_preserves_disk_artifacts_byte_for_byte(self):
@@ -633,14 +638,10 @@ class TestMonitoringAndPublishingStages(unittest.TestCase):
             context.recommendations_payload = {"new": "payload"}
 
             stage = ArtifactPublishingStage()
-            with self.assertRaises(SystemExit):
+            with pytest.raises(SystemExit):
                 stage.execute(context)
 
             with open(rec_path, "r", encoding="utf-8") as f:
                 current_content = f.read()
 
-            self.assertEqual(current_content, original_content)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert current_content == original_content

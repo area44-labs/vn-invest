@@ -3,7 +3,8 @@
 import os
 import shutil
 import tempfile
-import unittest
+
+import pytest
 
 from scripts.artifacts import (
     ArtifactPublisher,
@@ -21,10 +22,11 @@ from scripts.pipeline import (
 )
 
 
-class TestArtifactProvenanceSuite(unittest.TestCase):
+@pytest.mark.unit
+class TestArtifactProvenanceSuite:
     """Comprehensive regression tests for PR #180 artifact provenance and reproducibility manifest."""
 
-    def setUp(self):
+    def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
         self.target_dir = os.path.join(self.temp_dir, "generated")
         os.makedirs(self.target_dir, exist_ok=True)
@@ -61,22 +63,20 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             },
         }
 
-    def tearDown(self):
+    def teardown_method(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_1_valid_provenance_manifest_dataclass_and_serialization(self):
         """1. Verify ProvenanceManifest dataclass serialization and deserialization completeness."""
         manifest = ProvenanceManifest.from_dict(self.valid_provenance)
-        self.assertEqual(manifest.data_as_of, self.canonical_date)
-        self.assertEqual(manifest.pipeline_version, "2.0.0")
-        self.assertEqual(manifest.signal_model_version, "2.0")
-        self.assertEqual(manifest.quantitative_config_version["quant_version"], "1.0.0")
+        assert manifest.data_as_of == self.canonical_date
+        assert manifest.pipeline_version == "2.0.0"
+        assert manifest.signal_model_version == "2.0"
+        assert manifest.quantitative_config_version["quant_version"] == "1.0.0"
 
         d_repr = manifest.to_dict()
-        self.assertEqual(d_repr["data_as_of"], self.canonical_date)
-        self.assertEqual(
-            d_repr["artifacts"], ["market.json", "provenance.json", "recommendations.json"]
-        )
+        assert d_repr["data_as_of"] == self.canonical_date
+        assert d_repr["artifacts"] == ["market.json", "provenance.json", "recommendations.json"]
 
     def test_2_provenance_builder_from_pipeline_context(self):
         """2. Verify ProvenanceBuilder extracts exact context metadata without duplicate sources of truth."""
@@ -103,53 +103,53 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         builder = ProvenanceBuilder.from_context(context, batch_artifacts=batch_artifacts)
         prov_manifest = builder.build()
 
-        self.assertEqual(prov_manifest.data_as_of, "2026-03-31")
-        self.assertEqual(prov_manifest.signal_model_version, "2.0")
-        self.assertEqual(prov_manifest.quantitative_config_version["config_hash"], "c1d2e3f4")
-        self.assertEqual(sorted(prov_manifest.artifacts), sorted(batch_artifacts))
+        assert prov_manifest.data_as_of == "2026-03-31"
+        assert prov_manifest.signal_model_version == "2.0"
+        assert prov_manifest.quantitative_config_version["config_hash"] == "c1d2e3f4"
+        assert sorted(prov_manifest.artifacts) == sorted(batch_artifacts)
 
     def test_3_validate_provenance_manifest_data_as_of_mismatch_rejection(self):
         """3. Verify validate_provenance_manifest rejects mismatched data_as_of relative to canonical date."""
         bad_prov = dict(self.valid_provenance)
         bad_prov["data_as_of"] = "2026-01-01"
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(
                 bad_prov,
                 batch_artifacts=["market.json", "provenance.json", "recommendations.json"],
                 canonical_data_as_of="2026-03-31",
             )
 
-        self.assertIn("does not match canonical pipeline date", str(cm.exception))
+        assert "does not match canonical pipeline date" in str(cm.value)
 
     def test_4_validate_provenance_manifest_missing_required_fields(self):
         """4. Verify missing required fields cause fail-closed rejection."""
         incomplete_prov = dict(self.valid_provenance)
         incomplete_prov.pop("signal_model_version")
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(incomplete_prov)
 
-        self.assertIn("missing required fields", str(cm.exception))
+        assert "missing required fields" in str(cm.value)
 
     def test_5_validate_provenance_manifest_malformed_version_metadata(self):
         """5. Verify malformed version metadata strings or dicts trigger validation rejection."""
         malformed = dict(self.valid_provenance)
         malformed["quantitative_config_version"] = {"quant_version": "", "config_hash": "123"}
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(malformed)
 
-        self.assertIn("must be a non-empty string", str(cm.exception))
+        assert "must be a non-empty string" in str(cm.value)
 
     def test_6_validate_provenance_manifest_artifact_list_mismatch(self):
         """6. Verify declared artifacts list must match published batch exactly."""
         mismatched_batch = ["market.json", "provenance.json"]  # Missing recommendations.json
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(self.valid_provenance, batch_artifacts=mismatched_batch)
 
-        self.assertIn("does not match published batch", str(cm.exception))
+        assert "does not match published batch" in str(cm.value)
 
     def test_7_secret_detection_scanner_rejects_credentials(self):
         """7. Verify detect_secrets_in_dict identifies forbidden keys and credential patterns."""
@@ -157,8 +157,8 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         secret_prov_1["source_provider"] = {"api_key": "secret123", "data_source": "REAL_DATA"}
 
         violations_1 = detect_secrets_in_dict(secret_prov_1)
-        self.assertTrue(len(violations_1) > 0)
-        self.assertIn("api_key", violations_1[0])
+        assert len(violations_1) > 0
+        assert "api_key" in violations_1[0]
 
         secret_prov_2 = dict(self.valid_provenance)
         secret_prov_2["data_quality"] = {
@@ -166,11 +166,11 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         }
 
         violations_2 = detect_secrets_in_dict(secret_prov_2)
-        self.assertTrue(len(violations_2) > 0)
+        assert len(violations_2) > 0
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(secret_prov_1)
-        self.assertIn("forbidden secrets or credentials", str(cm.exception))
+        assert "forbidden secrets or credentials" in str(cm.value)
 
     def test_8_publisher_rejects_invalid_provenance_before_transaction_start(self):
         """8. Verify provenance validation occurs BEFORE atomic transaction starts (no disk mutations)."""
@@ -207,13 +207,13 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             },
         }
 
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             publisher.publish(bad_batch)
 
         # Confirm no target or staging files created
-        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        assert not os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
         for item in os.listdir(self.temp_dir):
-            self.assertNotIn("staging", item)
+            assert "staging" not in item
 
     def test_9_publisher_rejects_missing_provenance_in_strict_mode(self):
         """9. Verify publisher in strict mode rejects artifact batch lacking provenance.json."""
@@ -246,10 +246,10 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             "market.json": {"schema_version": "2.0", "market": {}},
         }
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             publisher.publish(batch_no_prov)
 
-        self.assertIn("Missing required provenance manifest artifact", str(cm.exception))
+        assert "Missing required provenance manifest artifact" in str(cm.value)
 
     def test_10_successful_publish_with_valid_provenance(self):
         """10. Verify successful publication with valid provenance manifest."""
@@ -288,8 +288,8 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         }
 
         published_manifest = publisher.publish(batch)
-        self.assertIn("provenance.json", published_manifest.artifacts)
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+        assert "provenance.json" in published_manifest.artifacts
+        assert os.path.exists(os.path.join(self.target_dir, "provenance.json"))
 
     def test_11_pipeline_stage_generates_and_validates_provenance(self):
         """11. Verify ArtifactPublishingStage generates and validates provenance.json in pipeline."""
@@ -362,16 +362,16 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         stage.execute(context)
 
         prov_path = os.path.join(self.target_dir, "provenance.json")
-        self.assertTrue(os.path.exists(prov_path))
+        assert os.path.exists(prov_path)
 
         import json
 
         with open(prov_path, "r", encoding="utf-8") as f:
             p_data = json.load(f)
 
-        self.assertEqual(p_data["data_as_of"], self.canonical_date)
-        self.assertEqual(p_data["signal_model_version"], "2.0")
-        self.assertIn("provenance.json", p_data["artifacts"])
+        assert p_data["data_as_of"] == self.canonical_date
+        assert p_data["signal_model_version"] == "2.0"
+        assert "provenance.json" in p_data["artifacts"]
 
     def test_12_historical_report_pipeline_provenance_integration(self):
         """12. Verify generate_historical_report creates valid traceable provenance artifact."""
@@ -414,15 +414,15 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         )
 
         prov_path = os.path.join(self.target_dir, "provenance.json")
-        self.assertTrue(os.path.exists(prov_path))
+        assert os.path.exists(prov_path)
 
         import json
 
         with open(prov_path, "r", encoding="utf-8") as f:
             p_data = json.load(f)
 
-        self.assertEqual(p_data["data_as_of"], target_as_of)
-        self.assertEqual(p_data["source_provider"]["data_source"], "explicit_historical_input")
+        assert p_data["data_as_of"] == target_as_of
+        assert p_data["source_provider"]["data_source"] == "explicit_historical_input"
 
     def test_13_backward_compatibility_publisher_api(self):
         """13. Verify publish_artifacts_atomically supports strict_provenance=False for backward compatibility."""
@@ -431,8 +431,8 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         published = publish_artifacts_atomically(
             simple_batch, target_dir=self.target_dir, strict_provenance=False
         )
-        self.assertIn("test_doc.json", published.artifacts)
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "test_doc.json")))
+        assert "test_doc.json" in published.artifacts
+        assert os.path.exists(os.path.join(self.target_dir, "test_doc.json"))
 
     def test_14_missing_context_data_as_of_causes_fail_closed_rejection(self):
         """14. Verify missing or None context.data_as_of raises ProvenanceValidationError without fallback."""
@@ -442,10 +442,10 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         )
         context.data_as_of = None
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             ProvenanceBuilder.from_context(context)
 
-        self.assertIn("missing valid canonical 'data_as_of'", str(cm.exception))
+        assert "missing valid canonical 'data_as_of'" in str(cm.value)
 
     def test_15_empty_or_malformed_context_data_as_of_causes_fail_closed_rejection(self):
         """15. Verify empty or malformed context.data_as_of raises ProvenanceValidationError."""
@@ -455,7 +455,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         )
         for bad_date in ("", "invalid-date", "2026/03/31", "2026-3-31"):
             context.data_as_of = bad_date
-            with self.assertRaises(ProvenanceValidationError):
+            with pytest.raises(ProvenanceValidationError):
                 ProvenanceBuilder.from_context(context)
 
     def test_16_conflicting_data_as_of_across_artifacts_causes_fail_closed_rejection(self):
@@ -495,10 +495,10 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             },
         }
 
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             publisher.publish(conflicting_batch)
 
-        self.assertIn("data_as_of", str(cm.exception))
+        assert "data_as_of" in str(cm.value)
 
     def test_17_matching_data_as_of_across_artifacts_succeeds(self):
         """17. Verify when all artifacts contain matching data_as_of, publication succeeds cleanly."""
@@ -537,8 +537,8 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         }
 
         manifest = publisher.publish(matching_batch)
-        self.assertIn("provenance.json", manifest.artifacts)
-        self.assertTrue(os.path.exists(os.path.join(self.target_dir, "provenance.json")))
+        assert "provenance.json" in manifest.artifacts
+        assert os.path.exists(os.path.join(self.target_dir, "provenance.json"))
 
     def test_18_mismatched_data_as_of_validation_occurs_before_transaction(self):
         """18. Verify mismatched data_as_of validation occurs BEFORE atomic transaction/staging starts."""
@@ -576,71 +576,71 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
             },
         }
 
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             publisher.publish(conflicting_batch)
 
         # Confirm no target file or staging directory was created
-        self.assertFalse(os.path.exists(os.path.join(self.target_dir, "recommendations.json")))
+        assert not os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
         for item in os.listdir(self.temp_dir):
-            self.assertNotIn("staging", item)
+            assert "staging" not in item
 
     def test_19_empty_nested_structures_cause_fail_closed_rejection(self):
         """19. Verify passing empty dicts {} for source_provider, universe, or data_quality fails closed."""
         for field in ("source_provider", "universe", "data_quality"):
             bad_prov = dict(self.valid_provenance)
             bad_prov[field] = {}
-            with self.assertRaises(ProvenanceValidationError) as cm:
+            with pytest.raises(ProvenanceValidationError) as cm:
                 validate_provenance_manifest(bad_prov)
-            self.assertIn("must be a non-empty dict", str(cm.exception))
+            assert "must be a non-empty dict" in str(cm.value)
 
     def test_20_missing_required_nested_keys_cause_fail_closed_rejection(self):
         """20. Verify missing required nested keys (data_source, universe_type, status, processed_ratio) fail closed."""
         # Missing data_source
         p1 = dict(self.valid_provenance)
         p1["source_provider"] = {"other_key": "val"}
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(p1)
-        self.assertIn("data_source", str(cm.exception))
+        assert "data_source" in str(cm.value)
 
         # Missing universe_type
         p2 = dict(self.valid_provenance)
         p2["universe"] = {"other_key": "val"}
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(p2)
-        self.assertIn("universe_type", str(cm.exception))
+        assert "universe_type" in str(cm.value)
 
         # Missing status in data_quality
         p3 = dict(self.valid_provenance)
         p3["data_quality"] = {"processed_ratio": 1.0}
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(p3)
-        self.assertIn("status", str(cm.exception))
+        assert "status" in str(cm.value)
 
         # Missing processed_ratio in data_quality
         p4 = dict(self.valid_provenance)
         p4["data_quality"] = {"status": "SUCCESS"}
-        with self.assertRaises(ProvenanceValidationError) as cm:
+        with pytest.raises(ProvenanceValidationError) as cm:
             validate_provenance_manifest(p4)
-        self.assertIn("processed_ratio", str(cm.exception))
+        assert "processed_ratio" in str(cm.value)
 
     def test_21_malformed_nested_field_values_cause_fail_closed_rejection(self):
         """21. Verify malformed values for status or out-of-bound processed_ratio fail closed."""
         # Empty status string
         p1 = dict(self.valid_provenance)
         p1["data_quality"] = {"status": "  ", "processed_ratio": 1.0}
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             validate_provenance_manifest(p1)
 
         # processed_ratio > 1.0
         p2 = dict(self.valid_provenance)
         p2["data_quality"] = {"status": "SUCCESS", "processed_ratio": 1.5}
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             validate_provenance_manifest(p2)
 
         # processed_ratio < 0.0
         p3 = dict(self.valid_provenance)
         p3["data_quality"] = {"status": "SUCCESS", "processed_ratio": -0.1}
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             validate_provenance_manifest(p3)
 
     def test_22_from_dict_strictly_enforces_validation_contract(self):
@@ -648,7 +648,7 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         invalid_payload = dict(self.valid_provenance)
         invalid_payload["data_quality"] = {}  # Empty dict
 
-        with self.assertRaises(ProvenanceValidationError):
+        with pytest.raises(ProvenanceValidationError):
             ProvenanceManifest.from_dict(invalid_payload)
 
     def test_23_pipeline_version_propagates_from_canonical_config_source(self):
@@ -665,8 +665,8 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
 
-        self.assertEqual(manifest.pipeline_version, PIPELINE_VERSION)
-        self.assertEqual(manifest.pipeline_version, "2.0.0")
+        assert manifest.pipeline_version == PIPELINE_VERSION
+        assert manifest.pipeline_version == "2.0.0"
 
     def test_24_pipeline_version_and_signal_model_version_are_independent(self):
         """24. Verify pipeline_version and signal_model_version are distinct independent metadata fields."""
@@ -680,9 +680,9 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
 
-        self.assertEqual(manifest.pipeline_version, "2.0.0")
-        self.assertEqual(manifest.signal_model_version, "2.0")
-        self.assertNotEqual(manifest.pipeline_version, manifest.signal_model_version)
+        assert manifest.pipeline_version == "2.0.0"
+        assert manifest.signal_model_version == "2.0"
+        assert manifest.pipeline_version != manifest.signal_model_version
 
     def test_25_changing_model_version_does_not_change_pipeline_version(self):
         """25. Verify modifying signal_model_version in payload does not alter pipeline_version."""
@@ -699,9 +699,5 @@ class TestArtifactProvenanceSuite(unittest.TestCase):
         builder = ProvenanceBuilder.from_context(context)
         manifest = builder.build()
 
-        self.assertEqual(manifest.pipeline_version, "2.0.0")
-        self.assertEqual(manifest.signal_model_version, "2.1-custom")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert manifest.pipeline_version == "2.0.0"
+        assert manifest.signal_model_version == "2.1-custom"

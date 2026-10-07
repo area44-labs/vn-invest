@@ -4,9 +4,9 @@ import json
 import os
 import shutil
 import tempfile
-import unittest
 
 import pandas as pd
+import pytest
 
 from scripts.generate_report import (
     canonicalize_report_for_reproducibility,
@@ -40,10 +40,11 @@ def create_synthetic_ohlcv(
     return pd.DataFrame(data)
 
 
-class TestHistoricalReportGeneration(unittest.TestCase):
+@pytest.mark.integration
+class TestHistoricalReportGeneration:
     """Test suite for historical report generation contract and reproducibility."""
 
-    def setUp(self):
+    def setup_method(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.as_of_date = "2025-01-20"
 
@@ -72,7 +73,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             },
         ]
 
-    def tearDown(self):
+    def teardown_method(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_1_explicit_historical_date(self):
@@ -87,13 +88,13 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         )
 
         recs_data, market_data, history_data = res
-        self.assertEqual(recs_data["data_as_of"], self.as_of_date)
-        self.assertEqual(recs_data["source_date"], self.as_of_date)
-        self.assertEqual(len(recs_data["recommendations"]), 2)
-        self.assertEqual(recs_data["universe_info"]["universe_type"], "HISTORICAL_SNAPSHOT")
-        self.assertEqual(recs_data["universe_info"]["universe_size"], 2)
-        self.assertEqual(market_data["data_as_of"], self.as_of_date)
-        self.assertEqual(history_data["data_as_of"], self.as_of_date)
+        assert recs_data["data_as_of"] == self.as_of_date
+        assert recs_data["source_date"] == self.as_of_date
+        assert len(recs_data["recommendations"]) == 2
+        assert recs_data["universe_info"]["universe_type"] == "HISTORICAL_SNAPSHOT"
+        assert recs_data["universe_info"]["universe_size"] == 2
+        assert market_data["data_as_of"] == self.as_of_date
+        assert history_data["data_as_of"] == self.as_of_date
 
     def test_2_repeated_generation_is_deterministic(self):
         """Test 2: Repeated generation with identical inputs and controlled reference date produces identical payload."""
@@ -115,8 +116,8 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             reference_date="2025-01-20T10:00:00Z",
         )
 
-        self.assertEqual(res1[0], res2[0])
-        self.assertEqual(res1[1], res2[1])
+        assert res1[0] == res2[0]
+        assert res1[1] == res2[1]
 
         # Test canonicalization helper when reference_date differs
         res3 = generate_historical_report(
@@ -130,7 +131,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
 
         canon1 = canonicalize_report_for_reproducibility(res1[0])
         canon3 = canonicalize_report_for_reproducibility(res3[0])
-        self.assertEqual(canon1, canon3)
+        assert canon1 == canon3
 
     def test_3_future_observation_rejected(self):
         """Test 3: Unsorted or future corrupted OHLCV observation is rejected fail-closed."""
@@ -140,7 +141,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
 
         corrupted_map = {"VNM": corrupted_vnm, "FPT": self.df_fpt}
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             generate_historical_report(
                 data_as_of=self.as_of_date,
                 universe_stock_map=corrupted_map,
@@ -152,7 +153,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
     def test_4_missing_evaluation_date(self):
         """Test 4: Requested target date absent from benchmark dataset fails closed."""
         absent_date = "2020-01-01"
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             generate_historical_report(
                 data_as_of=absent_date,
                 universe_stock_map=self.universe_map,
@@ -166,7 +167,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         corrupted_vnindex = self.df_vnindex.copy()
         corrupted_vnindex.loc[len(corrupted_vnindex)] = corrupted_vnindex.iloc[5].to_dict()
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             generate_historical_report(
                 data_as_of=self.as_of_date,
                 universe_stock_map=self.universe_map,
@@ -181,7 +182,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
 
         corrupted_map = {"VNM": self.df_vnm, "FPT": corrupted_fpt}
 
-        with self.assertRaises((ValueError, KeyError)):
+        with pytest.raises((ValueError, KeyError)):
             generate_historical_report(
                 data_as_of=self.as_of_date,
                 universe_stock_map=corrupted_map,
@@ -217,7 +218,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             reference_date="2025-01-20T10:00:00Z",
         )
 
-        self.assertEqual(report_before[0], report_after[0])
+        assert report_before[0] == report_after[0]
 
     def test_8_provenance(self):
         """Test 8: Historical report retains model version, schema version, and as_of date provenance."""
@@ -229,10 +230,10 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             candidate_metadata=self.candidate_metadata,
         )
         recs_data = res[0]
-        self.assertIn("schema_version", recs_data)
-        self.assertIn("signal_model_version", recs_data)
-        self.assertEqual(recs_data["data_as_of"], self.as_of_date)
-        self.assertEqual(recs_data["source_date"], self.as_of_date)
+        assert "schema_version" in recs_data
+        assert "signal_model_version" in recs_data
+        assert recs_data["data_as_of"] == self.as_of_date
+        assert recs_data["source_date"] == self.as_of_date
 
     def test_9_generated_at_does_not_affect_quantitative_output(self):
         """Test 9: Varying runtime timestamp leaves signal scores, actions, regime, and risk unchanged."""
@@ -257,10 +258,10 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         canon1 = canonicalize_report_for_reproducibility(res_t1[0])
         canon2 = canonicalize_report_for_reproducibility(res_t2[0])
 
-        self.assertEqual(canon1, canon2)
-        self.assertEqual(canon1["market"], canon2["market"])
-        self.assertEqual(canon1["summary"], canon2["summary"])
-        self.assertEqual(canon1["recommendations"], canon2["recommendations"])
+        assert canon1 == canon2
+        assert canon1["market"] == canon2["market"]
+        assert canon1["summary"] == canon2["summary"]
+        assert canon1["recommendations"] == canon2["recommendations"]
 
     def test_10_load_universe_snapshot_and_ohlcv_file_loading(self):
         """Test 10: File loader helpers load snapshot and OHLCV JSON maps fail-closed on malformed inputs."""
@@ -269,8 +270,8 @@ class TestHistoricalReportGeneration(unittest.TestCase):
             json.dump(self.candidate_metadata, f)
 
         loaded_candidates = load_universe_snapshot(snapshot_file)
-        self.assertEqual(len(loaded_candidates), 2)
-        self.assertEqual(loaded_candidates[0]["symbol"], "VNM")
+        assert len(loaded_candidates) == 2
+        assert loaded_candidates[0]["symbol"] == "VNM"
 
         # Test OHLCV file loader
         ohlcv_file = os.path.join(self.tmp_dir, "ohlcv.json")
@@ -286,11 +287,7 @@ class TestHistoricalReportGeneration(unittest.TestCase):
         stock_map, df_vnindex_loaded, df_vn30_loaded = load_historical_ohlcv(
             ohlcv_file, required_symbols=["VNM", "FPT"]
         )
-        self.assertIn("VNM", stock_map)
-        self.assertIn("FPT", stock_map)
-        self.assertFalse(df_vnindex_loaded.empty)
-        self.assertIsNotNone(df_vn30_loaded)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert "VNM" in stock_map
+        assert "FPT" in stock_map
+        assert not df_vnindex_loaded.empty
+        assert df_vn30_loaded is not None

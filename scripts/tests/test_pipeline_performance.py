@@ -7,11 +7,11 @@ duplicate work detection, fail-closed guarantees, and output invariance without 
 import copy
 import json
 import tempfile
-import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 
 from scripts.data_provider import (
     ProviderRateLimitError,
@@ -102,8 +102,9 @@ def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") 
     return pd.DataFrame(data)
 
 
-class TestPipelinePerformanceProfiling(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.integration
+class TestPipelinePerformanceProfiling:
+    def setup_method(self):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
@@ -119,7 +120,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         self.sleep_patcher3.start()
         self.univ_patcher.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
@@ -155,7 +156,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                 pass
 
             mon_file = gen_dir / "monitoring.json"
-            self.assertTrue(mon_file.exists())
+            assert mon_file.exists()
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
             perf = mon_data["metrics"]["performance"]
 
@@ -174,14 +175,14 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             ]
 
             for req in required_stages:
-                self.assertIn(req, stage_names, f"Missing required stage timing record for '{req}'")
+                assert req in stage_names, f"Missing required stage timing record for '{req}'"
 
             for record in perf["stages"]:
-                self.assertIn("stage", record)
-                self.assertIn("elapsed_seconds", record)
-                self.assertIn("status", record)
-                self.assertIsInstance(record["elapsed_seconds"], (int, float))
-                self.assertIn(record["status"], ("SUCCESS", "FAILED"))
+                assert "stage" in record
+                assert "elapsed_seconds" in record
+                assert "status" in record
+                assert isinstance(record["elapsed_seconds"], (int, float))
+                assert record["status"] in ("SUCCESS", "FAILED")
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
@@ -225,7 +226,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             "monitoring",
             "payload_validation",
         ]
-        self.assertEqual(stages1, expected_order)
+        assert stages1 == expected_order
 
     def test_3_provider_timing_from_pr155_aggregated_correctly(self):
         """3. Provider call timing history is aggregated correctly."""
@@ -263,13 +264,13 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ]
 
         summary = aggregate_provider_performance(call_history)
-        self.assertEqual(summary["total_calls"], 3)
-        self.assertEqual(summary["successful_calls"], 2)
-        self.assertEqual(summary["failed_calls"], 1)
-        self.assertEqual(summary["retry_count"], 1)
-        self.assertEqual(summary["total_elapsed_seconds"], 0.8734)
-        self.assertEqual(summary["average_call_seconds"], 0.2911)
-        self.assertEqual(summary["calls_by_source"], {"kbs": 2, "msn": 1})
+        assert summary["total_calls"] == 3
+        assert summary["successful_calls"] == 2
+        assert summary["failed_calls"] == 1
+        assert summary["retry_count"] == 1
+        assert summary["total_elapsed_seconds"] == 0.8734
+        assert summary["average_call_seconds"] == 0.2911
+        assert summary["calls_by_source"] == {"kbs": 2, "msn": 1}
 
     def test_4_successful_provider_call_count_accuracy(self):
         """4. Successful provider call count accuracy in performance payload."""
@@ -298,8 +299,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ]
 
         summary = aggregate_provider_performance(call_history)
-        self.assertEqual(summary["successful_calls"], 2)
-        self.assertEqual(summary["total_calls"], 3)
+        assert summary["successful_calls"] == 2
+        assert summary["total_calls"] == 3
 
     def test_5_failed_provider_call_count_accuracy(self):
         """5. Failed provider call count accuracy in performance payload."""
@@ -321,8 +322,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ]
 
         summary = aggregate_provider_performance(call_history)
-        self.assertEqual(summary["failed_calls"], 2)
-        self.assertEqual(summary["successful_calls"], 0)
+        assert summary["failed_calls"] == 2
+        assert summary["successful_calls"] == 0
 
     def test_6_retry_and_fallback_calls_represented_correctly(self):
         """6. Retry and source fallback calls are represented accurately."""
@@ -344,11 +345,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ]
 
         summary = aggregate_provider_performance(call_history)
-        self.assertEqual(summary["total_calls"], 2)
-        self.assertEqual(summary["successful_calls"], 1)
-        self.assertEqual(summary["failed_calls"], 1)
-        self.assertEqual(summary["calls_by_source"]["kbs"], 1)
-        self.assertEqual(summary["calls_by_source"]["msn"], 1)
+        assert summary["total_calls"] == 2
+        assert summary["successful_calls"] == 1
+        assert summary["failed_calls"] == 1
+        assert summary["calls_by_source"]["kbs"] == 1
+        assert summary["calls_by_source"]["msn"] == 1
 
     def test_7_duplicate_symbol_detection(self):
         """7. Duplicate symbol requests or repeated calls are detected correctly."""
@@ -361,11 +362,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         symbol_requests = {"FPT": 2, "VCB": 1}
         duplicates = detect_duplicate_operations(call_history, symbol_requests)
 
-        self.assertEqual(len(duplicates), 1)
+        assert len(duplicates) == 1
         dup = duplicates[0]
-        self.assertEqual(dup["symbol"], "FPT")
-        self.assertEqual(dup["provider_call_count"], 2)
-        self.assertEqual(dup["request_count"], 2)
+        assert dup["symbol"] == "FPT"
+        assert dup["provider_call_count"] == 2
+        assert dup["request_count"] == 2
 
     def test_8_duplicate_work_diagnostics(self):
         """8. Duplicate work diagnostics expose provider call count details."""
@@ -375,11 +376,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         ]
 
         duplicates = detect_duplicate_operations(call_history)
-        self.assertEqual(len(duplicates), 1)
-        self.assertEqual(duplicates[0]["symbol"], "FPT")
-        self.assertEqual(duplicates[0]["provider_call_count"], 2)
-        self.assertEqual(duplicates[0]["successful_calls"], 2)
-        self.assertEqual(duplicates[0]["failed_calls"], 0)
+        assert len(duplicates) == 1
+        assert duplicates[0]["symbol"] == "FPT"
+        assert duplicates[0]["provider_call_count"] == 2
+        assert duplicates[0]["successful_calls"] == 2
+        assert duplicates[0]["failed_calls"] == 0
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_9_instrumentation_does_not_change_pipeline_output(self, mock_fetch_ohlcv):
@@ -393,9 +394,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         recs1, market1, _history1 = res_uninstrumented
         recs2, market2, _history2 = res_instrumented
 
-        self.assertEqual(recs1["summary"], recs2["summary"])
-        self.assertEqual(market1["market"]["regime"], market2["market"]["regime"])
-        self.assertEqual(len(recs1["recommendations"]), len(recs2["recommendations"]))
+        assert recs1["summary"] == recs2["summary"]
+        assert market1["market"]["regime"] == market2["market"]["regime"]
+        assert len(recs1["recommendations"]) == len(recs2["recommendations"])
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_10_instrumentation_does_not_alter_recommendation_results(self, mock_fetch_ohlcv):
@@ -410,10 +411,10 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         recs2 = res2[0]["recommendations"]
 
         for r1, r2 in zip(recs1, recs2, strict=True):
-            self.assertEqual(r1["symbol"], r2["symbol"])
-            self.assertEqual(r1["action"], r2["action"])
-            self.assertEqual(r1.get("signal_score"), r2.get("signal_score"))
-            self.assertEqual(r1.get("risk_adjusted_score"), r2.get("risk_adjusted_score"))
+            assert r1["symbol"] == r2["symbol"]
+            assert r1["action"] == r2["action"]
+            assert r1.get("signal_score") == r2.get("signal_score")
+            assert r1.get("risk_adjusted_score") == r2.get("risk_adjusted_score")
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_11_instrumentation_does_not_alter_monitoring_status(self, mock_fetch_ohlcv):
@@ -452,9 +453,9 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                 universe_audit=res.universe_audit,
             )
 
-            self.assertIn(mon_res.overall_status, ("PASS", "WARNING"))
+            assert mon_res.overall_status in ("PASS", "WARNING")
             mon_dict = mon_res.to_dict()
-            self.assertIn("performance", mon_dict["metrics"])
+            assert "performance" in mon_dict["metrics"]
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_12_provider_failure_remains_fail_closed(self, mock_fetch_ohlcv):
@@ -462,16 +463,16 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         mock_fetch_ohlcv.side_effect = RuntimeError("Provider offline")
 
         tracker = PerformanceTracker()
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError) as ctx:
             run_pipeline(update_data=True, tracker=tracker)
 
-        self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
-        audit = getattr(ctx.exception, "universe_audit", None)
-        self.assertIsNotNone(audit)
-        self.assertIn("performance", audit)
+        assert "Incomplete universe scan in update mode" in str(ctx.value)
+        audit = getattr(ctx.value, "universe_audit", None)
+        assert audit is not None
+        assert "performance" in audit
 
         failed_stages = [s for s in audit["performance"]["stages"] if s["status"] == "FAILED"]
-        self.assertGreater(len(failed_stages), 0)
+        assert len(failed_stages) > 0
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_13_rate_limit_behavior_remains_unchanged(self, mock_fetch_ohlcv):
@@ -481,13 +482,13 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         )
 
         tracker = PerformanceTracker()
-        with self.assertRaises(ProviderRateLimitError) as ctx:
+        with pytest.raises(ProviderRateLimitError) as ctx:
             run_pipeline(update_data=True, tracker=tracker)
 
-        self.assertEqual(ctx.exception.symbol, "FPT")
-        audit = getattr(ctx.exception, "universe_audit", None)
-        self.assertIsNotNone(audit)
-        self.assertIn("performance", audit)
+        assert ctx.value.symbol == "FPT"
+        audit = getattr(ctx.value, "universe_audit", None)
+        assert audit is not None
+        assert "performance" in audit
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_14_canonical_date_freshness_remains_enforced(self, mock_fetch_ohlcv):
@@ -502,10 +503,10 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
 
         mock_fetch_ohlcv.side_effect = side_effect
 
-        with self.assertRaises(RuntimeError) as ctx:
+        with pytest.raises(RuntimeError) as ctx:
             run_pipeline(update_data=True)
 
-        self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
+        assert "Incomplete universe scan in update mode" in str(ctx.value)
 
     def test_15_output_artifacts_remain_protected_on_failure(self):
         """15. Output artifacts in generated/ remain protected and untouched on failure."""
@@ -528,15 +529,15 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
                     side_effect=RuntimeError("Pipeline benchmark failure"),
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
-                self.assertRaises(SystemExit) as ctx,
+                pytest.raises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
-            self.assertEqual(ctx.exception.code, 1)
+            assert ctx.value.code == 1
 
             # Artifact file preserved on disk
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
-            self.assertEqual(saved_content, initial_content)
+            assert saved_content == initial_content
 
     @patch("scripts.pipeline.stages.evaluate_production_monitoring")
     @patch("scripts.pipeline.tracker.time.perf_counter")
@@ -582,18 +583,18 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
             stages = mon_data["metrics"]["performance"]["stages"]
             mon_stage = next(s for s in stages if s["stage"] == "monitoring")
-            self.assertEqual(mon_stage["status"], "SUCCESS")
-            self.assertEqual(mon_stage["elapsed_seconds"], 2.5000)
+            assert mon_stage["status"] == "SUCCESS"
+            assert mon_stage["elapsed_seconds"] == 2.5000
 
     def test_17_monitoring_failure_produces_failed_stage_status(self):
         """17. Exception during monitoring stage records status 'FAILED' in performance tracker."""
         tracker = PerformanceTracker()
-        with self.assertRaises(RuntimeError), tracker.measure_stage("monitoring"):
+        with pytest.raises(RuntimeError), tracker.measure_stage("monitoring"):
             raise RuntimeError("Monitoring system crash")
 
         payload = tracker.get_performance_payload()
         mon_stage = next(s for s in payload["stages"] if s["stage"] == "monitoring")
-        self.assertEqual(mon_stage["status"], "FAILED")
+        assert mon_stage["status"] == "FAILED"
 
     def test_18_payload_validation_with_injected_failure_produces_failed(self):
         """18. Injected integrity failure in payload_validation stage records status 'FAILED'."""
@@ -602,12 +603,12 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         tracker = PerformanceTracker()
         invalid_payload = {"data_as_of": "INVALID_DATE"}
 
-        with self.assertRaises(ValueError), tracker.measure_stage("payload_validation"):
+        with pytest.raises(ValueError), tracker.measure_stage("payload_validation"):
             validate_final_payload_integrity(invalid_payload)
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
-        self.assertEqual(val_stage["status"], "FAILED")
+        assert val_stage["status"] == "FAILED"
 
     def test_19_successful_payload_validation_produces_success(self):
         """19. Successful payload validation records stage status 'SUCCESS'."""
@@ -641,7 +642,7 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
 
         payload = tracker.get_performance_payload()
         val_stage = next(s for s in payload["stages"] if s["stage"] == "payload_validation")
-        self.assertEqual(val_stage["status"], "SUCCESS")
+        assert val_stage["status"] == "SUCCESS"
 
     def test_20_historical_path_does_not_contain_monitoring_measurement(self):
         """20. Historical report generation path does NOT contain a fake/pass monitoring stage."""
@@ -660,8 +661,8 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
         )
 
         stages = [s["stage"] for s in pipeline_res.universe_audit["performance"]["stages"]]
-        self.assertNotIn("monitoring", stages)
-        self.assertIn("payload_validation", stages)
+        assert "monitoring" not in stages
+        assert "payload_validation" in stages
 
     @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
@@ -702,10 +703,11 @@ class TestPipelinePerformanceProfiling(unittest.TestCase):
             "monitoring",
             "payload_validation",
         ]
-        self.assertEqual(stages, expected_order)
+        assert stages == expected_order
 
 
-class TestPerformanceSchemaValidation(unittest.TestCase):
+@pytest.mark.integration
+class TestPerformanceSchemaValidation:
     def test_valid_performance_payload_passes_validation(self):
         payload = make_valid_performance_payload()
         validate_performance_payload(payload)
@@ -717,7 +719,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
                 "scripts.schema.registry.SCHEMA_REGISTRY",
                 {("performance", "2.0"): Path("/non/existent/path/performance.schema.json")},
             ),
-            self.assertRaises(FileNotFoundError),
+            pytest.raises(FileNotFoundError),
         ):
             validate_performance_payload(payload)
 
@@ -727,7 +729,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         for req_field in ["stages", "provider", "duplicate_operations"]:
             payload = make_valid_performance_payload()
             del payload[req_field]
-            with self.assertRaises(jsonschema.ValidationError):
+            with pytest.raises(jsonschema.ValidationError):
                 validate_performance_payload(payload)
 
     def test_invalid_stage_name_fails_schema_validation(self):
@@ -735,7 +737,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
         payload = make_valid_performance_payload()
         payload["stages"][0]["stage"] = "invalid_stage_name"
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
     def test_invalid_stage_status_fails_schema_validation(self):
@@ -743,7 +745,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
         payload = make_valid_performance_payload()
         payload["stages"][0]["status"] = "PENDING"
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
     def test_invalid_numeric_values_fail_schema_validation(self):
@@ -752,13 +754,13 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
         # Negative elapsed seconds
         payload = make_valid_performance_payload()
         payload["stages"][0]["elapsed_seconds"] = -1.0
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
         # Non-numeric string for elapsed seconds
         payload = make_valid_performance_payload()
         payload["stages"][0]["elapsed_seconds"] = "1.234"
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
     def test_malformed_provider_metrics_fail_schema_validation(self):
@@ -766,12 +768,12 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
         payload = make_valid_performance_payload()
         payload["provider"]["total_calls"] = -5
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
         payload = make_valid_performance_payload()
         payload["provider"]["calls_by_source"]["kbs"] = "two"
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
     def test_malformed_duplicate_operations_fail_schema_validation(self):
@@ -779,12 +781,12 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
         payload = make_valid_performance_payload()
         payload["duplicate_operations"][0]["symbol"] = ""
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
         payload = make_valid_performance_payload()
         payload["duplicate_operations"][0]["provider_call_count"] = -1
-        with self.assertRaises(jsonschema.ValidationError):
+        with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
@@ -798,7 +800,7 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
 
         res = run_pipeline(update_data=False)
         audit_perf = res.universe_audit.get("performance")
-        self.assertIsNotNone(audit_perf)
+        assert audit_perf is not None
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir)
@@ -828,10 +830,11 @@ class TestPerformanceSchemaValidation(unittest.TestCase):
             )
 
             mon_perf = mon_res.metrics.get("performance")
-            self.assertEqual(audit_perf, mon_perf)
+            assert audit_perf == mon_perf
 
 
-class TestPerformanceRegressionAndBudget(unittest.TestCase):
+@pytest.mark.integration
+class TestPerformanceRegressionAndBudget:
     """Deterministic offline unit tests for performance regression detection and provider budget enforcement."""
 
     def make_sample_report_payload(self):
@@ -970,26 +973,22 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "PASS")
+        assert res["overall_status"] == "PASS"
         evals = {e["stage"]: e for e in res["stage_evaluations"]}
 
-        self.assertIn("pipeline", evals)
-        self.assertEqual(
-            evals["pipeline"]["baseline_seconds"],
-            PERFORMANCE_STAGE_BASELINES["pipeline"],
-        )
-        self.assertEqual(evals["pipeline"]["actual_seconds"], 5.0)
-        self.assertEqual(evals["pipeline"]["exceeded_ratio"], 0.5)
-        self.assertEqual(evals["pipeline"]["status"], "PASS")
+        assert "pipeline" in evals
+        assert evals["pipeline"]["baseline_seconds"] == PERFORMANCE_STAGE_BASELINES["pipeline"]
+        assert evals["pipeline"]["actual_seconds"] == 5.0
+        assert evals["pipeline"]["exceeded_ratio"] == 0.5
+        assert evals["pipeline"]["status"] == "PASS"
 
-        self.assertIn("stock_fetch", evals)
-        self.assertEqual(
-            evals["stock_fetch"]["baseline_seconds"],
-            PERFORMANCE_STAGE_BASELINES["stock_fetch"],
+        assert "stock_fetch" in evals
+        assert (
+            evals["stock_fetch"]["baseline_seconds"] == PERFORMANCE_STAGE_BASELINES["stock_fetch"]
         )
-        self.assertEqual(evals["stock_fetch"]["actual_seconds"], 2.5)
-        self.assertEqual(evals["stock_fetch"]["exceeded_ratio"], 0.5)
-        self.assertEqual(evals["stock_fetch"]["status"], "PASS")
+        assert evals["stock_fetch"]["actual_seconds"] == 2.5
+        assert evals["stock_fetch"]["exceeded_ratio"] == 0.5
+        assert evals["stock_fetch"]["status"] == "PASS"
 
     def test_threshold_pass(self):
         """Verify durations within baseline thresholds produce status 'PASS'."""
@@ -1016,9 +1015,9 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "PASS")
+        assert res["overall_status"] == "PASS"
         for stage_eval in res["stage_evaluations"]:
-            self.assertEqual(stage_eval["status"], "PASS")
+            assert stage_eval["status"] == "PASS"
 
     def test_threshold_degraded(self):
         """Verify duration exceeding degraded threshold but below failed threshold produces 'DEGRADED' status."""
@@ -1043,11 +1042,11 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "DEGRADED")
+        assert res["overall_status"] == "DEGRADED"
         eval_b = res["stage_evaluations"][0]
-        self.assertEqual(eval_b["stage"], "benchmark_fetch")
-        self.assertEqual(eval_b["status"], "DEGRADED")
-        self.assertIn("exceeded DEGRADED threshold", eval_b["message"])
+        assert eval_b["stage"] == "benchmark_fetch"
+        assert eval_b["status"] == "DEGRADED"
+        assert "exceeded DEGRADED threshold" in eval_b["message"]
 
     def test_stage_degraded_status_preserved(self):
         """Verify stage with execution status DEGRADED preserves status DEGRADED even with low duration."""
@@ -1072,11 +1071,11 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "DEGRADED")
+        assert res["overall_status"] == "DEGRADED"
         eval_b = res["stage_evaluations"][0]
-        self.assertEqual(eval_b["stage"], "benchmark_fetch")
-        self.assertEqual(eval_b["status"], "DEGRADED")
-        self.assertIn("marked DEGRADED during execution", eval_b["message"])
+        assert eval_b["stage"] == "benchmark_fetch"
+        assert eval_b["status"] == "DEGRADED"
+        assert "marked DEGRADED during execution" in eval_b["message"]
 
     def test_stage_failed_status_handling(self):
         """Verify stage with execution status FAILED produces status FAILED."""
@@ -1101,10 +1100,10 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "FAILED")
+        assert res["overall_status"] == "FAILED"
         eval_s = res["stage_evaluations"][0]
-        self.assertEqual(eval_s["stage"], "stock_fetch")
-        self.assertEqual(eval_s["status"], "FAILED")
+        assert eval_s["stage"] == "stock_fetch"
+        assert eval_s["status"] == "FAILED"
 
     def test_mixed_stages_priority_evaluation(self):
         """Verify overall status evaluates correctly according to priority: FAILED > DEGRADED > PASS."""
@@ -1131,7 +1130,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "FAILED")
+        assert res["overall_status"] == "FAILED"
 
         # Mixed PASS and DEGRADED without FAILED evaluates to DEGRADED
         performance_payload_deg = {
@@ -1155,7 +1154,7 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "duplicate_operations": [],
         }
         res_deg = evaluate_performance_regression(performance_payload_deg)
-        self.assertEqual(res_deg["overall_status"], "DEGRADED")
+        assert res_deg["overall_status"] == "DEGRADED"
 
     def test_threshold_degraded_duration_exceeded_produces_degraded(self):
         """Verify duration exceeding degraded threshold (but below failed threshold) produces status 'DEGRADED'."""
@@ -1180,11 +1179,11 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "DEGRADED")
+        assert res["overall_status"] == "DEGRADED"
         eval_b = res["stage_evaluations"][0]
-        self.assertEqual(eval_b["stage"], "benchmark_fetch")
-        self.assertEqual(eval_b["status"], "DEGRADED")
-        self.assertIn("exceeded DEGRADED threshold", eval_b["message"])
+        assert eval_b["stage"] == "benchmark_fetch"
+        assert eval_b["status"] == "DEGRADED"
+        assert "exceeded DEGRADED threshold" in eval_b["message"]
 
     def test_threshold_failed_duration_exceeded_produces_failed(self):
         """Verify duration exceeding failed threshold produces status 'FAILED'."""
@@ -1209,11 +1208,11 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         }
 
         res = evaluate_performance_regression(performance_payload)
-        self.assertEqual(res["overall_status"], "FAILED")
+        assert res["overall_status"] == "FAILED"
         eval_b = res["stage_evaluations"][0]
-        self.assertEqual(eval_b["stage"], "benchmark_fetch")
-        self.assertEqual(eval_b["status"], "FAILED")
-        self.assertIn("exceeded FAILED threshold", eval_b["message"])
+        assert eval_b["stage"] == "benchmark_fetch"
+        assert eval_b["status"] == "FAILED"
+        assert "exceeded FAILED threshold" in eval_b["message"]
 
     def test_provider_budget_exceeded(self):
         """Verify provider budget checks set status DEGRADED and report violations when limits are exceeded."""
@@ -1232,8 +1231,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "duplicate_operations": [],
         }
         res_calls = evaluate_provider_budget(payload_calls)
-        self.assertEqual(res_calls["overall_status"], "DEGRADED")
-        self.assertTrue(any("Total provider calls" in v for v in res_calls["violations"]))
+        assert res_calls["overall_status"] == "DEGRADED"
+        assert any("Total provider calls" in v for v in res_calls["violations"])
 
         # 2. Duplicate operations exceeded
         payload_dups = {
@@ -1260,8 +1259,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             ],
         }
         res_dups = evaluate_provider_budget(payload_dups)
-        self.assertEqual(res_dups["overall_status"], "DEGRADED")
-        self.assertTrue(any("Duplicate operations count" in v for v in res_dups["violations"]))
+        assert res_dups["overall_status"] == "DEGRADED"
+        assert any("Duplicate operations count" in v for v in res_dups["violations"])
 
         # 3. Elapsed time exceeded
         payload_time = {
@@ -1278,8 +1277,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             "duplicate_operations": [],
         }
         res_time = evaluate_provider_budget(payload_time)
-        self.assertEqual(res_time["overall_status"], "DEGRADED")
-        self.assertTrue(any("Total provider elapsed time" in v for v in res_time["violations"]))
+        assert res_time["overall_status"] == "DEGRADED"
+        assert any("Total provider elapsed time" in v for v in res_time["violations"])
 
     def test_duplicate_provider_operations(self):
         """Verify duplicate provider operations are accurately detected and reported."""
@@ -1315,10 +1314,10 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
         symbol_requests = {"FPT": 2, "VCB": 1}
 
         dups = detect_duplicate_operations(call_history, symbol_requests)
-        self.assertEqual(len(dups), 1)
-        self.assertEqual(dups[0]["symbol"], "FPT")
-        self.assertEqual(dups[0]["provider_call_count"], 2)
-        self.assertEqual(dups[0]["successful_calls"], 2)
+        assert len(dups) == 1
+        assert dups[0]["symbol"] == "FPT"
+        assert dups[0]["provider_call_count"] == 2
+        assert dups[0]["successful_calls"] == 2
 
     def test_performance_regression_degraded_allows_publishing(self):
         """Verify that stage duration exceeding degraded threshold produces DEGRADED status (WARNING) and publishing is allowed."""
@@ -1385,13 +1384,13 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 generate_report_main()
 
             mon_file = gen_dir / "monitoring.json"
-            self.assertTrue(mon_file.exists())
+            assert mon_file.exists()
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
-            self.assertEqual(mon_data["overall_status"], "WARNING")
+            assert mon_data["overall_status"] == "WARNING"
             reg_check = next(
                 c for c in mon_data["checks"] if c["check_name"] == "performance_regression"
             )
-            self.assertEqual(reg_check["status"], "WARNING")
+            assert reg_check["status"] == "WARNING"
 
     def test_performance_regression_failed_blocks_publishing(self):
         """Verify that stage duration exceeding failed threshold produces FAILED status (FAIL) and blocks publishing."""
@@ -1456,12 +1455,12 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                     ),
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
-                self.assertRaises(SystemExit) as ctx,
+                pytest.raises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
-            self.assertEqual(ctx.exception.code, 1)
-            self.assertEqual(recs_file.read_bytes(), sentinel_recs)
+            assert ctx.value.code == 1
+            assert recs_file.read_bytes() == sentinel_recs
 
     def test_performance_stage_failed_blocks_publishing(self):
         """Verify that an explicit stage execution failure (status='FAILED') produces FAIL status and blocks publishing."""
@@ -1540,18 +1539,18 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                     ),
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
-                self.assertRaises(SystemExit) as ctx,
+                pytest.raises(SystemExit) as ctx,
             ):
                 generate_report_main()
 
-            self.assertEqual(ctx.exception.code, 1)
+            assert ctx.value.code == 1
 
             # Verify existing artifact files on disk remain 100% byte-for-byte untouched
-            self.assertEqual(recs_file.read_bytes(), sentinel_recs)
-            self.assertEqual(market_file.read_bytes(), sentinel_market)
-            self.assertEqual(monitoring_file.read_bytes(), sentinel_monitoring)
-            self.assertEqual(index_file.read_bytes(), sentinel_index)
-            self.assertEqual(hist_file.read_bytes(), sentinel_hist)
+            assert recs_file.read_bytes() == sentinel_recs
+            assert market_file.read_bytes() == sentinel_market
+            assert monitoring_file.read_bytes() == sentinel_monitoring
+            assert index_file.read_bytes() == sentinel_index
+            assert hist_file.read_bytes() == sentinel_hist
 
     def test_provider_budget_exceeded_allows_publishing_and_records_warning(self):
         """Verify that provider budget violations produce WARNING status and allow publishing with violation diagnostics."""
@@ -1613,12 +1612,12 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 generate_report_main()
 
             mon_file = gen_dir / "monitoring.json"
-            self.assertTrue(mon_file.exists())
+            assert mon_file.exists()
             mon_data = json.loads(mon_file.read_text(encoding="utf-8"))
-            self.assertEqual(mon_data["overall_status"], "WARNING")
+            assert mon_data["overall_status"] == "WARNING"
             bud_check = next(c for c in mon_data["checks"] if c["check_name"] == "provider_budget")
-            self.assertEqual(bud_check["status"], "WARNING")
-            self.assertIn("Total provider calls (200) exceeded budget", bud_check["message"])
+            assert bud_check["status"] == "WARNING"
+            assert "Total provider calls (200) exceeded budget" in bud_check["message"]
 
     def test_deterministic_ci_regression(self):
         """Verify deterministic CI regression evaluation logic for healthy and degraded pipelines."""
@@ -1688,8 +1687,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
             reg_pass_chk = next(
                 c for c in res_pass.checks if c.check_name == "performance_regression"
             )
-            self.assertEqual(reg_pass_chk.status, "PASS")
-            self.assertIn(res_pass.overall_status, ("PASS", "WARNING"))
+            assert reg_pass_chk.status == "PASS"
+            assert res_pass.overall_status in ("PASS", "WARNING")
 
         # Stage duration exceeding degraded threshold -> DEGRADED & overall_status WARNING
         regression_audit = copy.deepcopy(healthy_audit)
@@ -1718,9 +1717,9 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 reference_date="2026-09-17",
                 universe_audit=regression_audit,
             )
-            self.assertEqual(res_warn.overall_status, "WARNING")
+            assert res_warn.overall_status == "WARNING"
             reg_chk = next(c for c in res_warn.checks if c.check_name == "performance_regression")
-            self.assertEqual(reg_chk.status, "WARNING")
+            assert reg_chk.status == "WARNING"
 
     def test_malformed_and_missing_performance_data(self):
         """Verify missing or malformed performance payloads fail closed in production monitoring."""
@@ -1840,15 +1839,15 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 reference_date="2026-09-17",
                 universe_audit=missing_audit,
             )
-            self.assertEqual(res_missing.overall_status, "FAIL")
+            assert res_missing.overall_status == "FAIL"
             integ_chk = next(
                 c for c in res_missing.checks if c.check_name == "performance_payload_integrity"
             )
-            self.assertEqual(integ_chk.status, "FAIL")
+            assert integ_chk.status == "FAIL"
 
         # 1b. Performance key completely absent from universe_audit even if recommendations_payload contains performance
         absent_audit = copy.deepcopy(base_audit)
-        self.assertNotIn("performance", absent_audit)
+        assert "performance" not in absent_audit
 
         payload_with_perf = copy.deepcopy(valid_payload)
         payload_with_perf["performance"] = make_valid_performance_payload()
@@ -1876,12 +1875,12 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 reference_date="2026-09-17",
                 universe_audit=absent_audit,
             )
-            self.assertEqual(res_absent.overall_status, "FAIL")
+            assert res_absent.overall_status == "FAIL"
 
             checks_map = {c.check_name: c.status for c in res_absent.checks}
-            self.assertEqual(checks_map.get("performance_payload_integrity"), "FAIL")
-            self.assertEqual(checks_map.get("performance_regression"), "FAIL")
-            self.assertEqual(checks_map.get("provider_budget"), "FAIL")
+            assert checks_map.get("performance_payload_integrity") == "FAIL"
+            assert checks_map.get("performance_regression") == "FAIL"
+            assert checks_map.get("provider_budget") == "FAIL"
 
         # 2. Performance payload malformed (invalid structure)
         malformed_audit = copy.deepcopy(base_audit)
@@ -1908,12 +1907,8 @@ class TestPerformanceRegressionAndBudget(unittest.TestCase):
                 reference_date="2026-09-17",
                 universe_audit=malformed_audit,
             )
-            self.assertEqual(res_malformed.overall_status, "FAIL")
+            assert res_malformed.overall_status == "FAIL"
             integ_chk = next(
                 c for c in res_malformed.checks if c.check_name == "performance_payload_integrity"
             )
-            self.assertEqual(integ_chk.status, "FAIL")
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert integ_chk.status == "FAIL"

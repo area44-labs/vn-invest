@@ -1,15 +1,15 @@
 """Unit tests for CanonicalMarketData model in scripts/data/models.py."""
 
-import unittest
-
 import pandas as pd
+import pytest
 
 from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.domain.data_quality import DataQuality
 from scripts.domain.ohlcv import OHLCVData
 
 
-class TestCanonicalMarketDataModel(unittest.TestCase):
+@pytest.mark.unit
+class TestCanonicalMarketDataModel:
     """Test CanonicalMarketData model contracts and boundaries."""
 
     def test_basic_instantiation(self):
@@ -22,11 +22,11 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
             data_as_of="2025-01-02",
             source_tag="REAL_DATA",
         )
-        self.assertEqual(cmd.symbol, "FPT")
-        self.assertEqual(len(cmd.records), 1)
-        self.assertEqual(cmd.data_as_of, "2025-01-02")
-        self.assertEqual(cmd.source_tag, "REAL_DATA")
-        self.assertFalse(hasattr(cmd, "df"))
+        assert cmd.symbol == "FPT"
+        assert len(cmd.records) == 1
+        assert cmd.data_as_of == "2025-01-02"
+        assert cmd.source_tag == "REAL_DATA"
+        assert not hasattr(cmd, "df")
 
     def test_forbid_provider_fields_in_from_dict(self):
         for forbidden in FORBIDDEN_PROVIDER_FIELDS:
@@ -35,9 +35,9 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
                 "data_as_of": "2025-01-02",
                 forbidden: "some_provider_payload",
             }
-            with self.assertRaises(ValueError) as ctx:
+            with pytest.raises(ValueError) as ctx:
                 CanonicalMarketData.from_dict(data)
-            self.assertIn("forbidden provider keys present", str(ctx.exception))
+            assert "forbidden provider keys present" in str(ctx.value)
 
     def test_from_df_and_to_df_roundtrip(self):
         df_raw = pd.DataFrame(
@@ -51,14 +51,14 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
             }
         )
         cmd = CanonicalMarketData.from_df("VCB", df_raw)
-        self.assertEqual(cmd.symbol, "VCB")
-        self.assertEqual(cmd.data_as_of, "2025-01-03")
-        self.assertEqual(len(cmd.records), 2)
+        assert cmd.symbol == "VCB"
+        assert cmd.data_as_of == "2025-01-03"
+        assert len(cmd.records) == 2
 
         df_out = cmd.to_df()
-        self.assertIn("date", df_out.columns)
-        self.assertEqual(len(df_out), 2)
-        self.assertEqual(df_out["close"].iloc[-1], 106.0)
+        assert "date" in df_out.columns
+        assert len(df_out) == 2
+        assert df_out["close"].iloc[-1] == 106.0
 
     def test_to_dict_and_from_dict_roundtrip(self):
         rec = OHLCVData(
@@ -74,19 +74,15 @@ class TestCanonicalMarketDataModel(unittest.TestCase):
         )
         d = cmd.to_dict()
         for forbidden in FORBIDDEN_PROVIDER_FIELDS:
-            self.assertNotIn(forbidden, d)
+            assert forbidden not in d
 
         cmd_restored = CanonicalMarketData.from_dict(d)
-        self.assertEqual(cmd_restored.symbol, "HPG")
-        self.assertEqual(cmd_restored.data_as_of, "2025-01-02")
-        self.assertEqual(cmd_restored.data_quality.status, "SUFFICIENT")
+        assert cmd_restored.symbol == "HPG"
+        assert cmd_restored.data_as_of == "2025-01-02"
+        assert cmd_restored.data_quality.status == "SUFFICIENT"
 
     def test_invalid_symbol_and_dates(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CanonicalMarketData(symbol="")
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CanonicalMarketData(symbol="FPT", data_as_of="02-01-2025")
-
-
-if __name__ == "__main__":
-    unittest.main()

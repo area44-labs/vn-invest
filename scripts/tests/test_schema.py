@@ -2,10 +2,10 @@
 
 import json
 import os
-import unittest
 from unittest.mock import patch
 
 import jsonschema
+import pytest
 
 from scripts.artifacts.publisher import ArtifactPublisher
 from scripts.monitoring.checks import check_schema_validation
@@ -22,13 +22,14 @@ from scripts.schema import (
 )
 
 
-class TestSchemaValidation(unittest.TestCase):
+@pytest.mark.unit
+class TestSchemaValidation:
     def test_generated_recommendations_schema(self):
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         schema_path = os.path.join(root_dir, "schemas", "v2", "recommendations.schema.json")
         data_path = os.path.join(root_dir, "generated", "recommendations.json")
 
-        self.assertTrue(os.path.exists(schema_path), f"Schema file not found: {schema_path}")
+        assert os.path.exists(schema_path), f"Schema file not found: {schema_path}"
 
         with open(schema_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
@@ -40,51 +41,50 @@ class TestSchemaValidation(unittest.TestCase):
             jsonschema.validate(instance=data, schema=schema)
 
 
-class TestVersionedSchemaRegistry(unittest.TestCase):
+@pytest.mark.unit
+class TestVersionedSchemaRegistry:
     """Deterministic unit tests for versioned schema registry and resolution."""
 
     def test_supported_versions_resolution(self):
         """1. Verify recommendations and performance v2.0 resolve correctly."""
         rec_schema = resolve_schema("recommendations", "2.0")
-        self.assertIsInstance(rec_schema, dict)
-        self.assertEqual(rec_schema.get("title"), "VnInvestRecommendationsSchema")
+        assert isinstance(rec_schema, dict)
+        assert rec_schema.get("title") == "VnInvestRecommendationsSchema"
 
         perf_schema = resolve_schema("performance", "2.0")
-        self.assertIsInstance(perf_schema, dict)
-        self.assertEqual(
-            perf_schema.get("title"), "VN Invest Production Performance Payload Schema"
-        )
+        assert isinstance(perf_schema, dict)
+        assert perf_schema.get("title") == "VN Invest Production Performance Payload Schema"
 
         # Verify helper functions delegate properly
-        self.assertEqual(load_schema("2.0"), rec_schema)
-        self.assertEqual(load_performance_schema("2.0"), perf_schema)
+        assert load_schema("2.0") == rec_schema
+        assert load_performance_schema("2.0") == perf_schema
 
     def test_unsupported_versions_rejected(self):
         """2. Verify unsupported versions (1.0, 9.9) are strictly rejected with SchemaResolutionError."""
-        with self.assertRaises(SchemaResolutionError) as cm_1:
+        with pytest.raises(SchemaResolutionError) as cm_1:
             resolve_schema("recommendations", "1.0")
-        self.assertIn("Unsupported schema version '1.0'", str(cm_1.exception))
+        assert "Unsupported schema version '1.0'" in str(cm_1.value)
 
-        with self.assertRaises(SchemaResolutionError) as cm_9:
+        with pytest.raises(SchemaResolutionError) as cm_9:
             resolve_schema("recommendations", "9.9")
-        self.assertIn("Unsupported schema version '9.9'", str(cm_9.exception))
+        assert "Unsupported schema version '9.9'" in str(cm_9.value)
 
-        with self.assertRaises(SchemaResolutionError) as cm_perf:
+        with pytest.raises(SchemaResolutionError) as cm_perf:
             resolve_schema("performance", "1.0")
-        self.assertIn("Unsupported schema version '1.0'", str(cm_perf.exception))
+        assert "Unsupported schema version '1.0'" in str(cm_perf.value)
 
     def test_invalid_versions_rejected(self):
         """3. Verify None, empty string, or whitespace version parameters are rejected."""
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             resolve_schema("recommendations", None)
 
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             resolve_schema("recommendations", "")
 
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             resolve_schema("recommendations", "   ")
 
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             resolve_schema("", "2.0")
 
     def test_validation_routing(self):
@@ -114,9 +114,9 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         validate_final_payload_integrity(valid_rec_payload)
 
         # Resolving schema for 9.9 raises SchemaResolutionError
-        with self.assertRaises(SchemaResolutionError) as cm:
+        with pytest.raises(SchemaResolutionError) as cm:
             load_schema("9.9")
-        self.assertIn("Unsupported schema version '9.9'", str(cm.exception))
+        assert "Unsupported schema version '9.9'" in str(cm.value)
 
     def test_publisher_schema_version_enforcement(self):
         """5. Verify ArtifactPublisher uses version-aware validation and rejects artifacts missing or having unregistered schema_version."""
@@ -143,22 +143,22 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         # Missing schema_version fails closed via SchemaResolutionError
         no_ver_perf = dict(valid_perf_payload)
         del no_ver_perf["schema_version"]
-        with self.assertRaises(SchemaResolutionError) as cm_no_ver:
+        with pytest.raises(SchemaResolutionError) as cm_no_ver:
             publisher.validate_artifact("performance.json", no_ver_perf)
-        self.assertIn("missing required", str(cm_no_ver.exception))
+        assert "missing required" in str(cm_no_ver.value)
 
         # Unsupported schema_version fails closed
         bad_ver_perf = dict(valid_perf_payload, schema_version="3.0")
-        with self.assertRaises(SchemaResolutionError) as cm_bad_ver:
+        with pytest.raises(SchemaResolutionError) as cm_bad_ver:
             publisher.validate_artifact("performance.json", bad_ver_perf)
-        self.assertIn("Unsupported schema version '3.0'", str(cm_bad_ver.exception))
+        assert "Unsupported schema version '3.0'" in str(cm_bad_ver.value)
 
     def test_no_latest_schema_fallback(self):
         """6. Prove an unknown schema version never silently falls back to the default/latest schema."""
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             load_schema_for_version("recommendations", "unknown_ver_99")
 
-        with self.assertRaises(SchemaResolutionError):
+        with pytest.raises(SchemaResolutionError):
             load_schema_for_version("performance", "unknown_ver_99")
 
     def test_performance_validation_routes_through_registry(self):
@@ -184,15 +184,15 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         # Performance payload with missing schema_version raises SchemaResolutionError
         no_ver_perf = dict(valid_perf)
         del no_ver_perf["schema_version"]
-        with self.assertRaises(SchemaResolutionError) as cm_missing:
+        with pytest.raises(SchemaResolutionError) as cm_missing:
             validate_performance_payload(no_ver_perf)
-        self.assertIn("missing required", str(cm_missing.exception))
+        assert "missing required" in str(cm_missing.value)
 
         # Performance payload with unsupported schema_version raises SchemaResolutionError
         bad_ver_perf = dict(valid_perf, schema_version="9.9")
-        with self.assertRaises(SchemaResolutionError) as cm_unsupported:
+        with pytest.raises(SchemaResolutionError) as cm_unsupported:
             validate_performance_payload(bad_ver_perf)
-        self.assertIn("Unsupported schema version '9.9'", str(cm_unsupported.exception))
+        assert "Unsupported schema version '9.9'" in str(cm_unsupported.value)
 
     def test_check_schema_validation_version_enforcement(self):
         """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""
@@ -220,33 +220,33 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
 
         # Valid 2.0 passes
         res_20 = check_schema_validation(valid_payload)
-        self.assertEqual(res_20.status, "PASS")
+        assert res_20.status == "PASS"
 
         # Missing schema_version -> FAIL
         p_missing = dict(valid_payload)
         del p_missing["schema_version"]
         res_missing = check_schema_validation(p_missing)
-        self.assertEqual(res_missing.status, "FAIL")
+        assert res_missing.status == "FAIL"
 
         # None -> FAIL
         res_none = check_schema_validation(dict(valid_payload, schema_version=None))
-        self.assertEqual(res_none.status, "FAIL")
+        assert res_none.status == "FAIL"
 
         # Empty string "" -> FAIL
         res_empty = check_schema_validation(dict(valid_payload, schema_version=""))
-        self.assertEqual(res_empty.status, "FAIL")
+        assert res_empty.status == "FAIL"
 
         # Whitespace "   " -> FAIL
         res_space = check_schema_validation(dict(valid_payload, schema_version="   "))
-        self.assertEqual(res_space.status, "FAIL")
+        assert res_space.status == "FAIL"
 
         # Unsupported "1.0" -> FAIL
         res_10 = check_schema_validation(dict(valid_payload, schema_version="1.0"))
-        self.assertEqual(res_10.status, "FAIL")
+        assert res_10.status == "FAIL"
 
         # Unsupported "9.9" -> FAIL
         res_99 = check_schema_validation(dict(valid_payload, schema_version="9.9"))
-        self.assertEqual(res_99.status, "FAIL")
+        assert res_99.status == "FAIL"
 
     def test_custom_schema_path_cannot_bypass_registry(self):
         """9. Verify check_schema_validation refuses extra parameters and fails closed on unsupported version."""
@@ -256,7 +256,7 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         }
 
         res = check_schema_validation(valid_payload)
-        self.assertEqual(res.status, "FAIL")
+        assert res.status == "FAIL"
 
     @patch("scripts.schema.load_schema_for_version")
     def test_registry_routing_integration(self, mock_load_schema):
@@ -286,7 +286,7 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         }
 
         res = check_schema_validation(valid_payload)
-        self.assertEqual(res.status, "PASS")
+        assert res.status == "PASS"
         mock_load_schema.assert_called_with("recommendations", "2.0")
 
         # Prove ArtifactPublisher.validate_artifact calls load_schema_for_version
@@ -359,44 +359,44 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         fake_schema = {"type": "object", "properties": {}}
 
         # Attempt passing schema, version, schema_path to validate_performance_payload -> TypeError
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_performance_payload(valid_perf, schema=fake_schema)  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_performance_payload(valid_perf, version="1.0")  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_performance_payload(valid_perf, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
 
         # Attempt passing schema, version, schema_path to check_schema_validation -> TypeError
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             check_schema_validation(valid_rec, schema=fake_schema)  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             check_schema_validation(valid_rec, version="1.0")  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             check_schema_validation(valid_rec, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
 
         # Attempt passing schema, version, schema_path to validate_final_payload_integrity -> TypeError
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_final_payload_integrity(valid_rec, schema=fake_schema)  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_final_payload_integrity(valid_rec, version="1.0")  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             validate_final_payload_integrity(valid_rec, schema_path="/tmp/fake.json")  # type: ignore[call-arg]
 
         # Attempt passing schema, version, schema_path to ArtifactPublisher.validate_artifact -> TypeError
         publisher = ArtifactPublisher(strict_provenance=False)
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             publisher.validate_artifact("recommendations.json", valid_rec, schema=fake_schema)  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             publisher.validate_artifact("recommendations.json", valid_rec, version="1.0")  # type: ignore[call-arg]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             publisher.validate_artifact(
                 "recommendations.json", valid_rec, schema_path="/tmp/fake.json"
             )  # type: ignore[call-arg]
@@ -460,7 +460,3 @@ class TestVersionedSchemaRegistry(unittest.TestCase):
         # 3. History report artifact
         publisher.validate_artifact("history/2026-10-06.json", valid_rec)
         mock_load_schema_registry.assert_called_with("recommendations", "2.0")
-
-
-if __name__ == "__main__":
-    unittest.main()

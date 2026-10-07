@@ -5,8 +5,9 @@ import json
 import os
 import shutil
 import tempfile
-import unittest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from scripts.data_provider import ProviderRateLimitError
 from scripts.generate_report import main
@@ -125,10 +126,11 @@ class MockPipelineResult(tuple):
         return obj
 
 
-class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
+@pytest.mark.integration
+class TestPipelineMonitoringStatusExitBehavior:
     """Test suite verifying pipeline status exit codes, logging, and artifact preservation contracts."""
 
-    def setUp(self):
+    def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
         self.gen_dir = os.path.join(self.temp_dir, "generated")
         self.hist_dir = os.path.join(self.gen_dir, "history")
@@ -141,7 +143,7 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             self.valid_payload,
         )
 
-    def tearDown(self):
+    def teardown_method(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _make_fake_execute(self, payload):
@@ -196,10 +198,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             main()
 
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
-        self.assertTrue(os.path.exists(mon_path))
+        assert os.path.exists(mon_path)
         with open(mon_path, "r", encoding="utf-8") as f:
             mon_data = json.load(f)
-        self.assertEqual(mon_data["overall_status"], "PASS")
+        assert mon_data["overall_status"] == "PASS"
 
     def test_b_monitoring_warn_succeeds_with_warning_logged(self):
         """2. Monitoring WARN -> pipeline remains successful (exit 0), monitoring payload contains WARN."""
@@ -229,10 +231,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             main()
 
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
-        self.assertTrue(os.path.exists(mon_path))
+        assert os.path.exists(mon_path)
         with open(mon_path, "r", encoding="utf-8") as f:
             mon_data = json.load(f)
-        self.assertEqual(mon_data["overall_status"], "WARN")
+        assert mon_data["overall_status"] == "WARN"
 
     def test_c_monitoring_fail_exits_nonzero(self):
         """3. Monitoring FAIL -> process exits non-zero (SystemExit(1)), no artifacts written."""
@@ -258,13 +260,13 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             ),
             patch("sys.argv", ["generate_report.py"]),
         ):
-            with self.assertRaises(SystemExit) as cm:
+            with pytest.raises(SystemExit) as cm:
                 main()
-            self.assertEqual(cm.exception.code, 1)
+            assert cm.value.code == 1
 
         # No artifacts (including monitoring.json) are created or modified on monitoring failure
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
-        self.assertFalse(os.path.exists(mon_path))
+        assert not os.path.exists(mon_path)
 
     def test_d_existing_drift_scenario_evaluates_to_fail(self):
         """4. Reproduce realistic distribution shift scenario and verify monitoring result evaluates to FAIL."""
@@ -295,13 +297,13 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             baseline_reports=baselines,
         )
 
-        self.assertEqual(drift_res.overall_status, "FAIL")
+        assert drift_res.overall_status == "FAIL"
         action_chk = next(
             c for c in drift_res.drift_checks if c.check_name == "drift_action_distribution"
         )
-        self.assertEqual(action_chk.status, "FAIL")
+        assert action_chk.status == "FAIL"
         # Shift in SELL action = |0.143 - 0.510| = 0.367 > 0.35 threshold
-        self.assertGreater(action_chk.observation.absolute_difference["max_difference"], 0.35)
+        assert action_chk.observation.absolute_difference["max_difference"] > 0.35
 
     def test_e_payload_integrity_failure_preserves_artifacts_byte_for_byte(self):
         """5. Payload integrity failure -> exit non-zero, existing artifacts remain byte-for-byte unchanged, no partial output created."""
@@ -334,18 +336,18 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             ),
             patch("sys.argv", ["generate_report.py"]),
         ):
-            with self.assertRaises(SystemExit) as cm:
+            with pytest.raises(SystemExit) as cm:
                 main()
-            self.assertEqual(cm.exception.code, 1)
+            assert cm.value.code == 1
 
         # Verify existing artifacts remain byte-for-byte unchanged
         for path, expected_content in original_files.items():
             with open(path, "r", encoding="utf-8") as f:
                 actual_content = f.read()
-            self.assertEqual(actual_content, expected_content)
+            assert actual_content == expected_content
 
         # Verify monitoring.json was not created
-        self.assertFalse(os.path.exists(mon_file))
+        assert not os.path.exists(mon_file)
 
     def test_f_rate_limit_regression_preserves_artifacts(self):
         """6. ProviderRateLimitError handling -> exits non-zero, preserves existing artifacts."""
@@ -362,14 +364,10 @@ class TestPipelineMonitoringStatusExitBehavior(unittest.TestCase):
             ),
             patch("sys.argv", ["generate_report.py", "--update"]),
         ):
-            with self.assertRaises(SystemExit) as cm:
+            with pytest.raises(SystemExit) as cm:
                 main()
-            self.assertEqual(cm.exception.code, 1)
+            assert cm.value.code == 1
 
         with open(recs_file, "r", encoding="utf-8") as f:
             actual_content = f.read()
-        self.assertEqual(actual_content, original_content)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert actual_content == original_content

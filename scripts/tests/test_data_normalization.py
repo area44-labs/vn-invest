@@ -1,14 +1,14 @@
 """Unit tests for normalization boundary in scripts/data/normalization.py."""
 
-import unittest
-
 import pandas as pd
+import pytest
 
 from scripts.data.acquisition import RawMarketDataPayload
 from scripts.data.normalization import normalize_raw_market_data
 
 
-class TestMarketDataNormalizationBoundary(unittest.TestCase):
+@pytest.mark.unit
+class TestMarketDataNormalizationBoundary:
     """Test MarketDataNormalizer and canonical normalization rules."""
 
     def test_stock_price_unit_normalization(self):
@@ -29,17 +29,17 @@ class TestMarketDataNormalizationBoundary(unittest.TestCase):
 
         cmd = normalize_raw_market_data(payload, source_price_unit="thousand_VND/share")
 
-        self.assertEqual(cmd.symbol, "FPT")
-        self.assertEqual(cmd.data_as_of, "2025-01-03")
-        self.assertEqual(len(cmd.records), 2)
+        assert cmd.symbol == "FPT"
+        assert cmd.data_as_of == "2025-01-03"
+        assert len(cmd.records) == 2
         # Verify 1000x scaling (100.0 thousand -> 100,000.0 VND)
-        self.assertEqual(cmd.records[0].open, 100000.0)
-        self.assertEqual(cmd.records[1].close, 106000.0)
+        assert cmd.records[0].open == 100000.0
+        assert cmd.records[1].close == 106000.0
 
         # Verify provider-specific fields are stripped in to_dict()
         cmd_dict = cmd.to_dict()
-        self.assertNotIn("ticker", cmd_dict)
-        self.assertNotIn("board", cmd_dict)
+        assert "ticker" not in cmd_dict
+        assert "board" not in cmd_dict
 
     def test_index_symbol_no_price_scaling(self):
         # Raw provider output for VNINDEX (prices in index points)
@@ -57,10 +57,10 @@ class TestMarketDataNormalizationBoundary(unittest.TestCase):
 
         cmd = normalize_raw_market_data(payload, source_price_unit="thousand_VND/share")
 
-        self.assertEqual(cmd.symbol, "VNINDEX")
-        self.assertEqual(cmd.data_as_of, "2025-01-02")
+        assert cmd.symbol == "VNINDEX"
+        assert cmd.data_as_of == "2025-01-02"
         # Index points must NOT be scaled
-        self.assertEqual(cmd.records[0].open, 1250.5)
+        assert cmd.records[0].open == 1250.5
 
     def test_explicit_data_as_of_override(self):
         raw_df = pd.DataFrame(
@@ -79,9 +79,5 @@ class TestMarketDataNormalizationBoundary(unittest.TestCase):
             payload, explicit_data_as_of="2025-01-02", source_price_unit="VND/share"
         )
 
-        self.assertEqual(cmd.data_as_of, "2025-01-02")
-        self.assertEqual(cmd.records[0].open, 100000.0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert cmd.data_as_of == "2025-01-02"
+        assert cmd.records[0].open == 100000.0

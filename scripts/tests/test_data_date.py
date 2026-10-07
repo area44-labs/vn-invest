@@ -1,13 +1,13 @@
 """Regression test suite for data-date semantics in the Python data pipeline."""
 
 import tempfile
-import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import jsonschema
 import pandas as pd
+import pytest
 
 from scripts.data_provider import VnstockDataProvider
 from scripts.generate_report import (
@@ -29,8 +29,9 @@ SINGLE_STOCK_UNIVERSE = [
 ]
 
 
-class TestDataDateSemantics(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.unit
+class TestDataDateSemantics:
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -43,7 +44,7 @@ class TestDataDateSemantics(unittest.TestCase):
         self.sleep_patcher3.start()
         self.univ_patcher.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
 
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
@@ -54,14 +55,14 @@ class TestDataDateSemantics(unittest.TestCase):
                 "close": [10.0, 11.0, 12.0, 13.0, 14.0],
             }
         )
-        self.assertEqual(extract_latest_trading_date(df_unsorted), "2026-09-12")
+        assert extract_latest_trading_date(df_unsorted) == "2026-09-12"
 
         df_all_invalid = pd.DataFrame({"time": ["not-a-date", "foo", None]})
-        self.assertIsNone(extract_latest_trading_date(df_all_invalid))
+        assert extract_latest_trading_date(df_all_invalid) is None
 
         # Empty DataFrame -> None
-        self.assertIsNone(extract_latest_trading_date(pd.DataFrame()))
-        self.assertIsNone(extract_latest_trading_date(None))
+        assert extract_latest_trading_date(pd.DataFrame()) is None
+        assert extract_latest_trading_date(None) is None
 
     def test_market_date_independent_from_stock_date(self):
         """1. Stock data one day behind VNINDEX gets canonical report date in recommendation."""
@@ -98,11 +99,11 @@ class TestDataDateSemantics(unittest.TestCase):
         ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
-            self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
+            assert mkt_payload["data_as_of"] == "2026-09-25"
+            assert recs_payload["data_as_of"] == "2026-09-25"
 
             fpt_rec = next(r for r in recs_payload["recommendations"] if r["symbol"] == "FPT")
-            self.assertEqual(fpt_rec["data_as_of"], "2026-09-25")
+            assert fpt_rec["data_as_of"] == "2026-09-25"
 
     def test_all_recommendations_match_canonical_date(self):
         """2. All recommendations match top-level canonical date for a complete valid pipeline."""
@@ -123,10 +124,10 @@ class TestDataDateSemantics(unittest.TestCase):
             mock_fetch.return_value = df_valid
             payload, _, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(payload["data_as_of"], payload["source_date"])
-            self.assertTrue(len(payload["recommendations"]) > 0)
+            assert payload["data_as_of"] == payload["source_date"]
+            assert len(payload["recommendations"]) > 0
             for rec in payload["recommendations"]:
-                self.assertEqual(rec["data_as_of"], payload["data_as_of"])
+                assert rec["data_as_of"] == payload["data_as_of"]
 
     def test_exact_production_ci_failure_regression(self):
         """3. Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
@@ -181,20 +182,18 @@ class TestDataDateSemantics(unittest.TestCase):
         ):
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(recs_payload["data_as_of"], "2026-09-25")
-            self.assertEqual(mkt_payload["data_as_of"], "2026-09-25")
+            assert recs_payload["data_as_of"] == "2026-09-25"
+            assert mkt_payload["data_as_of"] == "2026-09-25"
 
             # Final payload integrity validation must pass without raising ValueError
             validate_final_payload_integrity(recs_payload)
             validate_final_payload_integrity(mkt_payload)
 
             # Every recommendation must use canonical '2026-09-25'
-            self.assertTrue(len(recs_payload["recommendations"]) > 0)
+            assert len(recs_payload["recommendations"]) > 0
             for rec in recs_payload["recommendations"]:
-                self.assertEqual(
-                    rec["data_as_of"],
-                    "2026-09-25",
-                    f"Stock {rec['symbol']} data_as_of is {rec['data_as_of']}, expected 2026-09-25",
+                assert rec["data_as_of"] == "2026-09-25", (
+                    f"Stock {rec['symbol']} data_as_of is {rec['data_as_of']}, expected 2026-09-25"
                 )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
@@ -208,16 +207,16 @@ class TestDataDateSemantics(unittest.TestCase):
             mock_fetch.return_value = empty_df
 
             recs_payload, mkt_payload, _ = run_pipeline(update_data=False)
-            self.assertIsNone(recs_payload["data_as_of"])
-            self.assertIsNone(recs_payload["source_date"])
-            self.assertIsNone(mkt_payload["data_as_of"])
-            self.assertIsNone(mkt_payload["source_date"])
+            assert recs_payload["data_as_of"] is None
+            assert recs_payload["source_date"] is None
+            assert mkt_payload["data_as_of"] is None
+            assert mkt_payload["source_date"] is None
 
             # Run main pipeline execution (data_as_of is None -> monitoring FAIL -> SystemExit(1))
             with patch("sys.argv", ["generate_report.py"]):
-                with self.assertRaises(SystemExit) as cm:
+                with pytest.raises(SystemExit) as cm:
                     generate_report_main()
-                self.assertEqual(cm.exception.code, 1)
+                assert cm.value.code == 1
 
             mock_update_index.assert_not_called()
             mock_publish.assert_not_called()
@@ -241,16 +240,14 @@ class TestDataDateSemantics(unittest.TestCase):
             mock_fetch.return_value = historical_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(recs_payload["data_as_of"], "2025-01-30")
-            self.assertEqual(recs_payload["source_date"], "2025-01-30")
+            assert recs_payload["data_as_of"] == "2025-01-30"
+            assert recs_payload["source_date"] == "2025-01-30"
 
             # generated_at must be an ISO UTC timestamp representing today's execution time
             gen_at_str = recs_payload["generated_at"]
-            self.assertTrue(
-                gen_at_str.endswith("+00:00") or "Z" in gen_at_str or "+00:00" in gen_at_str
-            )
+            assert gen_at_str.endswith("+00:00") or "Z" in gen_at_str or "+00:00" in gen_at_str
             parsed_gen = datetime.fromisoformat(gen_at_str)
-            self.assertNotEqual(parsed_gen.strftime("%Y-%m-%d"), "2025-01-30")
+            assert parsed_gen.strftime("%Y-%m-%d") != "2025-01-30"
 
     def test_stock_level_data_as_of_preservation(self):
         """Verify individual stocks preserve their actual latest data date even if older than market date."""
@@ -275,8 +272,8 @@ class TestDataDateSemantics(unittest.TestCase):
             data_source="REAL_DATA",
         )
 
-        self.assertEqual(rec["data_as_of"], "2026-08-25")
-        self.assertEqual(rec["data_source"], "REAL_DATA")
+        assert rec["data_as_of"] == "2026-08-25"
+        assert rec["data_source"] == "REAL_DATA"
 
     def test_stale_data_is_detectable(self):
         """Verify stale data (data_as_of < current date) can be detected."""
@@ -285,11 +282,12 @@ class TestDataDateSemantics(unittest.TestCase):
         current_date = datetime.now(UTC)
 
         days_diff = (current_date - data_date).days
-        self.assertGreater(days_diff, 100)  # Clearly stale
+        assert days_diff > 100  # Clearly stale
 
 
-class TestTemporalIntegrityValidation(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.unit
+class TestTemporalIntegrityValidation:
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -302,7 +300,7 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
         self.sleep_patcher3.start()
         self.univ_patcher.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
 
     """Dedicated test suite for validate_temporal_integrity & pipeline temporal contracts."""
@@ -316,10 +314,10 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "VNM": "2026-09-20",
         }
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
-        self.assertTrue(res["is_valid"])
-        self.assertEqual(res["issues"], [])
-        self.assertEqual(res["future_symbols"], set())
-        self.assertEqual(res["stale_symbols"], set())
+        assert res["is_valid"]
+        assert res["issues"] == []
+        assert res["future_symbols"] == set()
+        assert res["stale_symbols"] == set()
 
     def test_stock_one_trading_day_behind_expected_behavior(self):
         """Test 2: stock one trading day behind -> expected behavior (success, within tolerance)."""
@@ -329,9 +327,9 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "ACB": "2026-09-19",  # 1 day behind (within 7 calendar day tolerance)
         }
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
-        self.assertTrue(res["is_valid"])
-        self.assertEqual(res["issues"], [])
-        self.assertEqual(res["stale_symbols"], set())
+        assert res["is_valid"]
+        assert res["issues"] == []
+        assert res["stale_symbols"] == set()
 
     def test_stock_excessively_stale_fail_closed(self):
         """Test 3: stock excessively stale (> 7 calendar days lag) -> fails closed."""
@@ -341,8 +339,8 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "ACB": "2026-09-10",  # 10 days lag (> 7 days)
         }
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
-        self.assertFalse(res["is_valid"])
-        self.assertIn("ACB", res["stale_symbols"])
+        assert not res["is_valid"]
+        assert "ACB" in res["stale_symbols"]
 
         # Also test in update_data=True pipeline mode
         df_vnindex = pd.DataFrame(
@@ -376,9 +374,9 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
-            self.assertIn("Incomplete universe scan in update mode", str(ctx.exception))
+            assert "Incomplete universe scan in update mode" in str(ctx.value)
 
     def test_stock_dated_after_vnindex_fail_closed(self):
         """Test 4: stock dated after VNINDEX (latest_date > data_as_of) -> fails closed."""
@@ -388,24 +386,24 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "ACB": "2026-09-20",
         }
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-22")
-        self.assertFalse(res["is_valid"])
-        self.assertIn("FPT", res["future_symbols"])
+        assert not res["is_valid"]
+        assert "FPT" in res["future_symbols"]
 
     def test_future_dated_vnindex_fail_closed(self):
         """Test 5: future-dated VNINDEX relative to execution/reference date -> fails closed."""
         data_as_of = "2030-01-01"  # Far in the future
         stock_dates = {"FPT": "2030-01-01"}
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-25")
-        self.assertFalse(res["is_valid"])
-        self.assertTrue(any("in the future" in iss for iss in res["issues"]))
+        assert not res["is_valid"]
+        assert any("in the future" in iss for iss in res["issues"])
 
     def test_invalid_or_missing_benchmark_date_fail_closed(self):
         """Test 6: invalid/missing benchmark date -> fails closed."""
         res_none = validate_temporal_integrity(None, {"FPT": "2026-09-20"})
-        self.assertFalse(res_none["is_valid"])
+        assert not res_none["is_valid"]
 
         res_malformed = validate_temporal_integrity("not-a-date", {"FPT": "2026-09-20"})
-        self.assertFalse(res_malformed["is_valid"])
+        assert not res_malformed["is_valid"]
 
     def test_mixed_symbol_dates_deterministic_result(self):
         """Test 7: mixed symbol dates within tolerance -> deterministic result."""
@@ -416,7 +414,7 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             "HPG": "2026-09-15",  # 5 days lag (within 7 days tolerance)
         }
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-21")
-        self.assertTrue(res["is_valid"])
+        assert res["is_valid"]
 
     def test_temporal_failure_after_partial_calculations_artifacts_unchanged(self):
         """Test 8: temporal failure in update mode preserves existing artifacts on disk."""
@@ -456,9 +454,9 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
             patch("scripts.pipeline.stages.publish_artifacts_atomically") as mock_save,
         ):
             with patch("sys.argv", ["generate_report.py", "--update"]):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Ensure save_json_files was NEVER called
             mock_save.assert_not_called()
@@ -481,12 +479,13 @@ class TestTemporalIntegrityValidation(unittest.TestCase):
         ) as mock_fetch:
             mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
-            self.assertEqual(recs["data_as_of"], "2026-09-20")
-            self.assertEqual(mkt["data_as_of"], "2026-09-20")
+            assert recs["data_as_of"] == "2026-09-20"
+            assert mkt["data_as_of"] == "2026-09-20"
 
 
-class TestReportProvenanceMetadata(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.unit
+class TestReportProvenanceMetadata:
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -499,7 +498,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
         self.sleep_patcher3.start()
         self.univ_patcher.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
 
     def test_top_level_provenance_metadata_presence(self):
@@ -530,9 +529,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
                 "data_source",
             ]
             for field in required_provenance_fields:
-                self.assertIn(field, recs_payload, f"Missing required provenance field: {field}")
-                self.assertIn(
-                    field, history_payload, f"Missing required provenance field in history: {field}"
+                assert field in recs_payload, f"Missing required provenance field: {field}"
+                assert field in history_payload, (
+                    f"Missing required provenance field in history: {field}"
                 )
 
     def test_generated_at_is_valid_utc_timestamp(self):
@@ -555,10 +554,10 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             recs_payload, _, _ = run_pipeline(update_data=False)
 
             gen_at_str = recs_payload["generated_at"]
-            self.assertIsInstance(gen_at_str, str)
+            assert isinstance(gen_at_str, str)
             dt = datetime.fromisoformat(gen_at_str)
-            self.assertIsNotNone(dt.tzinfo)
-            self.assertEqual(dt.utcoffset().total_seconds(), 0)
+            assert dt.tzinfo is not None
+            assert dt.utcoffset().total_seconds() == 0
 
     def test_schema_and_signal_model_versions(self):
         """Verify schema_version is '2.0' and signal_model_version matches SIGNAL_MODEL_VERSION."""
@@ -579,9 +578,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(recs_payload["schema_version"], "2.0")
-            self.assertEqual(recs_payload["signal_model_version"], SIGNAL_MODEL_VERSION)
-            self.assertEqual(SIGNAL_MODEL_VERSION, "2.0")
+            assert recs_payload["schema_version"] == "2.0"
+            assert recs_payload["signal_model_version"] == SIGNAL_MODEL_VERSION
+            assert SIGNAL_MODEL_VERSION == "2.0"
 
     def test_data_as_of_and_source_date_reflect_pipeline_data(self):
         """Verify data_as_of and source_date reflect actual latest trading date from pipeline."""
@@ -602,8 +601,8 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             mock_fetch.return_value = df_vnindex
             recs_payload, _, _ = run_pipeline(update_data=False)
 
-            self.assertEqual(recs_payload["data_as_of"], "2026-09-20")
-            self.assertEqual(recs_payload["source_date"], "2026-09-20")
+            assert recs_payload["data_as_of"] == "2026-09-20"
+            assert recs_payload["source_date"] == "2026-09-20"
 
     def test_provider_metadata_is_not_fabricated(self):
         """Verify provider metadata (data_source) reflects actual provider boundary result."""
@@ -615,7 +614,7 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             mock_fetch.return_value = empty_df
             recs_payload, _, _ = run_pipeline(update_data=False)
 
-            self.assertIsNone(recs_payload["data_source"])
+            assert recs_payload["data_source"] is None
 
     def test_schema_validation_passes_with_provenance_metadata(self):
         """Verify recommendations payload with provenance metadata validates against JSON schema."""
@@ -640,8 +639,9 @@ class TestReportProvenanceMetadata(unittest.TestCase):
             jsonschema.validate(instance=recs_payload, schema=schema)
 
 
-class TestProductionDataFreshness(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.unit
+class TestProductionDataFreshness:
+    def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
         self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
@@ -654,7 +654,7 @@ class TestProductionDataFreshness(unittest.TestCase):
         self.sleep_patcher3.start()
         self.univ_patcher.start()
 
-    def tearDown(self):
+    def teardown_method(self):
         patch.stopall()
 
     """Deterministic offline unit tests verifying production data freshness rules."""
@@ -677,8 +677,8 @@ class TestProductionDataFreshness(unittest.TestCase):
         ) as mock_fetch:
             mock_fetch.return_value = df_valid
             recs, mkt, _ = run_pipeline(update_data=True)
-            self.assertEqual(recs["data_as_of"], "2026-09-20")
-            self.assertEqual(mkt["data_as_of"], "2026-09-20")
+            assert recs["data_as_of"] == "2026-09-20"
+            assert mkt["data_as_of"] == "2026-09-20"
 
     def test_2_one_stock_one_day_behind_update_fails(self):
         """2. One stock is one day behind -> update fails."""
@@ -715,9 +715,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=side_effect,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
-            self.assertIn("FPT", str(ctx.exception))
+            assert "FPT" in str(ctx.value)
 
     def test_3_one_stock_several_days_behind_update_fails(self):
         """3. One stock is several days behind -> update fails."""
@@ -754,9 +754,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=side_effect,
         ):
-            with self.assertRaises(RuntimeError) as ctx:
+            with pytest.raises(RuntimeError) as ctx:
                 run_pipeline(update_data=True)
-            self.assertIn("SSI", str(ctx.exception))
+            assert "SSI" in str(ctx.value)
 
     def test_4_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
         self,
@@ -784,10 +784,10 @@ class TestProductionDataFreshness(unittest.TestCase):
             mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
-            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            assert recs["data_as_of"] == "2026-09-20"
             for r in recs["recommendations"]:
-                self.assertEqual(r["data_as_of"], "2026-09-20")
-                self.assertEqual(r["trade_plan"]["current_price"], 69000.0)
+                assert r["data_as_of"] == "2026-09-20"
+                assert r["trade_plan"]["current_price"] == 69000.0
 
     def test_5_provider_source_a_stale_source_b_canonical_selected(self):
         """5. Provider source A is stale while source B has canonical date -> source B selected."""
@@ -825,9 +825,9 @@ class TestProductionDataFreshness(unittest.TestCase):
             provider = VnstockDataProvider(is_available=True)
             res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-20")
 
-            self.assertEqual(res_df["time"].max(), "2026-09-20")
+            assert res_df["time"].max() == "2026-09-20"
             # Close prices converted from thousand_VND -> VND
-            self.assertEqual(res_df["close"].iloc[-1], 55000.0)
+            assert res_df["close"].iloc[-1] == 55000.0
 
     def test_6_no_source_has_canonical_date_update_fails_closed(self):
         """6. No source has canonical date -> update fails closed."""
@@ -851,7 +851,7 @@ class TestProductionDataFreshness(unittest.TestCase):
             provider = VnstockDataProvider(is_available=True)
             res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-20")
             # Returns stale best candidate (2026-09-19)
-            self.assertEqual(res_df["time"].max(), "2026-09-19")
+            assert res_df["time"].max() == "2026-09-19"
 
     def test_7_current_price_equals_close_from_canonical_date_row(self):
         """7. Verify current_price equals the close from the canonical-date row."""
@@ -873,13 +873,11 @@ class TestProductionDataFreshness(unittest.TestCase):
             mock_fetch.return_value = df_stock
             recs, _, _ = run_pipeline(update_data=True)
 
-            self.assertEqual(recs["data_as_of"], "2026-09-20")
+            assert recs["data_as_of"] == "2026-09-20"
             for r in recs["recommendations"]:
-                self.assertEqual(r["data_as_of"], "2026-09-20")
-                self.assertEqual(
-                    r["trade_plan"]["current_price"],
-                    123456.0,
-                    f"Recommendation for {r['symbol']} current_price mismatch",
+                assert r["data_as_of"] == "2026-09-20"
+                assert r["trade_plan"]["current_price"] == 123456.0, (
+                    f"Recommendation for {r['symbol']} current_price mismatch"
                 )
 
     def test_8_existing_generated_artifacts_unchanged_after_freshness_failure(self):
@@ -936,14 +934,14 @@ class TestProductionDataFreshness(unittest.TestCase):
                 ),
                 patch("sys.argv", ["generate_report.py", "--update"]),
             ):
-                with self.assertRaises(SystemExit) as ctx:
+                with pytest.raises(SystemExit) as ctx:
                     generate_report_main()
-                self.assertEqual(ctx.exception.code, 1)
+                assert ctx.value.code == 1
 
             # Check byte-for-byte unchanged
-            self.assertEqual(recs_p.read_bytes(), dummy_recs)
-            self.assertEqual(mkt_p.read_bytes(), dummy_mkt)
-            self.assertEqual(mon_p.read_bytes(), dummy_mon)
+            assert recs_p.read_bytes() == dummy_recs
+            assert mkt_p.read_bytes() == dummy_mkt
+            assert mon_p.read_bytes() == dummy_mon
 
     def test_9_historical_non_production_behavior_unchanged(self):
         """9. Verify historical/non-production behavior remains unchanged."""
@@ -955,8 +953,4 @@ class TestProductionDataFreshness(unittest.TestCase):
         res = validate_temporal_integrity(
             data_as_of, stock_dates, reference_date="2026-09-21", strict_date_match=False
         )
-        self.assertTrue(res["is_valid"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert res["is_valid"]

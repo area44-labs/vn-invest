@@ -1,14 +1,14 @@
 """Unit tests for validation boundary in scripts/data/validation.py."""
 
-import unittest
-
 import pandas as pd
+import pytest
 
 from scripts.data.models import CanonicalMarketData
 from scripts.data.validation import validate_canonical_market_data
 
 
-class TestMarketDataValidationBoundary(unittest.TestCase):
+@pytest.mark.unit
+class TestMarketDataValidationBoundary:
     """Test CanonicalMarketValidator invariant and temporal rules."""
 
     def test_valid_canonical_data(self):
@@ -26,9 +26,9 @@ class TestMarketDataValidationBoundary(unittest.TestCase):
 
         validated = validate_canonical_market_data(cmd, reference_date="2025-01-24")
 
-        self.assertEqual(validated.data_quality.status, "SUFFICIENT")
-        self.assertEqual(validated.source_tag, "REAL_DATA")
-        self.assertEqual(validated.data_quality.valid_row_count, 24)
+        assert validated.data_quality.status == "SUFFICIENT"
+        assert validated.source_tag == "REAL_DATA"
+        assert validated.data_quality.valid_row_count == 24
 
     def test_invalid_ohlc_relationship_fails_closed(self):
         df_invalid = pd.DataFrame(
@@ -45,9 +45,9 @@ class TestMarketDataValidationBoundary(unittest.TestCase):
 
         validated = validate_canonical_market_data(cmd)
 
-        self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
-        self.assertEqual(validated.source_tag, "EXPLICITLY_INVALID")
-        self.assertEqual(len(validated.records), 0)
+        assert validated.data_quality.status == "INSUFFICIENT"
+        assert validated.source_tag == "EXPLICITLY_INVALID"
+        assert len(validated.records) == 0
 
     def test_future_dated_record_fails_closed(self):
         df_future = pd.DataFrame(
@@ -64,9 +64,5 @@ class TestMarketDataValidationBoundary(unittest.TestCase):
 
         validated = validate_canonical_market_data(cmd, reference_date="2025-01-05")
 
-        self.assertEqual(validated.source_tag, "EXPLICITLY_INVALID")
-        self.assertTrue(any("future_dated" in iss for iss in validated.data_quality.issues))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert validated.source_tag == "EXPLICITLY_INVALID"
+        assert any("future_dated" in iss for iss in validated.data_quality.issues)

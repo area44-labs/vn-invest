@@ -5,10 +5,10 @@ and end-to-end, confirming offline execution, provider replacement via canonical
 and fail-closed behavior on malformed/temporal data.
 """
 
-import unittest
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from scripts.data.acquisition import (
     InvalidSymbolError,
@@ -74,7 +74,8 @@ class FakeCustomMarketProvider(MarketDataProvider):
         )
 
 
-class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
+@pytest.mark.unit
+class TestDataBoundaryIsolationAndIntegration:
     """Test data boundary contracts, malformed field handling, and provider replacement."""
 
     def test_production_pipeline_execution_with_fake_provider(self):
@@ -89,39 +90,39 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         acq_stage = DataAcquisitionStage()
         acq_stage.execute(ctx)
 
-        self.assertIsNotNone(ctx.raw_vnindex_payload)
-        self.assertEqual(ctx.raw_vnindex_payload.provider_name, "custom_synthetic_provider")
-        self.assertEqual(ctx.raw_vn30_payload.provider_name, "custom_synthetic_provider")
-        self.assertIn("FPT", ctx.raw_stock_payloads)
-        self.assertEqual(ctx.raw_stock_payloads["FPT"].provider_name, "custom_synthetic_provider")
+        assert ctx.raw_vnindex_payload is not None
+        assert ctx.raw_vnindex_payload.provider_name == "custom_synthetic_provider"
+        assert ctx.raw_vn30_payload.provider_name == "custom_synthetic_provider"
+        assert "FPT" in ctx.raw_stock_payloads
+        assert ctx.raw_stock_payloads["FPT"].provider_name == "custom_synthetic_provider"
 
         # Stage 2: Validation
         val_stage = DataValidationStage()
         val_stage.execute(ctx)
 
-        self.assertIsNotNone(ctx.df_vnindex_clean)
-        self.assertFalse(ctx.df_vnindex_clean.empty)
-        self.assertEqual(ctx.vnindex_val.get("status"), "SUFFICIENT")
+        assert ctx.df_vnindex_clean is not None
+        assert not ctx.df_vnindex_clean.empty
+        assert ctx.vnindex_val.get("status") == "SUFFICIENT"
 
         # Stage 4 & 5: Quantitative
         mkt_stage = MarketAnalysisStage()
         mkt_stage.execute(ctx)
-        self.assertIsNotNone(ctx.final_market_regime)
+        assert ctx.final_market_regime is not None
 
         sig_stage = SignalRecommendationGenerationStage()
         sig_stage.execute(ctx)
-        self.assertTrue(len(ctx.scanned_recs) > 0)
+        assert len(ctx.scanned_recs) > 0
 
         risk_stage = RiskTradePlanStage()
         risk_stage.execute(ctx)
-        self.assertIn("recommendations", ctx.recommendations_payload)
+        assert "recommendations" in ctx.recommendations_payload
 
         perf_stage = PerformanceStage()
         perf_stage.execute(ctx)
 
         mon_stage = MonitoringStage()
         mon_stage.execute(ctx)
-        self.assertIsNotNone(ctx.monitoring_result)
+        assert ctx.monitoring_result is not None
 
     def test_structured_acquisition_error_propagation_no_string_parsing(self):
         """Structured acquisition exceptions propagate failure_type directly without error string parsing."""
@@ -130,15 +131,15 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         mock_provider.fetch_ohlcv.side_effect = InvalidSymbolError("Symbol ABC not found")
 
         payload = acquire_raw_market_data("ABC", provider=mock_provider)
-        self.assertEqual(payload.failure_type, "INVALID_SYMBOL")
-        self.assertEqual(payload.source_tag, "INVALID_SYMBOL")
+        assert payload.failure_type == "INVALID_SYMBOL"
+        assert payload.source_tag == "INVALID_SYMBOL"
 
         cmd = normalize_raw_market_data(payload)
-        self.assertEqual(cmd.source_tag, "INVALID_SYMBOL")
+        assert cmd.source_tag == "INVALID_SYMBOL"
 
         v_data = validate_canonical_market_data(cmd)
-        self.assertEqual(v_data.source_tag, "INVALID_SYMBOL")
-        self.assertEqual(v_data.data_quality.status, "INSUFFICIENT")
+        assert v_data.source_tag == "INVALID_SYMBOL"
+        assert v_data.data_quality.status == "INSUFFICIENT"
 
     def test_validation_checks_unsorted_and_invalid_ohlc(self):
         """Validation boundary detects unsorted dates and invalid OHLC relationships fail-closed."""
@@ -154,8 +155,8 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         )
         cmd_unsorted = CanonicalMarketData.from_df("FPT", unsorted_df)
         v_unsorted = validate_canonical_market_data(cmd_unsorted)
-        self.assertIn("unsorted_dates", v_unsorted.data_quality.issues)
-        self.assertEqual(v_unsorted.source_tag, "EXPLICITLY_INVALID")
+        assert "unsorted_dates" in v_unsorted.data_quality.issues
+        assert v_unsorted.source_tag == "EXPLICITLY_INVALID"
 
         invalid_ohlc_df = pd.DataFrame(
             {
@@ -168,11 +169,11 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
             }
         )
         cmd_invalid_ohlc = CanonicalMarketData.from_df("FPT", invalid_ohlc_df)
-        self.assertEqual(cmd_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
+        assert cmd_invalid_ohlc.source_tag == "EXPLICITLY_INVALID"
         v_invalid_ohlc = validate_canonical_market_data(cmd_invalid_ohlc)
-        self.assertEqual(v_invalid_ohlc.source_tag, "EXPLICITLY_INVALID")
-        self.assertEqual(v_invalid_ohlc.data_quality.status, "INSUFFICIENT")
-        self.assertEqual(len(v_invalid_ohlc.records), 0)
+        assert v_invalid_ohlc.source_tag == "EXPLICITLY_INVALID"
+        assert v_invalid_ohlc.data_quality.status == "INSUFFICIENT"
+        assert len(v_invalid_ohlc.records) == 0
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_production_acquisition_stage_uses_market_data_acquirer(self, mock_fetch_ohlcv):
@@ -199,7 +200,7 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         acq_stage = DataAcquisitionStage()
         acq_stage.execute(ctx)
 
-        self.assertTrue(mock_provider.fetch_ohlcv.called)
+        assert mock_provider.fetch_ohlcv.called
 
     def test_provider_replacement_via_interface(self):
         """Provider replacement: replacing provider with FakeCustomMarketProvider without modifying acquisition or quantitative layer."""
@@ -209,8 +210,8 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         payload_vnindex = acquire_raw_market_data("VNINDEX", provider=fake_provider)
         payload_stock = acquire_raw_market_data("FPT", provider=fake_provider)
 
-        self.assertEqual(payload_vnindex.provider_name, "custom_synthetic_provider")
-        self.assertEqual(payload_stock.provider_name, "custom_synthetic_provider")
+        assert payload_vnindex.provider_name == "custom_synthetic_provider"
+        assert payload_stock.provider_name == "custom_synthetic_provider"
 
         # Step 2: Normalization
         cmd_vnindex = normalize_raw_market_data(payload_vnindex)
@@ -220,8 +221,8 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         v_vnindex = validate_canonical_market_data(cmd_vnindex)
         v_stock = validate_canonical_market_data(cmd_stock)
 
-        self.assertEqual(v_vnindex.data_quality.status, "SUFFICIENT")
-        self.assertEqual(v_stock.data_quality.status, "SUFFICIENT")
+        assert v_vnindex.data_quality.status == "SUFFICIENT"
+        assert v_stock.data_quality.status == "SUFFICIENT"
 
         # Step 4: Quantitative analysis strictly consumes canonical validated DataFrames
         regime_info = detect_market_regime(
@@ -240,8 +241,8 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
             data_as_of=v_stock.data_as_of,
             data_source=v_stock.source_tag,
         )
-        self.assertEqual(rec.symbol, "FPT")
-        self.assertIsNotNone(rec.signal_score)
+        assert rec.symbol == "FPT"
+        assert rec.signal_score is not None
 
     def test_provider_response_malformed_missing_fields(self):
         """Malformed provider DataFrame missing required columns handles fail-closed."""
@@ -256,9 +257,9 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         cmd = normalize_raw_market_data(payload)
         validated = validate_canonical_market_data(cmd)
 
-        self.assertEqual(validated.source_tag, "PROVIDER_FAILURE")
-        self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
-        self.assertEqual(len(validated.records), 0)
+        assert validated.source_tag == "PROVIDER_FAILURE"
+        assert validated.data_quality.status == "INSUFFICIENT"
+        assert len(validated.records) == 0
 
     def test_temporal_mismatch_fails_closed(self):
         """Record date in future relative to reference_date fails closed."""
@@ -275,9 +276,9 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         cmd = CanonicalMarketData.from_df("FPT", future_df, data_as_of="2025-02-01")
         validated = validate_canonical_market_data(cmd, reference_date="2025-01-15")
 
-        self.assertEqual(validated.source_tag, "EXPLICITLY_INVALID")
-        self.assertEqual(validated.data_quality.status, "INSUFFICIENT")
-        self.assertTrue(any("future_dated" in iss for iss in validated.data_quality.issues))
+        assert validated.source_tag == "EXPLICITLY_INVALID"
+        assert validated.data_quality.status == "INSUFFICIENT"
+        assert any("future_dated" in iss for iss in validated.data_quality.issues)
 
     def test_duplicate_and_incorrect_data_as_of(self):
         """Duplicate dates and malformed data_as_of format are caught fail-closed."""
@@ -294,11 +295,11 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
         cmd = CanonicalMarketData.from_df("FPT", dup_df)
         validated = validate_canonical_market_data(cmd)
 
-        self.assertIn("duplicate_dates", validated.data_quality.issues)
-        self.assertEqual(validated.source_tag, "EXPLICITLY_INVALID")
+        assert "duplicate_dates" in validated.data_quality.issues
+        assert validated.source_tag == "EXPLICITLY_INVALID"
 
         # Invalid date format raises ValueError
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             CanonicalMarketData(symbol="FPT", data_as_of="2025/01/02")
 
     def test_no_provider_fields_in_canonical_models(self):
@@ -308,8 +309,4 @@ class TestDataBoundaryIsolationAndIntegration(unittest.TestCase):
             data_as_of="2025-01-02",
         )
         for forbidden in FORBIDDEN_PROVIDER_FIELDS:
-            self.assertFalse(hasattr(cmd, forbidden))
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert not hasattr(cmd, forbidden)
