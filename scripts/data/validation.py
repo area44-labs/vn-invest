@@ -23,6 +23,10 @@ class CanonicalDataValidationError(ValueError):
 
 REQUIRED_OHLCV_COLUMNS = ["date", "open", "high", "low", "close", "volume"]
 
+# Temporal Data Consistency & Staleness Threshold Parameters
+MAX_STOCK_STALENESS_DAYS = 7
+MAX_BENCHMARK_FUTURE_DAYS = 0
+
 
 class CanonicalMarketValidator:
     """Validator inspecting CanonicalMarketData for invariant & temporal compliance."""
@@ -33,7 +37,7 @@ class CanonicalMarketValidator:
         self,
         canonical_data: CanonicalMarketData,
         reference_date: str | None = None,
-        max_staleness_days: int = 7,
+        max_staleness_days: int = MAX_STOCK_STALENESS_DAYS,
     ) -> CanonicalMarketData:
         """Validate canonical market data. Returns validated CanonicalMarketData with DataQuality attached.
 
@@ -207,7 +211,7 @@ class CanonicalMarketValidator:
 def validate_canonical_market_data(
     canonical_data: CanonicalMarketData,
     reference_date: str | None = None,
-    max_staleness_days: int = 7,
+    max_staleness_days: int = MAX_STOCK_STALENESS_DAYS,
 ) -> CanonicalMarketData:
     """Convenience entry point for canonical market data validation."""
     validator = CanonicalMarketValidator()

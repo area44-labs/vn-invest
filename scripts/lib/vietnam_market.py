@@ -17,10 +17,8 @@ import pandas as pd
 from scripts.data_provider import (
     VnstockDataProvider,
 )
+from scripts.data.validation import MAX_BENCHMARK_FUTURE_DAYS, MAX_STOCK_STALENESS_DAYS
 from scripts.domain.universe import DEFAULT_BENCHMARKS, Universe
-
-MAX_STOCK_STALENESS_DAYS = 7
-MAX_BENCHMARK_FUTURE_DAYS = 0
 
 logger = logging.getLogger(__name__)
 

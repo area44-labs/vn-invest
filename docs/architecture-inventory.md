@@ -426,8 +426,8 @@ monitoring-specific models & drift thresholds
 performance budget & regression baselines/thresholds
     → scripts/performance/budget.py, scripts/performance/regression.py
 
-market staleness parameters
-    → scripts/lib/vietnam_market.py
+market staleness & future-date parameters
+    → scripts/data/validation.py
 ```
 
 ### Action
