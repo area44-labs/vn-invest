@@ -28,9 +28,12 @@ class ArtifactPublisher:
         self.canonical_data_as_of = canonical_data_as_of
 
     def validate_artifact(self, relative_path: str, payload: dict) -> None:
-        """Validate artifact payload prior to publication.
+        """Validate artifact payload prior to publication using central Schema Registry.
 
-        Publisher strictly validates without altering quantitative results or investment signals.
+        Authoritative artifact publication validation. Resolves schema strictly from
+        payload["schema_version"] via central Schema Registry.
+
+        Caller-supplied schema, version, or schema_path overrides are forbidden.
         """
         if not isinstance(payload, dict):
             raise TypeError(f"Artifact '{relative_path}' payload must be a dict")

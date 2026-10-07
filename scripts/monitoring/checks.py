@@ -79,7 +79,13 @@ def check_required_artifacts(
 
 
 def check_schema_validation(recommendations_payload: dict) -> CheckResult:
-    """Validate recommendations payload against canonical JSON schema using version-aware resolution."""
+    """Validate recommendations payload against canonical JSON schema using version-aware resolution.
+
+    Authoritative artifact schema validation check. Resolves schema strictly from
+    recommendations_payload["schema_version"] via central Schema Registry.
+
+    Caller-supplied schema, version, or schema_path overrides are forbidden.
+    """
     if not isinstance(recommendations_payload, dict):
         return CheckResult(
             check_name="schema_validation",

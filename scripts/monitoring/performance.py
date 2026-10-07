@@ -7,7 +7,12 @@ from scripts.performance.regression import evaluate_performance_regression
 
 
 def load_performance_schema(version: str | None = None) -> dict:
-    """Load performance JSON Schema via centralized registry."""
+    """Load performance JSON Schema via centralized registry.
+
+    UTILITY ONLY: Must NOT be used for authoritative artifact validation.
+    Authoritative validation MUST route through validate_performance_payload(payload),
+    which resolves schema strictly from payload["schema_version"].
+    """
     from scripts.schema import SCHEMA_VERSION, load_schema_for_version
 
     ver = version or SCHEMA_VERSION
@@ -16,6 +21,11 @@ def load_performance_schema(version: str | None = None) -> dict:
 
 def validate_performance_payload(performance_data: dict) -> None:
     """Validate canonical performance object structure and schema using version-aware registry.
+
+    Authoritative performance artifact validation API. Resolves schema strictly from
+    performance_data["schema_version"] via central Schema Registry.
+
+    Caller-supplied schema, version, or schema_path overrides are forbidden.
 
     Raises jsonschema.ValidationError, TypeError, SchemaResolutionError, or ValueError on validation failure.
     """

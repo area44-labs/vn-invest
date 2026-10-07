@@ -17,7 +17,13 @@ from scripts.performance.tracker import PerformanceTracker, create_default_perfo
 
 
 def validate_performance_payload(performance_data: dict[str, Any]) -> None:
-    """Validate canonical performance object structure and schema."""
+    """Validate canonical performance object structure and schema.
+
+    Authoritative performance artifact validation API. Resolves schema strictly from
+    performance_data["schema_version"] via central Schema Registry.
+
+    Caller-supplied schema, version, or schema_path overrides are forbidden.
+    """
     from scripts.pipeline.validation import validate_performance_payload as _validate
 
     _validate(performance_data)
