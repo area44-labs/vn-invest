@@ -46,7 +46,7 @@ def extract_update_workload_counts(
 
     workload = performance_data.get("workload")
     if not isinstance(workload, dict):
-        raise ValueError(
+        raise TypeError(
             "Missing required canonical 'workload' metadata dict in performance_data for live update regression evaluation"
         )
 
@@ -62,7 +62,7 @@ def extract_update_workload_counts(
         or isinstance(stock_cnt, bool)
         or isinstance(total_cnt, bool)
     ):
-        raise ValueError(
+        raise TypeError(
             f"Invalid workload request counts in performance_data (benchmark_request_count={bench_cnt}, "
             f"stock_request_count={stock_cnt}, total_request_count={total_cnt})"
         )
@@ -81,7 +81,7 @@ def extract_update_workload_counts(
 
     requested_symbols = workload.get("requested_symbols")
     if requested_symbols is not None and not isinstance(requested_symbols, list):
-        raise ValueError("Invalid 'requested_symbols' in workload metadata; expected a list")
+        raise TypeError("Invalid 'requested_symbols' in workload metadata; expected a list")
 
     return bench_cnt, stock_cnt
 

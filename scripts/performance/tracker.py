@@ -72,7 +72,7 @@ class PerformanceTracker:
     def get_workload_metadata(self) -> dict[str, Any]:
         """Construct canonical workload metadata from logical pipeline requests."""
         benchmarks = {"VNINDEX", "VN30"}
-        requested_symbols = sorted(list(self.symbol_requests.keys()))
+        requested_symbols = sorted(self.symbol_requests.keys())
 
         n_benchmarks = sum(
             count for sym, count in self.symbol_requests.items() if sym in benchmarks

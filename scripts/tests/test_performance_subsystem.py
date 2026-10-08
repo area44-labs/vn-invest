@@ -277,8 +277,8 @@ class TestPerformanceRegression:
         res = evaluate_performance_regression(payload, is_update_mode=True)
         assert res["overall_status"] == "PASS"
 
-    def test_update_data_true_missing_workload_raises_value_error(self):
-        """update_data=True thiếu thông tin workload trong performance_data -> raise ValueError."""
+    def test_update_data_true_missing_workload_raises_type_error(self):
+        """update_data=True thiếu thông tin workload trong performance_data -> raise TypeError."""
         payload = {
             "provider": {"total_calls": 46},
             "stages": [
@@ -286,7 +286,7 @@ class TestPerformanceRegression:
                 {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
             ],
         }
-        with pytest.raises(ValueError, match="Missing required canonical 'workload' metadata"):
+        with pytest.raises(TypeError, match="Missing required canonical 'workload' metadata"):
             evaluate_performance_regression(payload, is_update_mode=True)
 
     def test_regression_does_not_depend_on_provider_total_calls(self):
