@@ -41,15 +41,15 @@ scripts/monitoring/
 
 Primary operational checks evaluated by `evaluate_production_monitoring()`:
 
-| Check Name                      | Status Conditions           | Description                                                                                                                     |
-| :------------------------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`. |
-| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Verifies `data_as_of` matches execution reference date or is within allowed trading delay.                                      |
-| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                           |
-| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is valid (`BULLISH`, `BEARISH`, `SIDEWAYS`, `NEUTRAL`).                                                  |
-| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` structure, chronological order, and record count.                                                 |
-| `numeric_safety`                | `PASS` / `FAIL`             | Recursively scans output payload for illegal `NaN`, `Inf`, or `-Inf` values.                                                    |
-| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms performance timing payload conforms to `schemas/v2/performance.schema.json`.                                           |
+| Check Name                      | Status Conditions           | Description                                                                                                                                                                                   |
+| :------------------------------ | :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`.                                                               |
+| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Verifies `data_as_of` matches execution reference date or is within allowed trading delay.                                                                                                    |
+| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                                                                                         |
+| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is valid (`BULLISH`, `BEARISH`, `SIDEWAYS`, `NEUTRAL`).                                                                                                                |
+| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` structure, chronological order, and record count.                                                                                                               |
+| `numeric_safety`                | `PASS` / `FAIL`             | Recursively scans output payload for illegal `NaN`, `Inf`, or `-Inf` values.                                                                                                                  |
+| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms performance timing payload conforms to `schemas/v2/performance.schema.json`.                                                                                                         |
 | `performance_regression`        | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against centralized mode-aware baselines (`PERFORMANCE_STAGE_BASELINES` for test/offline, `PRODUCTION_UPDATE_PERFORMANCE_BASELINES` for live `--update`). |
 
 ---
