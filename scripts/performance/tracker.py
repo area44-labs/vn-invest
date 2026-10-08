@@ -80,6 +80,7 @@ class PerformanceTracker:
         pipeline_elapsed: float | None = None,
         pipeline_status: str = "SUCCESS",
         call_history: list[dict[str, Any]] | None = None,
+        update_data: bool = False,
     ) -> dict[str, Any]:
         """Construct unified canonical performance payload.
 
@@ -111,7 +112,9 @@ class PerformanceTracker:
                 "duplicate_operations": duplicates,
             }
 
-            payload["regression"] = evaluate_performance_regression(payload)
+            payload["regression"] = evaluate_performance_regression(
+                payload, is_update_mode=update_data
+            )
             payload["budget"] = evaluate_provider_budget(
                 payload, enforce_ci_budget=self.enable_ci_budget
             )

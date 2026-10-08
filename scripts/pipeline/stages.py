@@ -829,6 +829,7 @@ class PerformanceStage(PipelineStage):
         context.performance_data = context.tracker.get_performance_payload(
             pipeline_elapsed=context.pipeline_elapsed,
             pipeline_status=pipeline_status,
+            update_data=context.update_data,
         )
 
 
@@ -849,6 +850,7 @@ class MonitoringStage(PipelineStage):
             context.performance_data = context.tracker.get_performance_payload(
                 pipeline_elapsed=context.pipeline_elapsed,
                 pipeline_status=context.universe_audit.get("status", "SUCCESS"),
+                update_data=context.update_data,
             )
             return
 
@@ -899,6 +901,7 @@ class MonitoringStage(PipelineStage):
         context.performance_data = context.tracker.get_performance_payload(
             pipeline_elapsed=context.pipeline_elapsed,
             pipeline_status=context.universe_audit.get("status", "SUCCESS"),
+            update_data=context.update_data,
         )
 
         if "metrics" not in context.monitoring_dict or not isinstance(

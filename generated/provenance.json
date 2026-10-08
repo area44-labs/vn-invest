@@ -1,0 +1,38 @@
+{
+  "data_as_of": "2026-10-08",
+  "generated_at": "2026-10-08T14:45:11.681088+00:00",
+  "pipeline_version": "2.0.0",
+  "signal_model_version": "2.0",
+  "quantitative_config_version": {
+    "quant_version": "1.0.0",
+    "config_hash": "07b74635ffca"
+  },
+  "schema_version": "2.0",
+  "source_provider": {
+    "data_source": "REAL_DATA",
+    "vn_source": "REAL_DATA",
+    "vn30_source": "REAL_DATA"
+  },
+  "universe": {
+    "universe_type": "VN30_MIDCAP_LEADERS",
+    "universe_size": 42
+  },
+  "artifacts": [
+    "history/2026-10-08.json",
+    "history/index.json",
+    "market.json",
+    "monitoring.json",
+    "provenance.json",
+    "recommendations.json"
+  ],
+  "data_quality": {
+    "status": "SUCCESS",
+    "processed_ratio": 1.0,
+    "processed_count": 44,
+    "expected_count": 44,
+    "invalid_count": 0,
+    "insufficient_count": 0,
+    "failed_count": 0,
+    "missing_count": 0
+  }
+}

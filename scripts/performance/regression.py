@@ -32,11 +32,40 @@ PERFORMANCE_STAGE_THRESHOLDS = {
     "payload_validation": (2.0, 4.0, 0.5),
 }
 
+# Production Live Update Baselines & Thresholds
+# Account for DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s per symbol and 44 candidate + 2 benchmark symbols
+PRODUCTION_UPDATE_PERFORMANCE_BASELINES = {
+    "pipeline": 200.0,
+    "benchmark_fetch": 10.0,
+    "stock_fetch": 185.0,
+    "temporal_validation": 0.5,
+    "market_calculation": 0.5,
+    "regime_calculation": 0.5,
+    "risk_calculation": 1.0,
+    "recommendation_calculation": 2.0,
+    "monitoring": 1.5,
+    "payload_validation": 0.5,
+}
+
+PRODUCTION_UPDATE_PERFORMANCE_THRESHOLDS = {
+    "pipeline": (1.3, 1.6, 10.0),
+    "benchmark_fetch": (2.0, 3.0, 2.0),
+    "stock_fetch": (1.3, 1.6, 10.0),
+    "temporal_validation": (2.0, 4.0, 0.5),
+    "market_calculation": (2.0, 4.0, 0.5),
+    "regime_calculation": (2.0, 4.0, 0.5),
+    "risk_calculation": (2.0, 4.0, 1.0),
+    "recommendation_calculation": (2.0, 4.0, 1.0),
+    "monitoring": (2.0, 4.0, 1.0),
+    "payload_validation": (2.0, 4.0, 0.5),
+}
+
 
 def evaluate_performance_regression(
     performance_data: dict[str, Any],
     baselines_override: dict[str, float] | None = None,
     thresholds_override: dict[str, tuple[float, float, float]] | None = None,
+    is_update_mode: bool | None = None,
 ) -> dict[str, Any]:
     """Evaluate pipeline stage timing records against centralized stage baselines and thresholds.
 
@@ -50,11 +79,35 @@ def evaluate_performance_regression(
     if not isinstance(stages, list):
         raise TypeError(f"stages must be a list, got {type(stages).__name__}")
 
-    baselines = dict(PERFORMANCE_STAGE_BASELINES)
+    if is_update_mode is None:
+        stock_fetch_elapsed = next(
+            (
+                float(st.get("elapsed_seconds", 0.0))
+                for st in stages
+                if isinstance(st, dict) and st.get("stage") == "stock_fetch"
+            ),
+            0.0,
+        )
+        provider = (
+            performance_data.get("provider", {})
+            if isinstance(performance_data.get("provider"), dict)
+            else {}
+        )
+        provider_elapsed = float(provider.get("total_elapsed_seconds", 0.0))
+        is_update_mode = stock_fetch_elapsed > 30.0 or provider_elapsed > 30.0
+
+    if is_update_mode:
+        default_baselines = PRODUCTION_UPDATE_PERFORMANCE_BASELINES
+        default_thresholds = PRODUCTION_UPDATE_PERFORMANCE_THRESHOLDS
+    else:
+        default_baselines = PERFORMANCE_STAGE_BASELINES
+        default_thresholds = PERFORMANCE_STAGE_THRESHOLDS
+
+    baselines = dict(default_baselines)
     if baselines_override:
         baselines.update(baselines_override)
 
-    thresholds = dict(PERFORMANCE_STAGE_THRESHOLDS)
+    thresholds = dict(default_thresholds)
     if thresholds_override:
         thresholds.update(thresholds_override)
 
