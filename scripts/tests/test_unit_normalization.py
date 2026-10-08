@@ -17,6 +17,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.risk import (
+    calculate_t25_risk_metrics,
+    normalize_universe_liquidity_scores,
+)
 from scripts.data.normalization import (
     AVG_TRADING_VALUE_UNIT,
     PRICE_UNIT,
@@ -25,11 +30,6 @@ from scripts.data.normalization import (
     normalize_ohlcv_units,
 )
 from scripts.data.validation import get_clean_ohlcv_data
-from scripts.quant.recommendation import generate_single_recommendation as generate_recommendation
-from scripts.quant.risk import (
-    calculate_t25_risk_metrics,
-    normalize_universe_liquidity_scores,
-)
 
 
 @pytest.mark.unit
@@ -144,7 +144,7 @@ class TestUnitNormalizationSuite:
         metrics = calculate_t25_risk_metrics(df_norm)
         assert metrics["avg_value_20d"] == 30.0
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TEST",
             company_name="Test Stock",
             sector="Tech",

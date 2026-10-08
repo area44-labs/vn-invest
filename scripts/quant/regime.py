@@ -37,13 +37,13 @@ def _safe_breadth_ratio(val: float | None) -> float | None:
         return None
 
 
-def lib_detect_market_regime(
+def _detect_market_regime(
     df_vnindex: pd.DataFrame | None = None,
     df_vn30: pd.DataFrame | None = None,
     breadth_ratio: float | None = None,
     config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> dict:
-    """Evaluate multi-factor Vietnam market regime.
+    """Internal calculation helper for multi-factor Vietnam market regime evaluation.
 
     Validates benchmark DataFrames and breadth_ratio safely.
     Returns dict containing regime, regime_score, confidence, and metrics.
@@ -223,7 +223,7 @@ def detect_market_regime(
 ) -> RegimeResult | dict:
     """Detect market regime given index datasets and market breadth ratio.
 
-    Accepts RegimeInput or raw position/keyword arguments for backward compatibility.
+    Accepts RegimeInput or raw position/keyword arguments.
     Returns RegimeResult when passed RegimeInput, or dict when passed raw arguments.
     """
     if isinstance(input_data, RegimeInput):
@@ -246,7 +246,7 @@ def detect_market_regime(
             breadth_ratio=breadth_val,
         )
     else:
-        regime_dict = lib_detect_market_regime(
+        regime_dict = _detect_market_regime(
             df_vnindex=df_vnindex_val,
             df_vn30=df_vn30_val,
             breadth_ratio=breadth_val,
@@ -260,5 +260,4 @@ def detect_market_regime(
 
 __all__ = [
     "detect_market_regime",
-    "lib_detect_market_regime",
 ]

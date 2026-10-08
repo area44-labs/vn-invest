@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from vnai.beam.quota import RateLimitExceeded
 
-from scripts.data.acquisition import InvalidSymbolError, get_historical_data
+from scripts.data.acquisition import InvalidSymbolError
 from scripts.data_provider import (
     CanonicalOHLCVError,
     ProviderRateLimitError,
@@ -26,6 +26,7 @@ from scripts.data_provider import (
     trip_circuit_breaker,
     validate_canonical_ohlcv,
 )
+from scripts.data.acquisition import get_historical_data
 
 
 def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:

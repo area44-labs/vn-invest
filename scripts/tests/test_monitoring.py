@@ -8,6 +8,8 @@ import tempfile
 import pandas as pd
 import pytest
 
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.regime import detect_market_regime
 from scripts.monitoring import (
     CheckResult,
     check_data_freshness,
@@ -23,8 +25,6 @@ from scripts.monitoring import (
     validate_monitoring_payload,
 )
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
-from scripts.quant.recommendation import generate_recommendation
-from scripts.quant.regime import detect_market_regime
 
 SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 
@@ -905,7 +905,7 @@ class TestProductionMonitoring:
         )
 
         regime_1 = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.60)
-        rec_1 = generate_recommendation(
+        rec_1 = generate_single_recommendation(
             symbol="FPT",
             company_name="FPT Corp",
             sector="Tech",
@@ -942,7 +942,7 @@ class TestProductionMonitoring:
 
         # Re-compute outputs to verify immutability and identity
         regime_2 = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.60)
-        rec_2 = generate_recommendation(
+        rec_2 = generate_single_recommendation(
             symbol="FPT",
             company_name="FPT Corp",
             sector="Tech",

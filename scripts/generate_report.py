@@ -7,12 +7,16 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.backtest import _parse_canonical_date
-from scripts.data.acquisition import get_historical_data
-from scripts.data.validation import get_clean_ohlcv_data, validate_temporal_integrity
 from scripts.data_provider import ProviderRateLimitError
 from scripts.domain import PipelineResult
+from scripts.backtest import _parse_canonical_date
+from scripts.quant.signal import SIGNAL_MODEL_VERSION
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import normalize_universe_liquidity_scores
 from scripts.domain.universe import UniverseProvider
+from scripts.data.validation import get_clean_ohlcv_data, validate_temporal_integrity
+from scripts.data.acquisition import get_historical_data
 from scripts.monitoring import (
     evaluate_performance_regression,
     evaluate_production_monitoring,
@@ -47,10 +51,6 @@ from scripts.pipeline import (
     validate_journal_metadata,
 )
 from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
-from scripts.quant.recommendation import generate_single_recommendation as generate_recommendation
-from scripts.quant.regime import detect_market_regime
-from scripts.quant.risk import normalize_universe_liquidity_scores
-from scripts.quant.signal import SIGNAL_MODEL_VERSION
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ __all__ = [
     "evaluate_provider_budget",
     "find_payload_integrity_issues",
     "generate_historical_report",
-    "generate_recommendation",
+    "generate_single_recommendation",
     "get_clean_ohlcv_data",
     "get_historical_data",
     "is_recoverable_category",

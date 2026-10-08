@@ -9,10 +9,6 @@ import jsonschema
 import pandas as pd
 import pytest
 
-from scripts.data.validation import (
-    extract_latest_trading_date,
-    validate_temporal_integrity,
-)
 from scripts.data_provider import VnstockDataProvider
 from scripts.generate_report import (
     load_schema,
@@ -20,8 +16,12 @@ from scripts.generate_report import (
     validate_final_payload_integrity,
 )
 from scripts.generate_report import main as generate_report_main
-from scripts.quant.recommendation import generate_single_recommendation as generate_recommendation
 from scripts.quant.signal import SIGNAL_MODEL_VERSION
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.data.validation import (
+    extract_latest_trading_date,
+    validate_temporal_integrity,
+)
 
 SINGLE_STOCK_UNIVERSE = [
     {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"},
@@ -263,7 +263,7 @@ class TestDataDateSemantics:
             }
         )
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TEST",
             company_name="Test Stock",
             sector="Tech",

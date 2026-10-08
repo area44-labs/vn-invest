@@ -180,10 +180,10 @@ Owns quantitative engines, signal calculations, risk metrics, trade plans, marke
 - `config.py`: `QuantConfig` (frozen dataclass), `DEFAULT_QUANT_CONFIG`, version contracts (`quant_version`, `model_version`, `config_hash`)
 - `contracts.py`: Typed input/output contracts (`SignalInput`, `SignalResult`, `RiskInput`, `RiskResult`, `RecommendationInput`, `RecommendationResult`, `RegimeInput`, `RegimeResult`, `MarketAnalysisInput`, `CandidateSpec`)
 - `features.py`: Multi-timeframe technical indicator calculations and divergence detection
-- `regime.py`: `detect_market_regime`, `lib_detect_market_regime`
+- `regime.py`: `detect_market_regime` (single authoritative market regime detection function supporting typed and dictionary inputs)
 - `signal.py`: `compute_signal`, signal component scoring functions, action classification
 - `risk.py`: `compute_stock_risk_and_trade_plan`, `RiskTradePlanEngine`, `calculate_t25_risk_metrics`, `normalize_universe_liquidity_scores`, confidence calculation
-- `recommendation.py`: `generate_single_recommendation`, `SignalRecommendationEngine`
+- `recommendation.py`: `generate_single_recommendation`, `SignalRecommendationEngine` (single authoritative recommendation function and engine)
 
 ---
 

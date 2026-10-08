@@ -8,7 +8,8 @@ import pandas as pd
 
 from scripts.data.models import CanonicalMarketData
 from scripts.domain import Recommendation
-from scripts.domain.universe import Universe, UniverseProvider, UniverseScanResult
+from scripts.domain.universe import Universe, UniverseScanResult
+from scripts.domain.universe import UniverseProvider
 from scripts.monitoring import PipelineMonitoringResult
 from scripts.monitoring.models import is_recoverable_category
 from scripts.pipeline.constants import PIPELINE_VERSION

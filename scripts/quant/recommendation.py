@@ -351,11 +351,8 @@ class SignalRecommendationEngine:
         return RecommendationResult(recommendations=scanned_recs)
 
 
-generate_recommendation = generate_single_recommendation
-
 __all__ = [
     "CandidateSpec",
     "SignalRecommendationEngine",
-    "generate_recommendation",
     "generate_single_recommendation",
 ]

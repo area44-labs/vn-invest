@@ -899,7 +899,7 @@ class TestZeroCostEquivalence:
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_zero_cost_and_slippage_field_level_equivalence(self, mock_gen_rec) -> None:
         """Verify position returns, portfolio return, weights, allocated and unallocated weight when cost/slippage are zero against independent gross calculations."""
 
@@ -977,7 +977,7 @@ class TestAllocationInvariants:
         }
         self.eval_date = self.df_aaa["date"].iloc[40]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_allocation_invariant_single_position(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1011,7 +1011,7 @@ class TestAllocationInvariants:
             == 0
         )
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_allocation_invariant_two_positions(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1036,7 +1036,7 @@ class TestAllocationInvariants:
         assert eval_res.allocated_weight == round(total_w, 6)
         assert round(abs(total_w + eval_res.unallocated_weight - (1.0)), 6) == 0
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_allocation_invariant_multiple_positions_with_cap(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1072,7 +1072,7 @@ class TestAllocationInvariants:
             == 0
         )
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_allocation_invariant_non_executable_filtering(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1107,7 +1107,7 @@ class TestAllocationInvariants:
         assert round(abs(total_w + eval_res.unallocated_weight - (1.0)), 6) == 0
         assert "LOW_VOL" not in [p.symbol for p in eval_res.positions]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_allocation_invariant_mixed_executable_require_false(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1193,7 +1193,7 @@ class TestMixedActionPortfolio:
         }
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_mixed_buy_sell_watch_portfolio_returns(self, mock_gen_rec) -> None:
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -1291,7 +1291,7 @@ class TestZeroReturnPositions:
         }
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_zero_price_change_gross_vs_net_returns(self, mock_gen_rec) -> None:
         def side_effect(symbol, **kwargs):
             if symbol == "BUY_FLAT":
@@ -1380,7 +1380,7 @@ class TestPartialCapitalAllocation:
         self.universe = {"STK_BUY": self.df_buy}
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_partial_allocation_portfolio_return_contribution(self, mock_gen_rec) -> None:
         """Verify position_weight = 0.5 with zero cost yields portfolio_return = 0.5 * 20% = 10%."""
         mock_gen_rec.return_value = {
@@ -1443,7 +1443,7 @@ class TestMultipleHorizonsIndependence:
         self.universe = {"STK_BUY": self.df_stock}
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_horizons_calculated_independently_without_double_counting(self, mock_gen_rec) -> None:
         mock_gen_rec.return_value = {
             "action": "BUY",
@@ -1503,7 +1503,7 @@ class TestIndependentMathOracleCostSlippage:
         self.universe = {"STK_BUY": self.df_buy}
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_independent_math_oracle_portfolio_integration(self, mock_gen_rec) -> None:
         """Verify 100% single position portfolio evaluation net return matches independent mathematical formula exactly without using calculate_execution_return as oracle."""
         mock_gen_rec.return_value = {
@@ -1588,7 +1588,7 @@ class TestMissingOutcomeSemantics:
         self.universe = {"AAA": self.df_aaa, "BBB": self.df_bbb}
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_all_outcomes_available(self, mock_gen_rec) -> None:
         """Verify evaluate_portfolio_at_date on real production evaluation path when all position outcomes are available."""
 
@@ -1989,7 +1989,7 @@ class TestPortfolioTemporalBoundaries:
 
         assert "insufficient history" in str(ctx.value)
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_exact_trading_session_semantics_with_weekend_gap(self, mock_gen_rec) -> None:
         """Verify exact trading-session indexing across weekend/holiday gaps.
 

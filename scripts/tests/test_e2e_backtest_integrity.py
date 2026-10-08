@@ -405,7 +405,7 @@ class TestE2ECostSlippageSingleApplication:
         }
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_single_application_cost_slippage_against_independent_math_oracle(
         self, mock_gen_rec
     ) -> None:
@@ -699,7 +699,7 @@ class TestE2EPortfolioAllocationInvariants:
             == 0
         )
 
-    @patch("scripts.backtest.portfolio.generate_recommendation")
+    @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_unallocated_capital_earns_zero_return(self, mock_gen_rec) -> None:
         """Unallocated capital generates strictly zero return contribution."""
         mock_gen_rec.return_value = {

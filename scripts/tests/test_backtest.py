@@ -41,7 +41,7 @@ from scripts.backtest.engine import (
     run_backtest_for_universe,
     run_walk_forward_backtest,
 )
-from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.recommendation import generate_single_recommendation
 from scripts.quant.regime import detect_market_regime
 
 
@@ -1037,7 +1037,7 @@ class TestBacktestFramework:
         df_vn30_pit = get_as_of_dataset(self.df_vn30, eval_d)
 
         regime_info = detect_market_regime(df_vnindex=df_vn_pit, df_vn30=df_vn30_pit)
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TCB",
             company_name="",
             sector="",
@@ -1244,7 +1244,7 @@ class TestBacktestFramework:
 
         regime_info = detect_market_regime(df_vnindex=df_vn_pit, df_vn30=df_vn30_pit)
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TCB",
             company_name="Techcombank",
             sector="Banking",
@@ -2570,7 +2570,7 @@ class TestConfidenceCalibration:
         df_vn_as_of = get_as_of_dataset(self.df_vnindex, dates[0])
         df_30_as_of = get_as_of_dataset(self.df_vn30, dates[0])
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="AAA",
             company_name="",
             sector="",

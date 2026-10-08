@@ -417,7 +417,9 @@ class TestQuantRecommendationEngine:
 
     def test_legacy_wrapper_backward_compatibility(self):
         """8. Backward compatibility -> legacy scripts.quant wrapper delegates to scripts.quant with exact payload equivalence."""
-        from scripts.quant.recommendation import generate_recommendation as legacy_generate_rec
+        from scripts.quant.recommendation import (
+            generate_single_recommendation as legacy_generate_rec,
+        )
 
         legacy_rec = legacy_generate_rec(
             symbol="VNM",
@@ -462,12 +464,12 @@ class TestQuantUnificationAndBacktestParity:
         """Verify backtest modules use detect_market_regime and generate_recommendation from scripts.quant."""
         import scripts.backtest.engine as bt
         import scripts.backtest.portfolio as pbt
-        from scripts.quant.regime import lib_detect_market_regime
+        from scripts.quant.regime import detect_market_regime
 
-        assert bt.detect_market_regime is lib_detect_market_regime
-        assert bt.generate_recommendation is generate_single_recommendation
-        assert pbt.detect_market_regime is lib_detect_market_regime
-        assert pbt.generate_recommendation is generate_single_recommendation
+        assert bt.detect_market_regime is detect_market_regime
+        assert bt.generate_single_recommendation is generate_single_recommendation
+        assert pbt.detect_market_regime is detect_market_regime
+        assert pbt.generate_single_recommendation is generate_single_recommendation
 
     def test_production_and_backtest_quant_equivalence_and_determinism(self):
         """Verify production engine output matches backtest signal generation at identical point in time."""

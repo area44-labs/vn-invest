@@ -16,7 +16,7 @@ import pytest
 
 from scripts.quant.config import DEFAULT_QUANT_CONFIG
 from scripts.quant.recommendation import (
-    generate_single_recommendation as generate_recommendation,
+    generate_single_recommendation,
 )
 from scripts.quant.regime import detect_market_regime
 from scripts.quant.risk import (
@@ -316,7 +316,7 @@ class TestTradePlanAndIntegration:
         )
 
         regime_info = {"regime": "STRONG_BULL", "regime_score": 85.0}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="FPT",
             company_name="FPT Corp",
             sector="Công nghệ",

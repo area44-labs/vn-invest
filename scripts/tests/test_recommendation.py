@@ -9,16 +9,10 @@ import pytest
 
 from scripts.backtest.engine import _safe_float as backtest_safe_float
 from scripts.backtest.portfolio import _safe_float as portfolio_safe_float
-from scripts.data.validation import clamp_price_limits, get_exchange_price_limits
-from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
-from scripts.quant.recommendation import (
-    generate_single_recommendation as generate_recommendation,
-)
-from scripts.quant.regime import detect_market_regime
-from scripts.quant.risk import calculate_risk_adjusted_score, normalize_universe_liquidity_scores
 from scripts.quant.signal import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
+    _safe_float as recommendation_safe_float,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
@@ -27,9 +21,14 @@ from scripts.quant.signal import (
     calculate_volume_score,
     classify_action,
 )
-from scripts.quant.signal import (
-    _safe_float as recommendation_safe_float,
+from scripts.quant.risk import calculate_risk_adjusted_score
+from scripts.quant.recommendation import (
+    generate_single_recommendation,
 )
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import normalize_universe_liquidity_scores
+from scripts.data.validation import clamp_price_limits, get_exchange_price_limits
+from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
 
 
 @pytest.mark.unit
@@ -382,7 +381,7 @@ class TestVNInvestSignalEngine:
 
         regime_bull = {"regime": "STRONG_BULL", "regime_score": 85.0}
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="FPT",
             company_name="Công ty FPT",
             sector="Công nghệ",
@@ -444,7 +443,7 @@ class TestVNInvestSignalEngine:
 
         regimes = ["STRONG_BULL", "BULL", "NEUTRAL", "DEFENSIVE", "BEAR", "PANIC"]
         for r_str in regimes:
-            rec = generate_recommendation(
+            rec = generate_single_recommendation(
                 symbol="FPT",
                 company_name="FPT",
                 sector="Tech",
@@ -475,7 +474,7 @@ class TestVNInvestSignalEngine:
             }
         )
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="FPT",
             company_name="FPT",
             sector="Tech",
@@ -507,7 +506,7 @@ class TestVNInvestSignalEngine:
         )
 
         regime_bull = {"regime": "STRONG_BULL", "regime_score": 85.0}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="FPT",
             company_name="Công ty FPT",
             sector="Công nghệ",
@@ -592,7 +591,7 @@ class TestVNInvestSignalEngine:
             df_vnindex=df_vnindex_a, df_vn30=df_vn30_a, breadth_ratio=0.60
         )
 
-        rec_a = generate_recommendation(
+        rec_a = generate_single_recommendation(
             symbol="FPT",
             company_name="Công ty FPT",
             sector="Công nghệ",
@@ -641,7 +640,7 @@ class TestVNInvestSignalEngine:
             breadth_ratio=0.60,
         )
 
-        rec_b = generate_recommendation(
+        rec_b = generate_single_recommendation(
             symbol="FPT",
             company_name="Công ty FPT",
             sector="Công nghệ",
@@ -763,7 +762,7 @@ class TestVNInvestSignalEngine:
         )
 
         regime = {"regime": "BULL", "regime_score": 75.0}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TEST",
             company_name="Test Corp",
             sector="Test",
@@ -795,7 +794,7 @@ class TestVNInvestSignalEngine:
 
         regime_panic = {"regime": "PANIC", "regime_score": 10.0}
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="HPG",
             company_name="Hòa Phát",
             sector="Thép",
@@ -807,7 +806,7 @@ class TestVNInvestSignalEngine:
         assert rec["action"] == "AVOID"
 
     def test_missing_data_returns_avoid_with_nulls(self):
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="VCB",
             company_name="Vietcombank",
             sector="Ngân hàng",
@@ -909,13 +908,13 @@ class TestVNInvestSignalEngine:
         ],
     )
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    @patch("scripts.quant.regime.lib_detect_market_regime")
+    @patch("scripts.quant.regime._detect_market_regime")
     def test_run_pipeline_market_regime_propagation(
         self, mock_detect, mock_fetch_ohlcv, mock_univ, mock_s3, mock_s2, mock_s1
     ):
         """Integration test verifying canonical market regime flow in run_pipeline().
 
-        Flow: detect_market_regime() -> generate_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_score.
+        Flow: detect_market_regime() -> generate_single_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_score.
         Ensures top-level market regime is propagated and used for final risk_adjusted_score without falling back to DEFENSIVE.
         """
         from scripts.generate_report import run_pipeline

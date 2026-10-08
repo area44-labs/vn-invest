@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 from scripts.generate_report import run_pipeline
-from scripts.quant.recommendation import generate_recommendation
+from scripts.quant.recommendation import generate_single_recommendation
 from scripts.quant.regime import detect_market_regime
+from scripts.data.validation import get_clean_ohlcv_data, validate_ohlcv_data
 
 
 def make_valid_df(num_rows: int = 30, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -132,7 +132,7 @@ class TestDataQualityGate:
 
         # Test actual recommendation generation pipeline with this dataset
         regime_info = {"regime": "BULL", "confidence": 0.8}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TEST",
             company_name="Test Company",
             sector="Finance",
@@ -161,7 +161,7 @@ class TestDataQualityGate:
         """11. Insufficient data produces non-actionable recommendation with null scores."""
         df_short = make_valid_df(10)
         regime_info = {"regime": "STRONG_BULL", "confidence": 0.9}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="ABC",
             company_name="Short History Co",
             sector="Technology",
@@ -185,7 +185,7 @@ class TestDataQualityGate:
         assert res["status"] == "INSUFFICIENT"
 
         regime_info = {"regime": "NEUTRAL", "confidence": 0.7}
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="LATEST",
             company_name="Latest Test Co",
             sector="Energy",
