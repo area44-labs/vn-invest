@@ -24,6 +24,7 @@ This document specifies the practical Python coding standards, design patterns, 
 ### 2.2 Domain Models & Frozen Dataclasses
 
 - Domain contracts and configuration models must be implemented as immutable dataclasses using `@dataclass(frozen=True)`:
+
   ```python
   from dataclasses import dataclass
 
@@ -34,6 +35,7 @@ This document specifies the practical Python coding standards, design patterns, 
       sector: str
       exchange: str
   ```
+
 - Use `FrozenDict` (from `scripts.quant.config`) for nested dictionary fields inside frozen dataclasses (e.g. `QuantConfig`) to prevent nested mutation while remaining JSON-serializable and supporting `copy.deepcopy`.
 
 ### 2.3 Serialization & Mutation Isolation (`.to_dict()`)
