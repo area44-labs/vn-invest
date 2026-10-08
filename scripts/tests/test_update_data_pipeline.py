@@ -1,6 +1,5 @@
 """Regression tests for production update-data pipeline requirements."""
 
-import json
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -8,17 +7,12 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from scripts.data.acquisition import RawMarketDataPayload
 from scripts.data_provider import ProviderRateLimitError
 from scripts.domain.universe import Universe
 from scripts.pipeline.context import PipelineContext
-from scripts.pipeline.runner import ProductionPipeline, run_pipeline
+from scripts.pipeline.runner import run_pipeline
 from scripts.pipeline.stages import (
     ArtifactPublishingStage,
-    DataAcquisitionStage,
-    DataValidationStage,
-    MonitoringStage,
-    UniverseValidationStage,
 )
 from scripts.pipeline.tracker import PerformanceTracker
 
@@ -55,14 +49,27 @@ class TestUpdateDataPipelineRequirements:
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
                 [
-                    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
-                    {"symbol": "VIC", "companyName": "Vingroup", "sector": "Real Estate", "exchange": "HOSE"},
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    },
+                    {
+                        "symbol": "VIC",
+                        "companyName": "Vingroup",
+                        "sector": "Real Estate",
+                        "exchange": "HOSE",
+                    },
                 ],
                 benchmarks=("VNINDEX", "VN30"),
             )
@@ -91,12 +98,22 @@ class TestUpdateDataPipelineRequirements:
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
-                [{"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"}],
+                [
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    }
+                ],
                 benchmarks=("VNINDEX", "VN30"),
             )
             mock_provider_cls.return_value = mock_provider
@@ -124,12 +141,22 @@ class TestUpdateDataPipelineRequirements:
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
-                [{"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"}],
+                [
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    }
+                ],
                 benchmarks=("VNINDEX", "VN30"),
             )
             mock_provider_cls.return_value = mock_provider
@@ -137,7 +164,9 @@ class TestUpdateDataPipelineRequirements:
             with pytest.raises(RuntimeError) as exc_info:
                 run_pipeline(update_data=True, generated_dir=tmpdir, publish_artifacts=True)
 
-            assert "Temporal issues" in str(exc_info.value) or "Incomplete universe scan" in str(exc_info.value)
+            assert "Temporal issues" in str(exc_info.value) or "Incomplete universe scan" in str(
+                exc_info.value
+            )
 
     def test_stale_latest_price_in_update_mode(self):
         """Requirement 5: Stale stock data date in update_data=True mode triggers strict temporal match failure and halts pipeline."""
@@ -153,12 +182,22 @@ class TestUpdateDataPipelineRequirements:
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
-                [{"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"}],
+                [
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    }
+                ],
                 benchmarks=("VNINDEX", "VN30"),
             )
             mock_provider_cls.return_value = mock_provider
@@ -179,15 +218,30 @@ class TestUpdateDataPipelineRequirements:
 
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=mock_fetch),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-            patch("scripts.pipeline.stages.SignalRecommendationEngine.generate_recommendations") as mock_quant_engine,
+            patch(
+                "scripts.pipeline.stages.SignalRecommendationEngine.generate_recommendations"
+            ) as mock_quant_engine,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
                 [
-                    {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
-                    {"symbol": "SSI", "companyName": "SSI Securities", "sector": "Finance", "exchange": "HOSE"},
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    },
+                    {
+                        "symbol": "SSI",
+                        "companyName": "SSI Securities",
+                        "sector": "Finance",
+                        "exchange": "HOSE",
+                    },
                 ],
                 benchmarks=("VNINDEX", "VN30"),
             )
@@ -243,12 +297,22 @@ class TestUpdateDataPipelineRequirements:
         """Requirement 7: Unrecoverable ProviderRateLimitError during DataAcquisitionStage propagates and halts pipeline."""
         with (
             tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv", side_effect=ProviderRateLimitError("Rate limit exceeded")),
+            patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=ProviderRateLimitError("Rate limit exceeded"),
+            ),
             patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
         ):
             mock_provider = MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
-                [{"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"}],
+                [
+                    {
+                        "symbol": "FPT",
+                        "companyName": "FPT Corp",
+                        "sector": "Tech",
+                        "exchange": "HOSE",
+                    }
+                ],
                 benchmarks=("VNINDEX", "VN30"),
             )
             mock_provider_cls.return_value = mock_provider
