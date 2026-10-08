@@ -1,8 +1,8 @@
-# Repository Architecture Baseline Inventory & Final M2 Architecture
+# Repository Architecture Baseline Inventory
 
 ## 1. Purpose
 
-This document records the final architecture inventory of `area44-labs/vn-invest` following the completion of Milestone M2 (legacy architecture migration and `scripts/lib/*` removal).
+This document records the canonical architecture inventory of `area44-labs/vn-invest`.
 
 All legacy modules under `scripts/lib/*` have been fully migrated to their single authoritative canonical owners and deleted. The `scripts/lib/` directory has been removed completely from the repository.
 
@@ -352,12 +352,10 @@ The Python test suite in `scripts/tests/` uses native pytest (`uv run --frozen p
 
 ---
 
-# 10. M2 Completion Statement
+# 10. Architecture Status Summary
 
-Milestone M2 is **COMPLETE**:
-
-1. All legacy `scripts/lib/*` modules are migrated and deleted.
+1. Legacy `scripts/lib/*` modules are completely removed.
 2. The `scripts/lib` directory is removed.
 3. Every responsibility has exactly one canonical owner.
 4. Production code and test suites import strictly from canonical packages.
-5. All 908 pytest tests pass cleanly without errors or regressions.
+5. All backend pytest tests pass cleanly.

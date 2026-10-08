@@ -1,4 +1,4 @@
-"""Unit tests for VN Invest Signal Engine in scripts/lib/recommendation.py."""
+"""Unit tests for VN Invest Signal Engine in scripts/quant/recommendation.py."""
 
 import math
 from unittest.mock import patch
@@ -534,7 +534,7 @@ class TestVNInvestSignalEngine:
 
         Note on Pipeline Entry Point & Temporal Isolation Scope:
         The repository's current report generation pipeline (`run_pipeline` in `scripts/generate_report.py`
-        and `generate_recommendation` in `scripts/lib/recommendation.py`) evaluates the latest state of
+        and `generate_recommendation` in `scripts/quant/recommendation.py`) evaluates the latest state of
         supplied DataFrames without a native temporal `as_of` date cutoff parameter.
         Therefore, this regression test operates at the highest available module-level boundaries
         (`calculate_single_tf_indicators` and `generate_recommendation`).
@@ -666,7 +666,7 @@ class TestVNInvestSignalEngine:
         """Targeted temporal-causality regression test for divergence pivot confirmation.
 
         CONFIRMED TEMPORAL DEPENDENCY IN PIVOT DETECTION:
-        `detect_divergence()` in `scripts/lib/features.py` identifies local troughs and peaks
+        `detect_divergence()` in `scripts/quant/features.py` identifies local troughs and peaks
         using a 5-bar window check (`i - 2`, `i - 1`, `i`, `i + 1`, `i + 2`).
         Consequently, confirming a pivot at historical timestamp T requires two subsequent bars (`i + 1` and `i + 2`).
 
