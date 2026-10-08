@@ -448,7 +448,7 @@ class TestPipelineErrorAndFailureBehavior:
     def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
         self.sleep_patcher1.start()
         self.sleep_patcher2.start()
         self.sleep_patcher3.start()

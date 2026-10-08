@@ -21,6 +21,7 @@ from scripts.data.providers import (
 )
 from scripts.data_provider import (
     ProviderRateLimitError,
+    VnstockDataProvider,
     can_recover_rate_limit,
     increment_rate_limit_recovery_count,
     reset_circuit_breaker,
@@ -173,6 +174,60 @@ def acquire_raw_market_data(
     )
 
 
+def get_historical_data(
+    symbol: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    max_retries: int = 2,
+    use_cache_only: bool = False,
+    allow_synthetic: bool = False,
+    throttle_delay: float = 0.0,
+    max_rate_limit_retries: int = 3,
+    target_date: str | None = None,
+):
+    """Fetch real historical EOD OHLCV data for a given symbol via data boundary pipeline."""
+    from scripts.data.normalization import normalize_raw_market_data, normalize_symbol
+    from scripts.data.validation import validate_canonical_market_data
+
+    sym = normalize_symbol(symbol)
+    provider_inst = VnstockDataProvider()
+
+    payload = acquire_raw_market_data(
+        symbol=sym,
+        start_date=start_date,
+        end_date=end_date,
+        max_retries=max_retries,
+        throttle_delay=throttle_delay,
+        max_rate_limit_retries=max_rate_limit_retries,
+        target_date=target_date,
+        provider=VnstockMarketProvider(provider_instance=provider_inst),
+    )
+
+    if payload.source_tag in ("PROVIDER_FAILURE", "EXPLICITLY_INVALID") and (
+        payload.raw_df is None or payload.raw_df.empty
+    ):
+        return (
+            pd.DataFrame(),
+            payload.source_tag,
+            list(payload.warnings)
+            if payload.warnings
+            else [f"[{sym}] Failed to fetch historical data"],
+        )
+
+    canonical_data = normalize_raw_market_data(
+        payload=payload,
+        explicit_data_as_of=target_date,
+    )
+
+    validated_data = validate_canonical_market_data(canonical_data)
+
+    df_out = validated_data.to_df()
+    source_tag = validated_data.source_tag or payload.source_tag
+    issues = list(validated_data.data_quality.issues) if validated_data.data_quality else []
+
+    return df_out, source_tag, issues
+
+
 __all__ = [
     "AcquisitionError",
     "ExplicitlyInvalidDataError",
@@ -180,4 +235,5 @@ __all__ = [
     "MarketDataAcquirer",
     "RawMarketDataPayload",
     "acquire_raw_market_data",
+    "get_historical_data",
 ]

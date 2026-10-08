@@ -16,7 +16,7 @@ from scripts.generate_report import (
     main,
     validate_final_payload_integrity,
 )
-from scripts.lib.risk import normalize_universe_liquidity_scores
+from scripts.quant.risk import normalize_universe_liquidity_scores
 
 
 @pytest.mark.integration

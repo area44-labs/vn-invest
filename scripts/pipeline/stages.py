@@ -13,17 +13,14 @@ from scripts.artifacts import (
     load_history_index,
     publish_artifacts_atomically,
 )
+from scripts.backtest import _parse_canonical_date, get_as_of_dataset
 from scripts.data.acquisition import MarketDataAcquirer, RawMarketDataPayload
 from scripts.data.models import CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers import VnstockMarketProvider
-from scripts.data.validation import validate_canonical_market_data
+from scripts.data.validation import validate_canonical_market_data, validate_temporal_integrity
 from scripts.data_provider import ProviderRateLimitError
-from scripts.lib.backtest import _parse_canonical_date, get_as_of_dataset
-from scripts.lib.vietnam_market import (
-    UniverseProvider,
-    validate_temporal_integrity,
-)
+from scripts.domain.universe import UniverseProvider
 from scripts.monitoring import evaluate_production_monitoring
 from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
 from scripts.pipeline.context import PipelineContext

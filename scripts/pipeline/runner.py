@@ -5,8 +5,7 @@ import os
 import time
 from typing import Any
 
-from scripts.domain.universe import Universe
-from scripts.lib.vietnam_market import UniverseProvider
+from scripts.domain.universe import Universe, UniverseProvider
 from scripts.pipeline.constants import GENERATED_DIR
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.result import PipelineResult

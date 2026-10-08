@@ -55,7 +55,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from scripts.lib.backtest import (
+from scripts.backtest.engine import (
     DEFAULT_HORIZONS,
     ExecutionConfig,
     _parse_canonical_date,
@@ -65,12 +65,12 @@ from scripts.lib.backtest import (
     evaluate_forward_outcomes,
     get_as_of_dataset,
 )
-from scripts.lib.vietnam_market import get_clean_ohlcv_data
+from scripts.data.validation import get_clean_ohlcv_data
 from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.recommendation import (
-    generate_single_recommendation as generate_recommendation,
+    generate_single_recommendation,
 )
-from scripts.quant.regime import lib_detect_market_regime as detect_market_regime
+from scripts.quant.regime import detect_market_regime
 
 
 def _safe_float(val: Any) -> float | None:
@@ -474,7 +474,7 @@ def evaluate_portfolio_at_date(
         sec = item.get("sector", "")
         ex = item.get("exchange", "HOSE")
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol=sym,
             company_name=comp,
             sector=sec,

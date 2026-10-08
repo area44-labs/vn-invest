@@ -7,7 +7,7 @@ from typing import Any
 
 import jsonschema
 
-from scripts.lib.vietnam_market import validate_ohlcv_data
+from scripts.data.validation import validate_ohlcv_data
 from scripts.monitoring.metrics import normalize_market_payload
 from scripts.monitoring.models import (
     VALID_EXCLUSION_CATEGORIES,

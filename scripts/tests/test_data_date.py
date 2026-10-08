@@ -9,6 +9,10 @@ import jsonschema
 import pandas as pd
 import pytest
 
+from scripts.data.validation import (
+    extract_latest_trading_date,
+    validate_temporal_integrity,
+)
 from scripts.data_provider import VnstockDataProvider
 from scripts.generate_report import (
     load_schema,
@@ -16,11 +20,8 @@ from scripts.generate_report import (
     validate_final_payload_integrity,
 )
 from scripts.generate_report import main as generate_report_main
-from scripts.lib.recommendation import SIGNAL_MODEL_VERSION, generate_recommendation
-from scripts.lib.vietnam_market import (
-    extract_latest_trading_date,
-    validate_temporal_integrity,
-)
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.signal import SIGNAL_MODEL_VERSION
 
 SINGLE_STOCK_UNIVERSE = [
     {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Technology", "exchange": "HOSE"},
@@ -34,7 +35,7 @@ class TestDataDateSemantics:
     def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_patcher = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SINGLE_STOCK_UNIVERSE,
@@ -262,7 +263,7 @@ class TestDataDateSemantics:
             }
         )
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="TEST",
             company_name="Test Stock",
             sector="Tech",
@@ -290,7 +291,7 @@ class TestTemporalIntegrityValidation:
     def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_patcher = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SINGLE_STOCK_UNIVERSE,
@@ -488,7 +489,7 @@ class TestReportProvenanceMetadata:
     def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_patcher = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SINGLE_STOCK_UNIVERSE,
@@ -644,7 +645,7 @@ class TestProductionDataFreshness:
     def setup_method(self):
         self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_patcher = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SINGLE_STOCK_UNIVERSE,

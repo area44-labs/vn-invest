@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from vnai.beam.quota import RateLimitExceeded
 
-from scripts.data.acquisition import InvalidSymbolError
+from scripts.data.acquisition import InvalidSymbolError, get_historical_data
 from scripts.data_provider import (
     CanonicalOHLCVError,
     ProviderRateLimitError,
@@ -26,7 +26,6 @@ from scripts.data_provider import (
     trip_circuit_breaker,
     validate_canonical_ohlcv,
 )
-from scripts.lib.vietnam_market import get_historical_data
 
 
 def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
@@ -786,7 +785,7 @@ class TestRateLimitRecoveryAndPipelineReliability:
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_p = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
@@ -801,7 +800,7 @@ class TestRateLimitRecoveryAndPipelineReliability:
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    @patch("scripts.lib.vietnam_market.time.sleep")
+    @patch("scripts.pipeline.stages.time.sleep")
     @patch("scripts.data_provider.VnstockDataProvider.fetch_ohlcv")
     def test_run_pipeline_rate_limit_recovery_and_report_generation(self, mock_fetch, mock_sleep):
         """Exercises actual run_pipeline(update_data=True) flow:
@@ -956,7 +955,7 @@ class TestUniverseCompletenessValidation:
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_p = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
@@ -1151,7 +1150,7 @@ class TestUniverseCompletenessValidation:
         missing_col_df = valid_df.drop(columns=["close"])
         missing_date_df = valid_df.drop(columns=["time"])
 
-        with patch("scripts.lib.vietnam_market.VnstockDataProvider") as mock_prov_cls:
+        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
             mock_prov = mock_prov_cls.return_value
 
             # 1. Valid data -> REAL_DATA
@@ -1587,7 +1586,7 @@ class TestReportGenerationValidationAndArtifactPreservation:
         reset_rate_limit_recovery_count()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_p = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
@@ -1932,7 +1931,7 @@ class TestPR155ProviderReliabilityAndPerformance:
         VnstockDataProvider.reset_global_call_history()
         self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
         self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.lib.vietnam_market.time.sleep")
+        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
         self.univ_p = patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,

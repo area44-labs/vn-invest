@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.lib.regime import detect_market_regime
+from scripts.quant.regime import detect_market_regime
 
 
 @pytest.mark.unit
@@ -76,12 +76,12 @@ class TestMarketRegime:
                     assert not (math.isinf(v)), f"Metric {k} is Inf"
 
     def test_regime_module_independent_of_backtest(self):
-        """Verify scripts.lib.regime can be imported without importing scripts.lib.backtest."""
+        """Verify scripts.quant.regime can be imported without importing scripts.backtest.engine."""
         import sys
 
         # Remove backtest from sys.modules if present to test independent import
-        sys.modules.pop("scripts.lib.backtest", None)
-        import scripts.lib.regime as regime_mod
+        sys.modules.pop("scripts.backtest.engine", None)
+        import scripts.quant.regime as regime_mod
 
         assert hasattr(regime_mod, "detect_market_regime")
         assert "RegimeObservation" not in regime_mod.__all__

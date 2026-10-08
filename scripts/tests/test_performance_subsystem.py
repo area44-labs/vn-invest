@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from scripts.lib.recommendation import generate_recommendation
 from scripts.performance.budget import evaluate_provider_budget
 from scripts.performance.provider_metrics import (
     aggregate_provider_performance,
@@ -21,6 +20,7 @@ from scripts.performance.regression import evaluate_performance_regression
 from scripts.performance.stage_metrics import StageMetricsCollector
 from scripts.performance.tracker import PerformanceTracker, create_default_performance_payload
 from scripts.pipeline.validation import validate_performance_payload
+from scripts.quant.recommendation import generate_single_recommendation
 from scripts.quant.regime import detect_market_regime
 
 
@@ -374,24 +374,24 @@ class TestQuantitativeOutputInvariance:
             }
         )
 
-        rec_baseline = generate_recommendation(
+        rec_baseline = generate_single_recommendation(
             "FPT",
             "FPT Corp",
             "Technology",
             "HOSE",
             df_stock,
-            res_baseline.market_regime,
+            res_baseline if isinstance(res_baseline, dict) else res_baseline.market_regime,
             df_vnindex=df_index,
         )
 
         with tracker.measure_stage("recommendation_calculation"):
-            rec_instrumented = generate_recommendation(
+            rec_instrumented = generate_single_recommendation(
                 "FPT",
                 "FPT Corp",
                 "Technology",
                 "HOSE",
                 df_stock,
-                res_baseline.market_regime,
+                res_baseline if isinstance(res_baseline, dict) else res_baseline.market_regime,
                 df_vnindex=df_index,
             )
 

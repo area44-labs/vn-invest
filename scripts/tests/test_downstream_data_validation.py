@@ -18,9 +18,9 @@ import pandas as pd
 import pytest
 
 from scripts.generate_report import generate_historical_report
-from scripts.lib.recommendation import generate_recommendation
-from scripts.lib.regime import detect_market_regime
-from scripts.lib.risk import calculate_t25_risk_metrics, normalize_universe_liquidity_scores
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import calculate_t25_risk_metrics, normalize_universe_liquidity_scores
 
 
 def create_mock_ohlcv(
@@ -66,7 +66,7 @@ class TestDownstreamDataValidation:
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.80)
         assert regime["regime"] in ["STRONG_BULL", "BULL", "DEFENSIVE", "NEUTRAL"]
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="AAA",
             company_name="Company AAA",
             sector="Sector A",
@@ -107,7 +107,7 @@ class TestDownstreamDataValidation:
         df_vnindex = create_mock_ohlcv(length=30)
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
 
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="BBB",
             company_name="Company BBB",
             sector="Sector B",
@@ -163,7 +163,7 @@ class TestDownstreamDataValidation:
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
 
         # Passing empty DataFrame representing temporal-invalid replacement
-        rec = generate_recommendation(
+        rec = generate_single_recommendation(
             symbol="CCC",
             company_name="Comp C",
             sector="Sec C",
@@ -224,7 +224,7 @@ class TestDownstreamDataValidation:
         df_corrupt = create_mock_ohlcv(length=30, start_price=10.0)
         df_corrupt.loc[5, "close"] = -100.0  # Invalid non-positive price
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
-        rec_corrupt = generate_recommendation(
+        rec_corrupt = generate_single_recommendation(
             symbol="CORRUPT",
             company_name="Corrupt Corp",
             sector="Sec",
@@ -275,10 +275,12 @@ class TestDownstreamDataValidation:
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
 
         recs = [
-            generate_recommendation("S1", "C1", "Sec", "HOSE", df1, regime, df_vnindex),
-            generate_recommendation("S2", "C2", "Sec", "HOSE", df2, regime, df_vnindex),
-            generate_recommendation("S3", "C3", "Sec", "HOSE", df3, regime, df_vnindex),
-            generate_recommendation("S4", "C4", "Sec", "HOSE", df_invalid, regime, df_vnindex),
+            generate_single_recommendation("S1", "C1", "Sec", "HOSE", df1, regime, df_vnindex),
+            generate_single_recommendation("S2", "C2", "Sec", "HOSE", df2, regime, df_vnindex),
+            generate_single_recommendation("S3", "C3", "Sec", "HOSE", df3, regime, df_vnindex),
+            generate_single_recommendation(
+                "S4", "C4", "Sec", "HOSE", df_invalid, regime, df_vnindex
+            ),
         ]
 
         norm_recs = normalize_universe_liquidity_scores(recs, market_regime=regime["regime"])

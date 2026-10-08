@@ -37,13 +37,13 @@ def _safe_breadth_ratio(val: float | None) -> float | None:
         return None
 
 
-def lib_detect_market_regime(
+def _detect_market_regime(
     df_vnindex: pd.DataFrame | None = None,
     df_vn30: pd.DataFrame | None = None,
     breadth_ratio: float | None = None,
     config: QuantConfig = DEFAULT_QUANT_CONFIG,
 ) -> dict:
-    """Evaluate multi-factor Vietnam market regime.
+    """Internal calculation helper for multi-factor Vietnam market regime evaluation.
 
     Validates benchmark DataFrames and breadth_ratio safely.
     Returns dict containing regime, regime_score, confidence, and metrics.
@@ -219,37 +219,43 @@ def detect_market_regime(
     breadth_ratio: float | None = None,
     detector: Callable[..., dict[str, Any]] | None = None,
     config: QuantConfig = DEFAULT_QUANT_CONFIG,
-) -> RegimeResult:
+    df_vnindex: pd.DataFrame | None = None,
+) -> RegimeResult | dict:
     """Detect market regime given index datasets and market breadth ratio.
 
-    Accepts RegimeInput or raw position arguments for backward compatibility.
-    Returns RegimeResult containing market_regime dictionary.
+    Accepts RegimeInput or raw position/keyword arguments.
+    Returns RegimeResult when passed RegimeInput, or dict when passed raw arguments.
     """
     if isinstance(input_data, RegimeInput):
-        df_vnindex = input_data.df_vnindex
+        df_vnindex_val = input_data.df_vnindex
         df_vn30_val = input_data.df_vn30
         breadth_val = input_data.breadth_ratio
         cfg = input_data.config
+        is_typed = True
     else:
-        df_vnindex = input_data
+        df_vnindex_val = input_data if input_data is not None else df_vnindex
         df_vn30_val = df_vn30
         breadth_val = breadth_ratio
         cfg = config
+        is_typed = False
 
     if detector is not None:
         regime_dict = detector(
-            df_vnindex=df_vnindex,
+            df_vnindex=df_vnindex_val,
             df_vn30=df_vn30_val,
             breadth_ratio=breadth_val,
         )
     else:
-        regime_dict = lib_detect_market_regime(
-            df_vnindex=df_vnindex,
+        regime_dict = _detect_market_regime(
+            df_vnindex=df_vnindex_val,
             df_vn30=df_vn30_val,
             breadth_ratio=breadth_val,
             config=cfg,
         )
-    return RegimeResult(market_regime=regime_dict)
+
+    if is_typed:
+        return RegimeResult(market_regime=regime_dict)
+    return regime_dict
 
 
 __all__ = [
