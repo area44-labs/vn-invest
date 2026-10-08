@@ -328,14 +328,15 @@ def validate_canonical_ohlcv(df: pd.DataFrame) -> bool:
     if (vol_s < 0).any():
         raise CanonicalOHLCVError("Negative volume detected in OHLCV volume column.")
 
-    # Invalid OHLC relationship check
-    # high < low, open > high, open < low, close > high, close < low
+    # Invalid OHLC relationship check with explicit floating-point rounding tolerance (1e-5)
+    # Rejects genuine violations while permitting minor float rounding artifacts from unit scaling
+    tol = 1e-5
     invalid_ohlc = (
-        (high_s < low_s)
-        | (open_s > high_s)
-        | (open_s < low_s)
-        | (close_s > high_s)
-        | (close_s < low_s)
+        ((low_s - high_s) > tol)
+        | ((open_s - high_s) > tol)
+        | ((low_s - open_s) > tol)
+        | ((close_s - high_s) > tol)
+        | ((low_s - close_s) > tol)
     )
     if invalid_ohlc.any():
         raise CanonicalOHLCVError(
@@ -480,15 +481,7 @@ class VnstockDataProvider:
                             for col in price_cols:
                                 df_norm[col] = pd.to_numeric(df_norm[col], errors="coerce") * 1000.0
 
-                        # Adjust high and low bounds to prevent minor provider rounding discrepancies
-                        ohlc_cols = [
-                            c for c in ["open", "high", "low", "close"] if c in df_norm.columns
-                        ]
-                        if len(ohlc_cols) == 4:
-                            df_norm["high"] = df_norm[ohlc_cols].max(axis=1)
-                            df_norm["low"] = df_norm[ohlc_cols].min(axis=1)
-
-                        # Run canonical validation
+                        # Run canonical validation (without mutating raw high/low values)
                         validate_canonical_ohlcv(df_norm)
 
                         self._record_timing(

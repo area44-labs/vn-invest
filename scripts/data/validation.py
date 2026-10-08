@@ -198,7 +198,14 @@ def validate_ohlcv_data(df: pd.DataFrame, symbol: str | None = None) -> dict:
         row_invalid_mask |= neg_vol_mask
 
     o, h, low_s, c = numeric_df["open"], numeric_df["high"], numeric_df["low"], numeric_df["close"]
-    ohlc_conflict_mask = (h < low_s) | (h < o) | (h < c) | (low_s > o) | (low_s > c)
+    tol = 1e-5
+    ohlc_conflict_mask = (
+        ((low_s - h) > tol)
+        | ((o - h) > tol)
+        | ((low_s - o) > tol)
+        | ((c - h) > tol)
+        | ((low_s - c) > tol)
+    )
     if ohlc_conflict_mask.any():
         issues.append("invalid_ohlc_relationship")
         row_invalid_mask |= ohlc_conflict_mask
@@ -472,12 +479,13 @@ class CanonicalMarketValidator:
             if (vol_s < 0).any():
                 issues.append("negative_volume")
 
+            tol = 1e-5
             invalid_ohlc = (
-                (high_s < low_s)
-                | (open_s > high_s)
-                | (open_s < low_s)
-                | (close_s > high_s)
-                | (close_s < low_s)
+                ((low_s - high_s) > tol)
+                | ((open_s - high_s) > tol)
+                | ((low_s - open_s) > tol)
+                | ((close_s - high_s) > tol)
+                | ((low_s - close_s) > tol)
             )
             if invalid_ohlc.any():
                 issues.append("invalid_ohlc_relationship")

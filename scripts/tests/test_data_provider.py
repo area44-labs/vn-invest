@@ -166,6 +166,30 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Negative volume detected" in str(ctx.value)
 
+    def test_14_rounding_discrepancy_passes_without_mutation(self):
+        """14. Minor rounding discrepancy passes validation without modifying raw provider high/low values."""
+        df = make_valid_canonical_df(20)
+        # Introduce a 1e-6 rounding discrepancy (open = 50000.000001, high = 50000.0)
+        df.loc[5, "open"] = 50000.000001
+        df.loc[5, "high"] = 50000.0
+        df.loc[5, "low"] = 49000.0
+        df.loc[5, "close"] = 49500.0
+
+        # High value should remain 50000.0 (not mutated)
+        orig_high = df.loc[5, "high"]
+        assert validate_canonical_ohlcv(df)
+        assert df.loc[5, "high"] == orig_high
+
+    def test_15_genuine_ohlc_violation_exceeding_tolerance_fails(self):
+        """15. Genuine OHLC violation exceeding floating-point tolerance fails validation."""
+        df = make_valid_canonical_df(20)
+        # Introduce a real violation exceeding 1e-5 tolerance (open = 50001.0, high = 50000.0)
+        df.loc[5, "open"] = 50001.0
+        df.loc[5, "high"] = 50000.0
+        with pytest.raises(CanonicalOHLCVError) as ctx:
+            validate_canonical_ohlcv(df)
+        assert "Invalid OHLC relationship" in str(ctx.value)
+
 
 @pytest.mark.unit
 class TestVnstockProviderBoundary:
