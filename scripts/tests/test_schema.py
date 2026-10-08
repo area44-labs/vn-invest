@@ -135,6 +135,12 @@ class TestVersionedSchemaRegistry:
                 "calls_by_source": {"vnstock": 1},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 1,
+                "stock_request_count": 0,
+                "total_request_count": 1,
+                "requested_symbols": ["VNINDEX"],
+            },
         }
 
         # Valid performance artifact passes validation
@@ -176,6 +182,12 @@ class TestVersionedSchemaRegistry:
                 "calls_by_source": {"vnstock": 1},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 1,
+                "stock_request_count": 0,
+                "total_request_count": 1,
+                "requested_symbols": ["VNINDEX"],
+            },
         }
 
         # Valid 2.0 performance payload passes
@@ -312,6 +324,12 @@ class TestVersionedSchemaRegistry:
                 "calls_by_source": {"vnstock": 1},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 1,
+                "stock_request_count": 0,
+                "total_request_count": 1,
+                "requested_symbols": ["VNINDEX"],
+            },
         }
 
         validate_performance_payload(valid_perf)
@@ -332,6 +350,12 @@ class TestVersionedSchemaRegistry:
                 "calls_by_source": {"vnstock": 1},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 1,
+                "stock_request_count": 0,
+                "total_request_count": 1,
+                "requested_symbols": ["VNINDEX"],
+            },
         }
 
         valid_rec = {
@@ -425,6 +449,12 @@ class TestVersionedSchemaRegistry:
                 "calls_by_source": {"vnstock": 1},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 1,
+                "stock_request_count": 0,
+                "total_request_count": 1,
+                "requested_symbols": ["VNINDEX"],
+            },
         }
 
         valid_rec = {

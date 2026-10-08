@@ -54,6 +54,12 @@ def create_default_performance_payload() -> dict[str, Any]:
             "calls_by_source": {},
         },
         "duplicate_operations": [],
+        "workload": {
+            "benchmark_request_count": 0,
+            "stock_request_count": 0,
+            "total_request_count": 0,
+            "requested_symbols": [],
+        },
     }
     payload["regression"] = evaluate_performance_regression(payload)
     payload["budget"] = evaluate_provider_budget(payload)

@@ -258,14 +258,16 @@ class TestPerformanceRegression:
         assert res["overall_status"] == "FAILED"
 
     def test_update_data_true_selects_live_baseline(self):
-        """update_data=True -> chọn live baseline động dựa trên workload thực tế trong performance_data."""
+        """update_data=True -> chọn live baseline động dựa trên workload metadata trong performance_data."""
         payload = {
-            "provider": {"total_calls": 46},
-            "duplicate_operations": [
-                {"symbol": "VNINDEX", "request_count": 1},
-                {"symbol": "VN30", "request_count": 1},
-            ]
-            + [{"symbol": f"SYM_{i}", "request_count": 1} for i in range(44)],
+            "provider": {"total_calls": 120},  # total calls != logical workload
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 44,
+                "total_request_count": 46,
+                "requested_symbols": ["VNINDEX", "VN30"] + [f"SYM_{i}" for i in range(44)],
+            },
+            "duplicate_operations": [],
             "stages": [
                 {"stage": "benchmark_fetch", "elapsed_seconds": 8.0, "status": "SUCCESS"},
                 {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
@@ -284,8 +286,43 @@ class TestPerformanceRegression:
                 {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
             ],
         }
-        with pytest.raises(ValueError, match="Missing required workload metadata"):
+        with pytest.raises(ValueError, match="Missing required canonical 'workload' metadata"):
             evaluate_performance_regression(payload, is_update_mode=True)
+
+    def test_regression_does_not_depend_on_provider_total_calls(self):
+        """Regression calculation strictly depends on workload metadata, independent of provider.total_calls."""
+        payload_few_calls = {
+            "provider": {"total_calls": 2},
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 10,
+                "total_request_count": 12,
+            },
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"},
+            ],
+        }
+        payload_many_calls = {
+            "provider": {"total_calls": 999},  # Many retries / provider calls
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 10,
+                "total_request_count": 12,
+            },
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"},
+            ],
+        }
+        res_few = evaluate_performance_regression(payload_few_calls, is_update_mode=True)
+        res_many = evaluate_performance_regression(payload_many_calls, is_update_mode=True)
+
+        assert res_few["overall_status"] == res_many["overall_status"]
+        assert (
+            res_few["stage_evaluations"][0]["baseline_seconds"]
+            == res_many["stage_evaluations"][0]["baseline_seconds"]
+        )
 
     def test_update_data_false_selects_offline_baseline(self):
         """update_data=False -> chọn offline baseline."""
@@ -337,10 +374,17 @@ class TestPerformanceTrackerSubsystem:
     def setup_method(self):
         self.tracker = PerformanceTracker()
 
-    def test_tracker_record_request_and_stages(self):
+    def test_tracker_record_request_and_workload_metadata(self):
+        self.tracker.record_request("VNINDEX")
+        self.tracker.record_request("VN30")
         self.tracker.record_request("fpt")
-        self.tracker.record_request("FPT")
-        assert self.tracker.symbol_requests["FPT"] == 2
+        self.tracker.record_request("vnm")
+
+        workload = self.tracker.get_workload_metadata()
+        assert workload["benchmark_request_count"] == 2
+        assert workload["stock_request_count"] == 2
+        assert workload["total_request_count"] == 4
+        assert workload["requested_symbols"] == ["FPT", "VN30", "VNINDEX", "VNM"]
 
         with self.tracker.measure_stage("benchmark_fetch"):
             pass
@@ -351,6 +395,31 @@ class TestPerformanceTrackerSubsystem:
         assert len(stages) == 2
         assert stages[0]["stage"] == "benchmark_fetch"
         assert stages[1]["stage"] == "stock_fetch"
+
+    def test_retry_and_provider_calls_do_not_change_logical_workload(self):
+        """Multiple provider calls or retries for the same symbol do not inflate logical workload."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        workload_before = tracker.get_workload_metadata()
+        assert workload_before["total_request_count"] == 3
+
+        # Simulate provider retries (call_history with 10 API calls for FPT)
+        call_history = [{"symbol": "FPT", "success": False, "retry_count": i} for i in range(10)]
+        payload = tracker.get_performance_payload(pipeline_elapsed=1.0, call_history=call_history)
+
+        assert payload["provider"]["total_calls"] == 10
+        assert payload["workload"]["benchmark_request_count"] == 2
+        assert payload["workload"]["stock_request_count"] == 1
+        assert payload["workload"]["total_request_count"] == 3
+
+    def test_update_mode_fails_closed_on_workload_error(self):
+        """get_performance_payload in update mode does NOT swallow workload errors silently."""
+        tracker = PerformanceTracker()  # No requests recorded
+        with pytest.raises(ValueError, match="Insufficient workload request counts"):
+            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")

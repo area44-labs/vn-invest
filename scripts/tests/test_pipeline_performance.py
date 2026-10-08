@@ -74,6 +74,12 @@ def make_valid_performance_payload():
                 "retry_count": 0,
             }
         ],
+        "workload": {
+            "benchmark_request_count": 1,
+            "stock_request_count": 1,
+            "total_request_count": 2,
+            "requested_symbols": ["VNINDEX", "FPT"],
+        },
     }
 
 
@@ -928,6 +934,9 @@ class TestPerformanceRegressionAndBudget:
             )
             context.set_universe(u)
             context.processed_symbols = {"VNINDEX", "VN30", "FPT"}
+            if context.tracker:
+                for sym in context.processed_symbols:
+                    context.tracker.record_request(sym)
             if isinstance(audit, dict) and "performance" in audit:
                 context.performance_data = audit["performance"]
             context.recommendations_payload = payload
@@ -1357,32 +1366,13 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.3333,
                     "calls_by_source": {"kbs": 3},
                 },
-                "duplicate_operations": [
-                    {
-                        "symbol": "VNINDEX",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "VN30",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "FPT",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                ],
+                "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1437,6 +1427,7 @@ class TestPerformanceRegressionAndBudget:
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
@@ -1454,32 +1445,13 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.3333,
                     "calls_by_source": {"kbs": 3},
                 },
-                "duplicate_operations": [
-                    {
-                        "symbol": "VNINDEX",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "VN30",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "FPT",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                ],
+                "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1532,6 +1504,7 @@ class TestPerformanceRegressionAndBudget:
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
@@ -1550,6 +1523,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1635,32 +1614,13 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.05,
                     "calls_by_source": {"kbs": 200},
                 },
-                "duplicate_operations": [
-                    {
-                        "symbol": "VNINDEX",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "VN30",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                    {
-                        "symbol": "FPT",
-                        "request_count": 1,
-                        "provider_call_count": 1,
-                        "successful_calls": 1,
-                        "failed_calls": 0,
-                        "retry_count": 0,
-                    },
-                ],
+                "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1735,6 +1695,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 

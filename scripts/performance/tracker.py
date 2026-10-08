@@ -37,6 +37,12 @@ def create_default_performance_payload() -> dict[str, Any]:
             "calls_by_source": {},
         },
         "duplicate_operations": [],
+        "workload": {
+            "benchmark_request_count": 0,
+            "stock_request_count": 0,
+            "total_request_count": 0,
+            "requested_symbols": [],
+        },
     }
     payload["regression"] = evaluate_performance_regression(payload)
     payload["budget"] = evaluate_provider_budget(payload)
@@ -62,6 +68,25 @@ class PerformanceTracker:
         if symbol:
             sym_u = str(symbol).strip().upper()
             self.symbol_requests[sym_u] = self.symbol_requests.get(sym_u, 0) + 1
+
+    def get_workload_metadata(self) -> dict[str, Any]:
+        """Construct canonical workload metadata from logical pipeline requests."""
+        benchmarks = {"VNINDEX", "VN30"}
+        requested_symbols = sorted(list(self.symbol_requests.keys()))
+
+        n_benchmarks = sum(
+            count for sym, count in self.symbol_requests.items() if sym in benchmarks
+        )
+        n_stocks = sum(
+            count for sym, count in self.symbol_requests.items() if sym not in benchmarks
+        )
+
+        return {
+            "benchmark_request_count": n_benchmarks,
+            "stock_request_count": n_stocks,
+            "total_request_count": n_benchmarks + n_stocks,
+            "requested_symbols": requested_symbols,
+        }
 
     def record_stage(
         self, stage: str, elapsed_seconds: float, status: str = "SUCCESS"
@@ -105,11 +130,14 @@ class PerformanceTracker:
 
             stages_list.extend(self.stage_collector.get_stages())
 
+            workload_meta = self.get_workload_metadata()
+
             payload: dict[str, Any] = {
                 "schema_version": "2.0",
                 "stages": stages_list,
                 "provider": provider_summary,
                 "duplicate_operations": duplicates,
+                "workload": workload_meta,
             }
 
             payload["regression"] = evaluate_performance_regression(
@@ -122,6 +150,12 @@ class PerformanceTracker:
             validate_performance_payload(payload)
             return payload
         except Exception as exc:  # noqa: BLE001
+            if update_data:
+                logger.error(
+                    "Critical performance instrumentation/regression error in update mode: %s",
+                    exc,
+                )
+                raise
             logger.warning("Instrumentation error during get_performance_payload: %s", exc)
             fallback = create_default_performance_payload()
             try:
