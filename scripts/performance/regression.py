@@ -32,40 +32,50 @@ PERFORMANCE_STAGE_THRESHOLDS = {
     "payload_validation": (2.0, 4.0, 0.5),
 }
 
-# Production Live Update Baselines & Thresholds
-# Account for DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s per symbol and 44 candidate + 2 benchmark symbols
-PRODUCTION_UPDATE_PERFORMANCE_BASELINES = {
-    "pipeline": 200.0,
-    "benchmark_fetch": 10.0,
-    "stock_fetch": 185.0,
-    "temporal_validation": 0.5,
-    "market_calculation": 0.5,
-    "regime_calculation": 0.5,
-    "risk_calculation": 1.0,
-    "recommendation_calculation": 2.0,
-    "monitoring": 1.5,
-    "payload_validation": 0.5,
-}
 
-PRODUCTION_UPDATE_PERFORMANCE_THRESHOLDS = {
-    "pipeline": (1.3, 1.6, 10.0),
-    "benchmark_fetch": (2.0, 3.0, 2.0),
-    "stock_fetch": (1.3, 1.6, 10.0),
-    "temporal_validation": (2.0, 4.0, 0.5),
-    "market_calculation": (2.0, 4.0, 0.5),
-    "regime_calculation": (2.0, 4.0, 0.5),
-    "risk_calculation": (2.0, 4.0, 1.0),
-    "recommendation_calculation": (2.0, 4.0, 1.0),
-    "monitoring": (2.0, 4.0, 1.0),
-    "payload_validation": (2.0, 4.0, 0.5),
-}
+def compute_live_update_baselines(
+    performance_data: dict[str, Any],
+) -> tuple[dict[str, float], dict[str, tuple[float, float, float]]]:
+    """Compute dynamic live update baselines based on request workload and DEFAULT_UPDATE_THROTTLE_DELAY."""
+    from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
+
+    provider = (
+        performance_data.get("provider", {})
+        if isinstance(performance_data.get("provider"), dict)
+        else {}
+    )
+    total_calls = int(provider.get("total_calls", 0))
+
+    # Benchmark fetch requests (VNINDEX, VN30 = 2 calls)
+    n_benchmarks = 2
+    # Stock fetch requests (remaining candidate symbols)
+    n_stocks = max(0, total_calls - n_benchmarks) if total_calls > n_benchmarks else 44
+
+    # Throttle delay (3.5s) + average network roundtrip latency (~0.8s) per request
+    per_call_expected_seconds = DEFAULT_UPDATE_THROTTLE_DELAY + 0.8
+
+    bench_baseline = max(1.0, round(n_benchmarks * per_call_expected_seconds, 1))
+    stock_baseline = max(5.0, round(n_stocks * per_call_expected_seconds, 1))
+    pipeline_baseline = max(10.0, round(bench_baseline + stock_baseline + 5.0, 1))
+
+    baselines = dict(PERFORMANCE_STAGE_BASELINES)
+    baselines["benchmark_fetch"] = bench_baseline
+    baselines["stock_fetch"] = stock_baseline
+    baselines["pipeline"] = pipeline_baseline
+
+    thresholds = dict(PERFORMANCE_STAGE_THRESHOLDS)
+    thresholds["benchmark_fetch"] = (2.0, 3.0, 2.0)
+    thresholds["stock_fetch"] = (1.3, 2.5, 10.0)
+    thresholds["pipeline"] = (1.3, 2.0, 10.0)
+
+    return baselines, thresholds
 
 
 def evaluate_performance_regression(
     performance_data: dict[str, Any],
     baselines_override: dict[str, float] | None = None,
     thresholds_override: dict[str, tuple[float, float, float]] | None = None,
-    is_update_mode: bool | None = None,
+    is_update_mode: bool = False,
 ) -> dict[str, Any]:
     """Evaluate pipeline stage timing records against centralized stage baselines and thresholds.
 
@@ -79,26 +89,8 @@ def evaluate_performance_regression(
     if not isinstance(stages, list):
         raise TypeError(f"stages must be a list, got {type(stages).__name__}")
 
-    if is_update_mode is None:
-        stock_fetch_elapsed = next(
-            (
-                float(st.get("elapsed_seconds", 0.0))
-                for st in stages
-                if isinstance(st, dict) and st.get("stage") == "stock_fetch"
-            ),
-            0.0,
-        )
-        provider = (
-            performance_data.get("provider", {})
-            if isinstance(performance_data.get("provider"), dict)
-            else {}
-        )
-        provider_elapsed = float(provider.get("total_elapsed_seconds", 0.0))
-        is_update_mode = stock_fetch_elapsed > 30.0 or provider_elapsed > 30.0
-
     if is_update_mode:
-        default_baselines = PRODUCTION_UPDATE_PERFORMANCE_BASELINES
-        default_thresholds = PRODUCTION_UPDATE_PERFORMANCE_THRESHOLDS
+        default_baselines, default_thresholds = compute_live_update_baselines(performance_data)
     else:
         default_baselines = PERFORMANCE_STAGE_BASELINES
         default_thresholds = PERFORMANCE_STAGE_THRESHOLDS

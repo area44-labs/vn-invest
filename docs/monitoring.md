@@ -81,21 +81,30 @@ To prevent corrupted or partial historical runs from polluting drift calculation
 ### 4.3 Regime-Driven Action Shift vs. Model Drift
 
 - **Extreme Market Regime (PANIC)**: When market regime is detected as `PANIC`, the signal engine (`scripts/quant/signal.py`) enforces action `AVOID` across all candidate stock recommendations.
-- **Drift Evaluation Handling**: When `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, `drift_action_distribution` classifies the shift as a valid, expected regime-driven outcome (`PASS`) with an explicit diagnostic message.
-- **Fail-Closed Guarantee**: Action distribution shifts that occur without a valid `PANIC` regime explanation continue to fail closed (`FAIL`) if they exceed configured thresholds (`DRIFT_THRESHOLD_ACTION_DISTRIBUTION`).
+- **Strict Verification Rules**: `drift_action_distribution` verifies that `market_regime == "PANIC"`, `action_proportions["AVOID"] == 1.0`, summary `avoid_count` equals `total_scanned` (with zero buy/watch/hold/sell counts), and every individual recommendation action is `AVOID`.
+- **Drift Evaluation Handling**: Once strictly verified as a valid result of signal/risk rules under `PANIC`, `drift_action_distribution` classifies the shift as `PASS` with explicit diagnostic details.
+- **Fail-Closed Guarantee**: Non-PANIC reports with 100% AVOID or action distribution shifts without valid regime justification continue to fail closed (`FAIL`) if they exceed configured thresholds (`DRIFT_THRESHOLD_ACTION_DISTRIBUTION`).
 
 ---
 
 ## 5. Performance Regression & Production Update Baselines (`scripts/performance/regression.py`)
 
-Performance regression monitoring separates baselines and thresholds for live `--update` mode from offline/test environments:
+Performance regression monitoring uses explicit mode selection (`update_data=True` vs `update_data=False`) to evaluate stage execution runtimes:
 
-- **Offline / Test Mode (`PERFORMANCE_STAGE_BASELINES`)**: Assumes fast cached or local execution (e.g. `pipeline` baseline 10.0s, `stock_fetch` baseline 5.0s, `benchmark_fetch` baseline 1.0s).
-- **Live Production Update Mode (`PRODUCTION_UPDATE_PERFORMANCE_BASELINES`)**: Accounts for mandatory request pacing (`DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s` per call) across benchmark symbols (2) and candidate stocks (44):
-  - `stock_fetch` baseline: 185.0s (Failed threshold: 300.0s)
-  - `benchmark_fetch` baseline: 10.0s (Failed threshold: 30.0s)
-  - `pipeline` total baseline: 200.0s (Failed threshold: 320.0s)
-- **Auto-Detection**: Automatically detects live throttled update runs when stage/provider duration exceeds 30 seconds or when `update_data=True` is passed from pipeline stages.
+- **Offline / Test Mode (`update_data=False`)**: Evaluates strictly against static offline/test baselines (`PERFORMANCE_STAGE_BASELINES`, e.g. `pipeline` 10.0s, `stock_fetch` 5.0s, `benchmark_fetch` 1.0s). Large elapsed times under `update_data=False` will fail closed against offline thresholds.
+- **Live Production Update Mode (`update_data=True`)**: Computes dynamic live update baselines based on actual request workload ($N_{benchmarks}$, $N_{stocks}$) and `DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s` per request plus network latency (~0.8s):
+  - `benchmark_fetch` baseline: $N_{benchmarks} \times (3.5 + 0.8)\text{s}$ (e.g. 8.6s for 2 benchmarks)
+  - `stock_fetch` baseline: $N_{stocks} \times (3.5 + 0.8)\text{s}$ (e.g. 189.2s for 44 stocks)
+  - `pipeline` total baseline: $B_{bench} + B_{stock} + 5.0\text{s}$
+- **Explicit Mode Propagation**: `update_data` is passed explicitly from `PipelineContext` through `PerformanceStage` and `PerformanceTracker` to `evaluate_performance_regression()`.
+
+---
+
+## 6. Post-Publish History Cleanup (`scripts/pipeline/stages.py`)
+
+- **Trigger Condition**: In live production update mode (`update_data=True`), after `ArtifactPublisher.publish(...)` completes successfully and all artifacts pass validation, old historical report files in `generated/history/*.json` are cleaned up.
+- **Cleanup Actions**: Retains current day's report (`generated/history/YYYY-MM-DD.json`), deletes older historical JSON reports, and resets `generated/history/index.json` to contain only the current report date.
+- **Fail-Closed Protection**: If the pipeline or monitoring checks fail prior to artifact publishing, no history files are deleted or modified.
 
 ---
 

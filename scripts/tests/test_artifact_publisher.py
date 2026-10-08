@@ -356,6 +356,97 @@ class TestArtifactPublisherSuite:
         )
         assert os.path.exists(os.path.join(self.target_dir, "test.json"))
 
+    def test_post_publish_history_cleanup_in_update_mode(self):
+        """Verify ArtifactPublishingStage in update_data=True mode cleans up old history files and updates index.json after successful publish."""
+        hist_dir = os.path.join(self.target_dir, "history")
+        os.makedirs(hist_dir, exist_ok=True)
+        with open(os.path.join(hist_dir, "2026-03-30.json"), "w", encoding="utf-8") as f:
+            f.write('{"old": 1}\n')
+        with open(os.path.join(hist_dir, "2026-03-29.json"), "w", encoding="utf-8") as f:
+            f.write('{"old": 2}\n')
+        with open(os.path.join(hist_dir, "index.json"), "w", encoding="utf-8") as f:
+            json.dump({"total_reports": 2, "dates": ["2026-03-30", "2026-03-29"]}, f)
+
+        rec = self.make_valid_rec_payload("2026-03-31")
+        mkt = {
+            "schema_version": "2.0",
+            "data_as_of": "2026-03-31",
+            "source_date": "2026-03-31",
+            "generated_at": "2026-03-31T00:00:00Z",
+            "data_source": "REAL_DATA",
+            "market": {
+                "regime": "BULL",
+                "confidence": 0.85,
+                "metrics": {"vnindex_value": 1250.0, "vnindex_change_pct": 0.01},
+            },
+            "summary": {
+                "total_scanned": 0,
+                "buy_count": 0,
+                "watch_count": 0,
+                "hold_count": 0,
+                "sell_count": 0,
+                "avoid_count": 0,
+            },
+        }
+
+        context = PipelineContext(
+            update_data=True, publish_artifacts=True, generated_dir=self.target_dir
+        )
+        context.data_as_of = "2026-03-31"
+        context.generated_at = "2026-03-31T00:00:00Z"
+        context.recommendations_payload = rec
+        context.market_payload = mkt
+        context.history_payload = rec
+        context.monitoring_dict = {"status": "PASS"}
+
+        stage = ArtifactPublishingStage()
+        stage.execute(context)
+
+        # Current history report must exist
+        assert os.path.exists(os.path.join(hist_dir, "2026-03-31.json"))
+        # Old history reports must be removed
+        assert not os.path.exists(os.path.join(hist_dir, "2026-03-30.json"))
+        assert not os.path.exists(os.path.join(hist_dir, "2026-03-29.json"))
+        # Index.json must contain ONLY the current date
+        with open(os.path.join(hist_dir, "index.json"), "r", encoding="utf-8") as f:
+            idx_data = json.load(f)
+            assert idx_data["total_reports"] == 1
+            assert idx_data["dates"] == ["2026-03-31"]
+
+    def test_history_cleanup_does_not_occur_if_monitoring_fails(self):
+        """Verify old history files are preserved if monitoring fails prior to publishing."""
+        hist_dir = os.path.join(self.target_dir, "history")
+        os.makedirs(hist_dir, exist_ok=True)
+        with open(os.path.join(hist_dir, "2026-03-30.json"), "w", encoding="utf-8") as f:
+            f.write('{"old": 1}\n')
+
+        context = PipelineContext(
+            update_data=True, publish_artifacts=True, generated_dir=self.target_dir
+        )
+        context.data_as_of = "2026-03-31"
+        context.generated_at = "2026-03-31T00:00:00Z"
+        context.recommendations_payload = self.make_valid_rec_payload("2026-03-31")
+        context.market_payload = {"market": {}}
+        context.history_payload = context.recommendations_payload
+
+        # Mock monitoring result as FAIL
+        from scripts.monitoring import PipelineMonitoringResult
+
+        context.monitoring_result = PipelineMonitoringResult(
+            overall_status="FAIL",
+            generated_at=context.generated_at,
+            data_as_of=context.data_as_of,
+            checks=[],
+            metrics={},
+        )
+
+        stage = ArtifactPublishingStage()
+        with pytest.raises(SystemExit):
+            stage.execute(context)
+
+        # Old history file must NOT be deleted
+        assert os.path.exists(os.path.join(hist_dir, "2026-03-30.json"))
+
     def test_pipeline_stage_artifact_publisher_integration(self):
         """Verify ArtifactPublishingStage uses ArtifactPublisher cleanly during pipeline execution."""
         context = PipelineContext(publish_artifacts=True, generated_dir=self.target_dir)

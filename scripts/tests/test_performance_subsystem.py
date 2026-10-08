@@ -257,6 +257,45 @@ class TestPerformanceRegression:
         res = evaluate_performance_regression(payload)
         assert res["overall_status"] == "FAILED"
 
+    def test_update_data_true_selects_live_baseline(self):
+        """update_data=True -> chọn live baseline động dựa trên workload."""
+        payload = {
+            "provider": {"total_calls": 46},
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 12.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 190.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 210.0, "status": "SUCCESS"},
+            ],
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=True)
+        assert res["overall_status"] == "PASS"
+
+    def test_update_data_false_selects_offline_baseline(self):
+        """update_data=False -> chọn offline baseline."""
+        payload = {
+            "stages": [
+                {"stage": "stock_fetch", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 5.0, "status": "SUCCESS"},
+            ]
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=False)
+        assert res["overall_status"] == "PASS"
+
+    def test_large_elapsed_time_with_update_data_false_fails_offline_baseline(self):
+        """Elapsed time lớn nhưng update_data=False -> không tự chuyển sang live baseline, FAIL offline baseline."""
+        payload = {
+            "provider": {"total_calls": 46},
+            "stages": [
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 200.0, "status": "SUCCESS"},
+            ],
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=False)
+        assert res["overall_status"] == "FAILED"
+        stock_eval = next(e for e in res["stage_evaluations"] if e["stage"] == "stock_fetch")
+        assert stock_eval["status"] == "FAILED"
+        assert stock_eval["baseline_seconds"] == 5.0
+
     def test_unbaselined_stage_evaluates_as_unbaselined(self):
         payload = {
             "stages": [

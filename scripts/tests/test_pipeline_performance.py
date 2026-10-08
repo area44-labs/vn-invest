@@ -1344,9 +1344,9 @@ class TestPerformanceRegressionAndBudget:
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
-                        "elapsed_seconds": 10.0,
+                        "elapsed_seconds": 11.0,
                         "status": "SUCCESS",
-                    },  # Exceeds degraded threshold (7.5s) but <= failed threshold (15s) -> DEGRADED
+                    },  # Exceeds live update degraded threshold (10.0s) but <= failed threshold (12.5s) for 1 stock call -> DEGRADED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1418,7 +1418,7 @@ class TestPerformanceRegressionAndBudget:
                         "stage": "stock_fetch",
                         "elapsed_seconds": 20.0,
                         "status": "SUCCESS",
-                    },  # Exceeds failed threshold (15s) -> FAILED
+                    },  # Exceeds live update failed threshold (12.5s) for 1 stock call -> FAILED
                 ],
                 "provider": {
                     "total_calls": 3,
