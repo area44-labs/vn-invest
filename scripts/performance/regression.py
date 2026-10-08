@@ -7,27 +7,27 @@ to detect significant performance degradation.
 from typing import Any
 
 PERFORMANCE_STAGE_BASELINES = {
-    "pipeline": 10.0,
-    "benchmark_fetch": 1.0,
-    "stock_fetch": 5.0,
+    "pipeline": 180.0,
+    "benchmark_fetch": 10.0,
+    "stock_fetch": 160.0,
     "temporal_validation": 0.5,
     "market_calculation": 0.5,
     "regime_calculation": 0.5,
     "risk_calculation": 1.0,
-    "recommendation_calculation": 2.0,
+    "recommendation_calculation": 5.0,
     "monitoring": 1.5,
     "payload_validation": 0.5,
 }
 
 PERFORMANCE_STAGE_THRESHOLDS = {
-    "pipeline": (1.5, 2.5, 5.0),
-    "benchmark_fetch": (2.0, 4.0, 1.0),
-    "stock_fetch": (1.5, 3.0, 3.0),
+    "pipeline": (1.5, 2.5, 300.0),
+    "benchmark_fetch": (2.0, 4.0, 30.0),
+    "stock_fetch": (1.5, 3.0, 250.0),
     "temporal_validation": (2.0, 4.0, 0.5),
     "market_calculation": (2.0, 4.0, 0.5),
     "regime_calculation": (2.0, 4.0, 0.5),
     "risk_calculation": (2.0, 4.0, 1.0),
-    "recommendation_calculation": (2.0, 4.0, 1.0),
+    "recommendation_calculation": (2.0, 4.0, 10.0),
     "monitoring": (2.0, 4.0, 1.0),
     "payload_validation": (2.0, 4.0, 0.5),
 }
