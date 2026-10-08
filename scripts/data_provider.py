@@ -481,7 +481,9 @@ class VnstockDataProvider:
                                 df_norm[col] = pd.to_numeric(df_norm[col], errors="coerce") * 1000.0
 
                         # Adjust high and low bounds to prevent minor provider rounding discrepancies
-                        ohlc_cols = [c for c in ["open", "high", "low", "close"] if c in df_norm.columns]
+                        ohlc_cols = [
+                            c for c in ["open", "high", "low", "close"] if c in df_norm.columns
+                        ]
                         if len(ohlc_cols) == 4:
                             df_norm["high"] = df_norm[ohlc_cols].max(axis=1)
                             df_norm["low"] = df_norm[ohlc_cols].min(axis=1)
