@@ -33,23 +33,69 @@ PERFORMANCE_STAGE_THRESHOLDS = {
 }
 
 
+def extract_update_workload_counts(
+    performance_data: dict[str, Any],
+) -> tuple[int, int]:
+    """Extract actual benchmark and stock request/call counts from workload metadata.
+
+    Returns tuple of (n_benchmarks, n_stocks).
+    Raises ValueError if required workload metadata is missing or incomplete.
+    """
+    benchmarks = {"VNINDEX", "VN30"}
+    n_benchmarks = 0
+    n_stocks = 0
+
+    # 1. Inspect global provider call history
+    call_history = []
+    try:
+        from scripts.data_provider import VnstockDataProvider
+
+        call_history = VnstockDataProvider.get_global_call_history()
+    except ImportError:
+        pass
+
+    if call_history:
+        for c in call_history:
+            if not isinstance(c, dict):
+                continue
+            sym = str(c.get("symbol") or "").strip().upper()
+            if not sym:
+                continue
+            if sym in benchmarks:
+                n_benchmarks += 1
+            else:
+                n_stocks += 1
+
+    # 2. Inspect duplicate_operations or call records in performance_data if call_history is empty
+    if n_benchmarks == 0 or n_stocks == 0:
+        duplicates = performance_data.get("duplicate_operations", [])
+        if isinstance(duplicates, list):
+            for d in duplicates:
+                if not isinstance(d, dict):
+                    continue
+                sym = str(d.get("symbol") or "").strip().upper()
+                req_cnt = int(d.get("request_count") or d.get("provider_call_count") or 1)
+                if sym in benchmarks:
+                    n_benchmarks += req_cnt
+                elif sym:
+                    n_stocks += req_cnt
+
+    if n_benchmarks <= 0 or n_stocks <= 0:
+        raise ValueError(
+            f"Missing required workload metadata in performance_data for live update regression evaluation "
+            f"(n_benchmarks={n_benchmarks}, n_stocks={n_stocks})"
+        )
+
+    return n_benchmarks, n_stocks
+
+
 def compute_live_update_baselines(
     performance_data: dict[str, Any],
 ) -> tuple[dict[str, float], dict[str, tuple[float, float, float]]]:
-    """Compute dynamic live update baselines based on request workload and DEFAULT_UPDATE_THROTTLE_DELAY."""
+    """Compute dynamic live update baselines based on actual workload and DEFAULT_UPDATE_THROTTLE_DELAY."""
     from scripts.pipeline.constants import DEFAULT_UPDATE_THROTTLE_DELAY
 
-    provider = (
-        performance_data.get("provider", {})
-        if isinstance(performance_data.get("provider"), dict)
-        else {}
-    )
-    total_calls = int(provider.get("total_calls", 0))
-
-    # Benchmark fetch requests (VNINDEX, VN30 = 2 calls)
-    n_benchmarks = 2
-    # Stock fetch requests (remaining candidate symbols)
-    n_stocks = max(0, total_calls - n_benchmarks) if total_calls > n_benchmarks else 44
+    n_benchmarks, n_stocks = extract_update_workload_counts(performance_data)
 
     # Throttle delay (3.5s) + average network roundtrip latency (~0.8s) per request
     per_call_expected_seconds = DEFAULT_UPDATE_THROTTLE_DELAY + 0.8
