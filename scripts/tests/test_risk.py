@@ -1,4 +1,4 @@
-"""Unit tests for T+2.5 Risk Model in scripts/lib/risk.py."""
+"""Unit tests for T+2.5 Risk Model in scripts/quant/risk.py."""
 
 import numpy as np
 import pandas as pd

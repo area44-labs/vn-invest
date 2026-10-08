@@ -1,4 +1,4 @@
-"""Unit tests for Market Regime in scripts/lib/regime.py."""
+"""Unit tests for Market Regime in scripts/quant/regime.py."""
 
 import numpy as np
 import pandas as pd
