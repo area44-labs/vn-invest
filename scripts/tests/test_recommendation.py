@@ -9,10 +9,16 @@ import pytest
 
 from scripts.backtest.engine import _safe_float as backtest_safe_float
 from scripts.backtest.portfolio import _safe_float as portfolio_safe_float
+from scripts.data.validation import clamp_price_limits, get_exchange_price_limits
+from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
+from scripts.quant.recommendation import (
+    generate_single_recommendation,
+)
+from scripts.quant.regime import detect_market_regime
+from scripts.quant.risk import calculate_risk_adjusted_score, normalize_universe_liquidity_scores
 from scripts.quant.signal import (
     DIVERGENCE_TIMEFRAME_WEIGHTS,
     SIGNAL_WEIGHTS,
-    _safe_float as recommendation_safe_float,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
@@ -21,14 +27,9 @@ from scripts.quant.signal import (
     calculate_volume_score,
     classify_action,
 )
-from scripts.quant.risk import calculate_risk_adjusted_score
-from scripts.quant.recommendation import (
-    generate_single_recommendation,
+from scripts.quant.signal import (
+    _safe_float as recommendation_safe_float,
 )
-from scripts.quant.regime import detect_market_regime
-from scripts.quant.risk import normalize_universe_liquidity_scores
-from scripts.data.validation import clamp_price_limits, get_exchange_price_limits
-from scripts.quant.features import calculate_single_tf_indicators, detect_divergence
 
 
 @pytest.mark.unit

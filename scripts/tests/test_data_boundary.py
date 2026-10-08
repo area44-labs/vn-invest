@@ -19,8 +19,6 @@ from scripts.data.models import FORBIDDEN_PROVIDER_FIELDS, CanonicalMarketData
 from scripts.data.normalization import normalize_raw_market_data
 from scripts.data.providers.base import MarketDataProvider
 from scripts.data.validation import validate_canonical_market_data
-from scripts.quant.recommendation import generate_single_recommendation
-from scripts.quant.regime import detect_market_regime
 from scripts.domain.universe import UniverseProvider
 from scripts.pipeline.context import PipelineContext
 from scripts.pipeline.stages import (
@@ -33,6 +31,8 @@ from scripts.pipeline.stages import (
     SignalRecommendationGenerationStage,
 )
 from scripts.pipeline.tracker import PerformanceTracker
+from scripts.quant.recommendation import generate_single_recommendation
+from scripts.quant.regime import detect_market_regime
 
 
 class FakeCustomMarketProvider(MarketDataProvider):
