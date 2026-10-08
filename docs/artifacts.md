@@ -24,15 +24,15 @@ generated/
 
 ## 2. Artifact Breakdown & Schema Ownership
 
-| Artifact | Schema Path | Producer Subsystem | Description |
-| :--- | :--- | :--- | :--- |
-| **`recommendations.json`** | `schemas/v2/recommendations.schema.json` | `SignalRecommendationGenerationStage` & `RiskTradePlanStage` | Full stock recommendations, signal scores, T+2.5 risk assessments, and trade plans. |
-| **`market.json`** | Internal validation | `MarketAnalysisStage` | VNINDEX market regime, volume ratios, 20D/50D breadth metrics. |
-| **`monitoring.json`** | Internal validation | `MonitoringStage` (`evaluator.py`) | Operational check results, schema compliance, data/model drift monitoring. |
-| **`performance.json`** | `schemas/v2/performance.schema.json` | `PerformanceStage` | Pipeline stage runtimes, provider call metrics, budget checks. |
-| **`provenance.json`** | Internal validation | `ArtifactPublisher` (`provenance.py`) | Data source tags, universe parameters, data quality ratios, dataset hashes. |
-| **`history/index.json`** | Internal validation | `ArtifactPublisher` (`manifest.py`) | Summary index of all daily historical reports available in `history/`. |
-| **`history/YYYY-MM-DD.json`** | `schemas/v2/recommendations.schema.json` | `ArtifactPublisher` | Point-in-time snapshot of recommendations payload for date `YYYY-MM-DD`. |
+| Artifact                      | Schema Path                              | Producer Subsystem                                           | Description                                                                         |
+| :---------------------------- | :--------------------------------------- | :----------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| **`recommendations.json`**    | `schemas/v2/recommendations.schema.json` | `SignalRecommendationGenerationStage` & `RiskTradePlanStage` | Full stock recommendations, signal scores, T+2.5 risk assessments, and trade plans. |
+| **`market.json`**             | Internal validation                      | `MarketAnalysisStage`                                        | VNINDEX market regime, volume ratios, 20D/50D breadth metrics.                      |
+| **`monitoring.json`**         | Internal validation                      | `MonitoringStage` (`evaluator.py`)                           | Operational check results, schema compliance, data/model drift monitoring.          |
+| **`performance.json`**        | `schemas/v2/performance.schema.json`     | `PerformanceStage`                                           | Pipeline stage runtimes, provider call metrics, budget checks.                      |
+| **`provenance.json`**         | Internal validation                      | `ArtifactPublisher` (`provenance.py`)                        | Data source tags, universe parameters, data quality ratios, dataset hashes.         |
+| **`history/index.json`**      | Internal validation                      | `ArtifactPublisher` (`manifest.py`)                          | Summary index of all daily historical reports available in `history/`.              |
+| **`history/YYYY-MM-DD.json`** | `schemas/v2/recommendations.schema.json` | `ArtifactPublisher`                                          | Point-in-time snapshot of recommendations payload for date `YYYY-MM-DD`.            |
 
 ---
 
@@ -50,11 +50,13 @@ scripts/artifacts/
 ```
 
 ### 3.1 POSIX Locking (`ArtifactLock`)
+
 - File: `scripts/artifacts/transaction.py`.
 - Acquires a POSIX single-writer lock (`generated/.artifact_publisher.lock`) using `fcntl.flock(LOCK_EX | LOCK_NB)`.
 - Prevents concurrent pipeline executions from writing to `generated/` simultaneously.
 
 ### 3.2 Atomic Directory Transactions (`ArtifactTransaction`)
+
 - Workflow:
   1. Acquire `ArtifactLock`.
   2. Create temporary staging directory (`generated/.staging_<id>`) and backup directory (`generated/.backup_<id>`).
@@ -64,6 +66,7 @@ scripts/artifacts/
   6. If any step fails, restore backup directory and delete staging directory (`ArtifactTransaction.rollback()`).
 
 ### 3.3 Transaction Recovery (`recovery.py`)
+
 - Function: `recover_interrupted_publish()`.
 - Scans `generated/` for leftover staging (`.staging_*`) or backup (`.backup_*`) directories from interrupted process crashes and cleans them up safely.
 

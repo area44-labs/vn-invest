@@ -20,6 +20,7 @@ scripts/quant/
 ```
 
 ### 1.1 Configuration Contract (`QuantConfig`)
+
 - Defined in `scripts/quant/config.py`.
 - Encapsulates signal weights, indicator parameters, risk thresholds, regime factors, and trade plan parameters.
 - Implemented as an immutable dataclass (`@dataclass(frozen=True)`). Uses `FrozenDict` for nested dictionary fields.
@@ -30,19 +31,23 @@ scripts/quant/
 ## 2. Quantitative Models & Responsibilities
 
 ### 2.1 Technical Feature Extraction (`scripts/quant/features.py`)
+
 Computes technical indicators on canonical OHLCV DataFrames:
+
 - Moving Averages: MA10, MA20, MA50, MA200.
 - Momentum: Relative Strength Index (RSI 14D), Moving Average Convergence Divergence (MACD 12/26/9).
 - Divergence: Bullish and bearish price-RSI / price-MACD divergence pattern detection.
 - Volume: Volume ratios relative to 20D simple moving average of volume.
 
 ### 2.2 Market Regime Detection (`scripts/quant/regime.py`)
+
 - Function: `detect_market_regime(df_vnindex, config)`.
 - Combines `VNINDEX` price trend (relative to 20D/50D MA) and 20D volume ratio.
 - Standard Regimes: `BULLISH` (strong uptrend), `BEARISH` (downtrend), `SIDEWAYS` (ranging market), `NEUTRAL` (insufficient data or balanced signal).
 - Handles invalid volume or price data fail-closed without crashing.
 
 ### 2.3 Technical Signal Engine (`scripts/quant/signal.py`)
+
 - Function: `compute_signal(input_data)`.
 - Combines weighted technical signal components into a composite signal score ($0 - 100$):
   - Trend Score (20D/50D MA alignment)
@@ -57,6 +62,7 @@ Computes technical indicators on canonical OHLCV DataFrames:
   - `AVOID`: Weak setup in BEARISH regime or high risk
 
 ### 2.4 T+2.5 Risk & Trade Plan Engine (`scripts/quant/risk.py`)
+
 - Engine: `RiskTradePlanEngine` (`compute_stock_risk_and_trade_plan`).
 - **Vietnam Settlement Cycle**: T+2.5 trading settlement cycle modeling.
 - **Risk Metrics**:
@@ -72,6 +78,7 @@ Computes technical indicators on canonical OHLCV DataFrames:
   - Recommended Position Size (% of portfolio)
 
 ### 2.5 Recommendation Synthesis (`scripts/quant/recommendation.py`)
+
 - Function: `generate_single_recommendation(candidate, df_stock, df_vnindex, config)`.
 - Combines feature extraction, regime detection, signal scoring, and risk modeling into a unified `Recommendation` domain object.
 
@@ -88,16 +95,19 @@ scripts/backtest/
 ```
 
 ### 3.1 Point-In-Time (PIT) Anti-Lookahead Isolation
+
 - Function: `get_as_of_dataset(df, evaluation_date)`.
 - Slices raw data strictly $\le T$. Ensures future observations ($> T$) cannot leak into historical signal evaluation.
 - Forward outcomes (`evaluate_forward_outcomes`) evaluate exact $T+N$ trading session forward returns ($N \in \{5, 10, 20\}$ trading days). Unavailable forward outcomes are preserved as `None` without zero-filling.
 
 ### 3.2 Execution Eligibility & Cost Modeling
+
 - Function: `evaluate_execution_eligibility(df, execution_config)`.
 - Evaluates trading liquidity constraints timestamped $\le T$: minimum daily trading value (VND), minimum average volume, price limits, and maximum participation rate (% of daily volume).
 - Cost Deductions: Deducts proportional transaction fees and market slippage (`slippage_pct`, `transaction_cost_pct`) from forward returns.
 
 ### 3.3 Portfolio Backtest Aggregation (`scripts/backtest/portfolio.py`)
+
 - Function: `evaluate_portfolio_at_date()` and `run_portfolio_backtest()`.
 - Calculates position weights, allocated capital, unallocated weight ($1.0 - \sum w_i$), portfolio net returns, hit rate (% positive returns), and benchmark excess returns.
 - Enforces strict invariants: $\sum w_i + \text{unallocated\_weight} = 1.0$.

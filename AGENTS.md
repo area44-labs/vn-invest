@@ -36,6 +36,7 @@ For comprehensive details on specific system components, refer directly to the a
 ## 3. Authoritative Essential Commands
 
 ### Python Backend (Python >= 3.14 via `uv`)
+
 ```bash
 # Sync dependencies
 uv sync --frozen
@@ -52,6 +53,7 @@ uv run --frozen python scripts/generate_report.py --update # Live market update
 ```
 
 ### Frontend & Tooling (Vite+ `vp`)
+
 ```bash
 vp install               # Install dependencies
 vp check --fix           # Frontend lint/format check

@@ -64,36 +64,40 @@ All backend unit and integration tests execute **strictly offline**.
 
 Tests are categorized using pytest markers defined in `pyproject.toml` under `[tool.pytest.ini_options]`:
 
-| Marker | Purpose |
-| :--- | :--- |
-| `@pytest.mark.unit` | Fast, isolated unit tests for pure functions, domain models, and quant calculations. |
+| Marker                     | Purpose                                                                                       |
+| :------------------------- | :-------------------------------------------------------------------------------------------- |
+| `@pytest.mark.unit`        | Fast, isolated unit tests for pure functions, domain models, and quant calculations.          |
 | `@pytest.mark.integration` | Multi-component integration tests (pipeline stages, portfolio backtest, artifact publishing). |
-| `@pytest.mark.e2e` | End-to-end workflow validation tests (pipeline context -> output integrity). |
-| `@pytest.mark.live` | Tests requiring external API access (skipped by default in standard CI). |
-| `@pytest.mark.slow` | Long-running tests (taking $\ge 5.0$ seconds). Reported automatically by `conftest.py` hooks. |
+| `@pytest.mark.e2e`         | End-to-end workflow validation tests (pipeline context -> output integrity).                  |
+| `@pytest.mark.live`        | Tests requiring external API access (skipped by default in standard CI).                      |
+| `@pytest.mark.slow`        | Long-running tests (taking $\ge 5.0$ seconds). Reported automatically by `conftest.py` hooks. |
 
 ---
 
 ## 5. Authoritative Testing Commands
 
 ### 5.1 Run Full Test Suite (CI Command)
+
 ```bash
 uv run --frozen pytest
 ```
 
 ### 5.2 Run Specific Test File or Class
+
 ```bash
 uv run --frozen pytest scripts/tests/test_domain.py
 uv run --frozen pytest scripts/tests/test_engines.py::TestQuantSignalEngine
 ```
 
 ### 5.3 Run Tests Matching a Marker
+
 ```bash
 uv run --frozen pytest -m unit
 uv run --frozen pytest -m integration
 ```
 
 ### 5.4 Run Targeted Test Function
+
 ```bash
 uv run --frozen pytest scripts/tests/test_portfolio_backtest.py -k "test_portfolio_allocation"
 ```

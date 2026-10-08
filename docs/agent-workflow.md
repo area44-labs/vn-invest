@@ -77,6 +77,7 @@ To keep feedback loops fast during development, run the smallest relevant unit t
 ## 4. Documentation Maintenance Rule
 
 Whenever a code change alters subsystem boundaries, data contracts, pipeline stages, CLI parameters, or testing mechanics:
+
 - Update the single authoritative document in `docs/` governing that topic.
 - Verify that internal Markdown links across `docs/` and `AGENTS.md` remain valid.
 - Ensure `docs/architecture-inventory.md` is updated if historical architectural milestones are recorded.

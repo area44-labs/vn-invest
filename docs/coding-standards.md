@@ -15,12 +15,14 @@ This document specifies the practical Python coding standards, design patterns, 
 ## 2. Typing & Data Structure Standards
 
 ### 2.1 Type Annotations
+
 - All production functions, methods, and class attributes must have explicit type annotations.
 - Use native standard library generic types (`list[str]`, `dict[str, Any]`, `tuple[int, ...]`, `set[str]`) available in Python 3.9+.
 - Use `typing.Optional` or `X | None` for optional fields.
 - Avoid using `Any` unless interfacing with raw, untyped JSON or external library return values.
 
 ### 2.2 Domain Models & Frozen Dataclasses
+
 - Domain contracts and configuration models must be implemented as immutable dataclasses using `@dataclass(frozen=True)`:
   ```python
   from dataclasses import dataclass
@@ -35,6 +37,7 @@ This document specifies the practical Python coding standards, design patterns, 
 - Use `FrozenDict` (from `scripts.quant.config`) for nested dictionary fields inside frozen dataclasses (e.g. `QuantConfig`) to prevent nested mutation while remaining JSON-serializable and supporting `copy.deepcopy`.
 
 ### 2.3 Serialization & Mutation Isolation (`.to_dict()`)
+
 - Dataclasses and result containers that serialize to JSON must provide a `.to_dict()` method.
 - `.to_dict()` methods must return **detached, deep copies** of internal collections (lists, dicts, nested dataclasses) to prevent caller mutation leaks:
   ```python
@@ -51,13 +54,17 @@ This document specifies the practical Python coding standards, design patterns, 
 ## 3. Error Handling & Fail-Closed Principles
 
 ### 3.1 Exception Hierarchy
+
 Custom exceptions must inherit from domain-specific base exceptions:
+
 - Market Data Exceptions: `AcquisitionError`, `InvalidSymbolError`, `ExplicitlyInvalidDataError`, `ProviderRateLimitError` (in `scripts/data/providers/base.py`).
 - Data Validation Exceptions: `CanonicalOHLCVError` (in `scripts/data/validation.py`).
 - Schema Exceptions: `SchemaResolutionError` (in `scripts/schema/registry.py`).
 
 ### 3.2 Fail-Closed Principle
+
 When data quality fails or provider limits are exceeded:
+
 - Do **not** silently fill missing values with zeros or synthetic numbers.
 - Return `None`, mark status as `INSUFFICIENT` or `EXPLICITLY_INVALID`, or raise an explicit exception.
 - In production update mode (`--update`), data failures must raise `RuntimeError` to abort report generation without overwriting existing on-disk report artifacts in `generated/`.
@@ -67,7 +74,9 @@ When data quality fails or provider limits are exceeded:
 ## 4. Import & Dependency Rules
 
 ### 4.1 Grouping & Ordering
+
 Imports must be structured into three distinct blocks separated by single blank lines:
+
 1. Standard library imports
 2. Third-party library imports (`pandas`, `numpy`, `pytest`, etc.)
 3. Project canonical package imports (`scripts.domain`, `scripts.quant`, etc.)
@@ -84,6 +93,7 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG
 ```
 
 ### 4.2 Explicit Imports
+
 - Wildcard imports (`from module import *`) are strictly prohibited.
 - Absolute imports using canonical package roots (`from scripts.quant.signal import compute_signal`) are required.
 - Do not import from removed `scripts.lib/*` modules.
