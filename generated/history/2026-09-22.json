@@ -1,36 +1,34 @@
 {
   "schema_version": "2.0",
   "signal_model_version": "2.0",
-  "quant_version": "1.0.0",
-  "config_hash": "07b74635ffca",
-  "generated_at": "2026-10-08T16:38:39.472048+00:00",
-  "data_as_of": "2026-10-08",
-  "source_date": "2026-10-08",
+  "generated_at": "2026-09-22T15:23:02.253171+00:00",
+  "data_as_of": "2026-09-22",
+  "source_date": "2026-09-22",
   "data_source": "REAL_DATA",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
     "universe_size": 42
   },
   "market": {
-    "regime": "PANIC",
-    "regime_score": 7.0,
+    "regime": "BULL",
+    "regime_score": 73.0,
     "confidence": 0.85,
     "metrics": {
-      "vnindex_value": 1738.97,
-      "vnindex_change_pct": -0.82,
-      "vn30_change_pct": -0.91,
-      "market_breadth_ratio": 0.24,
-      "volatility": 0.1324,
-      "volume_20d_ratio": 1.26
+      "vnindex_value": 1816.93,
+      "vnindex_change_pct": 0.96,
+      "vn30_change_pct": 0.62,
+      "market_breadth_ratio": 0.33,
+      "volatility": 0.1625,
+      "volume_20d_ratio": 0.98
     }
   },
   "summary": {
     "total_scanned": 42,
-    "buy_count": 0,
-    "watch_count": 0,
-    "hold_count": 0,
-    "sell_count": 0,
-    "avoid_count": 42
+    "buy_count": 9,
+    "watch_count": 5,
+    "hold_count": 2,
+    "sell_count": 25,
+    "avoid_count": 1
   },
   "recommendations": [
     {
@@ -38,24 +36,22 @@
       "company_name": "Ngân hàng TMCP Á Châu",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 21.1,
-      "risk_adjusted_score": 9.5,
+      "signal_score": 22.0,
+      "risk_adjusted_score": 19.7,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
+        "momentum": 15.0,
         "volume": 50.0,
-        "relative_strength": 35.0,
-        "divergence": 47.0
+        "relative_strength": 15.0,
+        "divergence": 57.0
       },
-      "confidence": 0.65,
+      "confidence": 0.62,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -63,147 +59,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.038,
-        "es_t25": -0.0475,
-        "volatility_60d": 0.2283,
+        "var_t25": -0.0377,
+        "es_t25": -0.047,
+        "volatility_60d": 0.2301,
         "max_drawdown": -0.1949,
-        "liquidity_score": 59.5,
-        "avg_value_20d": 169.45
+        "liquidity_score": 53.7,
+        "avg_value_20d": 166.09
       },
       "trade_plan": {
-        "current_price": 20350.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
-      "warnings": [
-        "Giá đóng cửa (20.350 VNĐ) nằm dưới đường xu hướng MA20 (21.528 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (21.8) quá bán nặng (< 35).",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "BULLISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "BCM",
-      "company_name": "Tổng Công ty Đầu tư và Phát triển Công nghiệp",
-      "exchange": "HOSE",
-      "sector": "Bất động sản KCN",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 34.0,
-      "risk_adjusted_score": 10.1,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 30.0,
-        "volume": 50.0,
-        "relative_strength": 65.0,
-        "divergence": 62.0
-      },
-      "confidence": 0.57,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0845,
-        "es_t25": -0.105,
-        "volatility_60d": 0.4839,
-        "max_drawdown": -0.5549,
-        "liquidity_score": 9.5,
-        "avg_value_20d": 20.82
-      },
-      "trade_plan": {
-        "current_price": 39150.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
-      "warnings": [
-        "Giá đóng cửa (39.150 VNĐ) nằm dưới đường xu hướng MA20 (39.575 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "BULLISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "BID",
-      "company_name": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam",
-      "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 28.5,
-      "risk_adjusted_score": 11.6,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 50.0,
-        "divergence": 82.0
-      },
-      "confidence": 0.45,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0527,
-        "es_t25": -0.0725,
-        "volatility_60d": 0.246,
-        "max_drawdown": -0.3618,
-        "liquidity_score": 52.4,
-        "avg_value_20d": 137.04
-      },
-      "trade_plan": {
-        "current_price": 33900.0,
+        "current_price": 22000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -217,9 +81,10 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (33.900 VNĐ) nằm dưới đường xu hướng MA20 (35.640 VNĐ).",
+        "Giá đóng cửa (22.000 VNĐ) nằm dưới đường xu hướng MA20 (22.332 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (23.2) quá bán nặng (< 35)."
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.1%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -233,28 +98,26 @@
       }
     },
     {
-      "symbol": "BVH",
-      "company_name": "Tập đoàn Bảo Việt",
+      "symbol": "BCM",
+      "company_name": "Tổng Công ty Đầu tư và Phát triển Công nghiệp",
       "exchange": "HOSE",
-      "sector": "Bảo hiểm",
-      "action": "AVOID",
+      "sector": "Bất động sản KCN",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 72.5,
-      "risk_adjusted_score": 26.7,
+      "signal_score": 26.0,
+      "risk_adjusted_score": 15.4,
       "score_components": {
-        "trend": 100.0,
-        "momentum": 50.0,
-        "volume": 50.0,
-        "relative_strength": 100.0,
+        "trend": 20.0,
+        "momentum": 20.0,
+        "volume": 35.0,
+        "relative_strength": 15.0,
         "divergence": 50.0
       },
-      "confidence": 0.52,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -262,15 +125,78 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.061,
-        "es_t25": -0.0756,
-        "volatility_60d": 0.3849,
-        "max_drawdown": -0.3419,
-        "liquidity_score": 31.0,
-        "avg_value_20d": 79.05
+        "var_t25": -0.0845,
+        "es_t25": -0.105,
+        "volatility_60d": 0.4936,
+        "max_drawdown": -0.5549,
+        "liquidity_score": 12.2,
+        "avg_value_20d": 27.65
       },
       "trade_plan": {
-        "current_price": 77900.0,
+        "current_price": 40200.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [],
+      "warnings": [
+        "Giá đóng cửa (40.200 VNĐ) nằm dưới đường xu hướng MA20 (41.398 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (28.6) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-8.5%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "BID",
+      "company_name": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 41.5,
+      "risk_adjusted_score": 33.0,
+      "score_components": {
+        "trend": 50.0,
+        "momentum": 30.0,
+        "volume": 50.0,
+        "relative_strength": 35.0,
+        "divergence": 42.0
+      },
+      "confidence": 0.75,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0527,
+        "es_t25": -0.0725,
+        "volatility_60d": 0.2551,
+        "max_drawdown": -0.3618,
+        "liquidity_score": 43.9,
+        "avg_value_20d": 140.02
+      },
+      "trade_plan": {
+        "current_price": 36200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -280,17 +206,79 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (77.900 VNĐ) nằm trên đường xu hướng MA20 (71.770 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (67.224 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+24.9%)."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (35.873 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "RSI (82.6) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao."
+        "Giá đóng cửa (36.200 VNĐ) nằm dưới đường xu hướng MA20 (36.422 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BEARISH",
+        "1W": "BULLISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "BVH",
+      "company_name": "Tập đoàn Bảo Việt",
+      "exchange": "HOSE",
+      "sector": "Bảo hiểm",
+      "action": "BUY",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 72.2,
+      "risk_adjusted_score": 52.1,
+      "score_components": {
+        "trend": 100.0,
+        "momentum": 70.0,
+        "volume": 50.0,
+        "relative_strength": 65.0,
+        "divergence": 50.0
+      },
+      "confidence": 0.65,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.061,
+        "es_t25": -0.0756,
+        "volatility_60d": 0.3779,
+        "max_drawdown": -0.3419,
+        "liquidity_score": 17.1,
+        "avg_value_20d": 45.04
+      },
+      "trade_plan": {
+        "current_price": 69700.0,
+        "entry_low": 69700.0,
+        "entry_high": 71100.0,
+        "stop_loss": 68200.0,
+        "tp1": 73900.0,
+        "tp2": 74600.0,
+        "risk_reward": 2.01,
+        "position_percent": 20.0
+      },
+      "reasons": [
+        "Giá đóng cửa (69.700 VNĐ) nằm trên đường xu hướng MA20 (65.960 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (63.538 VNĐ)."
+      ],
+      "warnings": [],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 68.200 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (63.538) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -304,24 +292,22 @@
       "company_name": "Ngân hàng TMCP Công Thương Việt Nam",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 24.5,
-      "risk_adjusted_score": 10.5,
+      "signal_score": 29.0,
+      "risk_adjusted_score": 24.9,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
-        "divergence": 70.0
+        "momentum": 65.0,
+        "volume": 20.0,
+        "relative_strength": 15.0,
+        "divergence": 50.0
       },
-      "confidence": 0.52,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -331,13 +317,13 @@
       "risk_metrics": {
         "var_t25": -0.048,
         "es_t25": -0.0667,
-        "volatility_60d": 0.2515,
+        "volatility_60d": 0.2575,
         "max_drawdown": -0.2966,
-        "liquidity_score": 69.0,
-        "avg_value_20d": 223.32
+        "liquidity_score": 68.3,
+        "avg_value_20d": 238.9
       },
       "trade_plan": {
-        "current_price": 29200.0,
+        "current_price": 30950.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -346,13 +332,10 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": ["MACD Histogram dương và đang tăng trưởng, củng cố đà tăng."],
       "warnings": [
-        "Giá đóng cửa (29.200 VNĐ) nằm dưới đường xu hướng MA20 (30.180 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (34.8) quá bán nặng (< 35)."
+        "Giá đóng cửa (30.950 VNĐ) nằm dưới đường xu hướng MA20 (31.082 VNĐ).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.5%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -360,7 +343,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "BULLISH",
+        "1D": "NONE",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -370,24 +353,22 @@
       "company_name": "Công ty Cổ phần FPT",
       "exchange": "HOSE",
       "sector": "Công nghệ",
-      "action": "AVOID",
+      "action": "WATCH",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 26.4,
-      "risk_adjusted_score": 10.6,
+      "signal_score": 62.2,
+      "risk_adjusted_score": 50.1,
       "score_components": {
-        "trend": 20.0,
-        "momentum": 20.0,
-        "volume": 50.0,
-        "relative_strength": 15.0,
-        "divergence": 38.0
+        "trend": 100.0,
+        "momentum": 60.0,
+        "volume": 35.0,
+        "relative_strength": 50.0,
+        "divergence": 30.0
       },
-      "confidence": 0.65,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -397,37 +378,39 @@
       "risk_metrics": {
         "var_t25": -0.054,
         "es_t25": -0.068,
-        "volatility_60d": 0.2965,
+        "volatility_60d": 0.3029,
         "max_drawdown": -0.4057,
-        "liquidity_score": 81.0,
-        "avg_value_20d": 353.32
+        "liquidity_score": 82.9,
+        "avg_value_20d": 438.07
       },
       "trade_plan": {
-        "current_price": 59700.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 66600.0,
+        "entry_low": 66600.0,
+        "entry_high": 67900.0,
+        "stop_loss": 65000.0,
+        "tp1": 70600.0,
+        "tp2": 71300.0,
+        "risk_reward": 2.0,
+        "position_percent": 10.0
       },
-      "reasons": [],
+      "reasons": [
+        "Giá đóng cửa (66.600 VNĐ) nằm trên đường xu hướng MA20 (66.040 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (63.599 VNĐ).",
+        "Chỉ báo RSI (50.2) nằm trong vùng an toàn (45 - 65)."
+      ],
       "warnings": [
-        "Giá đóng cửa (59.700 VNĐ) nằm dưới đường xu hướng MA20 (64.172 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (16.9) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.6%).",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 65.000 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (63.599) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
-        "1W": "BEARISH",
+        "1D": "BEARISH",
+        "1W": "NONE",
         "1M": "NONE"
       }
     },
@@ -436,24 +419,22 @@
       "company_name": "Tổng Công ty Khí Việt Nam - CTCP",
       "exchange": "HOSE",
       "sector": "Dầu khí",
-      "action": "AVOID",
+      "action": "BUY",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 49.0,
-      "risk_adjusted_score": 16.2,
+      "signal_score": 69.0,
+      "risk_adjusted_score": 46.5,
       "score_components": {
-        "trend": 50.0,
-        "momentum": 30.0,
-        "volume": 50.0,
+        "trend": 100.0,
+        "momentum": 80.0,
+        "volume": 20.0,
         "relative_strength": 65.0,
-        "divergence": 62.0
+        "divergence": 42.0
       },
-      "confidence": 0.7,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -463,36 +444,36 @@
       "risk_metrics": {
         "var_t25": -0.0833,
         "es_t25": -0.1256,
-        "volatility_60d": 0.4568,
+        "volatility_60d": 0.4305,
         "max_drawdown": -0.4996,
-        "liquidity_score": 47.6,
-        "avg_value_20d": 125.47
+        "liquidity_score": 48.8,
+        "avg_value_20d": 148.24
       },
       "trade_plan": {
-        "current_price": 82000.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 86000.0,
+        "entry_low": 86000.0,
+        "entry_high": 87700.0,
+        "stop_loss": 84700.0,
+        "tp1": 91200.0,
+        "tp2": 92000.0,
+        "risk_reward": 2.02,
+        "position_percent": 20.0
       },
       "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (79.063 VNĐ).",
+        "Giá đóng cửa (86.000 VNĐ) nằm trên đường xu hướng MA20 (83.242 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (76.364 VNĐ).",
+        "Chỉ báo RSI (60.9) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
-      "warnings": [
-        "Giá đóng cửa (82.000 VNĐ) nằm dưới đường xu hướng MA20 (83.023 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 84.700 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (76.364) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BEARISH",
         "1W": "BULLISH",
         "1M": "NONE"
       }
@@ -502,24 +483,22 @@
       "company_name": "Tập đoàn Công nghiệp Cao su Việt Nam - CTCP",
       "exchange": "HOSE",
       "sector": "Cao su & BĐS KCN",
-      "action": "AVOID",
+      "action": "BUY",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 84.2,
-      "risk_adjusted_score": 29.8,
+      "signal_score": 68.8,
+      "risk_adjusted_score": 47.5,
       "score_components": {
         "trend": 100.0,
-        "momentum": 85.0,
-        "volume": 50.0,
-        "relative_strength": 100.0,
-        "divergence": 70.0
+        "momentum": 95.0,
+        "volume": 35.0,
+        "relative_strength": 35.0,
+        "divergence": 30.0
       },
-      "confidence": 0.65,
+      "confidence": 0.5,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -529,36 +508,36 @@
       "risk_metrics": {
         "var_t25": -0.0799,
         "es_t25": -0.1185,
-        "volatility_60d": 0.3782,
+        "volatility_60d": 0.3932,
         "max_drawdown": -0.4317,
-        "liquidity_score": 35.7,
-        "avg_value_20d": 94.81
+        "liquidity_score": 26.8,
+        "avg_value_20d": 72.65
       },
       "trade_plan": {
-        "current_price": 33850.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 32200.0,
+        "entry_low": 32200.0,
+        "entry_high": 32850.0,
+        "stop_loss": 31250.0,
+        "tp1": 34150.0,
+        "tp2": 34450.0,
+        "risk_reward": 2.02,
+        "position_percent": 20.0
       },
       "reasons": [
-        "Giá đóng cửa (33.850 VNĐ) nằm trên đường xu hướng MA20 (32.350 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.383 VNĐ).",
+        "Giá đóng cửa (32.200 VNĐ) nằm trên đường xu hướng MA20 (31.862 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (30.320 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+16.0%).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+        "Chỉ báo RSI (48.7) nằm trong vùng an toàn (45 - 65)."
       ],
-      "warnings": [],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 31.250 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (30.320) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "BULLISH",
+        "1D": "BEARISH",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -568,24 +547,22 @@
       "company_name": "Ngân hàng TMCP Phát triển TP. Hồ Chí Minh",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "WATCH",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 81.5,
-      "risk_adjusted_score": 38.2,
+      "signal_score": 64.0,
+      "risk_adjusted_score": 59.6,
       "score_components": {
         "trend": 100.0,
-        "momentum": 80.0,
-        "volume": 85.0,
-        "relative_strength": 80.0,
-        "divergence": 45.0
+        "momentum": 60.0,
+        "volume": 35.0,
+        "relative_strength": 50.0,
+        "divergence": 42.0
       },
-      "confidence": 0.7,
+      "confidence": 0.62,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -595,40 +572,40 @@
       "risk_metrics": {
         "var_t25": -0.0512,
         "es_t25": -0.0655,
-        "volatility_60d": 0.2232,
+        "volatility_60d": 0.2293,
         "max_drawdown": -0.1886,
-        "liquidity_score": 78.6,
-        "avg_value_20d": 342.94
+        "liquidity_score": 75.6,
+        "avg_value_20d": 305.11
       },
       "trade_plan": {
-        "current_price": 28000.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 27550.0,
+        "entry_low": 27550.0,
+        "entry_high": 28100.0,
+        "stop_loss": 26800.0,
+        "tp1": 29200.0,
+        "tp2": 29500.0,
+        "risk_reward": 2.0,
+        "position_percent": 10.0
       },
       "reasons": [
-        "Giá đóng cửa (28.000 VNĐ) nằm trên đường xu hướng MA20 (27.628 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (27.141 VNĐ).",
-        "Khối lượng bùng nổ 2.0x so với bình quân 20 phiên.",
-        "Chỉ báo RSI (58.1) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+7.6%).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+        "Giá đóng cửa (27.550 VNĐ) nằm trên đường xu hướng MA20 (27.358 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (26.810 VNĐ).",
+        "Chỉ báo RSI (45.3) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 26.800 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (26.810) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
+        "1D": "BEARISH",
+        "1W": "BULLISH",
         "1M": "NONE"
       }
     },
@@ -637,24 +614,22 @@
       "company_name": "Công ty Cổ phần Tập đoàn Hòa Phát",
       "exchange": "HOSE",
       "sector": "Thép",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 26.0,
-      "risk_adjusted_score": 11.7,
+      "signal_score": 17.2,
+      "risk_adjusted_score": 15.6,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 35.0,
-        "relative_strength": 35.0,
-        "divergence": 70.0
+        "momentum": 30.0,
+        "volume": 20.0,
+        "relative_strength": 15.0,
+        "divergence": 30.0
       },
-      "confidence": 0.57,
+      "confidence": 0.8,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -664,79 +639,13 @@
       "risk_metrics": {
         "var_t25": -0.044,
         "es_t25": -0.0584,
-        "volatility_60d": 0.2582,
-        "max_drawdown": -0.2411,
-        "liquidity_score": 83.3,
-        "avg_value_20d": 374.61
+        "volatility_60d": 0.2556,
+        "max_drawdown": -0.2298,
+        "liquidity_score": 80.5,
+        "avg_value_20d": 420.37
       },
       "trade_plan": {
-        "current_price": 20150.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
-      "warnings": [
-        "Giá đóng cửa (20.150 VNĐ) nằm dưới đường xu hướng MA20 (20.705 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (23.1) quá bán nặng (< 35)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "MBB",
-      "company_name": "Ngân hàng TMCP Quân Đội",
-      "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 23.8,
-      "risk_adjusted_score": 10.7,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 50.0,
-        "divergence": 50.0
-      },
-      "confidence": 0.57,
-      "risk_level": "MEDIUM",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.048,
-        "es_t25": -0.0605,
-        "volatility_60d": 0.2517,
-        "max_drawdown": -0.2238,
-        "liquidity_score": 71.4,
-        "avg_value_20d": 232.1
-      },
-      "trade_plan": {
-        "current_price": 18900.0,
+        "current_price": 21150.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -747,9 +656,10 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (18.900 VNĐ) nằm dưới đường xu hướng MA20 (19.715 VNĐ).",
+        "Giá đóng cửa (21.150 VNĐ) nằm dưới đường xu hướng MA20 (21.602 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (25.0) quá bán nặng (< 35)."
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-5.3%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -757,7 +667,70 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BEARISH",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "MBB",
+      "company_name": "Ngân hàng TMCP Quân Đội",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 34.5,
+      "risk_adjusted_score": 30.9,
+      "score_components": {
+        "trend": 50.0,
+        "momentum": 30.0,
+        "volume": 35.0,
+        "relative_strength": 15.0,
+        "divergence": 30.0
+      },
+      "confidence": 0.8,
+      "risk_level": "MEDIUM",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.048,
+        "es_t25": -0.0605,
+        "volatility_60d": 0.2577,
+        "max_drawdown": -0.2238,
+        "liquidity_score": 70.7,
+        "avg_value_20d": 254.23
+      },
+      "trade_plan": {
+        "current_price": 20100.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (19.925 VNĐ)."],
+      "warnings": [
+        "Giá đóng cửa (20.100 VNĐ) nằm dưới đường xu hướng MA20 (20.385 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.4%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BEARISH",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -767,22 +740,20 @@
       "company_name": "Công ty Cổ phần Tập đoàn Masan",
       "exchange": "HOSE",
       "sector": "Tiêu dùng",
-      "action": "AVOID",
+      "action": "BUY",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 80.0,
-      "risk_adjusted_score": 35.7,
+      "signal_score": 81.5,
+      "risk_adjusted_score": 72.0,
       "score_components": {
         "trend": 100.0,
-        "momentum": 85.0,
-        "volume": 50.0,
-        "relative_strength": 100.0,
-        "divergence": 42.0
+        "momentum": 95.0,
+        "volume": 100.0,
+        "relative_strength": 35.0,
+        "divergence": 50.0
       },
       "confidence": 0.57,
       "risk_level": "HIGH",
@@ -794,13 +765,78 @@
       "risk_metrics": {
         "var_t25": -0.0513,
         "es_t25": -0.0711,
-        "volatility_60d": 0.2548,
+        "volatility_60d": 0.2362,
         "max_drawdown": -0.2755,
-        "liquidity_score": 85.7,
-        "avg_value_20d": 391.22
+        "liquidity_score": 73.2,
+        "avg_value_20d": 296.52
       },
       "trade_plan": {
-        "current_price": 74200.0,
+        "current_price": 70300.0,
+        "entry_low": 70300.0,
+        "entry_high": 71700.0,
+        "stop_loss": 67600.0,
+        "tp1": 75200.0,
+        "tp2": 75200.0,
+        "risk_reward": 1.81,
+        "position_percent": 20.0
+      },
+      "reasons": [
+        "Giá đóng cửa (70.300 VNĐ) nằm trên đường xu hướng MA20 (68.695 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (67.524 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (50.5) nằm trong vùng an toàn (45 - 65)."
+      ],
+      "warnings": [],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 67.600 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (67.524) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "MWG",
+      "company_name": "Công ty Cổ phần Đầu tư Thế giới Di Động",
+      "exchange": "HOSE",
+      "sector": "Bán lẻ",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 36.8,
+      "risk_adjusted_score": 29.3,
+      "score_components": {
+        "trend": 50.0,
+        "momentum": 30.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
+        "divergence": 30.0
+      },
+      "confidence": 0.7,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0614,
+        "es_t25": -0.0842,
+        "volatility_60d": 0.3488,
+        "max_drawdown": -0.3244,
+        "liquidity_score": 61.0,
+        "avg_value_20d": 190.84
+      },
+      "trade_plan": {
+        "current_price": 72800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -809,14 +845,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Giá đóng cửa (74.200 VNĐ) nằm trên đường xu hướng MA20 (69.720 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (68.682 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+14.7%).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (72.323 VNĐ)."],
       "warnings": [
+        "Giá đóng cửa (72.800 VNĐ) nằm dưới đường xu hướng MA20 (72.970 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-5.7%).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -826,28 +859,218 @@
       "divergence": {
         "1H": "NONE",
         "1D": "BEARISH",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "PLX",
+      "company_name": "Tập đoàn Xăng dầu Việt Nam",
+      "exchange": "HOSE",
+      "sector": "Năng lượng",
+      "action": "HOLD",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 54.0,
+      "risk_adjusted_score": 37.7,
+      "score_components": {
+        "trend": 50.0,
+        "momentum": 80.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
+        "divergence": 62.0
+      },
+      "confidence": 0.65,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0866,
+        "es_t25": -0.1221,
+        "volatility_60d": 0.3745,
+        "max_drawdown": -0.5303,
+        "liquidity_score": 63.4,
+        "avg_value_20d": 199.07
+      },
+      "trade_plan": {
+        "current_price": 36500.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (35.271 VNĐ).",
+        "Chỉ báo RSI (51.8) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
+      ],
+      "warnings": [
+        "Giá đóng cửa (36.500 VNĐ) nằm dưới đường xu hướng MA20 (36.625 VNĐ).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.6%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
         "1W": "BULLISH",
         "1M": "NONE"
       }
     },
     {
-      "symbol": "MWG",
-      "company_name": "Công ty Cổ phần Đầu tư Thế giới Di Động",
+      "symbol": "POW",
+      "company_name": "Tổng Công ty Điện lực Dầu khí Việt Nam - CTCP",
       "exchange": "HOSE",
-      "sector": "Bán lẻ",
-      "action": "AVOID",
+      "sector": "Điện lực",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 75.0,
-      "risk_adjusted_score": 30.1,
+      "signal_score": 35.3,
+      "risk_adjusted_score": 29.7,
+      "score_components": {
+        "trend": 0.0,
+        "momentum": 65.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
+        "divergence": 62.0
+      },
+      "confidence": 0.57,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0531,
+        "es_t25": -0.0796,
+        "volatility_60d": 0.2272,
+        "max_drawdown": -0.2508,
+        "liquidity_score": 31.7,
+        "avg_value_20d": 85.99
+      },
+      "trade_plan": {
+        "current_price": 12800.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
+      ],
+      "warnings": [
+        "Giá đóng cửa (12.800 VNĐ) nằm dưới đường xu hướng MA20 (12.890 VNĐ).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-8.6%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "BULLISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "SAB",
+      "company_name": "Tổng Công ty Cổ phần Bia - Rượu - Nước giải khát Sài Gòn",
+      "exchange": "HOSE",
+      "sector": "Đồ uống",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 31.9,
+      "risk_adjusted_score": 26.6,
+      "score_components": {
+        "trend": 20.0,
+        "momentum": 30.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
+        "divergence": 58.0
+      },
+      "confidence": 0.75,
+      "risk_level": "MEDIUM",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0393,
+        "es_t25": -0.0521,
+        "volatility_60d": 0.2017,
+        "max_drawdown": -0.2094,
+        "liquidity_score": 7.3,
+        "avg_value_20d": 24.37
+      },
+      "trade_plan": {
+        "current_price": 44650.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."],
+      "warnings": [
+        "Giá đóng cửa (44.650 VNĐ) nằm dưới đường xu hướng MA20 (45.025 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.4%).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BULLISH",
+        "1W": "BEARISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "SSB",
+      "company_name": "Ngân hàng TMCP Đông Nam Á",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "BUY",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 77.5,
+      "risk_adjusted_score": 60.0,
       "score_components": {
         "trend": 100.0,
-        "momentum": 60.0,
+        "momentum": 70.0,
         "volume": 50.0,
         "relative_strength": 100.0,
         "divergence": 50.0
@@ -860,296 +1083,33 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0614,
-        "es_t25": -0.0842,
-        "volatility_60d": 0.3474,
-        "max_drawdown": -0.3244,
-        "liquidity_score": 66.7,
-        "avg_value_20d": 214.9
+        "var_t25": -0.03,
+        "es_t25": -0.0473,
+        "volatility_60d": 0.449,
+        "max_drawdown": -0.1726,
+        "liquidity_score": 29.3,
+        "avg_value_20d": 73.07
       },
       "trade_plan": {
-        "current_price": 76100.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 20900.0,
+        "entry_low": 20900.0,
+        "entry_high": 21300.0,
+        "stop_loss": 19450.0,
+        "tp1": 22350.0,
+        "tp2": 22350.0,
+        "risk_reward": 1.0,
+        "position_percent": 14.4
       },
       "reasons": [
-        "Giá đóng cửa (76.100 VNĐ) nằm trên đường xu hướng MA20 (72.086 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (71.709 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+11.3%)."
-      ],
-      "warnings": [
-        "RSI (70.2) thuộc vùng quá mua (> 70)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "PLX",
-      "company_name": "Tập đoàn Xăng dầu Việt Nam",
-      "exchange": "HOSE",
-      "sector": "Năng lượng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 89.0,
-      "risk_adjusted_score": 30.9,
-      "score_components": {
-        "trend": 100.0,
-        "momentum": 95.0,
-        "volume": 85.0,
-        "relative_strength": 80.0,
-        "divergence": 70.0
-      },
-      "confidence": 0.75,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0866,
-        "es_t25": -0.1221,
-        "volatility_60d": 0.3904,
-        "max_drawdown": -0.5303,
-        "liquidity_score": 64.3,
-        "avg_value_20d": 196.26
-      },
-      "trade_plan": {
-        "current_price": 37600.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Giá đóng cửa (37.600 VNĐ) nằm trên đường xu hướng MA20 (36.328 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (35.894 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Khối lượng bùng nổ 1.9x so với bình quân 20 phiên.",
-        "Chỉ báo RSI (51.1) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+10.0%).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+        "Giá đóng cửa (20.900 VNĐ) nằm trên đường xu hướng MA20 (18.750 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (16.792 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+33.8%)."
       ],
       "warnings": [],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "POW",
-      "company_name": "Tổng Công ty Điện lực Dầu khí Việt Nam - CTCP",
-      "exchange": "HOSE",
-      "sector": "Điện lực",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 47.8,
-      "risk_adjusted_score": 19.9,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 80.0,
-        "volume": 50.0,
-        "relative_strength": 65.0,
-        "divergence": 70.0
-      },
-      "confidence": 0.57,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0502,
-        "es_t25": -0.0792,
-        "volatility_60d": 0.2179,
-        "max_drawdown": -0.2508,
-        "liquidity_score": 23.8,
-        "avg_value_20d": 73.61
-      },
-      "trade_plan": {
-        "current_price": 12500.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Chỉ báo RSI (47.1) nằm trong vùng an toàn (45 - 65).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
-      "warnings": [
-        "Giá đóng cửa (12.500 VNĐ) nằm dưới đường xu hướng MA20 (12.635 VNĐ)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "SAB",
-      "company_name": "Tổng Công ty Cổ phần Bia - Rượu - Nước giải khát Sài Gòn",
-      "exchange": "HOSE",
-      "sector": "Đồ uống",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 25.9,
-      "risk_adjusted_score": 10.8,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 30.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
-        "divergence": 38.0
-      },
-      "confidence": 0.75,
-      "risk_level": "MEDIUM",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0393,
-        "es_t25": -0.0521,
-        "volatility_60d": 0.1979,
-        "max_drawdown": -0.2094,
-        "liquidity_score": 4.8,
-        "avg_value_20d": 19.24
-      },
-      "trade_plan": {
-        "current_price": 43000.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [],
-      "warnings": [
-        "Giá đóng cửa (43.000 VNĐ) nằm dưới đường xu hướng MA20 (43.632 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "BEARISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "SSB",
-      "company_name": "Ngân hàng TMCP Đông Nam Á",
-      "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 26.8,
-      "risk_adjusted_score": 9.5,
-      "score_components": {
-        "trend": 20.0,
-        "momentum": 20.0,
-        "volume": 20.0,
-        "relative_strength": 35.0,
-        "divergence": 50.0
-      },
-      "confidence": 0.65,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0455,
-        "es_t25": -0.0788,
-        "volatility_60d": 0.4723,
-        "max_drawdown": -0.3029,
-        "liquidity_score": 28.6,
-        "avg_value_20d": 76.15
-      },
-      "trade_plan": {
-        "current_price": 17100.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [],
-      "warnings": [
-        "Giá đóng cửa (17.100 VNĐ) nằm dưới đường xu hướng MA20 (19.575 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (11.5) quá bán nặng (< 35)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 19.450 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (16.792) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1163,24 +1123,22 @@
       "company_name": "Công ty Cổ phần Chứng khoán SSI",
       "exchange": "HOSE",
       "sector": "Chứng khoán",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 29.3,
-      "risk_adjusted_score": 11.5,
+      "signal_score": 37.8,
+      "risk_adjusted_score": 29.4,
       "score_components": {
-        "trend": 20.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 35.0,
-        "divergence": 62.0
+        "trend": 50.0,
+        "momentum": 15.0,
+        "volume": 35.0,
+        "relative_strength": 50.0,
+        "divergence": 42.0
       },
-      "confidence": 0.6,
+      "confidence": 0.7,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1190,13 +1148,13 @@
       "risk_metrics": {
         "var_t25": -0.0616,
         "es_t25": -0.0838,
-        "volatility_60d": 0.3582,
+        "volatility_60d": 0.3607,
         "max_drawdown": -0.4178,
-        "liquidity_score": 88.1,
-        "avg_value_20d": 447.47
+        "liquidity_score": 85.4,
+        "avg_value_20d": 475.38
       },
       "trade_plan": {
-        "current_price": 19050.0,
+        "current_price": 20950.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1206,12 +1164,13 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (20.028 VNĐ).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (19.050 VNĐ) nằm dưới đường xu hướng MA20 (20.348 VNĐ).",
+        "Giá đóng cửa (20.950 VNĐ) nằm dưới đường xu hướng MA20 (20.978 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (7.3) quá bán nặng (< 35)."
+        "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1219,7 +1178,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BEARISH",
         "1W": "BULLISH",
         "1M": "NONE"
       }
@@ -1231,38 +1190,35 @@
       "sector": "Ngân hàng",
       "action": "AVOID",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 25.2,
-      "risk_adjusted_score": 11.1,
+      "data_quality": "INSUFFICIENT",
+      "data_quality_issues": ["empty_dataframe"],
+      "data_as_of": null,
+      "data_source": null,
+      "signal_score": null,
+      "risk_adjusted_score": null,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 70.0,
-        "relative_strength": 15.0,
-        "divergence": 50.0
+        "trend": null,
+        "momentum": null,
+        "volume": null,
+        "relative_strength": null,
+        "divergence": null
       },
-      "confidence": 0.57,
-      "risk_level": "MEDIUM",
+      "confidence": 0.1,
+      "risk_level": null,
       "expected_return": {
         "expected_return_5d": null,
         "expected_return_10d": null,
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0619,
-        "es_t25": -0.0841,
-        "volatility_60d": 0.2685,
-        "max_drawdown": -0.2459,
-        "liquidity_score": 73.8,
-        "avg_value_20d": 234.07
+        "var_t25": null,
+        "es_t25": null,
+        "volatility_60d": null,
+        "max_drawdown": null,
+        "liquidity_score": null
       },
       "trade_plan": {
-        "current_price": 67300.0,
+        "current_price": null,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1271,19 +1227,9 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
-      ],
-      "warnings": [
-        "Giá đóng cửa (67.300 VNĐ) nằm dưới đường xu hướng MA20 (73.955 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (10.2) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.8%)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
+      "reasons": ["Dữ liệu lịch sử không đủ hoặc vi phạm điều kiện an toàn dữ liệu."],
+      "warnings": ["Dữ liệu OHLCV không hợp lệ để tính toán chỉ báo."],
+      "invalidation": ["Cần kiểm tra và bổ sung dữ liệu giao dịch trước khi phân tích."],
       "divergence": {
         "1H": "NONE",
         "1D": "NONE",
@@ -1296,219 +1242,20 @@
       "company_name": "Ngân hàng TMCP Kỹ thương Việt Nam",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "WATCH",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 45.8,
-      "risk_adjusted_score": 19.6,
+      "signal_score": 55.2,
+      "risk_adjusted_score": 46.8,
       "score_components": {
-        "trend": 50.0,
-        "momentum": 45.0,
-        "volume": 35.0,
-        "relative_strength": 65.0,
-        "divergence": 30.0
-      },
-      "confidence": 0.7,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0621,
-        "es_t25": -0.0771,
-        "volatility_60d": 0.3265,
-        "max_drawdown": -0.3051,
-        "liquidity_score": 95.2,
-        "avg_value_20d": 536.09
-      },
-      "trade_plan": {
-        "current_price": 31900.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.657 VNĐ).",
-        "Chỉ báo RSI (53.1) nằm trong vùng an toàn (45 - 65)."
-      ],
-      "warnings": [
-        "Giá đóng cửa (31.900 VNĐ) nằm dưới đường xu hướng MA20 (32.432 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BEARISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "TPB",
-      "company_name": "Ngân hàng TMCP Tiên Phong",
-      "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 23.6,
-      "risk_adjusted_score": 10.1,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 15.0,
+        "trend": 100.0,
+        "momentum": 30.0,
         "volume": 35.0,
         "relative_strength": 50.0,
-        "divergence": 47.0
-      },
-      "confidence": 0.65,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0441,
-        "es_t25": -0.0623,
-        "volatility_60d": 0.2152,
-        "max_drawdown": -0.2759,
-        "liquidity_score": 45.2,
-        "avg_value_20d": 115.09
-      },
-      "trade_plan": {
-        "current_price": 11600.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
-      "warnings": [
-        "Giá đóng cửa (11.600 VNĐ) nằm dưới đường xu hướng MA20 (11.970 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "BULLISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "VCB",
-      "company_name": "Ngân hàng TMCP Ngoại Thương Việt Nam",
-      "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 21.5,
-      "risk_adjusted_score": 9.6,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
-        "divergence": 50.0
-      },
-      "confidence": 0.6,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.044,
-        "es_t25": -0.0637,
-        "volatility_60d": 0.2233,
-        "max_drawdown": -0.2842,
-        "liquidity_score": 76.2,
-        "avg_value_20d": 247.34
-      },
-      "trade_plan": {
-        "current_price": 56600.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [],
-      "warnings": [
-        "Giá đóng cửa (56.600 VNĐ) nằm dưới đường xu hướng MA20 (58.250 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (13.3) quá bán nặng (< 35)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "VHM",
-      "company_name": "Công ty Cổ phần Vinhomes",
-      "exchange": "HOSE",
-      "sector": "Bất động sản",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 22.8,
-      "risk_adjusted_score": 8.8,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 15.0,
-        "volume": 50.0,
-        "relative_strength": 15.0,
-        "divergence": 62.0
+        "divergence": 33.0
       },
       "confidence": 0.57,
       "risk_level": "HIGH",
@@ -1518,15 +1265,82 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0928,
-        "es_t25": -0.1198,
-        "volatility_60d": 0.4115,
-        "max_drawdown": -0.4087,
-        "liquidity_score": 97.6,
-        "avg_value_20d": 629.93
+        "var_t25": -0.0621,
+        "es_t25": -0.0771,
+        "volatility_60d": 0.3259,
+        "max_drawdown": -0.3051,
+        "liquidity_score": 87.8,
+        "avg_value_20d": 498.86
       },
       "trade_plan": {
-        "current_price": 65700.0,
+        "current_price": 32300.0,
+        "entry_low": 32300.0,
+        "entry_high": 32950.0,
+        "stop_loss": 31650.0,
+        "tp1": 34250.0,
+        "tp2": 34550.0,
+        "risk_reward": 2.01,
+        "position_percent": 10.0
+      },
+      "reasons": [
+        "Giá đóng cửa (32.300 VNĐ) nằm trên đường xu hướng MA20 (32.280 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.155 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+      ],
+      "warnings": [
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
+      ],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 31.650 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (31.155) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BULLISH",
+        "1W": "BEARISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "TPB",
+      "company_name": "Ngân hàng TMCP Tiên Phong",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 27.8,
+      "risk_adjusted_score": 23.4,
+      "score_components": {
+        "trend": 0.0,
+        "momentum": 30.0,
+        "volume": 70.0,
+        "relative_strength": 15.0,
+        "divergence": 50.0
+      },
+      "confidence": 0.57,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0438,
+        "es_t25": -0.0623,
+        "volatility_60d": 0.2177,
+        "max_drawdown": -0.2707,
+        "liquidity_score": 36.6,
+        "avg_value_20d": 100.43
+      },
+      "trade_plan": {
+        "current_price": 14250.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1535,13 +1349,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
-      ],
+      "reasons": ["Khối lượng bùng nổ 1.5x so với bình quân 20 phiên."],
       "warnings": [
-        "Giá đóng cửa (65.700 VNĐ) nằm dưới đường xu hướng MA20 (69.185 VNĐ).",
+        "Giá đóng cửa (14.250 VNĐ) nằm dưới đường xu hướng MA20 (14.378 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-5.6%)."
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.5%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1550,100 +1362,29 @@
       "divergence": {
         "1H": "NONE",
         "1D": "NONE",
-        "1W": "BULLISH",
+        "1W": "NONE",
         "1M": "NONE"
       }
     },
     {
-      "symbol": "VIB",
-      "company_name": "Ngân hàng TMCP Quốc tế Việt Nam",
+      "symbol": "VCB",
+      "company_name": "Ngân hàng TMCP Ngoại Thương Việt Nam",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 76.0,
-      "risk_adjusted_score": 31.1,
-      "score_components": {
-        "trend": 100.0,
-        "momentum": 95.0,
-        "volume": 50.0,
-        "relative_strength": 80.0,
-        "divergence": 18.0
-      },
-      "confidence": 0.5,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0404,
-        "es_t25": -0.0549,
-        "volatility_60d": 0.2264,
-        "max_drawdown": -0.2688,
-        "liquidity_score": 21.4,
-        "avg_value_20d": 59.57
-      },
-      "trade_plan": {
-        "current_price": 13800.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Giá đóng cửa (13.800 VNĐ) nằm trên đường xu hướng MA20 (13.458 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (13.437 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Chỉ báo RSI (55.3) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+7.3%)."
-      ],
-      "warnings": [
-        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BEARISH",
-        "1W": "BEARISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "VIC",
-      "company_name": "Tập đoàn Vingroup - CTCP",
-      "exchange": "HOSE",
-      "sector": "Bất động sản",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 41.0,
-      "risk_adjusted_score": 17.0,
+      "signal_score": 40.7,
+      "risk_adjusted_score": 36.1,
       "score_components": {
         "trend": 50.0,
-        "momentum": 30.0,
-        "volume": 50.0,
+        "momentum": 50.0,
+        "volume": 20.0,
         "relative_strength": 35.0,
-        "divergence": 38.0
+        "divergence": 33.0
       },
       "confidence": 0.75,
       "risk_level": "HIGH",
@@ -1653,15 +1394,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0813,
-        "es_t25": -0.1156,
-        "volatility_60d": 0.3911,
-        "max_drawdown": -0.3207,
-        "liquidity_score": 100.0,
-        "avg_value_20d": 832.55
+        "var_t25": -0.044,
+        "es_t25": -0.0637,
+        "volatility_60d": 0.2348,
+        "max_drawdown": -0.2842,
+        "liquidity_score": 78.0,
+        "avg_value_20d": 310.28
       },
       "trade_plan": {
-        "current_price": 228000.0,
+        "current_price": 58900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1671,16 +1412,208 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (226.154 VNĐ)."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (58.345 VNĐ).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (228.000 VNĐ) nằm dưới đường xu hướng MA20 (234.110 VNĐ).",
+        "Giá đóng cửa (58.900 VNĐ) nằm dưới đường xu hướng MA20 (59.145 VNĐ).",
+        "Cảnh báo Phân Kỳ Âm trên khung 1D.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BULLISH",
+        "1W": "BEARISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "VHM",
+      "company_name": "Công ty Cổ phần Vinhomes",
+      "exchange": "HOSE",
+      "sector": "Bất động sản",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 27.8,
+      "risk_adjusted_score": 21.6,
+      "score_components": {
+        "trend": 20.0,
+        "momentum": 15.0,
+        "volume": 35.0,
+        "relative_strength": 15.0,
+        "divergence": 70.0
+      },
+      "confidence": 0.65,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0928,
+        "es_t25": -0.1198,
+        "volatility_60d": 0.4012,
+        "max_drawdown": -0.4087,
+        "liquidity_score": 95.1,
+        "avg_value_20d": 671.91
+      },
+      "trade_plan": {
+        "current_price": 69400.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."],
+      "warnings": [
+        "Giá đóng cửa (69.400 VNĐ) nằm dưới đường xu hướng MA20 (72.345 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.0%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BULLISH",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "VIB",
+      "company_name": "Ngân hàng TMCP Quốc tế Việt Nam",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 26.7,
+      "risk_adjusted_score": 21.9,
+      "score_components": {
+        "trend": 20.0,
+        "momentum": 15.0,
+        "volume": 20.0,
+        "relative_strength": 35.0,
+        "divergence": 58.0
+      },
+      "confidence": 0.7,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0404,
+        "es_t25": -0.0549,
+        "volatility_60d": 0.2301,
+        "max_drawdown": -0.2742,
+        "liquidity_score": 24.4,
+        "avg_value_20d": 67.4
+      },
+      "trade_plan": {
+        "current_price": 13400.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."],
+      "warnings": [
+        "Giá đóng cửa (13.400 VNĐ) nằm dưới đường xu hướng MA20 (13.520 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BULLISH",
+        "1W": "BEARISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "VIC",
+      "company_name": "Tập đoàn Vingroup - CTCP",
+      "exchange": "HOSE",
+      "sector": "Bất động sản",
+      "action": "BUY",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 68.7,
+      "risk_adjusted_score": 57.0,
+      "score_components": {
+        "trend": 100.0,
+        "momentum": 60.0,
+        "volume": 20.0,
+        "relative_strength": 100.0,
+        "divergence": 38.0
+      },
+      "confidence": 0.5,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0813,
+        "es_t25": -0.1156,
+        "volatility_60d": 0.3808,
+        "max_drawdown": -0.3207,
+        "liquidity_score": 97.6,
+        "avg_value_20d": 1429.94
+      },
+      "trade_plan": {
+        "current_price": 243800.0,
+        "entry_low": 243800.0,
+        "entry_high": 248700.0,
+        "stop_loss": 233300.0,
+        "tp1": 260900.0,
+        "tp2": 260900.0,
+        "risk_reward": 1.63,
+        "position_percent": 20.0
+      },
+      "reasons": [
+        "Giá đóng cửa (243.800 VNĐ) nằm trên đường xu hướng MA20 (238.050 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (223.148 VNĐ).",
+        "Chỉ báo RSI (56.6) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+16.2%)."
+      ],
+      "warnings": [
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
+      ],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 233.300 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (223.148) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1694,24 +1627,22 @@
       "company_name": "Công ty Cổ phần Hàng không Vietjet",
       "exchange": "HOSE",
       "sector": "Hàng không",
-      "action": "AVOID",
+      "action": "WATCH",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 49.8,
-      "risk_adjusted_score": 20.8,
+      "signal_score": 63.0,
+      "risk_adjusted_score": 52.8,
       "score_components": {
-        "trend": 50.0,
-        "momentum": 45.0,
-        "volume": 35.0,
+        "trend": 80.0,
+        "momentum": 60.0,
+        "volume": 50.0,
         "relative_strength": 80.0,
-        "divergence": 42.0
+        "divergence": 30.0
       },
-      "confidence": 0.7,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1721,100 +1652,32 @@
       "risk_metrics": {
         "var_t25": -0.0605,
         "es_t25": -0.0774,
-        "volatility_60d": 0.2366,
+        "volatility_60d": 0.2386,
         "max_drawdown": -0.3072,
-        "liquidity_score": 50.0,
-        "avg_value_20d": 136.22
+        "liquidity_score": 51.2,
+        "avg_value_20d": 158.03
       },
       "trade_plan": {
-        "current_price": 128500.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 135900.0,
+        "entry_low": 135900.0,
+        "entry_high": 138600.0,
+        "stop_loss": 130400.0,
+        "tp1": 145400.0,
+        "tp2": 145400.0,
+        "risk_reward": 1.73,
+        "position_percent": 10.0
       },
       "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (127.034 VNĐ).",
-        "Chỉ báo RSI (48.9) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.2%).",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
+        "Giá đóng cửa (135.900 VNĐ) nằm trên đường xu hướng MA20 (126.480 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (126.988 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.4%)."
       ],
-      "warnings": [
-        "Giá đóng cửa (128.500 VNĐ) nằm dưới đường xu hướng MA20 (129.870 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
-      ],
+      "warnings": ["RSI (72.8) thuộc vùng quá mua (> 70).", "Cảnh báo Phân Kỳ Âm trên khung 1D."],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BEARISH",
-        "1W": "BULLISH",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "VNM",
-      "company_name": "Công ty Cổ phần Sữa Việt Nam",
-      "exchange": "HOSE",
-      "sector": "Thực phẩm",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 22.2,
-      "risk_adjusted_score": 9.7,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
-        "divergence": 30.0
-      },
-      "confidence": 0.7,
-      "risk_level": "MEDIUM",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0387,
-        "es_t25": -0.0666,
-        "volatility_60d": 0.2409,
-        "max_drawdown": -0.2296,
-        "liquidity_score": 54.8,
-        "avg_value_20d": 146.02
-      },
-      "trade_plan": {
-        "current_price": 57900.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [],
-      "warnings": [
-        "Giá đóng cửa (57.900 VNĐ) nằm dưới đường xu hướng MA20 (59.485 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (31.0) quá bán nặng (< 35).",
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 130.400 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (126.988) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
@@ -1824,44 +1687,42 @@
       }
     },
     {
-      "symbol": "VPB",
-      "company_name": "Ngân hàng TMCP Việt Nam Thịnh Vượng",
+      "symbol": "VNM",
+      "company_name": "Công ty Cổ phần Sữa Việt Nam",
       "exchange": "HOSE",
-      "sector": "Ngân hàng",
-      "action": "AVOID",
+      "sector": "Thực phẩm",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 69.0,
-      "risk_adjusted_score": 30.6,
+      "signal_score": 37.5,
+      "risk_adjusted_score": 33.0,
       "score_components": {
-        "trend": 100.0,
-        "momentum": 45.0,
+        "trend": 50.0,
+        "momentum": 30.0,
         "volume": 35.0,
-        "relative_strength": 100.0,
+        "relative_strength": 15.0,
         "divergence": 50.0
       },
-      "confidence": 0.57,
-      "risk_level": "HIGH",
+      "confidence": 0.75,
+      "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
         "expected_return_10d": null,
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0521,
-        "es_t25": -0.0712,
-        "volatility_60d": 0.2713,
-        "max_drawdown": -0.2879,
-        "liquidity_score": 92.9,
-        "avg_value_20d": 498.67
+        "var_t25": -0.0375,
+        "es_t25": -0.0657,
+        "volatility_60d": 0.2392,
+        "max_drawdown": -0.2296,
+        "liquidity_score": 56.1,
+        "avg_value_20d": 167.68
       },
       "trade_plan": {
-        "current_price": 23450.0,
+        "current_price": 61200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1870,13 +1731,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Giá đóng cửa (23.450 VNĐ) nằm trên đường xu hướng MA20 (22.570 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (21.357 VNĐ).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.8%)."
-      ],
+      "reasons": ["Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (60.358 VNĐ)."],
       "warnings": [
-        "RSI (72.0) thuộc vùng quá mua (> 70)."
+        "Giá đóng cửa (61.200 VNĐ) nằm dưới đường xu hướng MA20 (61.315 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.8%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1890,28 +1749,90 @@
       }
     },
     {
+      "symbol": "VPB",
+      "company_name": "Ngân hàng TMCP Việt Nam Thịnh Vượng",
+      "exchange": "HOSE",
+      "sector": "Ngân hàng",
+      "action": "BUY",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 71.8,
+      "risk_adjusted_score": 63.9,
+      "score_components": {
+        "trend": 100.0,
+        "momentum": 80.0,
+        "volume": 35.0,
+        "relative_strength": 80.0,
+        "divergence": 30.0
+      },
+      "confidence": 0.57,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.052,
+        "es_t25": -0.071,
+        "volatility_60d": 0.2673,
+        "max_drawdown": -0.2878,
+        "liquidity_score": 92.7,
+        "avg_value_20d": 601.45
+      },
+      "trade_plan": {
+        "current_price": 28000.0,
+        "entry_low": 28000.0,
+        "entry_high": 28550.0,
+        "stop_loss": 27300.0,
+        "tp1": 29700.0,
+        "tp2": 29950.0,
+        "risk_reward": 2.02,
+        "position_percent": 20.0
+      },
+      "reasons": [
+        "Giá đóng cửa (28.000 VNĐ) nằm trên đường xu hướng MA20 (27.312 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (26.116 VNĐ).",
+        "Chỉ báo RSI (51.5) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.2%)."
+      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 27.300 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (26.116) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BEARISH",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
       "symbol": "VRE",
       "company_name": "Công ty Cổ phần Vincom Retail",
       "exchange": "HOSE",
       "sector": "Bất động sản",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 21.5,
-      "risk_adjusted_score": 7.4,
+      "signal_score": 37.5,
+      "risk_adjusted_score": 26.0,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 15.0,
+        "trend": 50.0,
+        "momentum": 15.0,
+        "volume": 20.0,
+        "relative_strength": 35.0,
         "divergence": 70.0
       },
-      "confidence": 0.52,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1921,13 +1842,13 @@
       "risk_metrics": {
         "var_t25": -0.091,
         "es_t25": -0.1154,
-        "volatility_60d": 0.3855,
+        "volatility_60d": 0.3838,
         "max_drawdown": -0.4918,
-        "liquidity_score": 40.5,
-        "avg_value_20d": 98.26
+        "liquidity_score": 46.3,
+        "avg_value_20d": 147.59
       },
       "trade_plan": {
-        "current_price": 23100.0,
+        "current_price": 25100.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1937,13 +1858,12 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (24.900 VNĐ).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (23.100 VNĐ) nằm dưới đường xu hướng MA20 (24.592 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (23.9) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.6%)."
+        "Giá đóng cửa (25.100 VNĐ) nằm dưới đường xu hướng MA20 (25.798 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1961,24 +1881,22 @@
       "company_name": "Ngân hàng TMCP Sài Gòn - Hà Nội",
       "exchange": "HOSE",
       "sector": "Ngân hàng",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 18.5,
-      "risk_adjusted_score": 7.4,
+      "signal_score": 32.5,
+      "risk_adjusted_score": 27.2,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 15.0,
-        "divergence": 50.0
+        "momentum": 55.0,
+        "volume": 20.0,
+        "relative_strength": 35.0,
+        "divergence": 70.0
       },
-      "confidence": 0.6,
+      "confidence": 0.52,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1986,15 +1904,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0501,
-        "es_t25": -0.0669,
-        "volatility_60d": 0.3019,
-        "max_drawdown": -0.4401,
-        "liquidity_score": 90.5,
-        "avg_value_20d": 451.69
+        "var_t25": -0.0498,
+        "es_t25": -0.0638,
+        "volatility_60d": 0.2822,
+        "max_drawdown": -0.376,
+        "liquidity_score": 90.2,
+        "avg_value_20d": 547.05
       },
       "trade_plan": {
-        "current_price": 10050.0,
+        "current_price": 11650.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2003,12 +1921,13 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [],
+      "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+      ],
       "warnings": [
-        "Giá đóng cửa (10.050 VNĐ) nằm dưới đường xu hướng MA20 (11.365 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (5.1) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.9%)."
+        "Giá đóng cửa (11.650 VNĐ) nằm dưới đường xu hướng MA20 (11.805 VNĐ).",
+        "RSI (34.3) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2016,7 +1935,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BULLISH",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -2026,24 +1945,22 @@
       "company_name": "CTCP Tập đoàn Hóa chất Đức Giang",
       "exchange": "HOSE",
       "sector": "Hóa chất",
-      "action": "AVOID",
+      "action": "HOLD",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 21.5,
-      "risk_adjusted_score": 6.4,
+      "signal_score": 49.8,
+      "risk_adjusted_score": 29.7,
       "score_components": {
-        "trend": 20.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 15.0,
-        "divergence": 30.0
+        "trend": 50.0,
+        "momentum": 60.0,
+        "volume": 35.0,
+        "relative_strength": 35.0,
+        "divergence": 62.0
       },
-      "confidence": 0.65,
+      "confidence": 0.75,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2053,13 +1970,208 @@
       "risk_metrics": {
         "var_t25": -0.112,
         "es_t25": -0.1562,
-        "volatility_60d": 0.4043,
+        "volatility_60d": 0.4044,
         "max_drawdown": -0.6243,
-        "liquidity_score": 11.9,
-        "avg_value_20d": 25.05
+        "liquidity_score": 14.6,
+        "avg_value_20d": 34.24
       },
       "trade_plan": {
-        "current_price": 32500.0,
+        "current_price": 35800.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (35.524 VNĐ).",
+        "Chỉ báo RSI (50.7) nằm trong vùng an toàn (45 - 65).",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
+      ],
+      "warnings": [
+        "Giá đóng cửa (35.800 VNĐ) nằm dưới đường xu hướng MA20 (36.892 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "BULLISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "FRT",
+      "company_name": "CTCP Bán lẻ Kỹ thuật số FPT",
+      "exchange": "HOSE",
+      "sector": "Bán lẻ",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 42.0,
+      "risk_adjusted_score": 29.4,
+      "score_components": {
+        "trend": 50.0,
+        "momentum": 20.0,
+        "volume": 70.0,
+        "relative_strength": 15.0,
+        "divergence": 62.0
+      },
+      "confidence": 0.52,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0619,
+        "es_t25": -0.0806,
+        "volatility_60d": 0.4097,
+        "max_drawdown": -0.3718,
+        "liquidity_score": 19.5,
+        "avg_value_20d": 47.57
+      },
+      "trade_plan": {
+        "current_price": 131000.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (130.258 VNĐ).",
+        "Khối lượng bùng nổ 1.2x so với bình quân 20 phiên.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
+      ],
+      "warnings": [
+        "Giá đóng cửa (131.000 VNĐ) nằm dưới đường xu hướng MA20 (138.085 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (25.7) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-11.5%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "BULLISH",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "PVD",
+      "company_name": "Tổng CTCP Khoan và Dịch vụ Khoan Dầu khí",
+      "exchange": "HOSE",
+      "sector": "Dầu khí",
+      "action": "BUY",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 67.2,
+      "risk_adjusted_score": 49.8,
+      "score_components": {
+        "trend": 100.0,
+        "momentum": 80.0,
+        "volume": 35.0,
+        "relative_strength": 50.0,
+        "divergence": 30.0
+      },
+      "confidence": 0.57,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0721,
+        "es_t25": -0.094,
+        "volatility_60d": 0.3854,
+        "max_drawdown": -0.3509,
+        "liquidity_score": 39.0,
+        "avg_value_20d": 113.81
+      },
+      "trade_plan": {
+        "current_price": 19150.0,
+        "entry_low": 19150.0,
+        "entry_high": 19550.0,
+        "stop_loss": 18950.0,
+        "tp1": 20300.0,
+        "tp2": 20500.0,
+        "risk_reward": 2.0,
+        "position_percent": 20.0
+      },
+      "reasons": [
+        "Giá đóng cửa (19.150 VNĐ) nằm trên đường xu hướng MA20 (19.088 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (18.768 VNĐ).",
+        "Chỉ báo RSI (50.0) nằm trong vùng an toàn (45 - 65)."
+      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D."],
+      "invalidation": [
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 18.950 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (18.768) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "BEARISH",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "VCI",
+      "company_name": "CTCP Chứng khoán Vietcap",
+      "exchange": "HOSE",
+      "sector": "Chứng khoán",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 14.8,
+      "risk_adjusted_score": 10.7,
+      "score_components": {
+        "trend": 0.0,
+        "momentum": 20.0,
+        "volume": 20.0,
+        "relative_strength": 15.0,
+        "divergence": 30.0
+      },
+      "confidence": 0.7,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0748,
+        "es_t25": -0.0945,
+        "volatility_60d": 0.4315,
+        "max_drawdown": -0.4283,
+        "liquidity_score": 65.9,
+        "avg_value_20d": 224.66
+      },
+      "trade_plan": {
+        "current_price": 20400.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2070,10 +2182,10 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (32.500 VNĐ) nằm dưới đường xu hướng MA20 (35.562 VNĐ).",
+        "Giá đóng cửa (20.400 VNĐ) nằm dưới đường xu hướng MA20 (21.245 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (25.5) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-13.0%).",
+        "RSI (31.0) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-10.5%).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -2088,93 +2200,24 @@
       }
     },
     {
-      "symbol": "FRT",
-      "company_name": "CTCP Bán lẻ Kỹ thuật số FPT",
+      "symbol": "HCM",
+      "company_name": "CTCP Chứng khoán TP.Hồ Chí Minh",
       "exchange": "HOSE",
-      "sector": "Bán lẻ",
-      "action": "AVOID",
+      "sector": "Chứng khoán",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 75.0,
-      "risk_adjusted_score": 26.7,
-      "score_components": {
-        "trend": 100.0,
-        "momentum": 60.0,
-        "volume": 50.0,
-        "relative_strength": 100.0,
-        "divergence": 50.0
-      },
-      "confidence": 0.57,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0619,
-        "es_t25": -0.0806,
-        "volatility_60d": 0.436,
-        "max_drawdown": -0.3718,
-        "liquidity_score": 38.1,
-        "avg_value_20d": 95.88
-      },
-      "trade_plan": {
-        "current_price": 150900.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Giá đóng cửa (150.900 VNĐ) nằm trên đường xu hướng MA20 (139.245 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (138.428 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+13.3%)."
-      ],
-      "warnings": [
-        "RSI (76.5) thuộc vùng quá mua (> 70)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "NONE",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "PVD",
-      "company_name": "Tổng CTCP Khoan và Dịch vụ Khoan Dầu khí",
-      "exchange": "HOSE",
-      "sector": "Dầu khí",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 36.8,
-      "risk_adjusted_score": 13.7,
+      "signal_score": 26.2,
+      "risk_adjusted_score": 20.7,
       "score_components": {
         "trend": 20.0,
         "momentum": 30.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
-        "divergence": 70.0
+        "volume": 20.0,
+        "relative_strength": 15.0,
+        "divergence": 50.0
       },
       "confidence": 0.7,
       "risk_level": "HIGH",
@@ -2184,15 +2227,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0721,
-        "es_t25": -0.094,
-        "volatility_60d": 0.3835,
-        "max_drawdown": -0.3509,
-        "liquidity_score": 42.9,
-        "avg_value_20d": 107.35
+        "var_t25": -0.0594,
+        "es_t25": -0.0841,
+        "volatility_60d": 0.3001,
+        "max_drawdown": -0.3029,
+        "liquidity_score": 34.1,
+        "avg_value_20d": 100.02
       },
       "trade_plan": {
-        "current_price": 18250.0,
+        "current_price": 25000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2201,144 +2244,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": [],
       "warnings": [
-        "Giá đóng cửa (18.250 VNĐ) nằm dưới đường xu hướng MA20 (18.720 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "VCI",
-      "company_name": "CTCP Chứng khoán Vietcap",
-      "exchange": "HOSE",
-      "sector": "Chứng khoán",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 24.5,
-      "risk_adjusted_score": 8.8,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
-        "relative_strength": 35.0,
-        "divergence": 70.0
-      },
-      "confidence": 0.52,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0748,
-        "es_t25": -0.0945,
-        "volatility_60d": 0.4372,
-        "max_drawdown": -0.4216,
-        "liquidity_score": 61.9,
-        "avg_value_20d": 180.28
-      },
-      "trade_plan": {
-        "current_price": 18550.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
-      "warnings": [
-        "Giá đóng cửa (18.550 VNĐ) nằm dưới đường xu hướng MA20 (19.602 VNĐ).",
+        "Giá đóng cửa (25.000 VNĐ) nằm dưới đường xu hướng MA20 (25.848 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (26.7) quá bán nặng (< 35)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "HCM",
-      "company_name": "CTCP Chứng khoán TP.Hồ Chí Minh",
-      "exchange": "HOSE",
-      "sector": "Chứng khoán",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 28.2,
-      "risk_adjusted_score": 11.0,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 70.0,
-        "relative_strength": 35.0,
-        "divergence": 50.0
-      },
-      "confidence": 0.52,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0617,
-        "es_t25": -0.0842,
-        "volatility_60d": 0.3043,
-        "max_drawdown": -0.2912,
-        "liquidity_score": 26.2,
-        "avg_value_20d": 74.85
-      },
-      "trade_plan": {
-        "current_price": 23600.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
-      ],
-      "warnings": [
-        "Giá đóng cửa (23.600 VNĐ) nằm dưới đường xu hướng MA20 (24.465 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (32.4) quá bán nặng (< 35)."
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.7%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2356,24 +2266,22 @@
       "company_name": "CTCP Chứng khoán VNDIRECT",
       "exchange": "HOSE",
       "sector": "Chứng khoán",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
       "signal_score": 17.8,
-      "risk_adjusted_score": 6.4,
+      "risk_adjusted_score": 13.2,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 50.0,
+        "momentum": 20.0,
+        "volume": 20.0,
         "relative_strength": 15.0,
-        "divergence": 45.0
+        "divergence": 50.0
       },
-      "confidence": 0.6,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2383,13 +2291,13 @@
       "risk_metrics": {
         "var_t25": -0.0667,
         "es_t25": -0.0888,
-        "volatility_60d": 0.3947,
-        "max_drawdown": -0.4349,
-        "liquidity_score": 57.1,
-        "avg_value_20d": 147.13
+        "volatility_60d": 0.3881,
+        "max_drawdown": -0.4003,
+        "liquidity_score": 58.5,
+        "avg_value_20d": 168.07
       },
       "trade_plan": {
-        "current_price": 13100.0,
+        "current_price": 14850.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2398,15 +2306,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": [],
       "warnings": [
-        "Giá đóng cửa (13.100 VNĐ) nằm dưới đường xu hướng MA20 (14.238 VNĐ).",
+        "Giá đóng cửa (14.850 VNĐ) nằm dưới đường xu hướng MA20 (15.788 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (21.6) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-10.4%).",
-        "Cảnh báo Phân Kỳ Âm trên khung 1D."
+        "RSI (26.3) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-14.9%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2414,7 +2319,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "BULLISH",
+        "1D": "NONE",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -2424,24 +2329,22 @@
       "company_name": "CTCP Tập đoàn Hoa Sen",
       "exchange": "HOSE",
       "sector": "Thép",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 35.5,
-      "risk_adjusted_score": 13.6,
+      "signal_score": 20.0,
+      "risk_adjusted_score": 15.3,
       "score_components": {
         "trend": 0.0,
-        "momentum": 40.0,
-        "volume": 50.0,
-        "relative_strength": 50.0,
-        "divergence": 70.0
+        "momentum": 20.0,
+        "volume": 35.0,
+        "relative_strength": 15.0,
+        "divergence": 50.0
       },
-      "confidence": 0.52,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2449,12 +2352,75 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0485,
+        "var_t25": -0.0498,
         "es_t25": -0.0752,
-        "volatility_60d": 0.2524,
-        "max_drawdown": -0.3208,
-        "liquidity_score": 7.1,
-        "avg_value_20d": 20.72
+        "volatility_60d": 0.2575,
+        "max_drawdown": -0.3255,
+        "liquidity_score": 9.8,
+        "avg_value_20d": 25.33
+      },
+      "trade_plan": {
+        "current_price": 10100.0,
+        "entry_low": null,
+        "entry_high": null,
+        "stop_loss": null,
+        "tp1": null,
+        "tp2": null,
+        "risk_reward": null,
+        "position_percent": 0.0
+      },
+      "reasons": [],
+      "warnings": [
+        "Giá đóng cửa (10.100 VNĐ) nằm dưới đường xu hướng MA20 (10.500 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (13.6) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.7%)."
+      ],
+      "invalidation": [
+        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
+        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+      ],
+      "divergence": {
+        "1H": "NONE",
+        "1D": "NONE",
+        "1W": "NONE",
+        "1M": "NONE"
+      }
+    },
+    {
+      "symbol": "NKG",
+      "company_name": "CTCP Thép Nam Kim",
+      "exchange": "HOSE",
+      "sector": "Thép",
+      "action": "SELL",
+      "model_version": "2.0",
+      "data_quality": "SUFFICIENT",
+      "data_quality_issues": [],
+      "data_as_of": "2026-09-22",
+      "data_source": "REAL_DATA",
+      "signal_score": 22.2,
+      "risk_adjusted_score": 16.0,
+      "score_components": {
+        "trend": 0.0,
+        "momentum": 20.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
+        "divergence": 50.0
+      },
+      "confidence": 0.6,
+      "risk_level": "HIGH",
+      "expected_return": {
+        "expected_return_5d": null,
+        "expected_return_10d": null,
+        "expected_return_20d": null
+      },
+      "risk_metrics": {
+        "var_t25": -0.0581,
+        "es_t25": -0.0763,
+        "volatility_60d": 0.2625,
+        "max_drawdown": -0.4103,
+        "liquidity_score": 4.9,
+        "avg_value_20d": 16.18
       },
       "trade_plan": {
         "current_price": 9910.0,
@@ -2466,79 +2432,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": [],
       "warnings": [
-        "Giá đóng cửa (9.910 VNĐ) nằm dưới đường xu hướng MA20 (10.046 VNĐ).",
-        "RSI (31.8) quá bán nặng (< 35)."
-      ],
-      "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
-      ],
-      "divergence": {
-        "1H": "NONE",
-        "1D": "BULLISH",
-        "1W": "NONE",
-        "1M": "NONE"
-      }
-    },
-    {
-      "symbol": "NKG",
-      "company_name": "CTCP Thép Nam Kim",
-      "exchange": "HOSE",
-      "sector": "Thép",
-      "action": "AVOID",
-      "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
-      "data_quality": "SUFFICIENT",
-      "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
-      "data_source": "REAL_DATA",
-      "signal_score": 19.2,
-      "risk_adjusted_score": 6.7,
-      "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 35.0,
-        "relative_strength": 15.0,
-        "divergence": 70.0
-      },
-      "confidence": 0.52,
-      "risk_level": "HIGH",
-      "expected_return": {
-        "expected_return_5d": null,
-        "expected_return_10d": null,
-        "expected_return_20d": null
-      },
-      "risk_metrics": {
-        "var_t25": -0.0571,
-        "es_t25": -0.0763,
-        "volatility_60d": 0.2764,
-        "max_drawdown": -0.4376,
-        "liquidity_score": 2.4,
-        "avg_value_20d": 16.56
-      },
-      "trade_plan": {
-        "current_price": 9150.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
-      },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
-      "warnings": [
-        "Giá đóng cửa (9.150 VNĐ) nằm dưới đường xu hướng MA20 (9.699 VNĐ).",
+        "Giá đóng cửa (9.910 VNĐ) nằm dưới đường xu hướng MA20 (10.533 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (27.4) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.2%)."
+        "RSI (11.8) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-11.8%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2546,7 +2445,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "BULLISH",
+        "1D": "NONE",
         "1W": "NONE",
         "1M": "NONE"
       }
@@ -2556,24 +2455,22 @@
       "company_name": "CTCP Tập đoàn Đất Xanh",
       "exchange": "HOSE",
       "sector": "Bất động sản",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 19.2,
-      "risk_adjusted_score": 6.4,
+      "signal_score": 26.8,
+      "risk_adjusted_score": 18.1,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 5.0,
-        "volume": 35.0,
+        "trend": 20.0,
+        "momentum": 20.0,
+        "volume": 20.0,
         "relative_strength": 15.0,
         "divergence": 70.0
       },
-      "confidence": 0.52,
+      "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2581,15 +2478,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0778,
-        "es_t25": -0.0925,
-        "volatility_60d": 0.3926,
-        "max_drawdown": -0.5161,
-        "liquidity_score": 33.3,
-        "avg_value_20d": 92.39
+        "var_t25": -0.0814,
+        "es_t25": -0.0951,
+        "volatility_60d": 0.39,
+        "max_drawdown": -0.5151,
+        "liquidity_score": 41.5,
+        "avg_value_20d": 127.46
       },
       "trade_plan": {
-        "current_price": 9610.0,
+        "current_price": 10600.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2598,14 +2495,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."],
       "warnings": [
-        "Giá đóng cửa (9.610 VNĐ) nằm dưới đường xu hướng MA20 (10.308 VNĐ).",
+        "Giá đóng cửa (10.600 VNĐ) nằm dưới đường xu hướng MA20 (11.295 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (14.4) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.5%)."
+        "RSI (14.3) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-11.0%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2623,24 +2518,22 @@
       "company_name": "Tổng CTCP Đầu tư Phát triển Xây dựng",
       "exchange": "HOSE",
       "sector": "Bất động sản",
-      "action": "AVOID",
+      "action": "BUY",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-21",
       "data_source": "REAL_DATA",
-      "signal_score": 28.2,
-      "risk_adjusted_score": 8.5,
+      "signal_score": 76.7,
+      "risk_adjusted_score": 58.4,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 50.0,
-        "relative_strength": 35.0,
-        "divergence": 70.0
+        "trend": 100.0,
+        "momentum": 50.0,
+        "volume": 70.0,
+        "relative_strength": 100.0,
+        "divergence": 58.0
       },
-      "confidence": 0.52,
+      "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2648,39 +2541,44 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0842,
-        "es_t25": -0.0966,
-        "volatility_60d": 0.3958,
-        "max_drawdown": -0.6105,
-        "liquidity_score": 14.3,
-        "avg_value_20d": 32.98
+        "var_t25": -0.0414,
+        "es_t25": -0.0577,
+        "volatility_60d": 0.4148,
+        "max_drawdown": -0.1186,
+        "liquidity_score": 2.4,
+        "avg_value_20d": 4.38
       },
       "trade_plan": {
-        "current_price": 9300.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 423400.0,
+        "entry_low": 423400.0,
+        "entry_high": 431900.0,
+        "stop_loss": 393800.0,
+        "tp1": 453000.0,
+        "tp2": 453000.0,
+        "risk_reward": 1.0,
+        "position_percent": 14.3
       },
       "reasons": [
+        "Giá đóng cửa (423.400 VNĐ) nằm trên đường xu hướng MA20 (338.740 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (317.136 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.4x so với bình quân 20 phiên.",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+39.8%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (9.300 VNĐ) nằm dưới đường xu hướng MA20 (9.700 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (29.0) quá bán nặng (< 35)."
+        "RSI (89.7) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao.",
+        "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 393.800 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (317.136) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
         "1D": "BULLISH",
-        "1W": "NONE",
+        "1W": "BEARISH",
         "1M": "NONE"
       }
     },
@@ -2689,21 +2587,19 @@
       "company_name": "CTCP Phát triển Bất động sản Phát Đạt",
       "exchange": "HOSE",
       "sector": "Bất động sản",
-      "action": "AVOID",
+      "action": "SELL",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 31.2,
-      "risk_adjusted_score": 10.2,
+      "signal_score": 25.2,
+      "risk_adjusted_score": 18.8,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
-        "volume": 70.0,
-        "relative_strength": 35.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
         "divergence": 70.0
       },
       "confidence": 0.52,
@@ -2714,15 +2610,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0742,
-        "es_t25": -0.0881,
-        "volatility_60d": 0.2998,
-        "max_drawdown": -0.5779,
-        "liquidity_score": 16.7,
-        "avg_value_20d": 43.81
+        "var_t25": -0.0749,
+        "es_t25": -0.0884,
+        "volatility_60d": 0.3034,
+        "max_drawdown": -0.576,
+        "liquidity_score": 100.0,
+        "avg_value_20d": 54471.79
       },
       "trade_plan": {
-        "current_price": 11100.0,
+        "current_price": 11750000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2731,14 +2627,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Khối lượng bùng nổ 1.2x so với bình quân 20 phiên.",
-        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
-      ],
+      "reasons": ["Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."],
       "warnings": [
-        "Giá đóng cửa (11.100 VNĐ) nằm dưới đường xu hướng MA20 (11.405 VNĐ).",
+        "Giá đóng cửa (11.750.000 VNĐ) nằm dưới đường xu hướng MA20 (12.040.000 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (27.8) quá bán nặng (< 35)."
+        "RSI (24.0) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-7.2%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2756,22 +2650,20 @@
       "company_name": "CTCP Gemadept",
       "exchange": "HOSE",
       "sector": "Logistics",
-      "action": "AVOID",
+      "action": "WATCH",
       "model_version": "2.0",
-      "quant_version": "1.0.0",
-      "config_hash": "07b74635ffca",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-08",
+      "data_as_of": "2026-09-22",
       "data_source": "REAL_DATA",
-      "signal_score": 76.2,
-      "risk_adjusted_score": 32.2,
+      "signal_score": 61.7,
+      "risk_adjusted_score": 52.3,
       "score_components": {
         "trend": 100.0,
-        "momentum": 60.0,
-        "volume": 70.0,
-        "relative_strength": 100.0,
-        "divergence": 38.0
+        "momentum": 65.0,
+        "volume": 35.0,
+        "relative_strength": 35.0,
+        "divergence": 33.0
       },
       "confidence": 0.62,
       "risk_level": "MEDIUM",
@@ -2783,39 +2675,36 @@
       "risk_metrics": {
         "var_t25": -0.058,
         "es_t25": -0.0796,
-        "volatility_60d": 0.2405,
-        "max_drawdown": -0.1857,
-        "liquidity_score": 19.0,
-        "avg_value_20d": 52.92
+        "volatility_60d": 0.2311,
+        "max_drawdown": -0.2005,
+        "liquidity_score": 22.0,
+        "avg_value_20d": 62.42
       },
       "trade_plan": {
-        "current_price": 54200.0,
-        "entry_low": null,
-        "entry_high": null,
-        "stop_loss": null,
-        "tp1": null,
-        "tp2": null,
-        "risk_reward": null,
-        "position_percent": 0.0
+        "current_price": 77400.0,
+        "entry_low": 77400.0,
+        "entry_high": 78900.0,
+        "stop_loss": 75800.0,
+        "tp1": 82000.0,
+        "tp2": 82800.0,
+        "risk_reward": 1.98,
+        "position_percent": 10.0
       },
       "reasons": [
-        "Giá đóng cửa (54.200 VNĐ) nằm trên đường xu hướng MA20 (51.640 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (51.561 VNĐ).",
+        "Giá đóng cửa (77.400 VNĐ) nằm trên đường xu hướng MA20 (77.020 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (76.632 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.1%)."
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "RSI (70.4) thuộc vùng quá mua (> 70).",
-        "Cảnh báo Phân Kỳ Âm trên khung 1W."
-      ],
+      "warnings": ["Cảnh báo Phân Kỳ Âm trên khung 1D.", "Cảnh báo Phân Kỳ Âm trên khung 1W."],
       "invalidation": [
-        "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
-        "Tín hiệu phân kỳ dương hình thành trên khung 1D."
+        "Giá đóng cửa vi phạm ngưỡng cắt lỗ 75.800 VNĐ.",
+        "Giá gãy hỗ trợ trung hạn MA50 (76.632) VNĐ.",
+        "Trạng thái thị trường chung suy giảm sang PANIC."
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BULLISH",
         "1W": "BEARISH",
         "1M": "NONE"
       }

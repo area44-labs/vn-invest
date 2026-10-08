@@ -100,12 +100,6 @@ Performance regression monitoring uses explicit mode selection (`update_data=Tru
 
 ---
 
-## 6. Post-Publish History Cleanup (`scripts/pipeline/stages.py`)
-
-- **Trigger Condition**: In live production update mode (`update_data=True`), after `ArtifactPublisher.publish(...)` completes successfully and all artifacts pass validation, old historical report files in `generated/history/*.json` are cleaned up.
-- **Cleanup Actions**: Retains current day's report (`generated/history/YYYY-MM-DD.json`), deletes older historical JSON reports, and resets `generated/history/index.json` to contain only the current report date.
-- **Fail-Closed Protection**: If the pipeline or monitoring checks fail prior to artifact publishing, no history files are deleted or modified.
-
 ---
 
 ## 6. Fail-Closed Invariants

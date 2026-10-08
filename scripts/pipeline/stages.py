@@ -1018,40 +1018,6 @@ class ArtifactPublishingStage(PipelineStage):
             )
             publisher.publish(context.artifacts_to_publish, canonical_data_as_of=context.data_as_of)
 
-            if context.update_data and data_as_of:
-                history_dir = os.path.join(context.generated_dir, "history")
-                current_history_file = f"{data_as_of}.json"
-                if os.path.exists(history_dir):
-                    for fname in os.listdir(history_dir):
-                        if (
-                            fname.endswith(".json")
-                            and fname != "index.json"
-                            and fname != current_history_file
-                        ):
-                            try:
-                                os.remove(os.path.join(history_dir, fname))
-                            except OSError as err:
-                                logger.warning(
-                                    "Failed to clean up old history file %s: %s", fname, err
-                                )
-
-                    clean_index_payload = {
-                        "last_updated": context.generated_at,
-                        "total_reports": 1,
-                        "dates": [data_as_of],
-                    }
-                    clean_index_path = os.path.join(history_dir, "index.json")
-                    try:
-                        import json
-
-                        with open(clean_index_path, "w", encoding="utf-8") as f:
-                            json.dump(clean_index_payload, f, indent=2, ensure_ascii=False)
-                            f.write("\n")
-                    except OSError as err:
-                        logger.warning(
-                            "Failed to update index.json during history cleanup: %s", err
-                        )
-
 
 __all__ = [
     "ArtifactPublishingStage",

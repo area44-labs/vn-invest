@@ -96,7 +96,7 @@ State is communicated between stages exclusively through `PipelineContext` (`scr
 ### Stage 9: `ArtifactPublishingStage`
 
 - **Class**: `ArtifactPublishingStage` in `scripts/pipeline/stages.py`.
-- **Responsibility**: Atomically serializes and persists all generated JSON payloads to `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `performance.json`, `history/index.json`, `history/YYYY-MM-DD.json`, `provenance.json`). In live update mode (`update_data=True`), cleans up older history JSON artifacts after successful publication.
+- **Responsibility**: Atomically serializes and persists all generated JSON payloads to `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `performance.json`, `history/index.json`, `history/YYYY-MM-DD.json`, `provenance.json`).
 - **Engine**: Invokes `ArtifactPublisher` (`scripts/artifacts/publisher.py`).
 
 ---
