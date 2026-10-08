@@ -149,7 +149,7 @@ class PerformanceTracker:
 
             validate_performance_payload(payload)
             return payload
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if update_data:
                 logger.error(
                     "Critical performance instrumentation/regression error in update mode: %s",
