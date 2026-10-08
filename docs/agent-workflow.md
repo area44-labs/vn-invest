@@ -8,7 +8,7 @@ This document specifies the operational guidelines, execution rules, and workflo
 
 1. **Read & Inspect Before Modifying Code**: Always inspect existing canonical subsystem code and tests in `scripts/` before altering functionality. Do not guess internal interfaces.
 2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`). Never import from or re-create deleted `scripts/lib/*` modules.
-3. **One Focused PR at a Time**: Work in small, focused increments addressing a single milestone or feature scope. Do not mix unrelated refactoring or naming cleanups into a documentation or feature PR.
+3. **Focused Changes**: Work in small, focused increments addressing a single task or feature scope. Do not mix unrelated refactorings or formatting changes into a single PR.
 4. **No Financial Math in Frontend**: Do not add quantitative calculations to `src/`. The frontend is strictly a read-only viewer for pre-rendered artifacts in `generated/`.
 5. **Fail-Closed & Anti-Lookahead Safety**: Maintain point-in-time isolation ($\le T$) for all historical data and signal logic. Do not fabricate missing values or create silent fallbacks.
 
@@ -80,4 +80,4 @@ Whenever a code change alters subsystem boundaries, data contracts, pipeline sta
 
 - Update the single authoritative document in `docs/` governing that topic.
 - Verify that internal Markdown links across `docs/` and `AGENTS.md` remain valid.
-- Ensure `docs/architecture-inventory.md` is updated if historical architectural milestones are recorded.
+- Ensure relevant documentation files under `docs/` are updated in the same change whenever system architecture, contracts, or behavior change.

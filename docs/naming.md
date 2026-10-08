@@ -50,8 +50,3 @@ The system enforces explicit separation across four distinct metadata contracts:
 4. **`SCHEMA_VERSION`** (e.g. `"2.0"`): Canonical JSON Schema version managed by `scripts/schema/registry.py`.
 
 ---
-
-## 4. Distinction Between Existing Terminology & Future Cleanup
-
-- **Current Baseline (Post-M2)**: All naming documented in this file reflects the current, post-M2 codebase after `scripts/lib/*` removal.
-- **Future M4 Cleanup**: Any future minor naming standardizations or schema field cleanups scheduled for Milestone M4 will be documented when implemented and do not alter the M2 baseline documented here.

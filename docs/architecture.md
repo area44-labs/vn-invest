@@ -1,6 +1,6 @@
 # Subsystem Architecture & Canonical Boundaries
 
-This document is the authoritative architectural specification for **VN Invest** (`area44-labs/vn-invest`). It defines system package/module boundaries, data flow hierarchy, entry points, and architectural rules following the completion of Milestone M2 (complete removal of `scripts/lib/*`).
+This document is the authoritative architectural specification for **VN Invest** (`area44-labs/vn-invest`). It defines system package/module boundaries, data flow hierarchy, entry points, and architectural rules.
 
 ---
 
@@ -64,7 +64,7 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 - **`scripts/data` & `scripts/quant`**: Depend on `scripts/domain`. Contain pure functions and isolated calculation engines without pipeline I/O.
 - **`scripts/pipeline`**: Coordinates execution across `data`, `quant`, `performance`, `monitoring`, and `artifacts`.
 - **`scripts/artifacts`**: Manages file transactions and locking. Has **zero top-level import dependencies on `scripts.pipeline`** to prevent circular dependencies.
-- **No legacy `scripts/lib/*`**: All legacy compatibility modules in `scripts/lib/` were deleted in M2. All code imports directly from canonical packages.
+- **No legacy `scripts/lib/*`**: The legacy `scripts/lib/` package is completely removed. All code imports directly from canonical packages.
 
 ---
 

@@ -7,7 +7,7 @@ This document specifies the test suite architecture, execution standards, fixtur
 ## 1. Authoritative Test Runner & Execution Standard
 
 - **Test Runner**: Native `pytest` (`uv run --frozen pytest`).
-- **No Legacy Test Runners**: Legacy custom runners (such as `scripts/tests/run_tests.py`) were deleted in M1. All tests execute natively through pytest.
+- **No Legacy Test Runners**: All backend tests execute natively through `pytest`. Legacy test scripts must not be recreated.
 - **Python Version**: Python 3.14 via `uv`.
 
 ---

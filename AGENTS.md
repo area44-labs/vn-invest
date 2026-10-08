@@ -63,18 +63,13 @@ vp build                 # SSG prerender build
 
 ---
 
-## 4. Fast Agent Development Workflow
+## 4. Required Agent Workflow
 
-1. **Inspect Architecture**: Read relevant code and documentation under `docs/` before editing.
-2. **Run Targeted Unit Tests First**:
-   - Domain: `uv run --frozen pytest scripts/tests/test_domain.py`
-   - Quant & Recommendations: `uv run --frozen pytest scripts/tests/test_recommendation.py scripts/tests/test_engines.py`
-   - Pipeline: `uv run --frozen pytest scripts/tests/test_pipeline.py`
-   - Backtest: `uv run --frozen pytest scripts/tests/test_portfolio_backtest.py`
-   - Monitoring & Drift: `uv run --frozen pytest scripts/tests/test_monitoring.py scripts/tests/test_drift_monitoring.py`
-3. **Make Small, Focused Changes**: Implement minimal changes satisfying existing domain contracts.
-4. **Run Full Test Suite & Linter**: Validate changes with `uv run --frozen pytest` and `uv run --frozen ruff check --fix scripts`.
-5. **Maintain Documentation**: Update corresponding `docs/*` document if system architecture or contracts changed.
+1. **Read Documentation First**: Read the relevant documentation in `docs/` before modifying code to understand canonical architecture, contracts, and expectations.
+2. **Follow Canonical Architecture**: Respect documented subsystem boundaries (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`, `scripts/schema`). Never recreate removed `scripts/lib/*` modules.
+3. **Make Focused Changes**: Implement minimal, targeted edits satisfying existing domain contracts. Do not mix unrelated refactorings or formatting changes into a single change.
+4. **Run Validation & Tests**: Execute targeted unit tests first, followed by full test suite (`uv run --frozen pytest`) and formatting checks (`pnpm run check` / `uv run --frozen ruff check --fix scripts`).
+5. **Keep Documentation Synchronized**: If a code change affects documented architecture, behavior, contracts, workflow, or conventions, update the relevant documentation in `docs/` within the same change.
 
 ---
 
