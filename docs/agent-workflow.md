@@ -1,6 +1,6 @@
-# Coding Agent & Jules Workflow Guidelines
+# Coding Agent Workflow Guidelines
 
-This document specifies the operational guidelines, execution rules, and workflow expectations for coding agents (such as Jules) working on **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the operational guidelines, execution rules, and workflow expectations for coding agents working on **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
