@@ -957,8 +957,8 @@ class TestPerformanceRegressionAndBudget:
         """Verify performance regression evaluates actual durations against centralized stage baselines."""
         performance_payload = {
             "stages": [
-                {"stage": "pipeline", "elapsed_seconds": 90.0, "status": "SUCCESS"},
-                {"stage": "stock_fetch", "elapsed_seconds": 80.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 5.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 2.5, "status": "SUCCESS"},
             ],
             "provider": {
                 "total_calls": 10,
@@ -978,7 +978,7 @@ class TestPerformanceRegressionAndBudget:
 
         assert "pipeline" in evals
         assert evals["pipeline"]["baseline_seconds"] == PERFORMANCE_STAGE_BASELINES["pipeline"]
-        assert evals["pipeline"]["actual_seconds"] == 90.0
+        assert evals["pipeline"]["actual_seconds"] == 5.0
         assert evals["pipeline"]["exceeded_ratio"] == 0.5
         assert evals["pipeline"]["status"] == "PASS"
 
@@ -986,7 +986,7 @@ class TestPerformanceRegressionAndBudget:
         assert (
             evals["stock_fetch"]["baseline_seconds"] == PERFORMANCE_STAGE_BASELINES["stock_fetch"]
         )
-        assert evals["stock_fetch"]["actual_seconds"] == 80.0
+        assert evals["stock_fetch"]["actual_seconds"] == 2.5
         assert evals["stock_fetch"]["exceeded_ratio"] == 0.5
         assert evals["stock_fetch"]["status"] == "PASS"
 
@@ -1025,7 +1025,7 @@ class TestPerformanceRegressionAndBudget:
             "stages": [
                 {
                     "stage": "benchmark_fetch",
-                    "elapsed_seconds": 35.0,
+                    "elapsed_seconds": 2.5,
                     "status": "SUCCESS",
                 },
             ],
@@ -1034,8 +1034,8 @@ class TestPerformanceRegressionAndBudget:
                 "successful_calls": 1,
                 "failed_calls": 0,
                 "retry_count": 0,
-                "total_elapsed_seconds": 35.0,
-                "average_call_seconds": 35.0,
+                "total_elapsed_seconds": 2.5,
+                "average_call_seconds": 2.5,
                 "calls_by_source": {"kbs": 1},
             },
             "duplicate_operations": [],
@@ -1162,7 +1162,7 @@ class TestPerformanceRegressionAndBudget:
             "stages": [
                 {
                     "stage": "benchmark_fetch",
-                    "elapsed_seconds": 35.0,
+                    "elapsed_seconds": 3.0,
                     "status": "SUCCESS",
                 },
             ],
@@ -1171,8 +1171,8 @@ class TestPerformanceRegressionAndBudget:
                 "successful_calls": 1,
                 "failed_calls": 0,
                 "retry_count": 0,
-                "total_elapsed_seconds": 35.0,
-                "average_call_seconds": 35.0,
+                "total_elapsed_seconds": 3.0,
+                "average_call_seconds": 3.0,
                 "calls_by_source": {"kbs": 1},
             },
             "duplicate_operations": [],
@@ -1191,7 +1191,7 @@ class TestPerformanceRegressionAndBudget:
             "stages": [
                 {
                     "stage": "benchmark_fetch",
-                    "elapsed_seconds": 50.0,
+                    "elapsed_seconds": 5.0,
                     "status": "SUCCESS",
                 },
             ],
@@ -1200,8 +1200,8 @@ class TestPerformanceRegressionAndBudget:
                 "successful_calls": 1,
                 "failed_calls": 0,
                 "retry_count": 0,
-                "total_elapsed_seconds": 50.0,
-                "average_call_seconds": 50.0,
+                "total_elapsed_seconds": 5.0,
+                "average_call_seconds": 5.0,
                 "calls_by_source": {"kbs": 1},
             },
             "duplicate_operations": [],
@@ -1344,9 +1344,9 @@ class TestPerformanceRegressionAndBudget:
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
-                        "elapsed_seconds": 260.0,
+                        "elapsed_seconds": 10.0,
                         "status": "SUCCESS",
-                    },  # Exceeds degraded threshold (240s) but <= failed threshold (480s) -> DEGRADED
+                    },  # Exceeds degraded threshold (7.5s) but <= failed threshold (15s) -> DEGRADED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1416,9 +1416,9 @@ class TestPerformanceRegressionAndBudget:
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
-                        "elapsed_seconds": 500.0,
+                        "elapsed_seconds": 20.0,
                         "status": "SUCCESS",
-                    },  # Exceeds failed threshold (480s) -> FAILED
+                    },  # Exceeds failed threshold (15s) -> FAILED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1693,7 +1693,7 @@ class TestPerformanceRegressionAndBudget:
         # Stage duration exceeding degraded threshold -> DEGRADED & overall_status WARNING
         regression_audit = copy.deepcopy(healthy_audit)
         regression_audit["performance"]["stages"].append(
-            {"stage": "stock_fetch", "elapsed_seconds": 260.0, "status": "SUCCESS"}
+            {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"}
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:

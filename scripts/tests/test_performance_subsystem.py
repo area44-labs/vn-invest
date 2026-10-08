@@ -233,7 +233,7 @@ class TestPerformanceRegression:
     def test_evaluate_performance_regression_degraded(self):
         payload = {
             "stages": [
-                {"stage": "stock_fetch", "elapsed_seconds": 260.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 8.5, "status": "SUCCESS"},
             ]
         }
         res = evaluate_performance_regression(payload)
@@ -242,7 +242,7 @@ class TestPerformanceRegression:
     def test_evaluate_performance_regression_failed(self):
         payload = {
             "stages": [
-                {"stage": "stock_fetch", "elapsed_seconds": 500.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 20.0, "status": "SUCCESS"},
             ]
         }
         res = evaluate_performance_regression(payload)
