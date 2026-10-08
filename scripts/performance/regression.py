@@ -69,7 +69,7 @@ def extract_update_workload_counts(
     # 2. Inspect duplicate_operations or call records in performance_data if call_history is empty
     if n_benchmarks == 0 or n_stocks == 0:
         duplicates = performance_data.get("duplicate_operations", [])
-        if isinstance(duplicates, list):
+        if isinstance(duplicates, list) and duplicates:
             for d in duplicates:
                 if not isinstance(d, dict):
                     continue
@@ -79,6 +79,18 @@ def extract_update_workload_counts(
                     n_benchmarks += req_cnt
                 elif sym:
                     n_stocks += req_cnt
+
+    # 3. Fallback to provider total_calls summary if granular symbol breakdown is absent
+    if n_benchmarks == 0 or n_stocks == 0:
+        provider = (
+            performance_data.get("provider", {})
+            if isinstance(performance_data.get("provider"), dict)
+            else {}
+        )
+        total_calls = int(provider.get("total_calls", 0))
+        if total_calls > 0:
+            n_benchmarks = 2
+            n_stocks = max(1, total_calls - n_benchmarks)
 
     if n_benchmarks <= 0 or n_stocks <= 0:
         raise ValueError(
