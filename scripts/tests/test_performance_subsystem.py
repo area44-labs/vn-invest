@@ -258,17 +258,34 @@ class TestPerformanceRegression:
         assert res["overall_status"] == "FAILED"
 
     def test_update_data_true_selects_live_baseline(self):
-        """update_data=True -> chọn live baseline động dựa trên workload."""
+        """update_data=True -> chọn live baseline động dựa trên workload thực tế trong performance_data."""
         payload = {
             "provider": {"total_calls": 46},
+            "duplicate_operations": [
+                {"symbol": "VNINDEX", "request_count": 1},
+                {"symbol": "VN30", "request_count": 1},
+            ]
+            + [{"symbol": f"SYM_{i}", "request_count": 1} for i in range(44)],
             "stages": [
-                {"stage": "benchmark_fetch", "elapsed_seconds": 12.0, "status": "SUCCESS"},
-                {"stage": "stock_fetch", "elapsed_seconds": 190.0, "status": "SUCCESS"},
-                {"stage": "pipeline", "elapsed_seconds": 210.0, "status": "SUCCESS"},
+                {"stage": "benchmark_fetch", "elapsed_seconds": 8.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 195.0, "status": "SUCCESS"},
             ],
         }
         res = evaluate_performance_regression(payload, is_update_mode=True)
         assert res["overall_status"] == "PASS"
+
+    def test_update_data_true_missing_workload_raises_value_error(self):
+        """update_data=True thiếu thông tin workload trong performance_data -> raise ValueError."""
+        payload = {
+            "provider": {"total_calls": 46},
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 8.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+            ],
+        }
+        with pytest.raises(ValueError, match="Missing required workload metadata"):
+            evaluate_performance_regression(payload, is_update_mode=True)
 
     def test_update_data_false_selects_offline_baseline(self):
         """update_data=False -> chọn offline baseline."""

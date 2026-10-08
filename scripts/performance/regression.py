@@ -80,18 +80,6 @@ def extract_update_workload_counts(
                 elif sym:
                     n_stocks += req_cnt
 
-    # 3. Fallback to provider total_calls summary if granular symbol breakdown is absent
-    if n_benchmarks == 0 or n_stocks == 0:
-        provider = (
-            performance_data.get("provider", {})
-            if isinstance(performance_data.get("provider"), dict)
-            else {}
-        )
-        total_calls = int(provider.get("total_calls", 0))
-        if total_calls > 0:
-            n_benchmarks = 2
-            n_stocks = max(1, total_calls - n_benchmarks)
-
     if n_benchmarks <= 0 or n_stocks <= 0:
         raise ValueError(
             f"Missing required workload metadata in performance_data for live update regression evaluation "

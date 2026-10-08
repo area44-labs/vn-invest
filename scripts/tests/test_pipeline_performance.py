@@ -1357,7 +1357,11 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.3333,
                     "calls_by_source": {"kbs": 3},
                 },
-                "duplicate_operations": [],
+                "duplicate_operations": [
+                    {"symbol": "VNINDEX", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "VN30", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "FPT", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                ],
             },
         }
 
@@ -1429,7 +1433,11 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.3333,
                     "calls_by_source": {"kbs": 3},
                 },
-                "duplicate_operations": [],
+                "duplicate_operations": [
+                    {"symbol": "VNINDEX", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "VN30", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "FPT", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                ],
             },
         }
 
@@ -1585,7 +1593,11 @@ class TestPerformanceRegressionAndBudget:
                     "average_call_seconds": 0.05,
                     "calls_by_source": {"kbs": 200},
                 },
-                "duplicate_operations": [],
+                "duplicate_operations": [
+                    {"symbol": "VNINDEX", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "VN30", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                    {"symbol": "FPT", "request_count": 1, "provider_call_count": 1, "successful_calls": 1, "failed_calls": 0, "retry_count": 0},
+                ],
             },
         }
 

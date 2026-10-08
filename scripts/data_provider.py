@@ -480,6 +480,13 @@ class VnstockDataProvider:
                             for col in price_cols:
                                 df_norm[col] = pd.to_numeric(df_norm[col], errors="coerce") * 1000.0
 
+                        # Deduplicate duplicate trading dates from upstream provider payloads
+                        date_col = "time" if "time" in df_norm.columns else "date"
+                        if date_col in df_norm.columns:
+                            _d_series = pd.to_datetime(df_norm[date_col], errors="coerce").dt.strftime("%Y-%m-%d")
+                            if _d_series.duplicated().any():
+                                df_norm = df_norm.loc[~_d_series.duplicated(keep="last")].reset_index(drop=True)
+
                         # Run canonical validation
                         validate_canonical_ohlcv(df_norm)
 
