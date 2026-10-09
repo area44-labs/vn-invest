@@ -212,7 +212,7 @@ class TestE2EMissingOutcomePropagation:
         )
 
     def test_all_outcomes_available(self) -> None:
-        """Scenario 1: All outcomes available."""
+        """Verifies portfolio and aggregate evaluation when all forward outcomes are available for all constituents."""
         df1 = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
         universe = {"SYM1": df1, "SYM2": df2}
@@ -241,7 +241,7 @@ class TestE2EMissingOutcomePropagation:
             assert agg["horizon_metrics"][h]["mean"] is not None
 
     def test_one_horizon_unavailable(self) -> None:
-        """Scenario 2: One horizon unavailable (e.g., 5D available, 20D unavailable due to proximity to end of data)."""
+        """Verifies that when forward outcomes are unavailable for a specific horizon (e.g. 20D due to end of data), that horizon evaluates to None while shorter horizons evaluate normally."""
         df1 = create_synthetic_ohlcv("2024-01-01", 60, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 60, 20000.0, 150.0)
         universe = {"SYM1": df1, "SYM2": df2}
@@ -270,7 +270,7 @@ class TestE2EMissingOutcomePropagation:
         assert agg["horizon_metrics"][20]["hit_rate"] is None
 
     def test_one_symbol_unavailable(self) -> None:
-        """Scenario 3: One symbol in portfolio lacks future data for horizon, rendering portfolio outcome None."""
+        """Verifies that when one portfolio constituent lacks future data for a horizon, the portfolio-level return for that horizon evaluates to None."""
         df1 = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 55, 20000.0, 150.0)  # df2 ends at day 55
         universe = {"SYM1": df1, "SYM2": df2}
@@ -304,7 +304,7 @@ class TestE2EMissingOutcomePropagation:
         assert agg["horizon_metrics"][10]["mean"] is None
 
     def test_multiple_symbols_unavailable(self) -> None:
-        """Scenario 4: Multiple symbols in portfolio lack future data for horizon."""
+        """Verifies that when multiple portfolio constituents lack future data for a horizon, position and portfolio forward returns evaluate to None."""
         df1 = create_synthetic_ohlcv("2024-01-01", 52, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 52, 20000.0, 150.0)
         universe = {"SYM1": df1, "SYM2": df2}
@@ -326,7 +326,7 @@ class TestE2EMissingOutcomePropagation:
         assert eval_res.portfolio_forward_returns[5] is None
 
     def test_entire_horizon_unavailable(self) -> None:
-        """Scenario 5: Entire horizon unavailable for all symbols in portfolio."""
+        """Verifies that when an entire horizon is unavailable for all symbols, portfolio forward returns and aggregate metrics evaluate to None without zero-filling."""
         df1 = create_synthetic_ohlcv("2024-01-01", 50, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 50, 20000.0, 150.0)
         universe = {"SYM1": df1, "SYM2": df2}

@@ -183,7 +183,7 @@ class TestVNInvestSignalEngine:
         assert dq == "SUFFICIENT"
 
     def test_confidence_reflects_signal_agreement(self):
-        """1. Confidence increases with high signal agreement and decreases with strong signal conflict/dispersion."""
+        """Verifies that confidence increases with high signal agreement and decreases with strong signal conflict or dispersion."""
         from scripts.quant.risk import calculate_confidence
 
         risk_metrics = {"volatility_60d": 0.15, "max_drawdown": -0.10}
@@ -221,7 +221,7 @@ class TestVNInvestSignalEngine:
         """
         from scripts.quant.risk import calculate_confidence
 
-        # Case 1: INSUFFICIENT data quality -> exactly 0.10
+        # INSUFFICIENT data quality yields minimum confidence (0.10)
         conf_insufficient = calculate_confidence(
             data_quality="INSUFFICIENT",
             components={"trend": 80.0, "momentum": None},
@@ -229,8 +229,7 @@ class TestVNInvestSignalEngine:
         )
         assert conf_insufficient == 0.10
 
-        # Case 2: Standard/Normal confidence
-        # SUFFICIENT data quality (base = 0.70), std_dev = 0 (low dispersion < 12 -> +0.10), normal risk (vol < 0.22 & mdd < 0.12 -> +0.05), safe rsi -> 0.70 + 0.10 + 0.05 = 0.85
+        # SUFFICIENT data quality with low dispersion and low risk yields high confidence
         conf_high_ideal = calculate_confidence(
             data_quality="SUFFICIENT",
             components={
@@ -245,9 +244,7 @@ class TestVNInvestSignalEngine:
         )
         assert conf_high_ideal == 0.85
 
-        # Case 3: High dispersion & high risk & extreme RSI penalties
-        # SUFFICIENT (base = 0.70), std_dev = 40 (>30 -> -0.15), high risk (vol > 0.35 -> -0.05), extreme RSI (>78 -> -0.05)
-        # Expected: 0.70 - 0.15 - 0.05 - 0.05 = 0.45
+        # High dispersion, high risk, and extreme RSI result in lower penalized confidence
         conf_low_penalized = calculate_confidence(
             data_quality="SUFFICIENT",
             components={
@@ -262,8 +259,7 @@ class TestVNInvestSignalEngine:
         )
         assert conf_low_penalized == 0.45
 
-        # Case 4: Upper boundary clamping (0.95 cap)
-        # PARTIAL base 0.55 + 0.10 + 0.05 = 0.70
+        # PARTIAL data quality applies partial base confidence
         conf_partial = calculate_confidence(
             data_quality="PARTIAL",
             components={"trend": 50.0, "momentum": 50.0, "volume": 50.0},
@@ -273,7 +269,7 @@ class TestVNInvestSignalEngine:
         assert conf_partial == 0.70
 
     def test_divergence_timeframe_weighting_and_conflict(self):
-        """2. Divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
+        """Verifies divergence timeframe weighting hierarchy (1D > 1W > 1M) and conflict handling."""
         # 1D Bullish only
         tf_1d_bull = {
             "1d": {"available": True, "divergence": {"rsi_bullish": True, "macd_bullish": False}},
@@ -540,19 +536,19 @@ class TestVNInvestSignalEngine:
         (`calculate_single_tf_indicators` and `generate_recommendation`).
 
         Test Logic:
-        1. Dataset A: Clean historical dataset ending at date T.
-        2. Dataset B: Dataset A + future sessions (T+1, T+2) containing an extreme market crash.
-        3. Indicator Causality: Computes indicators on full Dataset B and asserts that indicator values
-           extracted at date T match Dataset A exactly.
-        4. Recommendation Output at T: Asserts identity between Dataset A and Dataset B (sliced at T)
-           across key quantitative fields:
-           - indicators (ma20, ma50, rsi, macd, hist, atr, daily_return)
-           - action / direction
-           - signal score & risk_adjusted_score
-           - score components
-           - market regime & regime_score
-           - risk metrics (var_t25, es_t25, volatility_60d, max_drawdown, avg_value_20d)
-           - trade plan (entry_low, entry_high, stop_loss, tp1, tp2, risk_reward, position_percent)
+        - Dataset A: Clean historical dataset ending at date T.
+        - Dataset B: Dataset A + future sessions (T+1, T+2) containing an extreme market crash.
+        - Indicator Causality: Computes indicators on full Dataset B and asserts that indicator values
+          extracted at date T match Dataset A exactly.
+        - Recommendation Output at T: Asserts identity between Dataset A and Dataset B (sliced at T)
+          across key quantitative fields:
+          - indicators (ma20, ma50, rsi, macd, hist, atr, daily_return)
+          - action / direction
+          - signal score & risk_adjusted_score
+          - score components
+          - market regime & regime_score
+          - risk metrics (var_t25, es_t25, volatility_60d, max_drawdown, avg_value_20d)
+          - trade plan (entry_low, entry_high, stop_loss, tp1, tp2, risk_reward, position_percent)
         """
         n = 50
         dates_a = pd.date_range("2026-01-01", periods=n, freq="D")
@@ -679,13 +675,13 @@ class TestVNInvestSignalEngine:
           during calculation) vs Dataset A (ending at T).
 
         Test Logic:
-        1. Dataset A: Deterministic OHLCV dataset ending at date T (index 28).
-           At date T, trough 2 cannot be confirmed because subsequent bars T+1 and T+2 do not exist in Dataset A.
-           `detect_divergence(df_a)` returns `macd_bullish = False`.
-        2. Dataset B: Dataset A + future sessions T+1 (index 29) and T+2 (index 30) with rising prices.
-           Passing full Dataset B (with future rows present during execution) allows `detect_divergence`
-           to evaluate index 28 using bars T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
-        3. Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` accurately captures the temporal dependency.
+        - Dataset A: Deterministic OHLCV dataset ending at date T (index 28).
+          At date T, trough 2 cannot be confirmed because subsequent bars T+1 and T+2 do not exist in Dataset A.
+          `detect_divergence(df_a)` returns `macd_bullish = False`.
+        - Dataset B: Dataset A + future sessions T+1 (index 29) and T+2 (index 30) with rising prices.
+          Passing full Dataset B (with future rows present during execution) allows `detect_divergence`
+          to evaluate index 28 using bars T+1 and T+2, confirming trough 2 and returning `macd_bullish = True`.
+        - Assertion: `div_a["macd_bullish"] != div_b["macd_bullish"]` accurately captures the temporal dependency.
 
         Production quantitative logic is intentionally preserved.
         """

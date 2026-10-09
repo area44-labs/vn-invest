@@ -23,11 +23,11 @@ from scripts.quant.contracts import RegimeInput, RegimeResult
 logger = logging.getLogger(__name__)
 
 
-def _safe_breadth_ratio(val: float | None) -> float | None:
-    if val is None:
+def _safe_breadth_ratio(value: float | None) -> float | None:
+    if value is None:
         return None
     try:
-        f = float(val)
+        f = float(value)
         if math.isnan(f) or math.isinf(f):
             return None
         if 0.0 <= f <= 1.0:

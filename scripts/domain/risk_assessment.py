@@ -7,17 +7,17 @@ from typing import Any, Self
 VALID_RISK_LEVELS = {"LOW", "MEDIUM", "HIGH"}
 
 
-def _validate_float_or_none(val: Any, name: str) -> float | None:
-    """Validate that val can be float or None, and is non-NaN and non-Inf."""
-    if val is None:
+def _validate_float_or_none(value: Any, name: str) -> float | None:
+    """Validate that value can be float or None, and is non-NaN and non-Inf."""
+    if value is None:
         return None
-    if isinstance(val, bool):
+    if isinstance(value, bool):
         raise TypeError(f"Field '{name}' must be numeric or None, got bool")
     try:
-        f = float(val)
+        f = float(value)
     except (ValueError, TypeError) as err:
         raise TypeError(
-            f"Field '{name}' must be numeric or None, got {type(val).__name__}"
+            f"Field '{name}' must be numeric or None, got {type(value).__name__}"
         ) from err
     if math.isnan(f) or math.isinf(f):
         raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")

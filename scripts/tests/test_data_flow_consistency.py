@@ -1,11 +1,11 @@
 """Deterministic offline regression tests for end-to-end pipeline data flow consistency.
 
 Validates:
-1. Symbol categorization when raw data is >= 20 rows but clean data is < 20 rows ('status' == 'INSUFFICIENT').
-2. Edge cases: 0 valid symbols, 1 valid symbol, all candidates invalid/failed/insufficient.
-3. Duplicate candidate metadata rejection in generate_historical_report.
-4. Fail-closed error handling in update mode when scan is incomplete.
-5. Deterministic aggregate metrics without NaN, Inf, or division-by-zero.
+- Symbol categorization when raw data is >= 20 rows but clean data is < 20 rows ('status' == 'INSUFFICIENT').
+- Edge cases: 0 valid symbols, 1 valid symbol, all candidates invalid/failed/insufficient.
+- Duplicate candidate metadata rejection in generate_historical_report.
+- Fail-closed error handling in update mode when scan is incomplete.
+- Deterministic aggregate metrics without NaN, Inf, or division-by-zero.
 """
 
 import json

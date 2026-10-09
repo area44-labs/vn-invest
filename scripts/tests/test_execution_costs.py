@@ -26,7 +26,7 @@ class TestTransactionCostSemantics:
     """Test suite validating transaction cost semantics, formula, and input bounds."""
 
     def test_zero_transaction_cost(self) -> None:
-        """1. Zero transaction cost: return remains unchanged from gross return."""
+        """Verifies that with zero transaction cost and zero slippage, the net return equals the gross return exactly."""
         entry_price = 10_000.0
         exit_price = 11_000.0
         res = calculate_execution_return(
@@ -42,7 +42,7 @@ class TestTransactionCostSemantics:
         assert res.net_return == expected_gross
 
     def test_positive_transaction_cost(self) -> None:
-        """2. Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
+        """Verifies positive transaction cost calculation against a hand-calculated exact expected net return value."""
         entry_price = 50_000.0
         exit_price = 55_000.0
         # Total transaction cost = 0.30% (0.0030), i.e., 0.15% (0.0015) entry and 0.15% exit
@@ -63,7 +63,7 @@ class TestTransactionCostSemantics:
         assert res.net_return == 0.096702
 
     def test_transaction_cost_symmetry(self) -> None:
-        """3. Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
+        """Verifies that explicit entry and exit transaction fee legs apply symmetrically across BUY and SELL trades."""
         entry_price = 20_000.0
         exit_price = 22_000.0
         # BUY leg: entry cost 0.15%, exit cost 0.15%
@@ -120,7 +120,7 @@ class TestTransactionCostSemantics:
             )
 
     def test_invalid_transaction_cost(self) -> None:
-        """4. Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
+        """Verifies that invalid transaction cost parameters (negative, NaN, Inf, boolean) raise ValueError/TypeError fail-closed."""
         # Negative cost
         with pytest.raises(ValueError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=-0.01)
@@ -134,11 +134,11 @@ class TestTransactionCostSemantics:
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=float("inf"))
 
         # Boolean cost
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=True)  # type: ignore[arg-type]
 
         # Non-numeric string cost
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct="invalid")  # type: ignore[arg-type]
 
 
@@ -147,7 +147,7 @@ class TestSlippageSemantics:
     """Test suite validating execution slippage semantics, directionality, and input bounds."""
 
     def test_zero_slippage(self) -> None:
-        """1. Zero slippage: execution prices match reference prices exactly."""
+        """Verifies that with zero slippage, execution entry and exit prices match reference prices exactly."""
         p_entry = 25_000.0
         p_exit = 27_500.0
         res = calculate_execution_return(
@@ -162,7 +162,7 @@ class TestSlippageSemantics:
         assert res.slippage_adjusted_return == res.gross_return
 
     def test_positive_slippage(self) -> None:
-        """2. Positive slippage: hand-calculated expected execution price and return."""
+        """Verifies positive adverse slippage calculation against hand-calculated expected execution prices and return."""
         p_entry = 10_000.0
         p_exit = 12_000.0
         slip = 0.0010  # 0.10% adverse slippage on each leg
@@ -182,7 +182,7 @@ class TestSlippageSemantics:
         assert res.slippage_adjusted_return == round((11_988.0 / 10_010.0) - 1.0, 6)
 
     def test_buy_vs_sell_directionality(self) -> None:
-        """3. Buy vs Sell slippage directionality: both legs experience adverse pricing."""
+        """Verifies trade directionality where both BUY and SELL legs experience adverse execution pricing."""
         p_entry = 40_000.0
         p_exit = 44_000.0
         slip = 0.0020  # 0.20% slippage
@@ -213,7 +213,7 @@ class TestSlippageSemantics:
         assert res_sell.slippage_adjusted_return < res_sell.gross_return
 
     def test_invalid_slippage(self) -> None:
-        """4. Invalid slippage parameters raise ValueError or TypeError fail-closed."""
+        """Verifies that invalid slippage parameters (negative, NaN, Inf, boolean) raise ValueError/TypeError fail-closed."""
         # Negative slippage
         with pytest.raises(ValueError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=-0.005)
@@ -227,7 +227,7 @@ class TestSlippageSemantics:
             calculate_execution_return(10000.0, 11000.0, slippage_pct=float("inf"))
 
         # Boolean slippage
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=True)  # type: ignore[arg-type]
 
 
@@ -714,7 +714,7 @@ class TestCostAwarePortfolioConsistency:
 
     @patch("scripts.backtest.portfolio.generate_single_recommendation")
     def test_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
-        """1. Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
+        """Verifies that zero cost and zero slippage settings preserve gross portfolio strategy returns for backward compatibility."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -782,7 +782,7 @@ class TestCostAwarePortfolioConsistency:
     def test_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
         self, mock_gen_rec
     ) -> None:
-        """2. Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""
+        """Verifies position-level aggregation and net return calculation for a mixed BUY and SELL portfolio against a mathematical oracle."""
 
         def side_effect(symbol, **kwargs):
             if symbol == "STK_BUY":
@@ -962,7 +962,7 @@ class TestCostAwarePortfolioConsistency:
             PortfolioConfig(transaction_cost_pct=float("nan"))
         with pytest.raises(ValueError):
             PortfolioConfig(transaction_cost_pct=float("inf"))
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(transaction_cost_pct=True)  # type: ignore[arg-type]
 
         # Reject negative slippage
@@ -978,7 +978,7 @@ class TestCostAwarePortfolioConsistency:
             PortfolioConfig(slippage_pct=float("nan"))
         with pytest.raises(ValueError):
             PortfolioConfig(slippage_pct=float("inf"))
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(slippage_pct=False)  # type: ignore[arg-type]
 
     @patch("scripts.backtest.portfolio.generate_single_recommendation")

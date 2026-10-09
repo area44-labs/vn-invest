@@ -1,6 +1,7 @@
 """Signal scoring and classification module for VN Invest quant layer."""
 
 import math
+from typing import Any
 
 from scripts.quant.config import DEFAULT_QUANT_CONFIG, QuantConfig
 from scripts.quant.contracts import SignalInput, SignalResult
@@ -17,12 +18,12 @@ def format_vnd(price: float) -> str:
     return f"{price:,.0f}".replace(",", ".")
 
 
-def _safe_float(val) -> float | None:
+def _safe_float(value: Any) -> float | None:
     """Safely convert value to float, returning None if None, NaN, or Inf."""
-    if val is None:
+    if value is None:
         return None
     try:
-        f = float(val)
+        f = float(value)
         if math.isnan(f) or math.isinf(f):
             return None
         return f
