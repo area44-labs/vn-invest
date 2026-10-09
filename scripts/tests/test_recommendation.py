@@ -18,8 +18,6 @@ from scripts.quant.regime import detect_market_regime
 from scripts.quant.risk import calculate_risk_adjusted_score, normalize_universe_liquidity_scores
 from scripts.quant.signal import (
     _safe_float as recommendation_safe_float,
-)
-from scripts.quant.signal import (
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
