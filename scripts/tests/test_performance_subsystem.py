@@ -459,6 +459,37 @@ class TestPerformanceTrackerSubsystem:
         with pytest.raises(jsonschema.ValidationError):
             tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
+    def test_budget_evaluation_error_in_update_mode_fails_closed(self):
+        """Budget evaluation error in update mode fails closed and raises exception directly."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with patch(
+            "scripts.performance.tracker.evaluate_provider_budget",
+            side_effect=RuntimeError("Budget engine failure"),
+        ):
+            with pytest.raises(RuntimeError, match="Budget engine failure"):
+                tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
+    def test_budget_evaluation_error_in_non_update_mode_sets_degraded_status(self):
+        """Budget evaluation error in non-update mode sets overall_status DEGRADED, never PASS."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with patch(
+            "scripts.performance.tracker.evaluate_provider_budget",
+            side_effect=RuntimeError("Budget engine failure"),
+        ):
+            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=False)
+            assert payload["budget"]["overall_status"] == "DEGRADED"
+            assert any(
+                "Provider budget evaluation error" in v for v in payload["budget"]["violations"]
+            )
+
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")
         self.tracker.record_stage("market_calculation", 0.1)

@@ -179,16 +179,19 @@ class PerformanceTracker:
                 payload, enforce_ci_budget=self.enable_ci_budget
             )
         except Exception as budget_exc:  # noqa: BLE001
-            logger.warning("Provider budget evaluation error: %s", budget_exc)
+            if update_data:
+                logger.error("Provider budget evaluation error in update mode: %s", budget_exc)
+                raise
+            logger.warning("Provider budget evaluation error in non-update mode: %s", budget_exc)
             payload["budget"] = {
-                "overall_status": "PASS",
+                "overall_status": "DEGRADED",
                 "total_calls": provider_summary.get("total_calls", 0),
                 "max_calls_budget": 120,
                 "duplicate_operations_count": len(duplicates),
                 "max_duplicates_budget": 5,
                 "total_elapsed_seconds": provider_summary.get("total_elapsed_seconds", 0.0),
                 "max_elapsed_budget_seconds": 60.0,
-                "violations": [],
+                "violations": [f"Provider budget evaluation error: {budget_exc}"],
             }
 
         # 5. Authoritative schema validation
