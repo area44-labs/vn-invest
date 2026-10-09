@@ -50,13 +50,13 @@ def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") 
 
 @pytest.mark.unit
 class TestCanonicalOHLCVValidator:
-    def test_1_valid_ohlcv_passes(self):
-        """1. Valid canonical OHLCV data passes validation."""
+    def test_valid_ohlcv_passes_validation(self):
+        """Valid canonical OHLCV data passes validation."""
         df = make_valid_canonical_df(25)
         assert validate_canonical_ohlcv(df)
 
-    def test_2_empty_dataframe_fails(self):
-        """2. Empty DataFrame or None fails validation."""
+    def test_empty_dataframe_fails_validation(self):
+        """Empty DataFrame or None fails validation."""
         with pytest.raises(CanonicalOHLCVError) as ctx_none:
             validate_canonical_ohlcv(None)
         assert "Empty dataset" in str(ctx_none.value)
@@ -65,8 +65,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(pd.DataFrame())
         assert "Empty dataset" in str(ctx_empty.value)
 
-    def test_3_missing_required_column_fails(self):
-        """3. Missing required OHLCV column fails validation."""
+    def test_missing_required_column_fails_validation(self):
+        """Missing required OHLCV column fails validation."""
         df = make_valid_canonical_df(20)
         df_no_close = df.drop(columns=["close"])
         with pytest.raises(CanonicalOHLCVError) as ctx:
@@ -78,16 +78,16 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df_no_date)
         assert "Missing date column" in str(ctx_date.value)
 
-    def test_4_duplicate_dates_fail(self):
-        """4. Duplicate dates fail validation."""
+    def test_duplicate_dates_fail_validation(self):
+        """Duplicate dates fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[10, "time"] = df.loc[9, "time"]
         with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
         assert "Duplicate dates detected" in str(ctx.value)
 
-    def test_5_unsorted_dates_fail(self):
-        """5. Unsorted dates fail validation."""
+    def test_unsorted_dates_fail_validation(self):
+        """Unsorted dates fail validation."""
         df = make_valid_canonical_df(20)
         # Swap date at index 5 and 6 so date order is non-monotonic
         tmp = df.loc[5, "time"]
@@ -97,24 +97,24 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Unsorted dates detected" in str(ctx.value)
 
-    def test_6_nan_fails(self):
-        """6. NaN values fail validation."""
+    def test_nan_values_fail_validation(self):
+        """NaN values fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[8, "close"] = np.nan
         with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
         assert "NaN values detected" in str(ctx.value)
 
-    def test_7_infinite_value_fails(self):
-        """7. Infinite values fail validation."""
+    def test_infinite_value_fails_validation(self):
+        """Infinite values fail validation."""
         df = make_valid_canonical_df(20)
         df.loc[5, "close"] = np.inf
         with pytest.raises(CanonicalOHLCVError) as ctx:
             validate_canonical_ohlcv(df)
         assert "Infinite values detected" in str(ctx.value)
 
-    def test_8_high_less_than_low_fails(self):
-        """8. 'high < low' fails validation."""
+    def test_high_less_than_low_fails_validation(self):
+        """'high < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[4, "high"] = 40000.0
         df.loc[4, "low"] = 50000.0
@@ -122,8 +122,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Invalid OHLC relationship" in str(ctx.value)
 
-    def test_9_open_greater_than_high_fails(self):
-        """9. 'open > high' fails validation."""
+    def test_open_greater_than_high_fails_validation(self):
+        """'open > high' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[3, "open"] = 60000.0
         df.loc[3, "high"] = 55000.0
@@ -131,8 +131,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Invalid OHLC relationship" in str(ctx.value)
 
-    def test_10_open_less_than_low_fails(self):
-        """10. 'open < low' fails validation."""
+    def test_open_less_than_low_fails_validation(self):
+        """'open < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[3, "open"] = 45000.0
         df.loc[3, "low"] = 48000.0
@@ -140,8 +140,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Invalid OHLC relationship" in str(ctx.value)
 
-    def test_11_close_greater_than_high_fails(self):
-        """11. 'close > high' fails validation."""
+    def test_close_greater_than_high_fails_validation(self):
+        """'close > high' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[2, "close"] = 60000.0
         df.loc[2, "high"] = 55000.0
@@ -149,8 +149,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Invalid OHLC relationship" in str(ctx.value)
 
-    def test_12_close_less_than_low_fails(self):
-        """12. 'close < low' fails validation."""
+    def test_close_less_than_low_fails_validation(self):
+        """'close < low' fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[2, "close"] = 40000.0
         df.loc[2, "low"] = 48000.0
@@ -158,8 +158,8 @@ class TestCanonicalOHLCVValidator:
             validate_canonical_ohlcv(df)
         assert "Invalid OHLC relationship" in str(ctx.value)
 
-    def test_13_negative_volume_fails(self):
-        """13. Negative volume fails validation."""
+    def test_negative_volume_fails_validation(self):
+        """Negative volume fails validation."""
         df = make_valid_canonical_df(20)
         df.loc[7, "volume"] = -100
         with pytest.raises(CanonicalOHLCVError) as ctx:
@@ -970,8 +970,8 @@ class TestUniverseCompletenessValidation:
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def test_1_complete_universe_proceeds(self):
-        """1. Complete universe -> report generation proceeds successfully."""
+    def test_complete_universe_proceeds(self):
+        """Complete universe -> report generation proceeds successfully."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -988,8 +988,8 @@ class TestUniverseCompletenessValidation:
             assert "recommendations" in recs_data
             assert "market" in market_data
 
-    def test_2_one_expected_symbol_missing_fails(self):
-        """2. One expected symbol missing -> fails closed with RuntimeError and preserves generated files."""
+    def test_one_expected_symbol_missing_fails(self):
+        """One expected symbol missing -> fails closed with RuntimeError and preserves generated files."""
         from scripts.generate_report import UniverseProvider, run_pipeline
         from scripts.generate_report import main as generate_report_main
 
@@ -1070,8 +1070,8 @@ class TestUniverseCompletenessValidation:
             # Output file was NOT modified
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
-    def test_3_provider_failure_for_one_symbol_fails(self):
-        """3. Provider failure for one symbol -> fails closed with RuntimeError and preserves files."""
+    def test_provider_failure_for_one_symbol_fails(self):
+        """Provider failure for one symbol -> fails closed with RuntimeError."""
         from scripts.generate_report import UniverseProvider, run_pipeline
         from scripts.generate_report import main as generate_report_main
 
@@ -1114,8 +1114,8 @@ class TestUniverseCompletenessValidation:
             # Artifact preserved
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
-    def test_4_one_explicitly_invalid_symbol_allowed(self):
-        """4. One explicitly invalid symbol (with all other symbols valid) -> allowed."""
+    def test_one_explicitly_invalid_symbol_allowed(self):
+        """One explicitly invalid symbol -> allowed if expected == processed ∪ invalid."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1208,8 +1208,8 @@ class TestUniverseCompletenessValidation:
             assert "Insufficient History: 1" in err_msg
             assert insufficient_candidate in err_msg
 
-    def test_5_duplicate_symbol_does_not_inflate_processed_count(self):
-        """5. Duplicate symbols in candidate list -> deduplicated, does not inflate processed count."""
+    def test_duplicate_symbol_does_not_inflate_processed_count(self):
+        """Duplicate symbols in candidate list -> deduplicated, does not inflate processed count."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1260,8 +1260,8 @@ class TestUniverseCompletenessValidation:
             assert "Failed: 1" in str(ctx.value)
             assert failed_sym in str(ctx.value)
 
-    def test_6_empty_provider_result_fails_unless_explicitly_classified_invalid(self):
-        """6. Empty provider result without explicit invalid classification -> treated as failed_symbols and fails closed."""
+    def test_empty_provider_result_fails_unless_explicitly_classified_invalid(self):
+        """Empty provider result without explicit invalid classification -> treated as failed_symbols and fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1284,8 +1284,8 @@ class TestUniverseCompletenessValidation:
             assert "Failed: 1" in str(ctx.value)
             assert empty_candidate in str(ctx.value)
 
-    def test_7_partial_scan_fails(self):
-        """7. Partial scan (loop terminates early or misses expected symbols) -> fails closed."""
+    def test_partial_scan_fails(self):
+        """Partial scan (loop terminates early or misses expected symbols) -> fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1309,8 +1309,8 @@ class TestUniverseCompletenessValidation:
             assert "Failed: 1" in str(ctx.value)
             assert unprocessed_candidate in str(ctx.value)
 
-    def test_8_rate_limit_exception_propagates_as_existing_behavior(self):
-        """8. Rate-limit exception -> propagates ProviderRateLimitError directly without converting to failed_symbols."""
+    def test_rate_limit_exception_propagates_directly(self):
+        """Rate-limit exception -> propagates ProviderRateLimitError directly without converting to failed_symbols."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1332,8 +1332,8 @@ class TestUniverseCompletenessValidation:
 
             assert ctx.value.symbol == rate_limit_candidate
 
-    def test_9_mixed_successful_invalid_failed_symbols_fails(self):
-        """9. Mixed successful + invalid + insufficient history + failed symbols -> fails closed."""
+    def test_mixed_successful_invalid_failed_symbols_fails(self):
+        """Mixed successful + invalid + insufficient history + failed symbols -> fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1366,8 +1366,8 @@ class TestUniverseCompletenessValidation:
             assert failed_candidate in err_msg
             assert insufficient_candidate in err_msg
 
-    def test_10_completeness_validation_reports_useful_diagnostics(self):
-        """10. Completeness validation error message reports all required diagnostic metrics."""
+    def test_completeness_validation_reports_useful_diagnostics(self):
+        """Completeness validation error message reports all required diagnostic metrics."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1601,8 +1601,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def test_scenario_1_complete_scan_generates_report(self):
-        """Scenario 1: Complete scan -> report generated and saved to generated/."""
+    def test_complete_scan_generates_report(self):
+        """Complete scan -> report generated and saved to generated/."""
         from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25)
@@ -1638,8 +1638,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
             assert (generated_dir / "market.json").exists()
             assert (generated_dir / "monitoring.json").exists()
 
-    def test_scenario_2_one_missing_symbol_preserves_artifacts(self):
-        """Scenario 2: One missing symbol -> validation fails, existing artifacts unchanged."""
+    def test_one_missing_symbol_preserves_artifacts(self):
+        """One missing symbol -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
 
@@ -1697,8 +1697,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
             # File on disk remains untouched
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_scenario_3_one_provider_failure_preserves_artifacts(self):
-        """Scenario 3: One provider failure -> validation fails, existing artifacts unchanged."""
+    def test_one_provider_failure_preserves_artifacts(self):
+        """One provider failure -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
 
@@ -1734,8 +1734,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
 
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_scenario_4_one_insufficient_history_symbol_preserves_artifacts(self):
-        """Scenario 4: One insufficient-history symbol -> validation fails, existing artifacts unchanged."""
+    def test_one_insufficient_history_symbol_preserves_artifacts(self):
+        """One symbol with insufficient historical data -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
 
@@ -1772,8 +1772,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
 
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_scenario_5_benchmark_failure_preserves_artifacts(self):
-        """Scenario 5: Benchmark failure (VNINDEX or VN30) -> validation fails, existing artifacts unchanged."""
+    def test_benchmark_failure_preserves_artifacts(self):
+        """Benchmark fetch failure -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import main as generate_report_main
 
         valid_df = make_valid_canonical_df(25)
@@ -1812,8 +1812,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
 
                 assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_scenario_6_duplicate_symbol_still_incomplete_when_symbol_fails(self):
-        """Scenario 6: Duplicate symbol -> deduplicated, does not inflate completeness count to bypass failure."""
+    def test_duplicate_symbol_still_incomplete_when_symbol_fails(self):
+        """Candidate list with duplicates still fails if another symbol fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1844,8 +1844,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
             assert "Failed: 1" in err_msg
             assert failing_symbol in err_msg
 
-    def test_scenario_7_partial_in_memory_dataset_blocks_report_generation(self):
-        """Scenario 7: Partial in-memory dataset -> report generation blocked before payload generation."""
+    def test_partial_in_memory_dataset_blocks_report_generation(self):
+        """Incomplete scan results -> report generation blocked, disk files untouched."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -1868,8 +1868,8 @@ class TestReportGenerationValidationAndArtifactPreservation:
             assert "Failed: 1" in str(ctx.value)
             assert failing_symbol in str(ctx.value)
 
-    def test_scenario_8_validation_failure_after_some_calculations_preserves_artifacts(self):
-        """Scenario 8: Validation failure after partial calculations -> previous artifacts remain unchanged."""
+    def test_validation_failure_after_some_calculations_preserves_artifacts(self):
+        """Completeness validation fails after partial pipeline calculations -> pre-existing artifacts untouched."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
 
@@ -1949,8 +1949,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_1_successful_provider_call_timing(self, mock_quote, mock_sleep):
-        """1. Successful provider call records timing structure (provider, source, operation, symbol, elapsed, success, retry_count)."""
+    def test_successful_provider_call_timing(self, mock_quote, mock_sleep):
+        """Successful provider call records timing structure."""
         valid_raw = make_valid_canonical_df(10)
         valid_raw_norm = valid_raw.copy()
         for col in ["open", "high", "low", "close"]:
@@ -1977,8 +1977,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_2_provider_exception_timing_and_diagnostic(self, mock_quote, mock_sleep):
-        """2. Provider exception records structured timing and diagnostic error information."""
+    def test_provider_exception_timing_and_diagnostic(self, mock_quote, mock_sleep):
+        """Provider exception records structured timing and diagnostic error information."""
         mock_inst = MagicMock()
         mock_inst.history.side_effect = ConnectionError("Network read timeout")
         mock_quote.return_value = mock_inst
@@ -1997,8 +1997,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_3_bounded_transient_retry(self, mock_quote, mock_sleep):
-        """3. Transient network/server errors have bounded retries and do not loop infinitely."""
+    def test_bounded_transient_retry(self, mock_quote, mock_sleep):
+        """Transient network/server errors have bounded retries and do not loop infinitely."""
         mock_inst = MagicMock()
         mock_inst.history.side_effect = TimeoutError("Server timeout")
         mock_quote.return_value = mock_inst
@@ -2014,8 +2014,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_4_rate_limit_no_retry_behavior(self, mock_quote, mock_sleep):
-        """4. Rate limit exception is NOT retried across attempts or sources and trips circuit breaker."""
+    def test_rate_limit_no_retry_behavior(self, mock_quote, mock_sleep):
+        """Rate limit exception is NOT retried across attempts or sources and trips circuit breaker."""
         mock_inst = MagicMock()
         mock_inst.history.side_effect = RateLimitExceeded(
             "quote.history", "min", 20, 20, retry_after=30.0, tier="guest"
@@ -2032,8 +2032,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_5_circuit_breaker_behavior(self, mock_quote, mock_sleep):
-        """5. Active circuit breaker blocks subsequent requests immediately without making API calls."""
+    def test_circuit_breaker_behavior(self, mock_quote, mock_sleep):
+        """Active circuit breaker blocks subsequent requests immediately without making API calls."""
         trip_circuit_breaker("Pre-tripped in test", cooldown_seconds=60)
 
         mock_inst = MagicMock()
@@ -2048,8 +2048,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_6_deterministic_source_fallback(self, mock_quote, mock_sleep):
-        """6. Source fallback follows deterministic order ['kbs', 'msn']."""
+    def test_deterministic_source_fallback(self, mock_quote, mock_sleep):
+        """Source fallback follows deterministic order ['kbs', 'msn']."""
         valid_raw = make_valid_canonical_df(10)
         for col in ["open", "high", "low", "close"]:
             valid_raw[col] /= 1000.0
@@ -2081,8 +2081,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_7_stale_source_followed_by_canonical_date_source(self, mock_quote, mock_sleep):
-        """7. Stale source followed by canonical-date source prefers canonical-date source."""
+    def test_stale_source_followed_by_canonical_date_source(self, mock_quote, mock_sleep):
+        """Stale source followed by canonical-date source prefers canonical-date source."""
         stale_df = make_valid_canonical_df(10, start_date="2026-09-01")  # max date 2026-09-10
         for col in ["open", "high", "low", "close"]:
             stale_df[col] /= 1000.0
@@ -2108,8 +2108,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_8_all_sources_stale_fail_closed(self, mock_quote, mock_sleep):
-        """8. When all sources return stale data relative to target_date, update pipeline fails closed."""
+    def test_all_sources_stale_fail_closed(self, mock_quote, mock_sleep):
+        """When all sources return stale data relative to target_date, update pipeline fails closed."""
         from scripts.generate_report import run_pipeline
 
         stale_df = make_valid_canonical_df(15, start_date="2026-08-01")  # max date 2026-08-15
@@ -2130,8 +2130,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
             assert "Incomplete universe scan in update mode" in str(ctx.value)
 
-    def test_9_canonical_date_invariant_remains_enforced(self):
-        """9. In update mode, every processed stock must match VNINDEX data_as_of exactly."""
+    def test_canonical_date_invariant_remains_enforced(self):
+        """In update mode, every processed stock must match VNINDEX data_as_of exactly."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
@@ -2148,8 +2148,8 @@ class TestPR155ProviderReliabilityAndPerformance:
             for rec in recs_data["recommendations"]:
                 assert rec["data_as_of"] == target_date
 
-    def test_10_provider_diagnostics_use_existing_stage_category_taxonomy(self):
-        """10. Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
+    def test_provider_diagnostics_use_existing_stage_category_taxonomy(self):
+        """Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
         from scripts.monitoring.models import (
             FAILURE_CATEGORIES,
             PIPELINE_STAGES,
@@ -2167,8 +2167,8 @@ class TestPR155ProviderReliabilityAndPerformance:
 
     @patch("scripts.data_provider.time.sleep")
     @patch("scripts.data_provider.VnQuote")
-    def test_11_retry_count_is_deterministic(self, mock_quote, mock_sleep):
-        """11. Retry count in timing logs is 0 for initial attempt and increments deterministically."""
+    def test_retry_count_is_deterministic(self, mock_quote, mock_sleep):
+        """Retry count in timing logs is 0 for initial attempt and increments deterministically."""
         mock_inst = MagicMock()
         mock_inst.history.side_effect = [
             ConnectionError("Attempt 0 kbs failed"),
@@ -2197,8 +2197,8 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert history[3]["retry_count"] == 1
         assert history[3]["source"] == "msn"
 
-    def test_12_provider_failure_preserves_existing_artifact_behavior(self):
-        """12. Provider failure during report update preserves existing generated JSON artifacts on disk."""
+    def test_provider_failure_preserves_existing_artifact_behavior(self):
+        """Provider failure during report update preserves existing generated JSON artifacts on disk."""
         from scripts.generate_report import main as generate_report_main
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2230,8 +2230,8 @@ class TestPR155ProviderReliabilityAndPerformance:
             # Artifact on disk remains untouched
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_data
 
-    def test_13_no_duplicate_uncontrolled_provider_calls(self):
-        """13. Universe scan deduplicates symbols and does not make duplicate/uncontrolled provider calls."""
+    def test_no_duplicate_uncontrolled_provider_calls(self):
+        """Universe scan deduplicates symbols and does not make duplicate/uncontrolled provider calls."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25)
@@ -2253,8 +2253,8 @@ class TestPR155ProviderReliabilityAndPerformance:
         for sym, cnt in call_counts.items():
             assert cnt == 1, f"Symbol {sym} was called {cnt} times instead of 1"
 
-    def test_14_existing_pr146_freshness_tests_remain_green(self):
-        """14. Existing freshness test suite passes cleanly."""
+    def test_existing_freshness_tests_remain_green(self):
+        """Existing freshness test suite passes cleanly."""
         from scripts.tests.test_data_date import (
             TestProductionDataFreshness,
             TestTemporalIntegrityValidation,

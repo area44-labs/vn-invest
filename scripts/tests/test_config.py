@@ -1,13 +1,12 @@
 """Tests for Quantitative Configuration Defaults and Engine Behavior Preservation.
 
 Verifies that:
-1. Centralized parameter values match expected defaults.
-2. Re-exported constants in quant modules remain identical.
-3. SIGNAL_MODEL_VERSION remains unchanged ("2.0").
-4. Scoring functions preserve exact quantitative outputs across threshold boundaries.
-5. Market regime classification logic behaves deterministically across all regimes.
-6. Trade plan generation produces exact expected bounds and position caps.
-7. End-to-end generate_recommendation behavior remains invariant.
+- Centralized parameter values match expected defaults and re-exported constants remain identical.
+- SIGNAL_MODEL_VERSION remains unchanged ("2.0").
+- Scoring functions preserve exact quantitative outputs across threshold boundaries.
+- Market regime classification logic behaves deterministically across all regimes.
+- Trade plan generation produces exact expected bounds and position caps.
+- End-to-end recommendation generation behavior remains invariant.
 """
 
 import numpy as np

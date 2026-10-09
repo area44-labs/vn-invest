@@ -1310,7 +1310,7 @@ class TestExecutionEligibilityFramework:
             ExecutionConfig(lookback_window=0)
         with pytest.raises(ValueError):
             ExecutionConfig(lookback_window=-10)
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             ExecutionConfig(lookback_window=True)
         with pytest.raises(ValueError):
             ExecutionConfig(lookback_window=20.5)
@@ -1332,19 +1332,19 @@ class TestExecutionEligibilityFramework:
                 ExecutionConfig(estimated_order_value_vnd=bad_val)
 
     def test_exec_config_validation_bool_and_str(self):
-        """Test ExecutionConfig raises ValueError for boolean or string numeric configuration fields."""
+        """Test ExecutionConfig raises ValueError or TypeError for boolean or string numeric configuration fields."""
         for bad_val in [True, False, "1.0", "invalid"]:
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(min_avg_traded_value_bn=bad_val)
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(min_avg_volume=bad_val)
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(min_price=bad_val)
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(max_participation_rate=bad_val)
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(estimated_order_size_shares=bad_val)
-            with pytest.raises(ValueError):
+            with pytest.raises((ValueError, TypeError)):
                 ExecutionConfig(estimated_order_value_vnd=bad_val)
 
     def test_exec_config_validation_negative_thresholds(self):

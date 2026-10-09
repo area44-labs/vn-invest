@@ -52,15 +52,15 @@ class ProvenanceValidationError(ValueError):
     """Exception raised when provenance manifest fails validation."""
 
 
-def detect_secrets_in_dict(data: Any, path: str = "") -> list[str]:
-    """Recursively inspect data for potential secret key names or credential value strings.
+def detect_secrets_in_dict(target_dict: Any, path: str = "") -> list[str]:
+    """Recursively inspect target_dict for potential secret key names or credential value strings.
 
     Returns a list of violation messages describing suspicious keys or secret patterns found.
     """
     violations: list[str] = []
 
-    if isinstance(data, dict):
-        for k, v in data.items():
+    if isinstance(target_dict, dict):
+        for k, v in target_dict.items():
             key_str = str(k)
             curr_path = f"{path}.{key_str}" if path else key_str
 
@@ -71,14 +71,14 @@ def detect_secrets_in_dict(data: Any, path: str = "") -> list[str]:
 
             violations.extend(detect_secrets_in_dict(v, curr_path))
 
-    elif isinstance(data, (list, tuple)):
-        for idx, item in enumerate(data):
+    elif isinstance(target_dict, (list, tuple)):
+        for idx, item in enumerate(target_dict):
             curr_path = f"{path}[{idx}]"
             violations.extend(detect_secrets_in_dict(item, curr_path))
 
-    elif isinstance(data, str):
+    elif isinstance(target_dict, str):
         for pat in SECRET_VALUE_PATTERNS:
-            if pat.search(data):
+            if pat.search(target_dict):
                 violations.append(
                     f"Potential secret token/key value pattern detected at path '{path}'"
                 )
@@ -118,30 +118,30 @@ class ProvenanceManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ProvenanceManifest:
+    def from_dict(cls, manifest_dict: dict[str, Any]) -> ProvenanceManifest:
         """Construct ProvenanceManifest from a dictionary payload after strict validation."""
-        validate_provenance_manifest(data)
+        validate_provenance_manifest(manifest_dict)
 
-        artifacts = data.get("artifacts")
+        artifacts = manifest_dict.get("artifacts")
         if isinstance(artifacts, list):
             artifacts = tuple(artifacts)
         elif not isinstance(artifacts, tuple):
             artifacts = ()
 
-        q_cfg = data.get("quantitative_config_version")
+        q_cfg = manifest_dict.get("quantitative_config_version")
         q_cfg_dict = dict(q_cfg) if isinstance(q_cfg, dict) else {}
 
         return cls(
-            data_as_of=str(data.get("data_as_of") or ""),
-            generated_at=str(data.get("generated_at") or ""),
-            pipeline_version=str(data.get("pipeline_version") or ""),
-            signal_model_version=str(data.get("signal_model_version") or ""),
+            data_as_of=str(manifest_dict.get("data_as_of") or ""),
+            generated_at=str(manifest_dict.get("generated_at") or ""),
+            pipeline_version=str(manifest_dict.get("pipeline_version") or ""),
+            signal_model_version=str(manifest_dict.get("signal_model_version") or ""),
             quantitative_config_version=q_cfg_dict,
-            schema_version=str(data.get("schema_version") or ""),
-            source_provider=dict(data.get("source_provider") or {}),
-            universe=dict(data.get("universe") or {}),
+            schema_version=str(manifest_dict.get("schema_version") or ""),
+            source_provider=dict(manifest_dict.get("source_provider") or {}),
+            universe=dict(manifest_dict.get("universe") or {}),
             artifacts=artifacts,
-            data_quality=dict(data.get("data_quality") or {}),
+            data_quality=dict(manifest_dict.get("data_quality") or {}),
         )
 
 

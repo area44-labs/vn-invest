@@ -1,14 +1,14 @@
 """Deterministic Offline Tests for Downstream Data Validation and Calculation Safety.
 
 Verifies:
-1. Valid dataset processing.
-2. Handling of NaN / Inf values in downstream calculations without propagation.
-3. Insufficient history symbols return safe AVOID / null outputs without indicator calculation.
-4. Failed symbols excluded from breadth/liquidity denominators and recommendations.
-5. Temporal-invalid symbols excluded from breadth and recommendations.
-6. Partial universe handling (some symbols valid, others invalid/insufficient).
-7. Zero valid symbols fallback (breadth returns 0.50, regime DEFENSIVE, all recommendations AVOID).
-8. Denominator and count correctness for breadth, regime, and liquidity percentile ranking.
+- Valid dataset processing.
+- Handling of NaN / Inf values in downstream calculations without propagation.
+- Insufficient history symbols return safe AVOID / null outputs without indicator calculation.
+- Failed symbols excluded from breadth/liquidity denominators and recommendations.
+- Temporal-invalid symbols excluded from breadth and recommendations.
+- Partial universe handling (some symbols valid, others invalid/insufficient).
+- Zero valid symbols fallback (breadth returns 0.50, regime DEFENSIVE, all recommendations AVOID).
+- Denominator and count correctness for breadth, regime, and liquidity percentile ranking.
 """
 
 import math
@@ -58,8 +58,8 @@ def create_mock_ohlcv(
 class TestDownstreamDataValidation:
     """Test suite ensuring no corrupted/invalid data reaches quantitative calculations."""
 
-    def test_1_valid_dataset(self):
-        """1. Valid dataset produces clean risk metrics, regime, recommendation, and liquidity."""
+    def test_valid_dataset(self):
+        """Verifies that a valid dataset produces clean risk metrics, market regime classification, recommendations, and liquidity scores."""
         df_stock = create_mock_ohlcv(length=40, start_price=50.0)
         df_vnindex = create_mock_ohlcv(length=40, start_price=1200.0)
 
@@ -81,8 +81,8 @@ class TestDownstreamDataValidation:
         norm = normalize_universe_liquidity_scores([rec], market_regime=regime["regime"])
         assert norm[0]["risk_metrics"]["liquidity_score"] == 100.0
 
-    def test_2_nan_inf_safety(self):
-        """2. Datasets with NaN / Inf in price/volume do not leak NaN/Inf to downstream metrics."""
+    def test_nan_inf_safety(self):
+        """Verifies that datasets containing NaN or Inf values in price or volume columns do not leak NaN/Inf to downstream metrics."""
         df_stock = create_mock_ohlcv(length=30)
         # Inject NaN and Inf into middle rows
         df_stock.loc[10, "close"] = np.nan
@@ -101,8 +101,8 @@ class TestDownstreamDataValidation:
                 assert not (math.isnan(v)), f"Metric {k} is NaN"
                 assert not (math.isinf(v)), f"Metric {k} is Inf"
 
-    def test_3_insufficient_history(self):
-        """3. Insufficient history (<20 rows) returns safe AVOID and null indicators."""
+    def test_insufficient_history(self):
+        """Verifies that symbols with insufficient history (< 20 rows) return safe AVOID action and null risk/signal scores."""
         df_short = create_mock_ohlcv(length=10)
         df_vnindex = create_mock_ohlcv(length=30)
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
@@ -123,8 +123,8 @@ class TestDownstreamDataValidation:
         assert rec["risk_adjusted_score"] is None
         assert rec["risk_metrics"]["var_t25"] is None
 
-    def test_4_failed_symbol_exclusion(self):
-        """4. Failed/empty symbol is excluded from breadth and liquidity denominators."""
+    def test_failed_symbol_exclusion(self):
+        """Verifies that failed or empty stock symbols are excluded from market breadth and liquidity percentile denominators."""
         df_valid = create_mock_ohlcv(length=30, start_price=50.0, trend=0.01)
         df_vnindex = create_mock_ohlcv(length=30)
         as_of_date = df_vnindex["time"].iloc[-1]
@@ -157,8 +157,8 @@ class TestDownstreamDataValidation:
         assert rec_b["data_quality"] == "INSUFFICIENT"
         assert rec_b["risk_metrics"]["liquidity_score"] is None
 
-    def test_5_temporal_invalid_symbol(self):
-        """5. Symbol with invalid or stale/future date gets empty DF / safe AVOID status."""
+    def test_temporal_invalid_symbol(self):
+        """Verifies that symbols with invalid, stale, or future dates receive an empty DataFrame and safe AVOID recommendation status."""
         df_vnindex = create_mock_ohlcv(length=30)
         regime = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=0.5)
 
@@ -176,8 +176,8 @@ class TestDownstreamDataValidation:
         assert rec["action"] == "AVOID"
         assert rec["data_quality"] == "INSUFFICIENT"
 
-    def test_6_partial_universe(self):
-        """6. Partial universe (some valid, some invalid) evaluates valid symbols correctly."""
+    def test_partial_universe(self):
+        """Verifies that a partial universe containing both valid and invalid symbols evaluates valid candidate symbols correctly."""
         df_vnindex = create_mock_ohlcv(length=30)
         as_of_date = df_vnindex["time"].iloc[-1]
 
@@ -236,8 +236,8 @@ class TestDownstreamDataValidation:
         assert rec_corrupt["action"] == "AVOID"
         assert rec_corrupt["data_quality"] == "INSUFFICIENT"
 
-    def test_7_zero_valid_symbols(self):
-        """7. Zero valid symbols returns safe default breadth (0.50), DEFENSIVE regime, and all AVOID."""
+    def test_zero_valid_symbols(self):
+        """Verifies that a universe with zero valid stock symbols falls back safely to default market breadth (0.50), DEFENSIVE regime, and AVOID recommendations."""
         df_vnindex = create_mock_ohlcv(length=30)
         as_of_date = df_vnindex["time"].iloc[-1]
 
@@ -264,8 +264,8 @@ class TestDownstreamDataValidation:
             assert r["action"] == "AVOID"
             assert r["data_quality"] == "INSUFFICIENT"
 
-    def test_8_denominator_count_correctness(self):
-        """8. Denominator/count correctness for breadth and liquidity rank across mixed stocks."""
+    def test_denominator_count_correctness(self):
+        """Verifies denominator and count correctness for market breadth and liquidity percentile ranking across mixed stock universes."""
         df1 = create_mock_ohlcv(length=30, start_price=10000.0, vol_base=100000.0)
         df2 = create_mock_ohlcv(length=30, start_price=20000.0, vol_base=200000.0)
         df3 = create_mock_ohlcv(length=30, start_price=30000.0, vol_base=300000.0)

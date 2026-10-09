@@ -704,14 +704,14 @@ def check_universe_audit_invariants(
         "missing_count",
     ]
     for ck in count_keys:
-        val = counts.get(ck)
-        if isinstance(val, bool) or not isinstance(val, int) or val < 0:
+        audit_count = counts.get(ck)
+        if isinstance(audit_count, bool) or not isinstance(audit_count, int) or audit_count < 0:
             return CheckResult(
                 check_name="universe_audit_invariants",
                 status="FAIL",
-                measured_value={ck: val},
+                measured_value={ck: audit_count},
                 expected_condition=f"{ck} is non-negative integer",
-                message=f"universe_audit.counts.{ck} ({val}) is invalid or negative",
+                message=f"universe_audit.counts.{ck} ({audit_count}) is invalid or negative",
             )
 
     exp_syms = universe_audit.get("expected_symbols", [])

@@ -122,15 +122,19 @@ class PipelineContext:
         return self._universe
 
     @universe.setter
-    def universe(self, val: Universe | None) -> None:
-        if val is not None and not isinstance(val, Universe):
-            raise TypeError(f"universe must be a Universe or None, got {type(val).__name__}")
-        self._universe = val
-        if val is not None:
+    def universe(self, new_universe: Universe | None) -> None:
+        if new_universe is not None and not isinstance(new_universe, Universe):
+            raise TypeError(
+                f"universe must be a Universe or None, got {type(new_universe).__name__}"
+            )
+        self._universe = new_universe
+        if new_universe is not None:
             if self._universe_scan_result is None:
-                self._universe_scan_result = UniverseScanResult(universe=val)
+                self._universe_scan_result = UniverseScanResult(universe=new_universe)
             else:
-                self._universe_scan_result = self._universe_scan_result.with_updates(universe=val)
+                self._universe_scan_result = self._universe_scan_result.with_updates(
+                    universe=new_universe
+                )
         else:
             self._universe_scan_result = None
 
@@ -140,14 +144,14 @@ class PipelineContext:
         return self._universe_scan_result
 
     @universe_scan_result.setter
-    def universe_scan_result(self, val: UniverseScanResult | None) -> None:
-        if val is not None and not isinstance(val, UniverseScanResult):
+    def universe_scan_result(self, new_scan_result: UniverseScanResult | None) -> None:
+        if new_scan_result is not None and not isinstance(new_scan_result, UniverseScanResult):
             raise TypeError(
-                f"universe_scan_result must be a UniverseScanResult or None, got {type(val).__name__}"
+                f"universe_scan_result must be a UniverseScanResult or None, got {type(new_scan_result).__name__}"
             )
-        self._universe_scan_result = val
-        if val is not None:
-            self._universe = val.universe
+        self._universe_scan_result = new_scan_result
+        if new_scan_result is not None:
+            self._universe = new_scan_result.universe
 
     # Compatibility properties derived directly from canonical domain state
     @property
@@ -155,7 +159,7 @@ class PipelineContext:
         return self._universe.to_candidate_list() if self._universe else []
 
     @raw_candidate_stocks.setter
-    def raw_candidate_stocks(self, val: Any) -> None:
+    def raw_candidate_stocks(self, value: Any) -> None:
         pass
 
     @property
@@ -163,7 +167,7 @@ class PipelineContext:
         return self._universe.to_candidate_list() if self._universe else []
 
     @candidate_stocks.setter
-    def candidate_stocks(self, val: Any) -> None:
+    def candidate_stocks(self, value: Any) -> None:
         pass
 
     @property
@@ -171,7 +175,7 @@ class PipelineContext:
         return self._universe.to_info_dict() if self._universe else {}
 
     @universe_info.setter
-    def universe_info(self, val: Any) -> None:
+    def universe_info(self, value: Any) -> None:
         pass
 
     @property
@@ -181,7 +185,7 @@ class PipelineContext:
         return set()
 
     @expected_symbols.setter
-    def expected_symbols(self, val: Any) -> None:
+    def expected_symbols(self, symbols: Any) -> None:
         pass
 
     @property
@@ -191,11 +195,11 @@ class PipelineContext:
         return set()
 
     @processed_symbols.setter
-    def processed_symbols(self, val: Any) -> None:
+    def processed_symbols(self, symbols: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set processed_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
-            processed_symbols=tuple(sorted(val))
+            processed_symbols=tuple(sorted(symbols))
         )
 
     @property
@@ -205,11 +209,11 @@ class PipelineContext:
         return set()
 
     @invalid_symbols.setter
-    def invalid_symbols(self, val: Any) -> None:
+    def invalid_symbols(self, symbols: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set invalid_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
-            invalid_symbols=tuple(sorted(val))
+            invalid_symbols=tuple(sorted(symbols))
         )
 
     @property
@@ -219,11 +223,11 @@ class PipelineContext:
         return set()
 
     @insufficient_history_symbols.setter
-    def insufficient_history_symbols(self, val: Any) -> None:
+    def insufficient_history_symbols(self, symbols: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set insufficient_history_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
-            insufficient_symbols=tuple(sorted(val))
+            insufficient_symbols=tuple(sorted(symbols))
         )
 
     @property
@@ -233,11 +237,11 @@ class PipelineContext:
         return set()
 
     @failed_symbols.setter
-    def failed_symbols(self, val: Any) -> None:
+    def failed_symbols(self, symbols: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set failed_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
-            failed_symbols=tuple(sorted(val))
+            failed_symbols=tuple(sorted(symbols))
         )
 
     @property
@@ -247,11 +251,11 @@ class PipelineContext:
         return set()
 
     @missing_symbols.setter
-    def missing_symbols(self, val: Any) -> None:
+    def missing_symbols(self, symbols: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set missing_symbols without context.universe")
         self._universe_scan_result = self._universe_scan_result.with_updates(
-            missing_symbols=tuple(sorted(val))
+            missing_symbols=tuple(sorted(symbols))
         )
 
     @property
@@ -261,10 +265,12 @@ class PipelineContext:
         return {}
 
     @exclusions_map.setter
-    def exclusions_map(self, val: Any) -> None:
+    def exclusions_map(self, exclusions: Any) -> None:
         if not self._universe or not self._universe_scan_result:
             raise ValueError("Cannot set exclusions_map without context.universe")
-        self._universe_scan_result = self._universe_scan_result.with_updates(exclusions_map=val)
+        self._universe_scan_result = self._universe_scan_result.with_updates(
+            exclusions_map=exclusions
+        )
 
     @property
     def universe_audit(self) -> dict[str, Any]:
@@ -276,7 +282,7 @@ class PipelineContext:
         return {}
 
     @universe_audit.setter
-    def universe_audit(self, val: Any) -> None:
+    def universe_audit(self, value: Any) -> None:
         pass
 
     def set_universe(self, universe: Universe) -> None:

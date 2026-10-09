@@ -119,3 +119,4 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG
 - **Module Docstrings**: Every Python module should contain a top-level docstring stating its canonical responsibility.
 - **Function Docstrings**: Use concise Google-style or standard Python docstrings specifying purpose, non-obvious parameters, return types, and raised exceptions.
 - **Financial & Quantitative Notes**: Document mathematical logic, formula definitions, or market rules (e.g., Vietnam T+2.5 settlement cycle, floor/ceiling price calculation rules) directly in function docstrings where applicable.
+- **No Redundant Comments or Generic Numbers**: Comments must add value by explaining business rationale or temporal invariants rather than merely restating Python code. Avoid arbitrary numbered labels (`# 1.`, `# 2.`, `# Scenario 1:`) in code comments and test docstrings.

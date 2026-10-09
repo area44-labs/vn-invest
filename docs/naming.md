@@ -16,6 +16,12 @@ This document specifies the current canonical terminology, module/class/function
 | **Constant**             | `UPPER_SNAKE_CASE`       | `PIPELINE_VERSION`, `DEFAULT_QUANT_CONFIG`, `SCHEMA_VERSION` |
 | **JSON Schema File**     | `snake_case.schema.json` | `recommendations.schema.json`, `performance.schema.json`     |
 
+### 1.1 Expressive Domain Naming Guidelines
+
+- **Behavior & Intent**: Names must clearly communicate domain responsibility and behavior. Prefer descriptive names like `calculate_risk_adjusted_score`, `validate_temporal_integrity`, `evaluate_execution_eligibility` over vague catch-alls like `process_data`, `handle_result`, `helper`, or `manager`.
+- **Variable Clarity**: Avoid placeholder or uninformative variable/parameter names (such as `obj`, `val`, `temp`, `data`) when precise domain identifiers exist (e.g., `score_value`, `field_value`, `payload_node`, `instance`).
+- **Test Descriptions**: Test function names must follow `test_<behavior>()`. Test docstrings and comments must state the behavior or condition tested directly without generic numbered prefixes (`Test 1:`, `Scenario 1:`, `Case A`, `1. ...`).
+
 ---
 
 ## 2. Canonical System & Domain Terminology

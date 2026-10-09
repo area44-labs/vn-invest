@@ -78,27 +78,27 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
             except (jsonschema.SchemaError, TypeError, ValueError) as err:
                 issues.append(f"JSON Schema validation error: {err}")
 
-    def _walk_check(obj, path=""):
-        if obj is None:
+    def _walk_check(payload_node, path=""):
+        if payload_node is None:
             return
         loc = path if path else "root"
-        obj_type_mod = getattr(type(obj), "__module__", "")
+        obj_type_mod = getattr(type(payload_node), "__module__", "")
         if obj_type_mod.startswith(("numpy", "pandas")):
-            issues.append(f"Non-serializable {type(obj).__name__} scalar/object at {loc}")
+            issues.append(f"Non-serializable {type(payload_node).__name__} scalar/object at {loc}")
 
-        if isinstance(obj, float):
-            if math.isnan(obj):
+        if isinstance(payload_node, float):
+            if math.isnan(payload_node):
                 issues.append(f"NaN floating point value at {loc}")
-            elif math.isinf(obj):
+            elif math.isinf(payload_node):
                 issues.append(f"Infinity floating point value at {loc}")
-        elif isinstance(obj, str):
-            if obj.lower() in ("nan", "infinity", "-infinity", "inf", "-inf"):
-                issues.append(f"Invalid numeric string representation '{obj}' at {loc}")
-        elif isinstance(obj, dict):
-            for k, v in obj.items():
+        elif isinstance(payload_node, str):
+            if payload_node.lower() in ("nan", "infinity", "-infinity", "inf", "-inf"):
+                issues.append(f"Invalid numeric string representation '{payload_node}' at {loc}")
+        elif isinstance(payload_node, dict):
+            for k, v in payload_node.items():
                 _walk_check(v, f"{path}.{k}" if path else str(k))
-        elif isinstance(obj, (list, tuple)):
-            for idx, item in enumerate(obj):
+        elif isinstance(payload_node, (list, tuple)):
+            for idx, item in enumerate(payload_node):
                 _walk_check(item, f"{path}[{idx}]")
 
     _walk_check(payload)
@@ -202,14 +202,14 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
                     )
 
             for sc_key in ("signal_score", "risk_adjusted_score"):
-                val = rec.get(sc_key)
-                if val is not None and (
-                    not isinstance(val, (int, float))
-                    or isinstance(val, bool)
-                    or not (0.0 <= val <= 100.0)
+                score_value = rec.get(sc_key)
+                if score_value is not None and (
+                    not isinstance(score_value, (int, float))
+                    or isinstance(score_value, bool)
+                    or not (0.0 <= score_value <= 100.0)
                 ):
                     issues.append(
-                        f"Recommendation [{sym}] '{sc_key}' value {val} out of range [0.0, 100.0]"
+                        f"Recommendation [{sym}] '{sc_key}' value {score_value} out of range [0.0, 100.0]"
                     )
 
             conf = rec.get("confidence")

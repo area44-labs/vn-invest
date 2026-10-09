@@ -9,6 +9,8 @@ This document specifies the test suite architecture, execution standards, fixtur
 - **Test Runner**: Native `pytest` (`uv run --frozen pytest`).
 - **No Legacy Test Runners**: All backend tests execute natively through `pytest`. Legacy test scripts must not be recreated.
 - **Python Version**: Python 3.14 via `uv`.
+- **Test Naming Convention**: All test functions and methods must use descriptive behavior-driven names following `test_<behavior>()` (e.g. `test_valid_dataset_returns_sufficient_status`). Avoid numeric index prefixes (`test_1_...`) or vague case names (`test_case_a_...`).
+- **Behavior-Driven Docstrings & Descriptions**: Test docstrings and inline comments must state the behavior or condition tested directly (e.g. "Verifies that an invalid symbol is recorded in audit exclusions and passes audit set invariants"). Generic or uninformative numbered labels (`Test 1:`, `Scenario 1:`, `Case A`, `1. ...`) are strictly prohibited.
 
 ---
 

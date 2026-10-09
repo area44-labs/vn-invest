@@ -49,7 +49,7 @@ class TestDataDateSemantics:
         patch.stopall()
 
     def test_extract_latest_trading_date_unsorted_and_invalid(self):
-        """1. extract_latest_trading_date parses valid dates, ignores invalid/nulls, and returns max date."""
+        """Verifies that extract_latest_trading_date parses valid date strings, ignores null or malformed entries, and returns the maximum date."""
         df_unsorted = pd.DataFrame(
             {
                 "time": ["2026-09-10", "2026-09-12", "2026-09-11", "invalid-date", None],
@@ -66,7 +66,7 @@ class TestDataDateSemantics:
         assert extract_latest_trading_date(None) is None
 
     def test_market_date_independent_from_stock_date(self):
-        """1. Stock data one day behind VNINDEX gets canonical report date in recommendation."""
+        """Verifies that stock data one day behind VNINDEX receives the canonical report data_as_of date in recommendations."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -107,7 +107,7 @@ class TestDataDateSemantics:
             assert fpt_rec["data_as_of"] == "2026-09-25"
 
     def test_all_recommendations_match_canonical_date(self):
-        """2. All recommendations match top-level canonical date for a complete valid pipeline."""
+        """Verifies that all recommendations match the top-level canonical data_as_of date for a complete valid pipeline execution."""
         df_valid = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=25, freq="D"),
@@ -131,7 +131,7 @@ class TestDataDateSemantics:
                 assert rec["data_as_of"] == payload["data_as_of"]
 
     def test_exact_production_ci_failure_regression(self):
-        """3. Exact production regression where VNINDEX is 2026-09-25 and several stocks are 2026-09-24.
+        """Verifies pipeline execution when VNINDEX is at 2026-09-25 and several stocks are at 2026-09-24.
 
         Pipeline completes successfully within temporal staleness window,
         final payload integrity validation passes, and every recommendation uses '2026-09-25'.
@@ -198,7 +198,7 @@ class TestDataDateSemantics:
                 )
 
     def test_no_history_artifact_when_data_as_of_is_none(self):
-        """2. When data_as_of is None, monitoring fails and no output artifacts are published."""
+        """Verifies that when data_as_of is None, monitoring status fails and no output artifacts are published."""
         empty_df = pd.DataFrame()
         with (
             patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
@@ -307,7 +307,7 @@ class TestTemporalIntegrityValidation:
     """Dedicated test suite for validate_temporal_integrity & pipeline temporal contracts."""
 
     def test_valid_synchronized_vnindex_and_stocks_success(self):
-        """Test 1: valid synchronized VNINDEX + stocks -> success."""
+        """Verifies that synchronized VNINDEX and stock market dates validate successfully."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-20",
@@ -321,7 +321,7 @@ class TestTemporalIntegrityValidation:
         assert res["stale_symbols"] == set()
 
     def test_stock_one_trading_day_behind_expected_behavior(self):
-        """Test 2: stock one trading day behind -> expected behavior (success, within tolerance)."""
+        """Verifies that stock data one trading day behind the market benchmark validates successfully within tolerance."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-20",
@@ -333,7 +333,7 @@ class TestTemporalIntegrityValidation:
         assert res["stale_symbols"] == set()
 
     def test_stock_excessively_stale_fail_closed(self):
-        """Test 3: stock excessively stale (> 7 calendar days lag) -> fails closed."""
+        """Verifies that stock data excessively stale (> 7 calendar days lag) fails closed during temporal validation."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-20",
@@ -380,7 +380,7 @@ class TestTemporalIntegrityValidation:
             assert "Incomplete universe scan in update mode" in str(ctx.value)
 
     def test_stock_dated_after_vnindex_fail_closed(self):
-        """Test 4: stock dated after VNINDEX (latest_date > data_as_of) -> fails closed."""
+        """Verifies that stock data dated after VNINDEX (latest_date > data_as_of) fails closed to prevent anti-lookahead leaks."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-21",  # Future-dated relative to benchmark
@@ -391,7 +391,7 @@ class TestTemporalIntegrityValidation:
         assert "FPT" in res["future_symbols"]
 
     def test_future_dated_vnindex_fail_closed(self):
-        """Test 5: future-dated VNINDEX relative to execution/reference date -> fails closed."""
+        """Verifies that future-dated VNINDEX data relative to the execution reference date fails closed."""
         data_as_of = "2030-01-01"  # Far in the future
         stock_dates = {"FPT": "2030-01-01"}
         res = validate_temporal_integrity(data_as_of, stock_dates, reference_date="2026-09-25")
@@ -399,7 +399,7 @@ class TestTemporalIntegrityValidation:
         assert any("in the future" in iss for iss in res["issues"])
 
     def test_invalid_or_missing_benchmark_date_fail_closed(self):
-        """Test 6: invalid/missing benchmark date -> fails closed."""
+        """Verifies that missing or malformed benchmark date input fails closed during temporal validation."""
         res_none = validate_temporal_integrity(None, {"FPT": "2026-09-20"})
         assert not res_none["is_valid"]
 
@@ -407,7 +407,7 @@ class TestTemporalIntegrityValidation:
         assert not res_malformed["is_valid"]
 
     def test_mixed_symbol_dates_deterministic_result(self):
-        """Test 7: mixed symbol dates within tolerance -> deterministic result."""
+        """Verifies that mixed symbol dates within allowed staleness tolerance validate deterministically."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-20",
@@ -418,7 +418,7 @@ class TestTemporalIntegrityValidation:
         assert res["is_valid"]
 
     def test_temporal_failure_after_partial_calculations_artifacts_unchanged(self):
-        """Test 8: temporal failure in update mode preserves existing artifacts on disk."""
+        """Verifies that a temporal validation failure in update mode preserves existing generated report artifacts on disk."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D"),
@@ -463,7 +463,7 @@ class TestTemporalIntegrityValidation:
             mock_save.assert_not_called()
 
     def test_complete_valid_universe_with_same_data_as_of_report_generated(self):
-        """Test 9: complete valid universe with same data_as_of -> report generated."""
+        """Verifies that a complete valid stock universe synchronized at the same data_as_of date generates reports successfully."""
         df_valid = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D"),
@@ -660,8 +660,8 @@ class TestProductionDataFreshness:
 
     """Deterministic offline unit tests verifying production data freshness rules."""
 
-    def test_1_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
-        """1. VNINDEX and all stocks have the same latest date -> update succeeds."""
+    def test_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
+        """Verifies that when VNINDEX and all stocks share the same latest date, live update completes successfully."""
         df_valid = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
@@ -681,8 +681,8 @@ class TestProductionDataFreshness:
             assert recs["data_as_of"] == "2026-09-20"
             assert mkt["data_as_of"] == "2026-09-20"
 
-    def test_2_one_stock_one_day_behind_update_fails(self):
-        """2. One stock is one day behind -> update fails."""
+    def test_one_stock_one_day_behind_update_fails(self):
+        """Verifies that when a stock is one day behind in live update mode, the pipeline fails closed."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
@@ -720,8 +720,8 @@ class TestProductionDataFreshness:
                 run_pipeline(update_data=True)
             assert "FPT" in str(ctx.value)
 
-    def test_3_one_stock_several_days_behind_update_fails(self):
-        """3. One stock is several days behind -> update fails."""
+    def test_one_stock_several_days_behind_update_fails(self):
+        """Verifies that when a stock is several days behind in live update mode, the pipeline fails closed."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
@@ -759,10 +759,10 @@ class TestProductionDataFreshness:
                 run_pipeline(update_data=True)
             assert "SSI" in str(ctx.value)
 
-    def test_4_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
+    def test_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
         self,
     ):
-        """4. Stock data contains canonical date with older rows -> update succeeds and uses canonical-date close."""
+        """Verifies that when stock data contains the canonical date alongside older rows, the update succeeds and uses the canonical-date close price."""
         dates = pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d")
         prices = [
             50000.0 + (i * 1000.0) for i in range(20)
@@ -790,8 +790,8 @@ class TestProductionDataFreshness:
                 assert r["data_as_of"] == "2026-09-20"
                 assert r["trade_plan"]["current_price"] == 69000.0
 
-    def test_5_provider_source_a_stale_source_b_canonical_selected(self):
-        """5. Provider source A is stale while source B has canonical date -> source B selected."""
+    def test_provider_source_a_stale_source_b_canonical_selected(self):
+        """Verifies that when provider source A is stale while source B contains the target canonical date, source B is selected."""
         df_stale_raw = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=19, freq="D").strftime("%Y-%m-%d"),
@@ -830,8 +830,8 @@ class TestProductionDataFreshness:
             # Close prices converted from thousand_VND -> VND
             assert res_df["close"].iloc[-1] == 55000.0
 
-    def test_6_no_source_has_canonical_date_update_fails_closed(self):
-        """6. No source has canonical date -> update fails closed."""
+    def test_no_source_has_canonical_date_update_fails_closed(self):
+        """Verifies that when no provider source contains the canonical date for a symbol, live update mode fails closed."""
         df_stale_raw = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=19, freq="D").strftime("%Y-%m-%d"),
@@ -854,8 +854,8 @@ class TestProductionDataFreshness:
             # Returns stale best candidate (2026-09-19)
             assert res_df["time"].max() == "2026-09-19"
 
-    def test_7_current_price_equals_close_from_canonical_date_row(self):
-        """7. Verify current_price equals the close from the canonical-date row."""
+    def test_current_price_equals_close_from_canonical_date_row(self):
+        """Verifies that trade plan current_price strictly equals the close price from the canonical-date row."""
         dates = pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d")
         df_stock = pd.DataFrame(
             {
@@ -881,8 +881,8 @@ class TestProductionDataFreshness:
                     f"Recommendation for {r['symbol']} current_price mismatch"
                 )
 
-    def test_8_existing_generated_artifacts_unchanged_after_freshness_failure(self):
-        """8. Verify existing generated artifacts are byte-for-byte unchanged after freshness failure."""
+    def test_existing_generated_artifacts_unchanged_after_freshness_failure(self):
+        """Verifies that existing generated artifacts on disk remain byte-for-byte unchanged after a freshness failure."""
         df_vnindex = pd.DataFrame(
             {
                 "time": pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d"),
@@ -944,8 +944,8 @@ class TestProductionDataFreshness:
             assert mkt_p.read_bytes() == dummy_mkt
             assert mon_p.read_bytes() == dummy_mon
 
-    def test_9_historical_non_production_behavior_unchanged(self):
-        """9. Verify historical/non-production behavior remains unchanged."""
+    def test_historical_non_production_behavior_unchanged(self):
+        """Verifies that non-production temporal validation behavior with strict_date_match=False accepts lag within tolerance."""
         data_as_of = "2026-09-20"
         stock_dates = {
             "FPT": "2026-09-20",

@@ -67,40 +67,40 @@ CANONICAL_CONFIDENCE_BUCKETS = [
 ]
 
 
-def _sanitize_value_for_json(val: Any) -> Any:
+def _sanitize_value_for_json(value: Any) -> Any:
     """Recursively sanitize Python objects for deterministic JSON serialization.
 
     Replaces float('nan') and float('inf') with string representations 'NaN' / 'Inf'
     so serialization does not break or produce invalid JSON.
     """
-    if isinstance(val, float):
-        if math.isnan(val):
+    if isinstance(value, float):
+        if math.isnan(value):
             return "NaN"
-        if math.isinf(val):
-            return "Inf" if val > 0 else "-Inf"
-        return val
-    if isinstance(val, dict):
-        return {k: _sanitize_value_for_json(v) for k, v in val.items()}
-    if isinstance(val, list):
-        return [_sanitize_value_for_json(item) for item in val]
-    if isinstance(val, tuple):
-        return [_sanitize_value_for_json(item) for item in val]
-    return val
+        if math.isinf(value):
+            return "Inf" if value > 0 else "-Inf"
+        return value
+    if isinstance(value, dict):
+        return {k: _sanitize_value_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value_for_json(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_value_for_json(item) for item in value]
+    return value
 
 
-def find_nan_or_inf(obj: Any, path: str = "") -> list[str]:
+def find_nan_or_inf(payload: Any, path: str = "") -> list[str]:
     """Recursively locate any NaN or Inf floating point values in nested data."""
     issues = []
-    if isinstance(obj, float):
-        if math.isnan(obj):
+    if isinstance(payload, float):
+        if math.isnan(payload):
             issues.append(f"NaN at {path or 'root'}")
-        elif math.isinf(obj):
+        elif math.isinf(payload):
             issues.append(f"Inf at {path or 'root'}")
-    elif isinstance(obj, dict):
-        for k, v in obj.items():
+    elif isinstance(payload, dict):
+        for k, v in payload.items():
             issues.extend(find_nan_or_inf(v, f"{path}.{k}" if path else str(k)))
-    elif isinstance(obj, list):
-        for idx, item in enumerate(obj):
+    elif isinstance(payload, list):
+        for idx, item in enumerate(payload):
             issues.extend(find_nan_or_inf(item, f"{path}[{idx}]"))
     return issues
 
