@@ -49,7 +49,7 @@ The repository includes four primary GitHub Actions workflows:
   ```
 - **Commit & Push Step**:
   - Checks `git status --porcelain generated/`.
-  - If new data was generated, commits updated `generated/` artifacts with message `chore(data): update data market recommendations` and pushes to `main`.
+  - If new data was generated, commits updated `generated/` artifacts with message `chore(data): update daily market recommendations` and pushes to `main`.
 - **Fail-Closed Invariant**: If market data acquisition fails or is incomplete, `generate_report.py --update` exits code 1, halting the workflow and preserving existing on-disk report artifacts without pushing corrupt updates.
 
 ### 2.4 GitHub Pages SSG Deployment (`pages.yml`)

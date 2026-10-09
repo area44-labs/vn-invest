@@ -1,7 +1,7 @@
 {
   "name": "@area44/vn-invest",
   "framework": "vite",
-  "buildCommand": "vpr build",
+  "buildCommand": "vp build",
   "outputDirectory": "dist/client",
   "github": {
     "autoJobCancelation": true
