@@ -3,7 +3,7 @@
   "title": "VN Invest Production Performance Payload Schema",
   "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload v2.0",
   "type": "object",
-  "required": ["schema_version", "stages", "provider", "duplicate_operations"],
+  "required": ["schema_version", "stages", "provider", "duplicate_operations", "workload"],
   "additionalProperties": false,
   "properties": {
     "schema_version": {
@@ -85,6 +85,31 @@
           "additionalProperties": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "required": ["benchmark_request_count", "stock_request_count", "total_request_count"],
+      "additionalProperties": false,
+      "properties": {
+        "benchmark_request_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stock_request_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_request_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requested_symbols": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }

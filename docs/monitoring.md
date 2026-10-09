@@ -92,11 +92,12 @@ To prevent corrupted or partial historical runs from polluting drift calculation
 Performance regression monitoring uses explicit mode selection (`update_data=True` vs `update_data=False`) to evaluate stage execution runtimes:
 
 - **Offline / Test Mode (`update_data=False`)**: Evaluates strictly against static offline/test baselines (`PERFORMANCE_STAGE_BASELINES`, e.g. `pipeline` 10.0s, `stock_fetch` 5.0s, `benchmark_fetch` 1.0s). Large elapsed times under `update_data=False` will fail closed against offline thresholds.
-- **Live Production Update Mode (`update_data=True`)**: Computes dynamic live update baselines based on actual request workload ($N_{benchmarks}$, $N_{stocks}$) and `DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s` per request plus network latency (~0.8s):
+- **Live Production Update Mode (`update_data=True`)**: Computes dynamic live update baselines based strictly on canonical logical workload metadata (`workload`: `benchmark_request_count`, `stock_request_count`, `total_request_count`) provided by pipeline execution and `DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s` per request plus network latency (~0.8s):
   - `benchmark_fetch` baseline: $N_{benchmarks} \times (3.5 + 0.8)\text{s}$ (e.g. 8.6s for 2 benchmarks)
   - `stock_fetch` baseline: $N_{stocks} \times (3.5 + 0.8)\text{s}$ (e.g. 189.2s for 44 stocks)
   - `pipeline` total baseline: $B_{bench} + B_{stock} + 5.0\text{s}$
-- **Explicit Mode Propagation**: `update_data` is passed explicitly from `PipelineContext` through `PerformanceStage` and `PerformanceTracker` to `evaluate_performance_regression()`.
+- **Logical Request Isolation**: Workload counts derive strictly from logical pipeline requests recorded in `PerformanceTracker.get_workload_metadata()`. Provider retries, rate-limit cooldowns, or source fallbacks do not inflate logical workload request counts.
+- **Explicit Mode Propagation & Exception Classification**: `update_data` is passed explicitly from `PipelineContext` through `PerformanceStage` and `PerformanceTracker` to `evaluate_performance_regression()`. In update mode, missing or invalid canonical workload metadata raises `WorkloadMetadataError` and fails closed immediately without returning fallback payloads. Provider budget evaluation errors in update mode fail closed, while in non-update mode they evaluate to `DEGRADED` with explicit violation diagnostics, preventing false `PASS` reporting. Non-workload instrumentation errors continue to use safe fallback payloads as designed.
 
 ---
 
