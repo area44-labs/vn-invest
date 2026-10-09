@@ -1,4 +1,4 @@
-"""CLI entry point for VN Invest v2 report generator."""
+"""CLI entry point for VN Invest report generator."""
 
 import argparse
 import logging

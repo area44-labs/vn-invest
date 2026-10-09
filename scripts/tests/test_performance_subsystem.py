@@ -26,7 +26,7 @@ from scripts.quant.regime import detect_market_regime
 
 @pytest.mark.unit
 class TestStageMetricsCollector:
-    """Unit tests for StageMetricsCollector."""
+    """Test suite for StageMetricsCollector."""
 
     def setup_method(self):
         self.collector = StageMetricsCollector()
@@ -77,7 +77,7 @@ class TestStageMetricsCollector:
 
 @pytest.mark.unit
 class TestProviderMetrics:
-    """Unit tests for provider_metrics functions."""
+    """Test suite for provider_metrics functions."""
 
     def test_aggregate_provider_performance_empty(self):
         res = aggregate_provider_performance([])
@@ -134,7 +134,7 @@ class TestProviderMetrics:
 
 @pytest.mark.unit
 class TestPerformanceBudget:
-    """Unit tests for performance budget evaluation and CI enforcement."""
+    """Test suite for performance budget evaluation and CI enforcement."""
 
     def test_evaluate_provider_budget_pass(self):
         payload = {
@@ -218,7 +218,7 @@ class TestPerformanceBudget:
 
 @pytest.mark.unit
 class TestPerformanceRegression:
-    """Unit tests for performance regression detection."""
+    """Test suite for performance regression detection."""
 
     def test_evaluate_performance_regression_pass(self):
         payload = {
@@ -373,7 +373,7 @@ class TestPerformanceRegression:
 
 @pytest.mark.unit
 class TestPerformanceTrackerSubsystem:
-    """Unit tests for PerformanceTracker and integration invariants."""
+    """Test suite for PerformanceTracker and integration invariants."""
 
     def setup_method(self):
         self.tracker = PerformanceTracker()

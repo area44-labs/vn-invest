@@ -341,7 +341,7 @@ class TestVNInvestSignalEngine:
         assert score == expected
 
     def test_action_classification_boundary_conditions(self):
-        """Test action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
+        """Action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
         regime = "BULL"
         raw_close = 30.0
         raw_ma20 = 25.0
@@ -614,7 +614,7 @@ class TestVNInvestSignalEngine:
         df_vnindex_b = pd.concat([df_vnindex_a, future_rows], ignore_index=True)
         df_vn30_b = df_vnindex_b.copy()
 
-        # 1. Verify Indicator Causality: Indicator values at row T in full Dataset B match Dataset A at T
+        # Verify Indicator Causality: Indicator values at row T in full Dataset B match Dataset A at T
         ind_b_full = calculate_single_tf_indicators(df_stock_b)
         ind_b_at_t = ind_b_full[ind_b_full["time"] == date_t].iloc[0]
 
@@ -626,7 +626,7 @@ class TestVNInvestSignalEngine:
             else:
                 assert round(abs(val_a - (val_b)), 5) == 0
 
-        # 2. Slice Dataset B at date T and verify recommendation identity
+        # Slice Dataset B at date T and verify recommendation identity
         df_stock_b_sliced = df_stock_b[df_stock_b["time"] <= date_t]
         df_vnindex_b_sliced = df_vnindex_b[df_vnindex_b["time"] <= date_t]
         df_vn30_b_sliced = df_vn30_b[df_vn30_b["time"] <= date_t]
@@ -647,7 +647,7 @@ class TestVNInvestSignalEngine:
             df_vnindex=df_vnindex_b_sliced,
         )
 
-        # 3. Assert equality across key quantitative fields at date T
+        # Assert equality across key quantitative fields at date T
         assert regime_a["regime"] == regime_b["regime"]
         assert regime_a["regime_score"] == regime_b["regime_score"]
 
@@ -931,7 +931,7 @@ class TestVNInvestSignalEngine:
         )
         mock_fetch_ohlcv.return_value = df_sample
 
-        # 1. Market regime detected as STRONG_BULL
+        # Market regime detected as STRONG_BULL
         mock_detect.return_value = {
             "regime": "STRONG_BULL",
             "regime_score": 85.0,
@@ -963,7 +963,7 @@ class TestVNInvestSignalEngine:
         assert rec_fpt_bull["risk_adjusted_score"] == expected_strong_bull_score
         assert rec_fpt_bull["risk_adjusted_score"] != defensive_fallback_score
 
-        # 2. Market regime detected as BEAR
+        # Market regime detected as BEAR
         mock_detect.return_value = {
             "regime": "BEAR",
             "regime_score": 30.0,

@@ -420,7 +420,7 @@ def evaluate_portfolio_at_date(
 
     target_date_str = _parse_canonical_date(evaluation_date)
 
-    # 1. Fail-closed point-in-time and min_history validation for EVERY stock in universe
+    # Fail-closed point-in-time and min_history validation for EVERY stock in universe
     df_stock_as_of_map: dict[str, pd.DataFrame] = {}
     for sym in sorted(universe_stock_map.keys()):
         df_s = universe_stock_map[sym]
@@ -438,7 +438,7 @@ def evaluate_portfolio_at_date(
             )
         df_stock_as_of_map[sym] = df_as_of
 
-    # 1. Point-in-time market data slicing <= T
+    # Point-in-time market data slicing <= T
     df_vnindex_clean_as_of = None
     if df_vnindex is not None and not df_vnindex.empty:
         df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
@@ -464,7 +464,7 @@ def evaluate_portfolio_at_date(
 
     meta_map = _build_candidate_meta_map(candidate_metadata, universe_stock_map)
 
-    # 2. Evaluate signals and execution eligibility for all universe stocks at T
+    # Evaluate signals and execution eligibility for all universe stocks at T
     candidates: list[dict[str, Any]] = []
     excluded_filtered: list[str] = []
     excluded_non_executable: list[str] = []
@@ -560,7 +560,7 @@ def evaluate_portfolio_at_date(
             empty_reason=empty_reason,
         )
 
-    # 3. Deterministic ranking & tie-breaking
+    # Deterministic ranking & tie-breaking
     # Sort key: (-signal_score, -risk_adjusted_score, -confidence, symbol)
     def rank_key(cand: dict[str, Any]) -> tuple:
         s_score = cand["signal_score"] if cand["signal_score"] is not None else -1e9
@@ -577,7 +577,7 @@ def evaluate_portfolio_at_date(
 
     num_selected = len(selected_candidates)
 
-    # 4. Deterministic Equal Weighting & Constraints
+    # Deterministic Equal Weighting & Constraints
     raw_weight = 1.0 / num_selected
     if config.max_weight_per_position is not None and raw_weight > config.max_weight_per_position:
         pos_weight = round(config.max_weight_per_position, 6)
@@ -590,7 +590,7 @@ def evaluate_portfolio_at_date(
     allocated_w = round(sum(weights), 6)
     unallocated_w = round(1.0 - allocated_w, 6)
 
-    # 5. Evaluate forward outcomes for selected constituent positions
+    # Evaluate forward outcomes for selected constituent positions
     positions: list[PortfolioPosition] = []
 
     for cand, w in zip(selected_candidates, weights, strict=True):
@@ -644,7 +644,7 @@ def evaluate_portfolio_at_date(
         )
         positions.append(pos)
 
-    # 6. Aggregate portfolio forward returns across selected positions
+    # Aggregate portfolio forward returns across selected positions
     portfolio_fwd_returns: dict[int, float | None] = {}
     horizon_avail: dict[int, bool] = {}
 

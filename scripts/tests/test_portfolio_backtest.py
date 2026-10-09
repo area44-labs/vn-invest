@@ -52,7 +52,7 @@ def create_synthetic_ohlcv(
 
 @pytest.mark.unit
 class TestPortfolioConfigValidation:
-    """Test Suite for PortfolioConfig validation and error handling."""
+    """Test suite for PortfolioConfig validation and error handling."""
 
     def test_valid_configuration(self) -> None:
         cfg = PortfolioConfig(
@@ -130,7 +130,7 @@ class TestPortfolioConfigValidation:
 
 @pytest.mark.unit
 class TestPortfolioWeightValidation:
-    """Test Suite for portfolio weight validation."""
+    """Test suite for portfolio weight validation."""
 
     def test_valid_weights(self) -> None:
         validate_portfolio_weights([0.2, 0.2, 0.2, 0.2, 0.2])
@@ -159,7 +159,7 @@ class TestPortfolioWeightValidation:
 
 @pytest.mark.unit
 class TestCandidateMetadataValidation:
-    """Test Suite for candidate_metadata validation and error handling."""
+    """Test suite for candidate_metadata validation and error handling."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -249,7 +249,7 @@ class TestCandidateMetadataValidation:
 
 @pytest.mark.unit
 class TestPortfolioConstruction:
-    """Test Suite for portfolio candidate selection and construction."""
+    """Test suite for portfolio candidate selection and construction."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -493,7 +493,7 @@ class TestPortfolioConstruction:
             min_price=10000.0,
         )
 
-        # 1. With require_executable=True: LOW1 is excluded, HIGH1 selected
+        # With require_executable=True: LOW1 is excluded, HIGH1 selected
         cfg_req = PortfolioConfig(
             min_signal_score=0.0,
             allowed_actions=("BUY", "HOLD", "WATCH"),
@@ -511,7 +511,7 @@ class TestPortfolioConstruction:
         assert "LOW1" not in selected_req
         assert "LOW1" in eval_req.excluded_non_executable
 
-        # 2. With require_executable=False: Both selected, LOW1 has is_executable=False, HIGH1 has is_executable=True
+        # With require_executable=False: Both selected, LOW1 has is_executable=False, HIGH1 has is_executable=True
         cfg_noreq = PortfolioConfig(
             min_signal_score=0.0,
             allowed_actions=("BUY", "HOLD", "WATCH"),
@@ -536,7 +536,7 @@ class TestPortfolioConstruction:
 
 @pytest.mark.unit
 class TestPortfolioReturnCalculation:
-    """Test Suite for forward portfolio return calculation."""
+    """Test suite for forward portfolio return calculation."""
 
     def test_exact_weighted_return_calculation(self) -> None:
         p1 = PortfolioPosition(
@@ -607,7 +607,7 @@ class TestPortfolioReturnCalculation:
 
 @pytest.mark.unit
 class TestPortfolioTemporalIntegrity:
-    """Test Suite for temporal integrity and fail-closed validation."""
+    """Test suite for temporal integrity and fail-closed validation."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
@@ -753,7 +753,7 @@ class TestPortfolioTemporalIntegrity:
 
 @pytest.mark.unit
 class TestPortfolioDeterminism:
-    """Test Suite verifying deterministic byte/value equivalence across runs."""
+    """Test suite for verifying deterministic byte/value equivalence across runs."""
 
     def test_repeated_runs_produce_equivalent_results(self) -> None:
         df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
@@ -790,7 +790,7 @@ class TestPortfolioDeterminism:
 
 @pytest.mark.unit
 class TestPortfolioAggregation:
-    """Test Suite for portfolio aggregation and cumulative return compounding."""
+    """Test suite for portfolio aggregation and cumulative return compounding."""
 
     def test_aggregation_with_mixed_empty_and_non_empty_portfolios(self) -> None:
         p1 = PortfolioPosition(
@@ -868,7 +868,7 @@ class TestPortfolioAggregation:
 
 @pytest.mark.unit
 class TestZeroCostEquivalence:
-    """Test Suite verifying transaction_cost_pct=0 and slippage_pct=0 equivalence."""
+    """Test suite for verifying transaction_cost_pct=0 and slippage_pct=0 equivalence."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -963,7 +963,7 @@ class TestZeroCostEquivalence:
 
 @pytest.mark.unit
 class TestAllocationInvariants:
-    """Test Suite verifying sum(weights) + unallocated_weight == 1.0 across configurations."""
+    """Test suite for verifying sum(weights) + unallocated_weight == 1.0 across configurations."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
@@ -1142,7 +1142,7 @@ class TestAllocationInvariants:
 
 @pytest.mark.unit
 class TestMixedActionPortfolio:
-    """Test Suite verifying mixed BUY/SELL/WATCH portfolio semantics."""
+    """Test suite for verifying mixed BUY/SELL/WATCH portfolio semantics."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -1269,7 +1269,7 @@ class TestMixedActionPortfolio:
 
 @pytest.mark.unit
 class TestZeroReturnPositions:
-    """Test Suite verifying zero price-change positions (entry price == exit price)."""
+    """Test suite for verifying zero price-change positions (entry price == exit price)."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -1362,7 +1362,7 @@ class TestZeroReturnPositions:
 
 @pytest.mark.unit
 class TestPartialCapitalAllocation:
-    """Test Suite verifying partial allocation where allocated_weight < 1.0."""
+    """Test suite for verifying partial allocation where allocated_weight < 1.0."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -1424,7 +1424,7 @@ class TestPartialCapitalAllocation:
 
 @pytest.mark.unit
 class TestMultipleHorizonsIndependence:
-    """Test Suite verifying independence across multiple horizons (5D, 10D)."""
+    """Test suite for verifying independence across multiple horizons (5D, 10D)."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=65, freq="B").strftime("%Y-%m-%d")
@@ -1485,7 +1485,7 @@ class TestMultipleHorizonsIndependence:
 
 @pytest.mark.unit
 class TestIndependentMathOracleCostSlippage:
-    """Test Suite validating portfolio net returns against an independent mathematical oracle."""
+    """Test suite for validating portfolio net returns against an independent mathematical oracle."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -1557,7 +1557,7 @@ class TestIndependentMathOracleCostSlippage:
 
 @pytest.mark.unit
 class TestMissingOutcomeSemantics:
-    """Test Suite verifying strict missing forward outcome contracts."""
+    """Test suite for verifying strict missing forward outcome contracts."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -1801,7 +1801,7 @@ class TestPortfolioIntegration:
 
 @pytest.mark.unit
 class TestPortfolioTemporalBoundaries:
-    """Test Suite focusing on temporal boundaries, exact trading-session semantics, and evaluation-date coverage."""
+    """Test suite for focusing on temporal boundaries, exact trading-session semantics, and evaluation-date coverage."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -2108,7 +2108,7 @@ class TestPortfolioTemporalBoundaries:
             allowed_actions=("BUY", "HOLD", "WATCH"),
         )
 
-        # 1. Unsorted dates raise ValueError
+        # Unsorted dates raise ValueError
         with pytest.raises(ValueError) as ctx_unsorted:
             run_portfolio_backtest(
                 evaluation_dates=[t2, t1],
@@ -2118,7 +2118,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "not sorted in chronological order" in str(ctx_unsorted.value)
 
-        # 2. Duplicate dates raise ValueError
+        # Duplicate dates raise ValueError
         with pytest.raises(ValueError) as ctx_dup:
             run_portfolio_backtest(
                 evaluation_dates=[t1, t1, t2],
@@ -2128,7 +2128,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "contains duplicate entries" in str(ctx_dup.value)
 
-        # 3. Valid chronological run
+        # Valid chronological run
         res_multi = run_portfolio_backtest(
             evaluation_dates=[t1, t2, t3],
             universe_stock_map=self.universe,
@@ -2138,7 +2138,7 @@ class TestPortfolioTemporalBoundaries:
 
         assert res_multi.evaluation_dates == [t1, t2, t3]
 
-        # 4. State isolation check: compare with individual runs
+        # State isolation check: compare with individual runs
         res_t1 = evaluate_portfolio_at_date(
             evaluation_date=t1,
             universe_stock_map=self.universe,
@@ -2277,7 +2277,7 @@ class TestPortfolioTemporalBoundaries:
         """
         cfg = PortfolioConfig(min_history=50)
 
-        # 1. Empty evaluation_dates
+        # Empty evaluation_dates
         with pytest.raises(ValueError) as ctx1:
             run_portfolio_backtest(
                 evaluation_dates=[],
@@ -2286,7 +2286,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "cannot be empty" in str(ctx1.value)
 
-        # 2. Duplicate evaluation_dates
+        # Duplicate evaluation_dates
         t1 = self.df_aaa["date"].iloc[50]
         with pytest.raises(ValueError) as ctx2:
             run_portfolio_backtest(
@@ -2296,7 +2296,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "duplicate" in str(ctx2.value)
 
-        # 3. Invalid evaluation date string
+        # Invalid evaluation date string
         with pytest.raises(ValueError) as ctx3:
             run_portfolio_backtest(
                 evaluation_dates=["invalid-date-string"],
@@ -2305,7 +2305,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "canonical 'YYYY-MM-DD'" in str(ctx3.value)
 
-        # 4. Timezone-aware evaluation date
+        # Timezone-aware evaluation date
         tz_d = pd.Timestamp("2024-03-01T00:00:00Z")
         with pytest.raises(ValueError) as ctx4:
             evaluate_portfolio_at_date(
@@ -2315,7 +2315,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "Timezone-aware" in str(ctx4.value)
 
-        # 5. Evaluation date out of historical range
+        # Evaluation date out of historical range
         with pytest.raises(ValueError) as ctx5:
             evaluate_portfolio_at_date(
                 evaluation_date="2099-12-31",
@@ -2324,7 +2324,7 @@ class TestPortfolioTemporalBoundaries:
             )
         assert "not present in dataset price history" in str(ctx5.value)
 
-        # 6. Insufficient historical observations
+        # Insufficient historical observations
         early_d = self.df_aaa["date"].iloc[10]  # only 11 sessions <= T
         with pytest.raises(ValueError) as ctx6:
             evaluate_portfolio_at_date(
@@ -2337,7 +2337,7 @@ class TestPortfolioTemporalBoundaries:
 
 @pytest.mark.unit
 class TestPortfolioDeterminismAndStateIsolation:
-    """Test Suite verifying framework determinism, state isolation, and input/config immutability."""
+    """Test suite for verifying framework determinism, state isolation, and input/config immutability."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -2730,7 +2730,7 @@ class TestPortfolioDeterminismAndStateIsolation:
 
 @pytest.mark.unit
 class TestPortfolioSerializationAndResultContract:
-    """Test Suite focusing on result contract, serialization integrity, and state preservation."""
+    """Test suite for focusing on result contract, serialization integrity, and state preservation."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -3085,7 +3085,7 @@ class TestPortfolioSerializationAndResultContract:
 
         serialized = res.to_dict()
 
-        # 1. Mutate serialized dictionary
+        # Mutate serialized dictionary
         serialized["evaluation_dates"].append("2099-01-01")
         serialized["evaluations"][0]["positions"][0]["weight"] = 999.0
         serialized["evaluations"][0]["portfolio_forward_returns"][5] = -99.0
@@ -3097,7 +3097,7 @@ class TestPortfolioSerializationAndResultContract:
         assert res.evaluations[0].portfolio_forward_returns[5] != -99.0
         assert "MUTATED" not in res.evaluations[0].excluded_filtered
 
-        # 2. Re-serialize res and verify second_serialized is completely independent
+        # Re-serialize res and verify second_serialized is completely independent
         res_fresh = run_portfolio_backtest(
             evaluation_dates=self.eval_dates,
             universe_stock_map=self.universe,
@@ -3142,7 +3142,7 @@ class TestPortfolioSerializationAndResultContract:
 
 @pytest.mark.unit
 class TestPortfolioAggregationConsistencyAndOracles:
-    """Test Suite verifying portfolio-level aggregation consistency and independent math oracles."""
+    """Test suite for verifying portfolio-level aggregation consistency and independent math oracles."""
 
     def test_evaluation_count_consistency(self) -> None:
         """Verifies that len(result.evaluations) equals total_evaluation_points across non-empty, empty, and mixed evaluations."""
@@ -3726,7 +3726,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         universe = {"AAA": df_aaa, "BBB": df_bbb}
         eval_d = df_aaa["date"].iloc[40]
 
-        # 1. Full allocation
+        # Full allocation
         cfg_full = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
@@ -3749,7 +3749,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert res_full.unallocated_weight == 0.0
         assert round(abs(res_full.allocated_weight + res_full.unallocated_weight - (1.0)), 6) == 0
 
-        # 2. Partial allocation (max_weight_per_position < 1.0, e.g. 0.30 per position)
+        # Partial allocation (max_weight_per_position < 1.0, e.g. 0.30 per position)
         cfg_partial = PortfolioConfig(
             max_positions=2,
             min_signal_score=0.0,
@@ -3776,7 +3776,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
             == 0
         )
 
-        # 3. Empty portfolio (e.g. min_signal_score=99.9 filters out all candidates)
+        # Empty portfolio (e.g. min_signal_score=99.9 filters out all candidates)
         cfg_empty = PortfolioConfig(
             min_signal_score=99.9,
             min_history=30,
@@ -3981,15 +3981,15 @@ class TestPortfolioAggregationConsistencyAndOracles:
             horizon_availability={5: True},
         )
 
-        # 1. Non-list/tuple evaluations input
+        # Non-list/tuple evaluations input
         with pytest.raises(TypeError):
             aggregate_portfolio_results("not_a_list")  # type: ignore[arg-type]
 
-        # 2. Non-PortfolioEvaluation object in list
+        # Non-PortfolioEvaluation object in list
         with pytest.raises(TypeError):
             aggregate_portfolio_results([valid_eval, "invalid_item"])  # type: ignore[arg-type]
 
-        # 3. Boolean portfolio return when marked available
+        # Boolean portfolio return when marked available
         bool_eval = PortfolioEvaluation(
             evaluation_date="2024-03-15",
             positions=[p1],
@@ -4001,7 +4001,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         with pytest.raises(TypeError):
             aggregate_portfolio_results([bool_eval], horizons=[5])
 
-        # 4. Non-numeric return when marked available
+        # Non-numeric return when marked available
         str_eval = PortfolioEvaluation(
             evaluation_date="2024-03-15",
             positions=[p1],
@@ -4013,7 +4013,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         with pytest.raises(TypeError):
             aggregate_portfolio_results([str_eval], horizons=[5])
 
-        # 5. NaN return when marked available
+        # NaN return when marked available
         nan_eval = PortfolioEvaluation(
             evaluation_date="2024-03-15",
             positions=[p1],
@@ -4025,7 +4025,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         with pytest.raises(ValueError):
             aggregate_portfolio_results([nan_eval], horizons=[5])
 
-        # 6. Inf return when marked available
+        # Inf return when marked available
         inf_eval = PortfolioEvaluation(
             evaluation_date="2024-03-15",
             positions=[p1],
@@ -4037,7 +4037,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         with pytest.raises(ValueError):
             aggregate_portfolio_results([inf_eval], horizons=[5])
 
-        # 7. Invalid position weight (negative or non-numeric)
+        # Invalid position weight (negative or non-numeric)
         bad_weight_pos = PortfolioPosition(
             symbol="AAA",
             weight=-0.5,

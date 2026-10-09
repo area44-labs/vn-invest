@@ -21,7 +21,7 @@ from scripts.quant.risk import normalize_universe_liquidity_scores
 
 @pytest.mark.integration
 class TestOutputIntegritySuite:
-    """Test suite verifying output integrity validation, fail-closed mechanics, and liquidity normalization bounds."""
+    """Test suite for verifying output integrity validation, fail-closed mechanics, and liquidity normalization bounds."""
 
     def setup_method(self):
         self.schema = load_schema()
@@ -600,7 +600,7 @@ class TestOutputIntegritySuite:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(content)
 
-            # 1. Attempt run that fails in pipeline
+            # Attempt run that fails in pipeline
             with (
                 patch("scripts.generate_report.GENERATED_DIR", gen_dir),
                 patch(
@@ -618,7 +618,7 @@ class TestOutputIntegritySuite:
                 with open(path, "r", encoding="utf-8") as f:
                     assert f.read() == expected
 
-            # 2. Retry with valid pipeline output
+            # Retry with valid pipeline output
             valid_p = copy.deepcopy(self.valid_payload)
 
             mock_mon_res = MagicMock()

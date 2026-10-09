@@ -1,9 +1,9 @@
-# VN Invest 📈
+# VN Invest
 
 [![GitHub Pages](https://github.com/area44-labs/vn-invest/actions/workflows/pages.yml/badge.svg)](https://area44-labs.github.io/vn-invest/)
 [![Tests](https://github.com/area44-labs/vn-invest/actions/workflows/tests.yml/badge.svg)](https://github.com/area44-labs/vn-invest/actions/workflows/tests.yml)
 
-**VN Invest** là hệ thống phân tích định lượng và sinh khuyến nghị chứng khoán tự động hóa, được thiết kế chuyên biệt dành cho thị trường chứng khoán Việt Nam (HOSE, HNX, UPCoM).
+**VN Invest** là hệ thống phân tích định lượng và sinh khuyến nghị chứng khoán tự động hóa, được thiết kế chuyên biệt dành cho thị trường chứng khoán Việt Nam.
 
 ---
 

@@ -24,7 +24,7 @@ from scripts.pipeline import (
 
 @pytest.mark.unit
 class TestArtifactProvenanceSuite:
-    """Comprehensive regression tests for PR #180 artifact provenance and reproducibility manifest."""
+    """Test suite for artifact provenance and reproducibility manifest."""
 
     def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -67,7 +67,7 @@ class TestArtifactProvenanceSuite:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_valid_provenance_manifest_dataclass_and_serialization(self):
-        """1. Verify ProvenanceManifest dataclass serialization and deserialization completeness."""
+        """Verify ProvenanceManifest dataclass serialization and deserialization completeness."""
         manifest = ProvenanceManifest.from_dict(self.valid_provenance)
         assert manifest.data_as_of == self.canonical_date
         assert manifest.pipeline_version == "2.0.0"
@@ -79,7 +79,7 @@ class TestArtifactProvenanceSuite:
         assert d_repr["artifacts"] == ["market.json", "provenance.json", "recommendations.json"]
 
     def test_provenance_builder_from_pipeline_context(self):
-        """2. Verify ProvenanceBuilder extracts exact context metadata without duplicate sources of truth."""
+        """Verify ProvenanceBuilder extracts exact context metadata without duplicate sources of truth."""
         from scripts.domain.universe import Universe, UniverseCandidate
 
         context = PipelineContext(
@@ -109,7 +109,7 @@ class TestArtifactProvenanceSuite:
         assert sorted(prov_manifest.artifacts) == sorted(batch_artifacts)
 
     def test_validate_provenance_manifest_data_as_of_mismatch_rejection(self):
-        """3. Verify validate_provenance_manifest rejects mismatched data_as_of relative to canonical date."""
+        """Verify validate_provenance_manifest rejects mismatched data_as_of relative to canonical date."""
         bad_prov = dict(self.valid_provenance)
         bad_prov["data_as_of"] = "2026-01-01"
 
@@ -123,7 +123,7 @@ class TestArtifactProvenanceSuite:
         assert "does not match canonical pipeline date" in str(cm.value)
 
     def test_validate_provenance_manifest_missing_required_fields(self):
-        """4. Verify missing required fields cause fail-closed rejection."""
+        """Verify missing required fields cause fail-closed rejection."""
         incomplete_prov = dict(self.valid_provenance)
         incomplete_prov.pop("signal_model_version")
 
@@ -133,7 +133,7 @@ class TestArtifactProvenanceSuite:
         assert "missing required fields" in str(cm.value)
 
     def test_validate_provenance_manifest_malformed_version_metadata(self):
-        """5. Verify malformed version metadata strings or dicts trigger validation rejection."""
+        """Verify malformed version metadata strings or dicts trigger validation rejection."""
         malformed = dict(self.valid_provenance)
         malformed["quantitative_config_version"] = {"quant_version": "", "config_hash": "123"}
 
@@ -143,7 +143,7 @@ class TestArtifactProvenanceSuite:
         assert "must be a non-empty string" in str(cm.value)
 
     def test_validate_provenance_manifest_artifact_list_mismatch(self):
-        """6. Verify declared artifacts list must match published batch exactly."""
+        """Verify declared artifacts list must match published batch exactly."""
         mismatched_batch = ["market.json", "provenance.json"]  # Missing recommendations.json
 
         with pytest.raises(ProvenanceValidationError) as cm:
@@ -152,7 +152,7 @@ class TestArtifactProvenanceSuite:
         assert "does not match published batch" in str(cm.value)
 
     def test_secret_detection_scanner_rejects_credentials(self):
-        """7. Verify detect_secrets_in_dict identifies forbidden keys and credential patterns."""
+        """Verify detect_secrets_in_dict identifies forbidden keys and credential patterns."""
         secret_prov_1 = dict(self.valid_provenance)
         secret_prov_1["source_provider"] = {"api_key": "secret123", "data_source": "REAL_DATA"}
 
@@ -173,7 +173,7 @@ class TestArtifactProvenanceSuite:
         assert "forbidden secrets or credentials" in str(cm.value)
 
     def test_publisher_rejects_invalid_provenance_before_transaction_start(self):
-        """8. Verify provenance validation occurs BEFORE atomic transaction starts (no disk mutations)."""
+        """Verify provenance validation occurs BEFORE atomic transaction starts (no disk mutations)."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
         valid_rec = {
@@ -216,7 +216,7 @@ class TestArtifactProvenanceSuite:
             assert "staging" not in item
 
     def test_publisher_rejects_missing_provenance_in_strict_mode(self):
-        """9. Verify publisher in strict mode rejects artifact batch lacking provenance.json."""
+        """Verify publisher in strict mode rejects artifact batch lacking provenance.json."""
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=True)
 
         valid_rec = {
@@ -252,7 +252,7 @@ class TestArtifactProvenanceSuite:
         assert "Missing required provenance manifest artifact" in str(cm.value)
 
     def test_successful_publish_with_valid_provenance(self):
-        """10. Verify successful publication with valid provenance manifest."""
+        """Verify successful publication with valid provenance manifest."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
         valid_rec = {
@@ -292,7 +292,7 @@ class TestArtifactProvenanceSuite:
         assert os.path.exists(os.path.join(self.target_dir, "provenance.json"))
 
     def test_pipeline_stage_generates_and_validates_provenance(self):
-        """11. Verify ArtifactPublishingStage generates and validates provenance.json in pipeline."""
+        """Verify ArtifactPublishingStage generates and validates provenance.json in pipeline."""
         from scripts.domain import Recommendation, RiskAssessment, TradePlan
         from scripts.domain.universe import Universe, UniverseCandidate
 
@@ -374,7 +374,7 @@ class TestArtifactProvenanceSuite:
         assert "provenance.json" in p_data["artifacts"]
 
     def test_historical_report_pipeline_provenance_integration(self):
-        """12. Verify generate_historical_report creates valid traceable provenance artifact."""
+        """Verify generate_historical_report creates valid traceable provenance artifact."""
         import pandas as pd
 
         dates = pd.date_range("2026-01-01", periods=60, freq="D")
@@ -425,7 +425,7 @@ class TestArtifactProvenanceSuite:
         assert p_data["source_provider"]["data_source"] == "explicit_historical_input"
 
     def test_backward_compatibility_publisher_api(self):
-        """13. Verify publish_artifacts_atomically supports strict_provenance=False for backward compatibility."""
+        """Verify publish_artifacts_atomically supports strict_provenance=False for backward compatibility."""
         simple_batch = {"test_doc.json": {"v": 1}}
 
         published = publish_artifacts_atomically(
@@ -435,7 +435,7 @@ class TestArtifactProvenanceSuite:
         assert os.path.exists(os.path.join(self.target_dir, "test_doc.json"))
 
     def test_missing_context_data_as_of_causes_fail_closed_rejection(self):
-        """14. Verify missing or None context.data_as_of raises ProvenanceValidationError without fallback."""
+        """Verify missing or None context.data_as_of raises ProvenanceValidationError without fallback."""
         context = PipelineContext(
             generated_dir=self.target_dir,
             reference_date="2026-03-31T00:00:00Z",
@@ -448,7 +448,7 @@ class TestArtifactProvenanceSuite:
         assert "missing valid canonical 'data_as_of'" in str(cm.value)
 
     def test_empty_or_malformed_context_data_as_of_causes_fail_closed_rejection(self):
-        """15. Verify empty or malformed context.data_as_of raises ProvenanceValidationError."""
+        """Verify empty or malformed context.data_as_of raises ProvenanceValidationError."""
         context = PipelineContext(
             generated_dir=self.target_dir,
             reference_date="2026-03-31T00:00:00Z",
@@ -459,7 +459,7 @@ class TestArtifactProvenanceSuite:
                 ProvenanceBuilder.from_context(context)
 
     def test_conflicting_data_as_of_across_artifacts_causes_fail_closed_rejection(self):
-        """16. Verify conflicting data_as_of dates across artifacts (e.g. recs=2026-10-06 vs mkt=2026-10-05) fails closed."""
+        """Verify conflicting data_as_of dates across artifacts (e.g. recs=2026-10-06 vs mkt=2026-10-05) fails closed."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
         def _make_rec_payload(d_str):
@@ -501,7 +501,7 @@ class TestArtifactProvenanceSuite:
         assert "data_as_of" in str(cm.value)
 
     def test_matching_data_as_of_across_artifacts_succeeds(self):
-        """17. Verify when all artifacts contain matching data_as_of, publication succeeds cleanly."""
+        """Verify when all artifacts contain matching data_as_of, publication succeeds cleanly."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
         def _make_rec_payload(d_str):
@@ -541,7 +541,7 @@ class TestArtifactProvenanceSuite:
         assert os.path.exists(os.path.join(self.target_dir, "provenance.json"))
 
     def test_mismatched_data_as_of_validation_occurs_before_transaction(self):
-        """18. Verify mismatched data_as_of validation occurs BEFORE atomic transaction/staging starts."""
+        """Verify mismatched data_as_of validation occurs BEFORE atomic transaction/staging starts."""
         publisher = ArtifactPublisher(target_dir=self.target_dir)
 
         def _make_rec_payload(d_str):
@@ -585,7 +585,7 @@ class TestArtifactProvenanceSuite:
             assert "staging" not in item
 
     def test_empty_nested_structures_cause_fail_closed_rejection(self):
-        """19. Verify passing empty dicts {} for source_provider, universe, or data_quality fails closed."""
+        """Verify passing empty dicts {} for source_provider, universe, or data_quality fails closed."""
         for field in ("source_provider", "universe", "data_quality"):
             bad_prov = dict(self.valid_provenance)
             bad_prov[field] = {}
@@ -594,7 +594,7 @@ class TestArtifactProvenanceSuite:
             assert "must be a non-empty dict" in str(cm.value)
 
     def test_missing_required_nested_keys_cause_fail_closed_rejection(self):
-        """20. Verify missing required nested keys (data_source, universe_type, status, processed_ratio) fail closed."""
+        """Verify missing required nested keys (data_source, universe_type, status, processed_ratio) fail closed."""
         # Missing data_source
         p1 = dict(self.valid_provenance)
         p1["source_provider"] = {"other_key": "val"}
@@ -624,7 +624,7 @@ class TestArtifactProvenanceSuite:
         assert "processed_ratio" in str(cm.value)
 
     def test_malformed_nested_field_values_cause_fail_closed_rejection(self):
-        """21. Verify malformed values for status or out-of-bound processed_ratio fail closed."""
+        """Verify malformed values for status or out-of-bound processed_ratio fail closed."""
         # Empty status string
         p1 = dict(self.valid_provenance)
         p1["data_quality"] = {"status": "  ", "processed_ratio": 1.0}
@@ -644,7 +644,7 @@ class TestArtifactProvenanceSuite:
             validate_provenance_manifest(p3)
 
     def test_from_dict_strictly_enforces_validation_contract(self):
-        """22. Verify ProvenanceManifest.from_dict() validates the payload and rejects invalid inputs."""
+        """Verify ProvenanceManifest.from_dict() validates the payload and rejects invalid inputs."""
         invalid_payload = dict(self.valid_provenance)
         invalid_payload["data_quality"] = {}  # Empty dict
 
@@ -652,7 +652,7 @@ class TestArtifactProvenanceSuite:
             ProvenanceManifest.from_dict(invalid_payload)
 
     def test_pipeline_version_propagates_from_canonical_config_source(self):
-        """23. Verify PIPELINE_VERSION matches canonical config source and propagates to provenance."""
+        """Verify PIPELINE_VERSION matches canonical config source and propagates to provenance."""
         from scripts.pipeline.constants import PIPELINE_VERSION
 
         context = PipelineContext(
@@ -669,7 +669,7 @@ class TestArtifactProvenanceSuite:
         assert manifest.pipeline_version == "2.0.0"
 
     def test_pipeline_version_and_signal_model_version_are_independent(self):
-        """24. Verify pipeline_version and signal_model_version are distinct independent metadata fields."""
+        """Verify pipeline_version and signal_model_version are distinct independent metadata fields."""
         context = PipelineContext(
             generated_dir=self.target_dir,
             reference_date="2026-03-31T00:00:00Z",

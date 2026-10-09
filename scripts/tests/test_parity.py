@@ -76,7 +76,7 @@ def extract_quantitative_recommendation(rec: dict) -> dict:
 
 @pytest.mark.integration
 class TestProductionHistoricalParity:
-    """Test suite verifying quantitative parity between run_pipeline and generate_historical_report."""
+    """Test suite for verifying quantitative parity between run_pipeline and generate_historical_report."""
 
     def setup_method(self):
         self.periods = 60

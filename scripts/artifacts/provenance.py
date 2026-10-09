@@ -159,14 +159,14 @@ def validate_provenance_manifest(
     if not isinstance(payload, dict):
         raise ProvenanceValidationError("Provenance manifest payload must be a dictionary")
 
-    # 1. Missing required top-level keys check
+    # Missing required top-level keys check
     missing_keys = [k for k in REQUIRED_PROVENANCE_KEYS if k not in payload or payload[k] is None]
     if missing_keys:
         raise ProvenanceValidationError(
             f"Provenance manifest missing required fields: {sorted(missing_keys)}"
         )
 
-    # 2. Canonical data_as_of validation
+    # Canonical data_as_of validation
     data_as_of = payload["data_as_of"]
     if not isinstance(data_as_of, str) or not re.match(r"^\d{4}-\d{2}-\d{2}$", data_as_of):
         raise ProvenanceValidationError(
@@ -178,7 +178,7 @@ def validate_provenance_manifest(
             f"Provenance 'data_as_of' ({data_as_of!r}) does not match canonical pipeline date ({canonical_data_as_of!r})"
         )
 
-    # 2b. Consistency check across ALL artifacts in artifacts_dict if provided
+    # Consistency check across ALL artifacts in artifacts_dict if provided
     if artifacts_dict is not None:
         expected_date = canonical_data_as_of or data_as_of
         for rel_path, art_payload in artifacts_dict.items():
@@ -193,7 +193,7 @@ def validate_provenance_manifest(
                         f"Artifact '{rel_path}' data_as_of ({art_date!r}) does not match canonical date ({expected_date!r})"
                     )
 
-    # 3. generated_at validation
+    # Generated_at validation
     gen_at = payload["generated_at"]
     if not isinstance(gen_at, str) or not gen_at.strip():
         raise ProvenanceValidationError("Provenance 'generated_at' must be a non-empty string")
@@ -205,7 +205,7 @@ def validate_provenance_manifest(
             f"Invalid 'generated_at' ISO timestamp format in provenance: {gen_at!r}"
         ) from err
 
-    # 4. Version metadata fields validation
+    # Version metadata fields validation
     pipe_ver = payload["pipeline_version"]
     if not isinstance(pipe_ver, str) or not pipe_ver.strip():
         raise ProvenanceValidationError("Provenance 'pipeline_version' must be a non-empty string")
@@ -246,7 +246,7 @@ def validate_provenance_manifest(
             "Provenance 'quantitative_config_version.config_hash' must be a non-empty string"
         )
 
-    # 5. Structure validation for provider, universe, and data_quality
+    # Structure validation for provider, universe, and data_quality
     source_prov = payload["source_provider"]
     if not isinstance(source_prov, dict) or not source_prov:
         raise ProvenanceValidationError("Provenance 'source_provider' must be a non-empty dict")
@@ -283,7 +283,7 @@ def validate_provenance_manifest(
             "Provenance 'data_quality' missing valid 'processed_ratio' float in [0.0, 1.0]"
         )
 
-    # 6. Artifact list validation & batch match check
+    # Artifact list validation & batch match check
     artifacts = payload["artifacts"]
     if not isinstance(artifacts, (list, tuple)):
         raise ProvenanceValidationError(
@@ -308,7 +308,7 @@ def validate_provenance_manifest(
                 msg += f" Extra in provenance: {diff_extra}."
             raise ProvenanceValidationError(msg)
 
-    # 7. Secret and credential scanner check
+    # Secret and credential scanner check
     secret_violations = detect_secrets_in_dict(payload)
     if secret_violations:
         msg = f"Provenance manifest contains forbidden secrets or credentials: {'; '.join(secret_violations)}"

@@ -476,7 +476,7 @@ class TestPipelineResultDomainContract:
 
 @pytest.mark.unit
 class TestUniverseAndScanResultDomainContracts:
-    """Test suite for Issue #173 Universe and UniverseScanResult contracts."""
+    """Test suite for Universe and UniverseScanResult contracts."""
 
     def test_provider_to_universe_conversion(self):
         from scripts.domain.universe import UniverseProvider
@@ -703,11 +703,11 @@ class TestUniverseAndScanResultDomainContracts:
 
 
 @pytest.mark.unit
-class TestIssue173ArchitectureInvariants:
-    """Regression test suite for Issue #173 architectural requirements A through H."""
+class TestArchitectureInvariants:
+    """Test suite for architectural requirements"""
 
-    def test_a_audit_canonical_state_no_reconstruction(self):
-        """A. UniverseScanResult.to_audit_dict() produces audit payload directly without Universe reconstruction."""
+    def test_audit_canonical_state_no_reconstruction(self):
+        """UniverseScanResult.to_audit_dict() produces audit payload directly without Universe reconstruction."""
         u = Universe.from_candidates(
             [
                 {"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"},
@@ -738,8 +738,8 @@ class TestIssue173ArchitectureInvariants:
         assert audit["processed_symbols"] == ["AAA", "VNINDEX"]
         assert audit["failed_symbols"] == ["BBB"]
 
-    def test_b_audit_benchmark_neutrality(self):
-        """B. Custom Universe does not infer benchmarks; production Universe preserves VNINDEX and VN30."""
+    def test_audit_benchmark_neutrality(self):
+        """Custom Universe does not infer benchmarks; production Universe preserves VNINDEX and VN30."""
         u_custom = Universe.from_candidates(
             [{"symbol": "AAA", "companyName": "Co A", "sector": "Sec A", "exchange": "HOSE"}],
             universe_type="CUSTOM",
@@ -761,8 +761,8 @@ class TestIssue173ArchitectureInvariants:
         assert "VNINDEX" in audit_prod["expected_symbols"]
         assert "VN30" in audit_prod["expected_symbols"]
 
-    def test_c_historical_canonical_universe_flow(self):
-        """C. Historical entry point creates single Universe; stages operate on context.universe."""
+    def test_historical_canonical_universe_flow(self):
+        """Historical entry point creates single Universe; stages operate on context.universe."""
         from scripts.pipeline.context import PipelineContext
         from scripts.pipeline.stages import UniverseValidationStage
 
@@ -796,8 +796,8 @@ class TestIssue173ArchitectureInvariants:
         assert "EXTRA_SYM" not in ctx.expected_symbols
         assert ctx.expected_symbols == frozenset({"VNINDEX", "VN30", "VNM"})
 
-    def test_d_candidate_metadata_mismatch_universe_remains_canonical(self):
-        """D. Candidate metadata mismatch does not expand expected symbols set beyond Universe."""
+    def test_candidate_metadata_mismatch_universe_remains_canonical(self):
+        """Candidate metadata mismatch does not expand expected symbols set beyond Universe."""
         from scripts.pipeline.context import PipelineContext
 
         u = Universe.from_candidates(
@@ -820,8 +820,8 @@ class TestIssue173ArchitectureInvariants:
         assert ctx.expected_symbols == {"VNINDEX", "AAA"}
         assert "BBB_MISMATCH" not in ctx.expected_symbols
 
-    def test_e_missing_universe_stage_fail_fast(self):
-        """E. Downstream stages fail fast with ValueError if executed without canonical Universe."""
+    def test_missing_universe_stage_fail_fast(self):
+        """Downstream stages fail fast with ValueError if executed without canonical Universe."""
         from scripts.pipeline.context import PipelineContext
         from scripts.pipeline.stages import (
             DataAcquisitionStage,
@@ -845,8 +845,8 @@ class TestIssue173ArchitectureInvariants:
                 stage.execute(ctx)
             assert "requires context.universe" in str(cm.value)
 
-    def test_f_synchronization_identity_invariant(self):
-        """F. Invariant check: context.universe and context.universe_scan_result.universe remain identical."""
+    def test_synchronization_identity_invariant(self):
+        """Invariant check: context.universe and context.universe_scan_result.universe remain identical."""
         from scripts.pipeline.context import PipelineContext
 
         ctx = PipelineContext()
@@ -866,8 +866,8 @@ class TestIssue173ArchitectureInvariants:
         ctx.universe = u2
         assert ctx.universe is ctx.universe_scan_result.universe
 
-    def test_g_legacy_candidate_stocks_isolation_under_monkeypatching(self):
-        """G. Monkeypatching legacy CANDIDATE_STOCKS does not alter UniverseProvider or Pipeline execution."""
+    def test_legacy_candidate_stocks_isolation_under_monkeypatching(self):
+        """Monkeypatching legacy CANDIDATE_STOCKS does not alter UniverseProvider or Pipeline execution."""
         import scripts.domain.universe as vnm_module
         from scripts.domain.universe import UniverseProvider
 
@@ -888,8 +888,8 @@ class TestIssue173ArchitectureInvariants:
         finally:
             vnm_module.CANDIDATE_STOCKS = orig_stocks
 
-    def test_h_audit_adapter_compatibility_delegates_directly(self):
-        """H. build_universe_audit(scan_result=...) delegates directly without reconstructing Universe."""
+    def test_audit_adapter_compatibility_delegates_directly(self):
+        """build_universe_audit(scan_result=...) delegates directly without reconstructing Universe."""
         from scripts.pipeline.audit import build_universe_audit
 
         u = Universe.from_candidates(

@@ -35,7 +35,7 @@ from scripts.monitoring.performance import (
 
 @pytest.mark.unit
 class TestMonitoringSubsystem:
-    """Unit test suite for decomposed scripts.monitoring components."""
+    """Test suite for decomposed scripts.monitoring components."""
 
     def test_canonical_date_validation(self):
         """Verify date format check utility."""

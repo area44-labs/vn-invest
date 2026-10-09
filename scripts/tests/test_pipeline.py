@@ -29,7 +29,7 @@ from scripts.pipeline.tracker import PerformanceTracker
 
 
 class MockStage(PipelineStage):
-    """Test double for tracking stage execution order."""
+    """Double for tracking stage execution order."""
 
     def __init__(self, stage_name: str, execution_log: list[str]):
         self._name = stage_name
@@ -45,7 +45,7 @@ class MockStage(PipelineStage):
 
 @pytest.mark.integration
 class TestPipelineContextContractAndLifecycle:
-    """Verify PipelineContext contract, typing, lifecycle semantics, and state management helpers."""
+    """Test suite for verify PipelineContext contract, typing, lifecycle semantics, and state management helpers."""
 
     def test_pipeline_context_defaults_and_construction(self):
         """Verify default PipelineContext initialization, decoupled tracker, and attribute defaults."""

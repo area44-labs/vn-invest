@@ -1,4 +1,4 @@
-"""Comprehensive unit and integration test suite for Issue #172 data boundary separation.
+"""Comprehensive unit and integration test suite for data boundary separation.
 
 Tests acquisition, normalization, validation, and pipeline integration boundaries in isolation
 and end-to-end, confirming offline execution, provider replacement via canonical fixtures,
@@ -76,7 +76,7 @@ class FakeCustomMarketProvider(MarketDataProvider):
 
 @pytest.mark.unit
 class TestDataBoundaryIsolationAndIntegration:
-    """Test data boundary contracts, malformed field handling, and provider replacement."""
+    """Test suite for data boundary contracts, malformed field handling, and provider replacement."""
 
     def test_production_pipeline_execution_with_fake_provider(self):
         """Production pipeline stages execute through provider -> acquisition -> normalization -> validation -> quantitative using FakeCustomMarketProvider."""
@@ -86,7 +86,7 @@ class TestDataBoundaryIsolationAndIntegration:
         ctx.market_data_provider = FakeCustomMarketProvider()
         ctx.update_data = False
 
-        # Stage 1: Acquisition
+        # Acquisition
         acq_stage = DataAcquisitionStage()
         acq_stage.execute(ctx)
 
@@ -96,7 +96,7 @@ class TestDataBoundaryIsolationAndIntegration:
         assert "FPT" in ctx.raw_stock_payloads
         assert ctx.raw_stock_payloads["FPT"].provider_name == "custom_synthetic_provider"
 
-        # Stage 2: Validation
+        # Validation
         val_stage = DataValidationStage()
         val_stage.execute(ctx)
 
@@ -104,7 +104,7 @@ class TestDataBoundaryIsolationAndIntegration:
         assert not ctx.df_vnindex_clean.empty
         assert ctx.vnindex_val.get("status") == "SUFFICIENT"
 
-        # Stage 4 & 5: Quantitative
+        # Quantitative
         mkt_stage = MarketAnalysisStage()
         mkt_stage.execute(ctx)
         assert ctx.final_market_regime is not None
@@ -206,25 +206,25 @@ class TestDataBoundaryIsolationAndIntegration:
         """Provider replacement: replacing provider with FakeCustomMarketProvider without modifying acquisition or quantitative layer."""
         fake_provider = FakeCustomMarketProvider()
 
-        # Step 1: Acquire raw data via custom fake provider
+        # Acquire raw data via custom fake provider
         payload_vnindex = acquire_raw_market_data("VNINDEX", provider=fake_provider)
         payload_stock = acquire_raw_market_data("FPT", provider=fake_provider)
 
         assert payload_vnindex.provider_name == "custom_synthetic_provider"
         assert payload_stock.provider_name == "custom_synthetic_provider"
 
-        # Step 2: Normalization
+        # Normalization
         cmd_vnindex = normalize_raw_market_data(payload_vnindex)
         cmd_stock = normalize_raw_market_data(payload_stock)
 
-        # Step 3: Validation
+        # Validation
         v_vnindex = validate_canonical_market_data(cmd_vnindex)
         v_stock = validate_canonical_market_data(cmd_stock)
 
         assert v_vnindex.data_quality.status == "SUFFICIENT"
         assert v_stock.data_quality.status == "SUFFICIENT"
 
-        # Step 4: Quantitative analysis strictly consumes canonical validated DataFrames
+        # Quantitative analysis strictly consumes canonical validated DataFrames
         regime_info = detect_market_regime(
             df_vnindex=v_vnindex.to_df(),
             df_vn30=None,

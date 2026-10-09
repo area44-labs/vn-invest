@@ -22,7 +22,7 @@ SIGNAL_MODEL_VERSION = DEFAULT_QUANT_CONFIG.model_version
 class PipelineContext:
     """Holds runtime configuration, state, datasets, and execution outputs across pipeline stages."""
 
-    # 1. Configuration
+    # Configuration
     update_data: bool = False
     publish_artifacts: bool = False
     generated_dir: str = ""
@@ -34,7 +34,7 @@ class PipelineContext:
     generated_at: str | None = None
     pipeline_version: str = PIPELINE_VERSION
 
-    # 2. Historical execution parameters
+    # Historical execution parameters
     is_historical: bool = False
     historical_data_as_of: str | None = None
     universe_stock_map: dict[str, pd.DataFrame | None] | None = None
@@ -44,7 +44,7 @@ class PipelineContext:
     _universe: Universe | None = field(default=None, init=False, repr=False)
     _universe_scan_result: UniverseScanResult | None = field(default=None, init=False, repr=False)
 
-    # 3. Data acquisition state & providers
+    # Data acquisition state & providers
     provider: UniverseProvider | None = None
     market_data_provider: Any | None = None
 
@@ -75,7 +75,7 @@ class PipelineContext:
     )
     stock_dates_map: dict[str, str | None] = field(default_factory=dict)
 
-    # 4. Derived & calculated quantitative attributes
+    # Derived & calculated quantitative attributes
     data_as_of: str | None = None
     source_date: str | None = None
     data_source: str | None = None
@@ -93,16 +93,16 @@ class PipelineContext:
 
     temporal_res: dict[str, Any] = field(default_factory=dict)
 
-    # 6. Performance tracking (owned by pipeline/runner or test harness)
+    # Performance tracking (owned by pipeline/runner or test harness)
     tracker: Any = None
     pipeline_elapsed: float = 0.0
     performance_data: dict[str, Any] = field(default_factory=dict)
 
-    # 7. Production monitoring
+    # Production monitoring
     monitoring_result: PipelineMonitoringResult | None = None
     monitoring_dict: dict[str, Any] = field(default_factory=dict)
 
-    # 8. Output artifacts
+    # Output artifacts
     artifacts_to_publish: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -115,7 +115,7 @@ class PipelineContext:
             else:
                 self.generated_at = datetime.now(UTC).isoformat()
 
-    # --- Domain State Properties & Derived Views ---
+    # Domain State Properties & Derived Views
     @property
     def universe(self) -> Universe | None:
         """The canonical Universe object for this context."""

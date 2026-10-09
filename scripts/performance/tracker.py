@@ -119,7 +119,7 @@ class PerformanceTracker:
         from scripts.pipeline.validation import validate_performance_payload
         from scripts.schema import SchemaResolutionError
 
-        # 1. Non-critical provider call history instrumentation
+        # Non-critical provider call history instrumentation
         try:
             provider_summary = aggregate_provider_performance(call_history)
             duplicates = detect_duplicate_operations(call_history, self.symbol_requests)
@@ -136,7 +136,7 @@ class PerformanceTracker:
             }
             duplicates = []
 
-        # 2. Stage metrics & Workload metadata assembly
+        # Stage metrics & Workload metadata assembly
         stages_list: list[dict[str, Any]] = []
         if pipeline_elapsed is not None:
             stages_list.append(
@@ -158,7 +158,7 @@ class PerformanceTracker:
             "workload": workload_meta,
         }
 
-        # 3. Performance regression evaluation
+        # Performance regression evaluation
         try:
             payload["regression"] = evaluate_performance_regression(
                 payload, is_update_mode=update_data
@@ -173,7 +173,7 @@ class PerformanceTracker:
                 "stage_evaluations": [],
             }
 
-        # 4. Budget evaluation
+        # Budget evaluation
         try:
             payload["budget"] = evaluate_provider_budget(
                 payload, enforce_ci_budget=self.enable_ci_budget
@@ -194,7 +194,7 @@ class PerformanceTracker:
                 "violations": [f"Provider budget evaluation error: {budget_exc}"],
             }
 
-        # 5. Authoritative schema validation
+        # Authoritative schema validation
         try:
             validate_performance_payload(payload)
         except (

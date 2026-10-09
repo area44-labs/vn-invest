@@ -45,7 +45,7 @@ class DummyFakeProvider(MarketDataProvider):
 
 @pytest.mark.unit
 class TestMarketDataAcquisitionBoundary:
-    """Test MarketDataAcquirer and acquisition boundary contracts."""
+    """Test suite for MarketDataAcquirer and acquisition boundary contracts."""
 
     def test_successful_raw_data_acquisition(self):
         mock_provider = MagicMock()

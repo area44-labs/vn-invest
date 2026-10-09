@@ -46,7 +46,7 @@ class TestVersionedSchemaRegistry:
     """Deterministic unit tests for versioned schema registry and resolution."""
 
     def test_supported_versions_resolution(self):
-        """1. Verify recommendations and performance v2.0 resolve correctly."""
+        """Verify recommendations and performance v2.0 resolve correctly."""
         rec_schema = resolve_schema("recommendations", "2.0")
         assert isinstance(rec_schema, dict)
         assert rec_schema.get("title") == "VnInvestRecommendationsSchema"
@@ -60,7 +60,7 @@ class TestVersionedSchemaRegistry:
         assert load_performance_schema("2.0") == perf_schema
 
     def test_unsupported_versions_rejected(self):
-        """2. Verify unsupported versions (1.0, 9.9) are strictly rejected with SchemaResolutionError."""
+        """Verify unsupported versions (1.0, 9.9) are strictly rejected with SchemaResolutionError."""
         with pytest.raises(SchemaResolutionError) as cm_1:
             resolve_schema("recommendations", "1.0")
         assert "Unsupported schema version '1.0'" in str(cm_1.value)
@@ -74,7 +74,7 @@ class TestVersionedSchemaRegistry:
         assert "Unsupported schema version '1.0'" in str(cm_perf.value)
 
     def test_invalid_versions_rejected(self):
-        """3. Verify None, empty string, or whitespace version parameters are rejected."""
+        """Verify None, empty string, or whitespace version parameters are rejected."""
         with pytest.raises(SchemaResolutionError):
             resolve_schema("recommendations", None)
 
@@ -88,7 +88,7 @@ class TestVersionedSchemaRegistry:
             resolve_schema("", "2.0")
 
     def test_validation_routing(self):
-        """4. Verify that changing artifact declared schema_version routes to schema resolution and fails on unknown versions."""
+        """Verify that changing artifact declared schema_version routes to schema resolution and fails on unknown versions."""
         valid_rec_payload = {
             "schema_version": "2.0",
             "signal_model_version": "2.0",
@@ -119,7 +119,7 @@ class TestVersionedSchemaRegistry:
         assert "Unsupported schema version '9.9'" in str(cm.value)
 
     def test_publisher_schema_version_enforcement(self):
-        """5. Verify ArtifactPublisher uses version-aware validation and rejects artifacts missing or having unregistered schema_version."""
+        """Verify ArtifactPublisher uses version-aware validation and rejects artifacts missing or having unregistered schema_version."""
         publisher = ArtifactPublisher(strict_provenance=False)
 
         valid_perf_payload = {
@@ -160,7 +160,7 @@ class TestVersionedSchemaRegistry:
         assert "Unsupported schema version '3.0'" in str(cm_bad_ver.value)
 
     def test_no_latest_schema_fallback(self):
-        """6. Prove an unknown schema version never silently falls back to the default/latest schema."""
+        """Prove an unknown schema version never silently falls back to the default/latest schema."""
         with pytest.raises(SchemaResolutionError):
             load_schema_for_version("recommendations", "unknown_ver_99")
 
@@ -168,7 +168,7 @@ class TestVersionedSchemaRegistry:
             load_schema_for_version("performance", "unknown_ver_99")
 
     def test_performance_validation_routes_through_registry(self):
-        """7. Verify validate_performance_payload routes through schema registry and fails closed on missing or unknown version."""
+        """Verify validate_performance_payload routes through schema registry and fails closed on missing or unknown version."""
         valid_perf = {
             "schema_version": "2.0",
             "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
@@ -207,7 +207,7 @@ class TestVersionedSchemaRegistry:
         assert "Unsupported schema version '9.9'" in str(cm_unsupported.value)
 
     def test_check_schema_validation_version_enforcement(self):
-        """8. Verify check_schema_validation fail-closed enforcement across all schema_version values."""
+        """Verify check_schema_validation fail-closed enforcement across all schema_version values."""
         valid_payload = {
             "schema_version": "2.0",
             "signal_model_version": "2.0",
@@ -261,7 +261,7 @@ class TestVersionedSchemaRegistry:
         assert res_99.status == "FAIL"
 
     def test_custom_schema_path_cannot_bypass_registry(self):
-        """9. Verify check_schema_validation refuses extra parameters and fails closed on unsupported version."""
+        """Verify check_schema_validation refuses extra parameters and fails closed on unsupported version."""
         valid_payload = {
             "schema_version": "9.9",  # Unsupported version
             "recommendations": [],
@@ -272,7 +272,7 @@ class TestVersionedSchemaRegistry:
 
     @patch("scripts.schema.load_schema_for_version")
     def test_registry_routing_integration(self, mock_load_schema):
-        """10. Prove monitoring checks, publisher, and pipeline validation actually invoke the central schema registry."""
+        """Prove monitoring checks, publisher, and pipeline validation actually invoke the central schema registry."""
         mock_load_schema.return_value = resolve_schema("recommendations", "2.0")
 
         valid_payload = {
@@ -308,7 +308,7 @@ class TestVersionedSchemaRegistry:
 
     @patch("scripts.pipeline.validation.load_schema_for_version")
     def test_validate_performance_payload_calls_registry(self, mock_load_perf_schema):
-        """11. Prove validate_performance_payload calls central registry with payload's schema_version."""
+        """Prove validate_performance_payload calls central registry with payload's schema_version."""
         mock_load_perf_schema.return_value = resolve_schema("performance", "2.0")
 
         valid_perf = {
@@ -336,7 +336,7 @@ class TestVersionedSchemaRegistry:
         mock_load_perf_schema.assert_called_with("performance", "2.0")
 
     def test_caller_supplied_schema_or_version_or_path_cannot_override_or_bypass(self):
-        """12. Test directly that caller-supplied schema, version, or schema_path parameters raise TypeError."""
+        """Directly that caller-supplied schema, version, or schema_path parameters raise TypeError."""
         valid_perf = {
             "schema_version": "2.0",
             "stages": [{"stage": "pipeline", "elapsed_seconds": 0.5, "status": "SUCCESS"}],
@@ -430,7 +430,7 @@ class TestVersionedSchemaRegistry:
     def test_publisher_always_resolves_via_registry_for_all_schema_governed_artifacts(
         self, mock_load_schema_registry, mock_load_schema_pipeline
     ):
-        """13. Prove ArtifactPublisher always resolves schema via central registry using payload's schema_version."""
+        """Prove ArtifactPublisher always resolves schema via central registry using payload's schema_version."""
         mock_load_schema_registry.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
         mock_load_schema_pipeline.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
 
@@ -479,14 +479,14 @@ class TestVersionedSchemaRegistry:
             "recommendations": [],
         }
 
-        # 1. Performance artifact
+        # Performance artifact
         publisher.validate_artifact("performance.json", valid_perf)
         mock_load_schema_pipeline.assert_called_with("performance", "2.0")
 
-        # 2. Recommendations artifact
+        # Recommendations artifact
         publisher.validate_artifact("recommendations.json", valid_rec)
         mock_load_schema_registry.assert_called_with("recommendations", "2.0")
 
-        # 3. History report artifact
+        # History report artifact
         publisher.validate_artifact("history/2026-10-06.json", valid_rec)
         mock_load_schema_registry.assert_called_with("recommendations", "2.0")

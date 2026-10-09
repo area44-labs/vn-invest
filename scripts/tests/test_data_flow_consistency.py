@@ -81,7 +81,7 @@ class TestDataFlowConsistency:
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_insufficient_clean_history_symbol_categorization(self):
-        """Test that a stock with tag='REAL_DATA' but stock_val['status'] == 'INSUFFICIENT' is added to insufficient_history_symbols."""
+        """A stock with tag='REAL_DATA' but stock_val['status'] == 'INSUFFICIENT' is added to insufficient_history_symbols."""
         # Clean df has 10 valid rows (non-empty, no corruption, but < 20 rows)
         clean_10_df = create_synthetic_ohlcv("2025-01-21", 10, base_price=50000.0)
 
@@ -128,7 +128,7 @@ class TestDataFlowConsistency:
             assert recs_data["recommendations"][0]["action"] == "AVOID"
 
     def test_pipeline_zero_valid_stock_symbols(self):
-        """Test pipeline behavior when stock universe contains 0 valid symbols (all insufficient)."""
+        """pipeline behavior when stock universe contains 0 valid symbols (all insufficient)."""
         candidate_metadata = [
             {
                 "symbol": "VNM",
@@ -184,7 +184,7 @@ class TestDataFlowConsistency:
             assert rec["risk_metrics"]["liquidity_score"] is None
 
     def test_pipeline_single_valid_stock_symbol(self):
-        """Test pipeline behavior when universe contains exactly 1 valid stock symbol."""
+        """pipeline behavior when universe contains exactly 1 valid stock symbol."""
         candidate_metadata = [
             {
                 "symbol": "VNM",
@@ -232,7 +232,7 @@ class TestDataFlowConsistency:
         assert rec_fpt["risk_metrics"]["liquidity_score"] is None
 
     def test_duplicate_candidate_metadata_rejection(self):
-        """Test that duplicate symbols in candidate_metadata cause fail-closed ValueError."""
+        """Duplicate symbols in candidate_metadata cause fail-closed ValueError."""
         duplicate_metadata = [
             {
                 "symbol": "VNM",
@@ -262,7 +262,7 @@ class TestDataFlowConsistency:
         assert "Duplicate candidate stock symbol 'VNM'" in str(ctx.value)
 
     def test_pipeline_fail_closed_update_mode_does_not_write_files(self):
-        """Test that update mode failure raises RuntimeError without writing files."""
+        """Update mode failure raises RuntimeError without writing files."""
         candidates = [
             {"symbol": "FAILED_SYM", "companyName": "Failed", "sector": "Tech", "exchange": "HOSE"}
         ]

@@ -38,7 +38,7 @@ class DummyFakeProvider(MarketDataProvider):
 
 @pytest.mark.unit
 class TestDataProviderBoundary:
-    """Test MarketDataProvider contract and VnstockMarketProvider adapter."""
+    """Test suite for MarketDataProvider contract and VnstockMarketProvider adapter."""
 
     def test_dummy_fake_provider(self):
         provider = DummyFakeProvider()

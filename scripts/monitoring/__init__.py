@@ -1,4 +1,4 @@
-"""VN Invest v2 Monitoring Subsystem.
+"""VN Invest Monitoring Subsystem.
 
 Provides operational monitoring, schema validation, metric extraction, data freshness,
 and operational data/model drift evaluation.

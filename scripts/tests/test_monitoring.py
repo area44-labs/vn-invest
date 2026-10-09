@@ -207,7 +207,7 @@ class TestProductionMonitoring:
 
     def test_normalize_market_payload_variants(self):
         """Verify normalize_market_payload handles nested, standalone, flat, and missing date structures consistently."""
-        # 1. Standalone market.json shape (with top-level data_as_of and market dict)
+        # Standalone market.json shape (with top-level data_as_of and market dict)
         standalone = {
             "data_as_of": "2026-09-28",
             "source_date": "2026-09-28",
@@ -226,7 +226,7 @@ class TestProductionMonitoring:
         assert norm_standalone["market"]["regime"] == "BEAR"
         assert "data_as_of" not in norm_standalone["market"]
 
-        # 2. Flat inner market dict with top-level data_as_of
+        # Flat inner market dict with top-level data_as_of
         flat = {
             "data_as_of": "2026-09-28",
             "regime": "BEAR",
@@ -238,7 +238,7 @@ class TestProductionMonitoring:
         assert norm_flat["market"]["regime"] == "BEAR"
         assert "data_as_of" not in norm_flat["market"]
 
-        # 3. Direct inner market dict without data_as_of key
+        # Direct inner market dict without data_as_of key
         inner = {
             "regime": "BEAR",
             "confidence": 0.85,
@@ -248,12 +248,12 @@ class TestProductionMonitoring:
         assert norm_inner["data_as_of"] == "2026-09-28"
         assert norm_inner["market"]["regime"] == "BEAR"
 
-        # 4. Non-dict input
+        # Non-dict input
         norm_none = normalize_market_payload(None, data_as_of="2026-09-28")
         assert norm_none["data_as_of"] == "2026-09-28"
         assert norm_none["market"] == {}
 
-        # 5. Nested market.data_as_of differs from authoritative top-level data_as_of
+        # Nested market.data_as_of differs from authoritative top-level data_as_of
         conflicting = {
             "data_as_of": "2026-09-28",
             "market": {
@@ -403,7 +403,7 @@ class TestProductionMonitoring:
             assert validate_monitoring_payload(res.to_dict())
 
     def test_payload_supplied_in_memory_with_missing_artifacts_on_disk_fails(self):
-        """Test A: In-memory payload supplied but generated_dir on disk is empty -> FAIL."""
+        """In-memory payload supplied but generated_dir on disk is empty -> FAIL."""
         with tempfile.TemporaryDirectory() as tmpdir:
             res = evaluate_production_monitoring(
                 generated_dir=tmpdir,
@@ -418,7 +418,7 @@ class TestProductionMonitoring:
             assert res.overall_status == "FAIL"
 
     def test_payload_supplied_in_memory_but_history_index_missing_on_disk_fails(self):
-        """Test B: In-memory payload supplied, recommendations.json and market.json exist, but history/index.json is missing -> FAIL."""
+        """In-memory payload supplied, recommendations.json and market.json exist, but history/index.json is missing -> FAIL."""
         with tempfile.TemporaryDirectory() as tmpdir:
             with open(os.path.join(tmpdir, "recommendations.json"), "w") as f:
                 json.dump(self.healthy_payload, f)
@@ -438,7 +438,7 @@ class TestProductionMonitoring:
             assert res.overall_status == "FAIL"
 
     def test_healthy_artifacts_on_disk_and_payload_in_memory_passes(self):
-        """Test C: Healthy artifacts exist on disk AND payload supplied in memory -> PASS."""
+        """Healthy artifacts exist on disk AND payload supplied in memory -> PASS."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
@@ -478,17 +478,17 @@ class TestProductionMonitoring:
 
     def test_data_freshness_exact_boundaries(self):
         """Verify exact freshness contract for PASS, WARNING, and FAIL thresholds."""
-        # 1. Same date: data_as_of == reference_date -> PASS (0 days old)
+        # Same date: data_as_of == reference_date -> PASS (0 days old)
         chk_pass = check_data_freshness("2026-09-17", reference_date="2026-09-17")
         assert chk_pass.status == "PASS"
         assert chk_pass.measured_value["staleness_days"] == 0
 
-        # 2. 5 days stale: data_as_of="2026-09-12", reference_date="2026-09-17" -> WARNING
+        # 5 days stale: data_as_of="2026-09-12", reference_date="2026-09-17" -> WARNING
         chk_warn = check_data_freshness("2026-09-12", reference_date="2026-09-17")
         assert chk_warn.status == "WARNING"
         assert chk_warn.measured_value["staleness_days"] == 5
 
-        # 3. 16 days stale: data_as_of="2026-09-01", reference_date="2026-09-17" -> FAIL (> 14 days)
+        # 16 days stale: data_as_of="2026-09-01", reference_date="2026-09-17" -> FAIL (> 14 days)
         chk_fail = check_data_freshness("2026-09-01", reference_date="2026-09-17")
         assert chk_fail.status == "FAIL"
         assert chk_fail.measured_value["staleness_days"] == 16

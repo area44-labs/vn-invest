@@ -1,4 +1,4 @@
-"""Data Provider Module for VN Invest v2.
+"""Data Provider Module for VN Invest.
 
 Isolates external market-data providers (such as vnstock) behind a clean boundary,
 normalizes units into internal canonical format, and validates canonical OHLCV data

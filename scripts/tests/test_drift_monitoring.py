@@ -455,7 +455,7 @@ class TestDistributionAndNumericDrift:
         """
         # Baseline is 5 BUY, 5 WATCH, 5 HOLD, 5 SELL out of 20 (25% each action)
 
-        # 1. Exactly 0.35 max shift: 12 BUY (60%), 2 WATCH (10%), 3 HOLD (15%), 3 SELL (15%) out of 20
+        # Exactly 0.35 max shift: 12 BUY (60%), 2 WATCH (10%), 3 HOLD (15%), 3 SELL (15%) out of 20
         # BUY shift = |0.60 - 0.25| = 0.350000 -> WARNING
         curr_exact_35 = make_mock_payload(
             data_as_of="2026-09-17",
@@ -475,7 +475,7 @@ class TestDistributionAndNumericDrift:
         assert chk_35.status == "WARNING"
         assert chk_35.observation.absolute_difference["max_difference"] == 0.35
 
-        # 2. Production scenario reproduction: max shift = 0.350340
+        # Production scenario reproduction: max shift = 0.350340
         # Baseline pooled scanned = 10000, 2500 BUY (25%)
         # Current report total scanned = 5000, 3001.7 -> 3001.7 / 5000 = 0.600340
         # max_action_diff = |0.600340 - 0.250000| = 0.350340
@@ -515,7 +515,7 @@ class TestDistributionAndNumericDrift:
             == 0
         )
 
-        # 3. Shift slightly above boundary tolerance: max_action_diff = 0.3515
+        # Shift slightly above boundary tolerance: max_action_diff = 0.3515
         curr_above_tol = make_mock_payload(
             data_as_of="2026-09-17",
             total_scanned=2000,
@@ -535,7 +535,7 @@ class TestDistributionAndNumericDrift:
         )
         assert chk_above_tol.status == "FAIL"
 
-        # 4. Clearly larger drift: max_action_diff = 0.40
+        # Clearly larger drift: max_action_diff = 0.40
         curr_large_drift = make_mock_payload(
             data_as_of="2026-09-17",
             total_scanned=20,
@@ -880,7 +880,7 @@ class TestFeedbackRegressionCases:
 
     def test_invalid_market_metrics_fail_closed(self):
         """Verify string, bool, NaN, Inf, or out-of-range market metrics fail closed."""
-        # 1. Invalid market_breadth_ratio
+        # Invalid market_breadth_ratio
         for bad_breadth in ["0.6", True, float("nan"), float("inf"), -0.1, 1.5]:
             curr = make_mock_payload(data_as_of="2026-09-17")
             curr["market"]["metrics"]["market_breadth_ratio"] = bad_breadth
@@ -890,7 +890,7 @@ class TestFeedbackRegressionCases:
                 f"Failed to fail-closed on market_breadth_ratio={bad_breadth}"
             )
 
-        # 2. Invalid vnindex_change_pct
+        # Invalid vnindex_change_pct
         for bad_pct in ["0.5%", True, float("nan"), float("inf")]:
             curr = make_mock_payload(data_as_of="2026-09-17")
             curr["market"]["metrics"]["vnindex_change_pct"] = bad_pct
@@ -944,7 +944,7 @@ class TestFeedbackRegressionCases:
         """Verify strict temporal consistency check for explicit market_payload."""
         curr = make_mock_payload(data_as_of="2026-09-17")
 
-        # 1. Market payload same date T -> PASS (with valid baselines)
+        # Market payload same date T -> PASS (with valid baselines)
         baselines = [make_mock_payload(data_as_of=f"2026-09-{16 - i:02d}") for i in range(5)]
         m_valid = {
             "data_as_of": "2026-09-17",
@@ -964,7 +964,7 @@ class TestFeedbackRegressionCases:
         )
         assert res1.overall_status == "PASS"
 
-        # 2. Market payload with date < T -> FAIL
+        # Market payload with date < T -> FAIL
         m_past = dict(m_valid, data_as_of="2026-09-16")
         res2 = evaluate_data_and_model_drift(
             data_as_of="2026-09-17",
@@ -974,7 +974,7 @@ class TestFeedbackRegressionCases:
         assert res2.overall_status == "FAIL"
         assert res2.drift_checks[0].check_name == "drift_market_payload_temporal_safety"
 
-        # 3. Market payload with date > T -> FAIL
+        # Market payload with date > T -> FAIL
         m_future = dict(m_valid, data_as_of="2026-09-18")
         res3 = evaluate_data_and_model_drift(
             data_as_of="2026-09-17",
@@ -983,7 +983,7 @@ class TestFeedbackRegressionCases:
         )
         assert res3.overall_status == "FAIL"
 
-        # 4. Malformed/non-canonical date -> FAIL
+        # Malformed/non-canonical date -> FAIL
         m_bad_date = dict(m_valid, data_as_of="2026-9-17")
         res4 = evaluate_data_and_model_drift(
             data_as_of="2026-09-17",
@@ -992,7 +992,7 @@ class TestFeedbackRegressionCases:
         )
         assert res4.overall_status == "FAIL"
 
-        # 5. Market payload missing data_as_of -> FAIL
+        # Market payload missing data_as_of -> FAIL
         m_no_date = {
             "regime": "BULL",
             "confidence": 0.85,

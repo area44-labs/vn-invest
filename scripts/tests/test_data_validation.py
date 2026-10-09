@@ -13,7 +13,7 @@ from scripts.data.validation import (
 
 @pytest.mark.unit
 class TestMarketDataValidationBoundary:
-    """Test CanonicalMarketValidator invariant and temporal rules."""
+    """Test suite for CanonicalMarketValidator invariant and temporal rules."""
 
     def test_market_staleness_and_future_date_constants(self):
         """Verify market data staleness and future date constants are imported from canonical data validation module."""

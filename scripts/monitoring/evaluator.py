@@ -114,7 +114,7 @@ def evaluate_production_monitoring(
             except Exception:  # noqa: BLE001
                 data_as_of_peek = None
 
-    # 1. Artifact existence check (executed in-memory or on disk)
+    # Artifact existence check (executed in-memory or on disk)
     artifact_chk = check_required_artifacts(
         g_dir, data_as_of=data_as_of_peek, in_memory_artifacts=in_memory_artifacts
     )
@@ -158,20 +158,20 @@ def evaluate_production_monitoring(
     )
     market_payload = normalize_market_payload(raw_market, data_as_of=data_as_of)
 
-    # 2. Schema validation check
+    # Schema validation check
     checks.append(check_schema_validation(recommendations_payload))
 
-    # 3. Data freshness check
+    # Data freshness check
     checks.append(check_data_freshness(data_as_of, reference_date=reference_date))
 
-    # 4. Numeric sanity check (NaN/Inf safety) across recommendations and market payloads
+    # Numeric sanity check (NaN/Inf safety) across recommendations and market payloads
     checks.append(check_numeric_sanity(recommendations_payload, market_payload=market_payload))
 
-    # 5. Symbol processing counts check
+    # Symbol processing counts check
     counts_chk = check_symbol_processing_counts(recommendations_payload)
     checks.append(counts_chk)
 
-    # 5b. Universe audit invariants check
+    # Universe audit invariants check
     if universe_audit is None:
         recs = recommendations_payload.get("recommendations", [])
         cand_proc = [
@@ -225,23 +225,23 @@ def evaluate_production_monitoring(
     audit_chk = check_universe_audit_invariants(universe_audit, recommendations_payload)
     checks.append(audit_chk)
 
-    # 6. Market regime status check
+    # Market regime status check
     checks.append(check_market_regime_status(market_payload))
 
-    # 7. History index integrity check (ALWAYS executed, fails closed if history/index.json is missing)
+    # History index integrity check (ALWAYS executed, fails closed if history/index.json is missing)
     checks.append(
         check_history_index_status(
             g_dir, data_as_of=data_as_of, in_memory_artifacts=in_memory_artifacts
         )
     )
 
-    # 8. Benchmark OHLCV checks (if provided)
+    # Benchmark OHLCV checks (if provided)
     if df_vnindex is not None:
         checks.append(check_ohlcv_data_quality(df_vnindex, "VNINDEX"))
     if df_vn30 is not None:
         checks.append(check_ohlcv_data_quality(df_vn30, "VN30"))
 
-    # 9. Operational Data and Model Drift Detection check
+    # Operational Data and Model Drift Detection check
     drift_res = evaluate_data_and_model_drift(
         generated_dir=g_dir,
         data_as_of=data_as_of,
@@ -258,7 +258,7 @@ def evaluate_production_monitoring(
         )
         checks.append(c_res)
 
-    # 10. Performance Regression & Provider Budget checks
+    # Performance Regression & Provider Budget checks
     if isinstance(universe_audit, dict):
         perf_data = universe_audit.get("performance")
     else:

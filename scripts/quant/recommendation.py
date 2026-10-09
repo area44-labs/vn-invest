@@ -130,7 +130,7 @@ def generate_single_recommendation(
             },
         )
 
-    # 1. Compute Signal
+    # Compute Signal
     signal_input = SignalInput(
         symbol=symbol,
         company_name=comp_clean,
@@ -150,7 +150,7 @@ def generate_single_recommendation(
         sig_res.score, regime, sig_res.raw_close, sig_res.raw_ma20, config=config
     )
 
-    # 2. Compute Risk & Trade Plan
+    # Compute Risk & Trade Plan
     risk_input = RiskInput(
         symbol=symbol,
         company_name=comp_clean,

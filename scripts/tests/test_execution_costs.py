@@ -23,7 +23,7 @@ from scripts.backtest.portfolio import (
 
 @pytest.mark.unit
 class TestTransactionCostSemantics:
-    """Test suite validating transaction cost semantics, formula, and input bounds."""
+    """Test suite for validating transaction cost semantics, formula, and input bounds."""
 
     def test_zero_transaction_cost(self) -> None:
         """Verifies that with zero transaction cost and zero slippage, the net return equals the gross return exactly."""
@@ -144,7 +144,7 @@ class TestTransactionCostSemantics:
 
 @pytest.mark.unit
 class TestSlippageSemantics:
-    """Test suite validating execution slippage semantics, directionality, and input bounds."""
+    """Test suite for validating execution slippage semantics, directionality, and input bounds."""
 
     def test_zero_slippage(self) -> None:
         """Verifies that with zero slippage, execution entry and exit prices match reference prices exactly."""
@@ -233,7 +233,7 @@ class TestSlippageSemantics:
 
 @pytest.mark.unit
 class TestActionSemantics:
-    """Test suite validating action semantics in calculate_execution_return()."""
+    """Test suite for validating action semantics in calculate_execution_return()."""
 
     def test_non_executed_action_returns_zero(self) -> None:
         """HOLD, WATCH, and AVOID actions yield strictly zero returns without execution costs."""
@@ -259,7 +259,7 @@ class TestActionSemantics:
 
 @pytest.mark.unit
 class TestCostSlippageInteraction:
-    """Test suite validating interaction between transaction costs and slippage."""
+    """Test suite for validating interaction between transaction costs and slippage."""
 
     def test_combined_cost_and_slippage_calculation(self) -> None:
         """Deterministic scenario verifying gross return, slippage-adjusted return, and final net return."""
@@ -276,21 +276,21 @@ class TestCostSlippageInteraction:
             action="BUY",
         )
 
-        # 1. Entry execution price: 100,000 * (1 + 0.001) = 100,100.0
+        # Entry execution price: 100,000 * (1 + 0.001) = 100,100.0
         assert res.entry_exec_price == 100_100.0
 
-        # 2. Exit execution price: 110,000 * (1 - 0.001) = 109,890.0
+        # Exit execution price: 110,000 * (1 - 0.001) = 109,890.0
         assert res.exit_exec_price == 109_890.0
 
-        # 3. Gross return: (110,000 / 100,000) - 1.0 = 0.10 (10.0%)
+        # Gross return: (110,000 / 100,000) - 1.0 = 0.10 (10.0%)
         assert res.gross_return == 0.10
 
-        # 4. Slippage-adjusted return: (109,890 / 100,100) - 1.0 = 0.097802
+        # Slippage-adjusted return: (109,890 / 100,100) - 1.0 = 0.097802
         expected_slip_ret = round((109_890.0 / 100_100.0) - 1.0, 6)
         assert res.slippage_adjusted_return == expected_slip_ret
         assert res.slippage_adjusted_return == 0.097802
 
-        # 5. Final net return after transaction costs:
+        # Final net return after transaction costs:
         # factor = (1 - 0.0015) * (109,890 / 100,100) * (1 - 0.0015) - 1.0
         # = 0.9985 * 1.0978021978... * 0.9985 - 1.0 = 1.09451121... - 1.0 = 0.094511
         expected_net_ret = round((1.0 - 0.0015) * (109_890.0 / 100_100.0) * (1.0 - 0.0015) - 1.0, 6)
@@ -322,7 +322,7 @@ class TestCostSlippageInteraction:
 
 @pytest.mark.unit
 class TestPortfolioLevelCostConsistency:
-    """Test suite validating portfolio-level net returns match weighted position net returns."""
+    """Test suite for validating portfolio-level net returns match weighted position net returns."""
 
     def setup_method(self) -> None:
         """Create deterministic 2-stock synthetic universe."""
@@ -496,7 +496,7 @@ class TestPortfolioLevelCostConsistency:
 
 @pytest.mark.unit
 class TestSellExitPriceReconstructionAndPortfolioCoverage:
-    """Test suite validating SELL exit price reconstruction and explicit BUY + SELL portfolio coverage."""
+    """Test suite for validating SELL exit price reconstruction and explicit BUY + SELL portfolio coverage."""
 
     def test_sell_exit_price_reconstruction_from_100_to_90(self) -> None:
         """Regression test: SELL trade with entry=100 and exit=90 reconstructs exit price as 90 (never 110)."""
@@ -622,7 +622,7 @@ class TestSellExitPriceReconstructionAndPortfolioCoverage:
 
 @pytest.mark.unit
 class TestNoLookaheadAndEligibilityInteraction:
-    """Test suite validating temporal isolation and execution eligibility interaction."""
+    """Test suite for validating temporal isolation and execution eligibility interaction."""
 
     def test_execution_eligibility_not_altered_by_cost_assumptions(self) -> None:
         """Verify non-executable stocks remain non-executable regardless of cost settings."""
@@ -660,7 +660,7 @@ class TestNoLookaheadAndEligibilityInteraction:
 
 @pytest.mark.unit
 class TestCostAwarePortfolioConsistency:
-    """Test suite validating layer for cost-aware portfolio backtest consistency."""
+    """Test suite for validating layer for cost-aware portfolio backtest consistency."""
 
     def setup_method(self) -> None:
         """Create synthetic data for multi-horizon and action testing."""

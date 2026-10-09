@@ -137,7 +137,7 @@ class TestPipelinePerformanceProfiling:
     def test_every_required_pipeline_stage_produces_timing_record(
         self, mock_fetch_ohlcv, mock_perf
     ):
-        """1. Every required pipeline stage produces a timing record with stable fields in main flow."""
+        """Every required pipeline stage produces a timing record with stable fields in main flow."""
 
         import itertools
 
@@ -193,7 +193,7 @@ class TestPipelinePerformanceProfiling:
     @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_stage_ordering_is_deterministic(self, mock_fetch_ohlcv, mock_perf):
-        """2. Stage ordering in performance payload is strictly deterministic."""
+        """Stage ordering in performance payload is strictly deterministic."""
 
         import itertools
 
@@ -235,7 +235,7 @@ class TestPipelinePerformanceProfiling:
         assert stages1 == expected_order
 
     def test_provider_timing_from_pr155_aggregated_correctly(self):
-        """3. Provider call timing history is aggregated correctly."""
+        """Provider call timing history is aggregated correctly."""
         call_history = [
             {
                 "provider": "vnstock",
@@ -279,7 +279,7 @@ class TestPipelinePerformanceProfiling:
         assert summary["calls_by_source"] == {"kbs": 2, "msn": 1}
 
     def test_successful_provider_call_count_accuracy(self):
-        """4. Successful provider call count accuracy in performance payload."""
+        """Successful provider call count accuracy in performance payload."""
         call_history = [
             {
                 "source": "kbs",
@@ -309,7 +309,7 @@ class TestPipelinePerformanceProfiling:
         assert summary["total_calls"] == 3
 
     def test_failed_provider_call_count_accuracy(self):
-        """5. Failed provider call count accuracy in performance payload."""
+        """Failed provider call count accuracy in performance payload."""
         call_history = [
             {
                 "source": "kbs",
@@ -332,7 +332,7 @@ class TestPipelinePerformanceProfiling:
         assert summary["successful_calls"] == 0
 
     def test_retry_and_fallback_calls_represented_correctly(self):
-        """6. Retry and source fallback calls are represented accurately."""
+        """Retry and source fallback calls are represented accurately."""
         call_history = [
             {
                 "source": "kbs",
@@ -358,7 +358,7 @@ class TestPipelinePerformanceProfiling:
         assert summary["calls_by_source"]["msn"] == 1
 
     def test_duplicate_symbol_detection(self):
-        """7. Duplicate symbol requests or repeated calls are detected correctly."""
+        """Duplicate symbol requests or repeated calls are detected correctly."""
         call_history = [
             {"symbol": "FPT", "elapsed_seconds": 0.1, "success": False, "retry_count": 0},
             {"symbol": "FPT", "elapsed_seconds": 0.1, "success": True, "retry_count": 1},
@@ -375,7 +375,7 @@ class TestPipelinePerformanceProfiling:
         assert dup["request_count"] == 2
 
     def test_duplicate_work_diagnostics(self):
-        """8. Duplicate work diagnostics expose provider call count details."""
+        """Duplicate work diagnostics expose provider call count details."""
         call_history = [
             {"symbol": "FPT", "elapsed_seconds": 0.1, "success": True, "retry_count": 0},
             {"symbol": "FPT", "elapsed_seconds": 0.1, "success": True, "retry_count": 0},
@@ -390,7 +390,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_instrumentation_does_not_change_pipeline_output(self, mock_fetch_ohlcv):
-        """9. Performance instrumentation produces identical quantitative report structure."""
+        """Performance instrumentation produces identical quantitative report structure."""
         valid_df = make_valid_canonical_df(25)
         mock_fetch_ohlcv.return_value = valid_df
 
@@ -406,7 +406,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_instrumentation_does_not_alter_recommendation_results(self, mock_fetch_ohlcv):
-        """10. Recommendations and signals are 100% identical with instrumentation."""
+        """Recommendations and signals are 100% identical with instrumentation."""
         valid_df = make_valid_canonical_df(25)
         mock_fetch_ohlcv.return_value = valid_df
 
@@ -424,7 +424,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_instrumentation_does_not_alter_monitoring_status(self, mock_fetch_ohlcv):
-        """11. Production monitoring status is unchanged by performance tracking."""
+        """Production monitoring status is unchanged by performance tracking."""
         from scripts.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
@@ -465,7 +465,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_provider_failure_remains_fail_closed(self, mock_fetch_ohlcv):
-        """12. Provider failure remains fail-closed and attaches performance diagnostics."""
+        """Provider failure remains fail-closed and attaches performance diagnostics."""
         mock_fetch_ohlcv.side_effect = RuntimeError("Provider offline")
 
         tracker = PerformanceTracker()
@@ -482,7 +482,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_rate_limit_behavior_remains_unchanged(self, mock_fetch_ohlcv):
-        """13. Rate limit handling remains unchanged and raises ProviderRateLimitError loudly."""
+        """Rate limit handling remains unchanged and raises ProviderRateLimitError loudly."""
         mock_fetch_ohlcv.side_effect = ProviderRateLimitError(
             "Quota exceeded for FPT", cooldown_seconds=30, symbol="FPT"
         )
@@ -498,7 +498,7 @@ class TestPipelinePerformanceProfiling:
 
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_canonical_date_freshness_remains_enforced(self, mock_fetch_ohlcv):
-        """14. Temporal integrity / canonical date freshness rules remain strictly enforced."""
+        """Temporal integrity / canonical date freshness rules remain strictly enforced."""
         vnindex_df = make_valid_canonical_df(25, start_date="2026-08-01")
         stale_df = make_valid_canonical_df(10, start_date="2026-08-01")  # Stale relative to VNINDEX
 
@@ -515,7 +515,7 @@ class TestPipelinePerformanceProfiling:
         assert "Incomplete universe scan in update mode" in str(ctx.value)
 
     def test_output_artifacts_remain_protected_on_failure(self):
-        """15. Output artifacts in generated/ remain protected and untouched on failure."""
+        """Output artifacts in generated/ remain protected and untouched on failure."""
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gen_dir = Path(tmpdir) / "generated"
@@ -551,7 +551,7 @@ class TestPipelinePerformanceProfiling:
     def test_monitoring_elapsed_time_corresponds_to_mocked_execution(
         self, mock_fetch_ohlcv, mock_perf, mock_eval_mon
     ):
-        """16. Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
+        """Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
         from unittest.mock import MagicMock
 
         valid_df = make_valid_canonical_df(25)
@@ -593,7 +593,7 @@ class TestPipelinePerformanceProfiling:
             assert mon_stage["elapsed_seconds"] == 2.5000
 
     def test_monitoring_failure_produces_failed_stage_status(self):
-        """17. Exception during monitoring stage records status 'FAILED' in performance tracker."""
+        """Exception during monitoring stage records status 'FAILED' in performance tracker."""
         tracker = PerformanceTracker()
         with pytest.raises(RuntimeError), tracker.measure_stage("monitoring"):
             raise RuntimeError("Monitoring system crash")
@@ -603,7 +603,7 @@ class TestPipelinePerformanceProfiling:
         assert mon_stage["status"] == "FAILED"
 
     def test_payload_validation_with_injected_failure_produces_failed(self):
-        """18. Injected integrity failure in payload_validation stage records status 'FAILED'."""
+        """Injected integrity failure in payload_validation stage records status 'FAILED'."""
         from scripts.generate_report import validate_final_payload_integrity
 
         tracker = PerformanceTracker()
@@ -617,7 +617,7 @@ class TestPipelinePerformanceProfiling:
         assert val_stage["status"] == "FAILED"
 
     def test_successful_payload_validation_produces_success(self):
-        """19. Successful payload validation records stage status 'SUCCESS'."""
+        """Successful payload validation records stage status 'SUCCESS'."""
         from scripts.generate_report import validate_final_payload_integrity
 
         tracker = PerformanceTracker()
@@ -651,7 +651,7 @@ class TestPipelinePerformanceProfiling:
         assert val_stage["status"] == "SUCCESS"
 
     def test_historical_path_does_not_contain_monitoring_measurement(self):
-        """20. Historical report generation path does NOT contain a fake/pass monitoring stage."""
+        """Historical report generation path does NOT contain a fake/pass monitoring stage."""
         from scripts.generate_report import generate_historical_report
 
         df_index = make_valid_canonical_df(25, start_date="2026-08-01")
@@ -673,7 +673,7 @@ class TestPipelinePerformanceProfiling:
     @patch("scripts.pipeline.tracker.time.perf_counter")
     @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
     def test_stage_ordering_in_main_flow_remains_unchanged(self, mock_fetch_ohlcv, mock_perf):
-        """21. Main pipeline stage ordering matches expected canonical order strictly."""
+        """Main pipeline stage ordering matches expected canonical order strictly."""
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_fetch_ohlcv.return_value = valid_df
@@ -1225,7 +1225,7 @@ class TestPerformanceRegressionAndBudget:
 
     def test_provider_budget_exceeded(self):
         """Verify provider budget checks set status DEGRADED and report violations when limits are exceeded."""
-        # 1. Total calls exceeded
+        # Total calls exceeded
         payload_calls = {
             "stages": [],
             "provider": {
@@ -1243,7 +1243,7 @@ class TestPerformanceRegressionAndBudget:
         assert res_calls["overall_status"] == "DEGRADED"
         assert any("Total provider calls" in v for v in res_calls["violations"])
 
-        # 2. Duplicate operations exceeded
+        # Duplicate operations exceeded
         payload_dups = {
             "stages": [],
             "provider": {
@@ -1271,7 +1271,7 @@ class TestPerformanceRegressionAndBudget:
         assert res_dups["overall_status"] == "DEGRADED"
         assert any("Duplicate operations count" in v for v in res_dups["violations"])
 
-        # 3. Elapsed time exceeded
+        # Elapsed time exceeded
         payload_time = {
             "stages": [],
             "provider": {
@@ -1855,7 +1855,7 @@ class TestPerformanceRegressionAndBudget:
             "exclusions": [],
         }
 
-        # 1. Performance payload explicitly None
+        # Performance payload explicitly None
         missing_audit = copy.deepcopy(base_audit)
         missing_audit["performance"] = None
 
@@ -1886,7 +1886,7 @@ class TestPerformanceRegressionAndBudget:
             )
             assert integ_chk.status == "FAIL"
 
-        # 1b. Performance key completely absent from universe_audit even if recommendations_payload contains performance
+        # Performance key completely absent from universe_audit even if recommendations_payload contains performance
         absent_audit = copy.deepcopy(base_audit)
         assert "performance" not in absent_audit
 
@@ -1923,7 +1923,7 @@ class TestPerformanceRegressionAndBudget:
             assert checks_map.get("performance_regression") == "FAIL"
             assert checks_map.get("provider_budget") == "FAIL"
 
-        # 2. Performance payload malformed (invalid structure)
+        # Performance payload malformed (invalid structure)
         malformed_audit = copy.deepcopy(base_audit)
         malformed_audit["performance"] = {"stages": "not_a_list"}
 

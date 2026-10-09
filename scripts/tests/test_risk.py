@@ -78,8 +78,8 @@ class TestRiskModel:
         assert metrics["var_t25"] is None
         assert metrics["es_t25"] is None
 
-    def test_a_t25_known_return(self):
-        """1. Known return: Verify exact T+2.5 return calculation on synthetic prices."""
+    def test_t25_known_return(self):
+        """Known return: Verify exact T+2.5 return calculation on synthetic prices."""
         prices = pd.Series([100.0, 102.0, 104.0, 106.0, 108.12])
         returns = calculate_t25_returns(prices)
 
@@ -90,8 +90,8 @@ class TestRiskModel:
         assert round(abs(returns.iloc[0] - (0.06)), 4) == 0
         assert round(abs(returns.iloc[1] - (0.06)), 4) == 0
 
-    def test_b_t25_insufficient_history(self):
-        """2. Insufficient history: Fewer than 4 price observations produces empty series."""
+    def test_t25_insufficient_history(self):
+        """Insufficient history: Fewer than 4 price observations produces empty series."""
         prices_3 = pd.Series([100.0, 102.0, 104.0])
         returns = calculate_t25_returns(prices_3)
         assert returns.empty
@@ -102,15 +102,15 @@ class TestRiskModel:
         assert metrics["var_t25"] is None
         assert metrics["es_t25"] is None
 
-    def test_c_t25_exact_minimum_history(self):
-        """3. Exact minimum history: 4 price observations produces exactly 1 return observation."""
+    def test_t25_exact_minimum_history(self):
+        """Exact minimum history: 4 price observations produces exactly 1 return observation."""
         prices_4 = pd.Series([100.0, 102.0, 104.0, 110.0])
         returns = calculate_t25_returns(prices_4)
         assert len(returns) == 1
         assert round(abs(returns.iloc[0] - (0.10)), 4) == 0
 
-    def test_d_t25_no_look_ahead(self):
-        """4. No look-ahead: Changing future prices cannot change earlier T+2.5 returns."""
+    def test_t25_no_look_ahead(self):
+        """No look-ahead: Changing future prices cannot change earlier T+2.5 returns."""
         prices_base = pd.Series([100.0, 102.0, 104.0, 106.0, 108.0, 110.0])
         returns_base = calculate_t25_returns(prices_base)
 
@@ -122,8 +122,8 @@ class TestRiskModel:
         assert round(abs(returns_base.iloc[0] - (returns_modified.iloc[0])), 6) == 0
         assert round(abs(returns_base.iloc[1] - (returns_modified.iloc[1])), 6) == 0
 
-    def test_e_t25_non_uniform_calendar_dates(self):
-        """5. Non-uniform calendar dates: Uses trading-session rows, not calendar day interpolation."""
+    def test_t25_non_uniform_calendar_dates(self):
+        """Non-uniform calendar dates: Uses trading-session rows, not calendar day interpolation."""
         # Non-uniform trading dates (e.g. weekend/holiday gaps)
         dates = ["2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12"]
         prices = pd.Series([10.0, 12.0, 14.0, 15.0, 18.0], index=dates)
@@ -134,8 +134,8 @@ class TestRiskModel:
         assert len(returns) == 2
         assert round(abs(returns.iloc[0] - (0.50)), 4) == 0
 
-    def test_f_t25_unsorted_input(self):
-        """6. Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
+    def test_t25_unsorted_input(self):
+        """Unsorted input contract: Demonstrate positional dependence on chronological order and why upstream clean sorting is required."""
         chronological_prices = pd.Series([100.0, 102.0, 104.0, 106.0])
         unsorted_prices = pd.Series([106.0, 100.0, 104.0, 102.0])
 
@@ -148,8 +148,8 @@ class TestRiskModel:
         assert round(abs(returns_unsorted.iloc[0] - (-0.037736)), 4) == 0
         assert returns_chrono.iloc[0] != returns_unsorted.iloc[0]
 
-    def test_g_t25_duplicate_invalid_rows_clean_boundary(self):
-        """7. Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
+    def test_t25_duplicate_invalid_rows_clean_boundary(self):
+        """Clean-data boundary: Invalid/duplicate rows are excluded before calculation, and raw inclusion alters return."""
         # Construct synthetic price series where raw data has duplicate date and an extreme invalid price
         # Clean prices: 100.0, 102.0, 104.0, 106.0 -> 3-session return = (106.0 - 100.0) / 100.0 = 0.06
         df_raw = pd.DataFrame(
@@ -177,8 +177,8 @@ class TestRiskModel:
         assert val_res["status"] == "INSUFFICIENT"
         assert clean_df.empty
 
-    def test_i_other_risk_metrics_unchanged(self):
-        """8. Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
+    def test_other_risk_metrics_unchanged(self):
+        """Regression against current risk output: volatility_60d, max_drawdown, avg_value_20d remain unaffected."""
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
         close_prices = np.linspace(20000.0, 35000.0, n)
@@ -290,7 +290,7 @@ class TestRiskModel:
             }
         )
 
-        # 1. Verify clean data boundary detects NaN issues and fails closed
+        # Verify clean data boundary detects NaN issues and fails closed
         clean_df, val_res = get_clean_ohlcv_data(df_raw, "TEST")
         assert "nan_values" in val_res["issues"]
         assert val_res["status"] == "INSUFFICIENT"

@@ -157,7 +157,7 @@ def extract_recommendation_metrics(
     if not isinstance(recs, list):
         raise TypeError(f"Recommendations must be a list, got {type(recs).__name__}")
 
-    # 1. Validate each recommendation item
+    # Validate each recommendation item
     valid_actions = {"BUY", "WATCH", "HOLD", "SELL", "AVOID"}
     for idx, r in enumerate(recs):
         if not isinstance(r, dict):
@@ -174,7 +174,7 @@ def extract_recommendation_metrics(
     if not isinstance(summary, dict):
         raise TypeError(f"Summary must be a dict, got {type(summary).__name__}")
 
-    # 2. Validate summary consistency
+    # Validate summary consistency
     total_scanned = summary.get("total_scanned")
     if isinstance(total_scanned, bool) or not isinstance(total_scanned, int) or total_scanned < 0:
         raise ValueError(
@@ -234,7 +234,7 @@ def extract_recommendation_metrics(
     processed_count = sum(1 for r in recs if r.get("data_quality") in ("SUFFICIENT", "PARTIAL"))
     processed_ratio = round(processed_count / total_scanned, 6) if total_scanned > 0 else 0.0
 
-    # 3. Validate confidence, signal_score, and risk_adjusted_score on each recommendation item
+    # Validate confidence, signal_score, and risk_adjusted_score on each recommendation item
     conf_counts = {b: 0 for b in CANONICAL_CONFIDENCE_BUCKETS}
     valid_conf_vals = []
     sig_scores = []

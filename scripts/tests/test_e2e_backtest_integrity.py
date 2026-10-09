@@ -88,7 +88,7 @@ def create_multi_symbol_universe(
 
 @pytest.mark.e2e
 class TestE2ETemporalIntegrity:
-    """Test Suite 1 — End-to-End Temporal Integrity & Anti-Lookahead Safety."""
+    """Test suite for End-to-End Temporal Integrity & Anti-Lookahead Safety."""
 
     def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
@@ -160,10 +160,10 @@ class TestE2ETemporalIntegrity:
 
         mutated_positions = {p.symbol: p for p in eval_mutated.positions}
 
-        # 1. Constituent selection and symbols at T must be 100% identical (PIT Signal Invariant)
+        # Constituent selection and symbols at T must be 100% identical (PIT Signal Invariant)
         assert sorted(baseline_positions.keys()) == sorted(mutated_positions.keys())
 
-        # 2. Allocation weights at T must be 100% identical
+        # Allocation weights at T must be 100% identical
         assert eval_baseline.allocated_weight == eval_mutated.allocated_weight
         assert eval_baseline.unallocated_weight == eval_mutated.unallocated_weight
 
@@ -184,12 +184,12 @@ class TestE2ETemporalIntegrity:
             # Execution eligibility at T
             assert pos_base.is_executable == pos_mut.is_executable
 
-            # 3. Fixture-specific expectation: forward outcomes (> T) update to reflect mutated future price data
+            # Fixture-specific expectation: forward outcomes (> T) update to reflect mutated future price data
             for h in [5, 10, 20]:
                 if pos_base.forward_availability[h]:
                     assert pos_base.forward_returns[h] != pos_mut.forward_returns[h]
 
-        # 4. Fixture-specific expectation: portfolio forward returns update as underlying position outcomes change
+        # Fixture-specific expectation: portfolio forward returns update as underlying position outcomes change
         for h in [5, 10, 20]:
             if eval_baseline.horizon_availability[h]:
                 assert (
@@ -200,7 +200,7 @@ class TestE2ETemporalIntegrity:
 
 @pytest.mark.e2e
 class TestE2EMissingOutcomePropagation:
-    """Test Suite 2 — Missing Outcome Propagation across position, portfolio, and aggregate summary layers."""
+    """Test suite for Missing Outcome Propagation across position, portfolio, and aggregate summary layers."""
 
     def setup_method(self) -> None:
         self.df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
@@ -354,7 +354,7 @@ class TestE2EMissingOutcomePropagation:
 
 @pytest.mark.e2e
 class TestE2ECostSlippageSingleApplication:
-    """Test Suite 3 — Single-Application Invariant for Transaction Costs & Slippage."""
+    """Test suite for Single-Application Invariant for Transaction Costs & Slippage."""
 
     def setup_method(self) -> None:
         self.dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
@@ -441,11 +441,11 @@ class TestE2ECostSlippageSingleApplication:
         tc = 0.0030  # 0.30% total transaction cost (0.15% entry, 0.15% exit)
         slip = 0.0010  # 0.10% adverse slippage per leg
 
-        # --- INDEPENDENT MATHEMATICAL ORACLE FORMULAS (No helper calls!) ---
+        # INDEPENDENT MATHEMATICAL ORACLE FORMULAS (No helper calls!)
         c_entry = tc / 2.0  # 0.0015
         c_exit = tc / 2.0  # 0.0015
 
-        # 1. BUY_STK Oracle (entry=100, exit=110):
+        # BUY_STK Oracle (entry=100, exit=110):
         # p_entry_exec = 100 * (1 + 0.001) = 100.1
         # p_exit_exec  = 110 * (1 - 0.001) = 109.89
         # net_return   = (1 - 0.0015) * (109.89 / 100.1) * (1 - 0.0015) - 1.0 = 0.094511
@@ -456,7 +456,7 @@ class TestE2ECostSlippageSingleApplication:
         )
         assert oracle_net_buy == 0.094511
 
-        # 2. SELL_STK Oracle (entry=100, exit=90):
+        # SELL_STK Oracle (entry=100, exit=90):
         # p_entry_exec = 100 * (1 - 0.001) = 99.9
         # p_exit_exec  = 90 * (1 + 0.001) = 90.09
         # slip_ret     = 1.0 - (90.09 / 99.9) = 0.098198
@@ -467,7 +467,7 @@ class TestE2ECostSlippageSingleApplication:
         oracle_net_sell = round((1.0 - c_entry) * (1.0 + slip_ret_sell) * (1.0 - c_exit) - 1.0, 6)
         assert oracle_net_sell == 0.094906
 
-        # 3. WATCH_STK Oracle: non-executed -> 0.0
+        # WATCH_STK Oracle: non-executed -> 0.0
         oracle_net_watch = 0.0
 
         # Equal weighting across 3 positions: w = round(1 / 3, 6) = 0.333333
@@ -512,7 +512,7 @@ class TestE2ECostSlippageSingleApplication:
 
 @pytest.mark.e2e
 class TestE2EActionSemantics:
-    """Test Suite 4 — Action Semantics (BUY, SELL, WATCH, HOLD, AVOID)."""
+    """Test suite for Action Semantics (BUY, SELL, WATCH, HOLD, AVOID)."""
 
     def setup_method(self) -> None:
         self.tc = 0.0030
@@ -614,7 +614,7 @@ class TestE2EActionSemantics:
 
 @pytest.mark.e2e
 class TestE2EPortfolioAllocationInvariants:
-    """Test Suite 5 — End-to-End Portfolio Allocation Invariants."""
+    """Test suite for End-to-End Portfolio Allocation Invariants."""
 
     def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
@@ -793,7 +793,7 @@ class TestE2EPortfolioAllocationInvariants:
 
 @pytest.mark.e2e
 class TestE2EHorizonIsolation:
-    """Test Suite 6 — Horizon Isolation & Cross-Horizon Independence."""
+    """Test suite for Horizon Isolation & Cross-Horizon Independence."""
 
     def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=100)
@@ -833,7 +833,7 @@ class TestE2EHorizonIsolation:
             horizons=[5, 10, 20],
         )
 
-        # 1. 5D portfolio returns must be strictly identical across all 3 runs
+        # 5D portfolio returns must be strictly identical across all 3 runs
         ret_5_from_run1 = eval_5.portfolio_forward_returns[5]
         ret_5_from_run2 = eval_5_10.portfolio_forward_returns[5]
         ret_5_from_run3 = eval_5_10_20.portfolio_forward_returns[5]
@@ -841,13 +841,13 @@ class TestE2EHorizonIsolation:
         assert ret_5_from_run1 == ret_5_from_run2
         assert ret_5_from_run1 == ret_5_from_run3
 
-        # 2. 10D portfolio returns must be strictly identical between [5, 10] and [5, 10, 20]
+        # 10D portfolio returns must be strictly identical between [5, 10] and [5, 10, 20]
         ret_10_from_run2 = eval_5_10.portfolio_forward_returns[10]
         ret_10_from_run3 = eval_5_10_20.portfolio_forward_returns[10]
 
         assert ret_10_from_run2 == ret_10_from_run3
 
-        # 3. Position level 5D returns must be strictly identical
+        # Position level 5D returns must be strictly identical
         for pos1 in eval_5.positions:
             pos2 = next(p for p in eval_5_10.positions if p.symbol == pos1.symbol)
             pos3 = next(p for p in eval_5_10_20.positions if p.symbol == pos1.symbol)
@@ -858,7 +858,7 @@ class TestE2EHorizonIsolation:
 
 @pytest.mark.e2e
 class TestE2EDeterministicReproducibility:
-    """Test Suite 7 — Deterministic End-to-End Reproducibility (Run A == Run B)."""
+    """Test suite for Deterministic End-to-End Reproducibility (Run A == Run B)."""
 
     def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=90)
@@ -901,7 +901,7 @@ class TestE2EDeterministicReproducibility:
 
 @pytest.mark.e2e
 class TestE2EFailClosedPropagation:
-    """Test Suite 8 — Fail-Closed Boundary Validation Propagation."""
+    """Test suite for Fail-Closed Boundary Validation Propagation."""
 
     def setup_method(self) -> None:
         self.df_vni, self.df_vn30, self.universe = create_multi_symbol_universe(num_days=80)

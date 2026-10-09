@@ -52,7 +52,7 @@ def evaluate_data_and_model_drift(
     """
     g_dir = generated_dir or DEFAULT_GENERATED_DIR
 
-    # 0. Validate baseline configuration parameters and thresholds fail closed with exceptions
+    # Validate baseline configuration parameters and thresholds fail closed with exceptions
     if isinstance(lookback_reports, bool) or not isinstance(lookback_reports, int):
         raise TypeError(
             f"lookback_reports must be an integer, got {type(lookback_reports).__name__}"
@@ -1260,7 +1260,7 @@ def evaluate_data_and_model_drift(
 
     drift_checks: list[DriftCheckResult] = []
 
-    # 1. Processed ratio drift
+    # Processed ratio drift
     proc_warn, proc_fail = _get_thresh(
         "DRIFT_THRESHOLD_PROCESSED_RATIO", DRIFT_THRESHOLD_PROCESSED_RATIO
     )
@@ -1290,7 +1290,7 @@ def evaluate_data_and_model_drift(
         )
     )
 
-    # 2. Market breadth drift
+    # Market breadth drift
     b_warn, b_fail = _get_thresh("DRIFT_THRESHOLD_BREADTH_RATIO", DRIFT_THRESHOLD_BREADTH_RATIO)
     curr_breadth = current_metrics["market_breadth_ratio"]
     if curr_breadth is not None and baseline_breadth_ratio is not None:
@@ -1323,7 +1323,7 @@ def evaluate_data_and_model_drift(
         DriftCheckResult(check_name="drift_market_breadth", status=b_status, observation=b_obs)
     )
 
-    # 3. VNINDEX change pct drift
+    # VNINDEX change pct drift
     v_warn, v_fail = _get_thresh(
         "DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT", DRIFT_THRESHOLD_VNINDEX_CHANGE_PCT
     )
@@ -1358,7 +1358,7 @@ def evaluate_data_and_model_drift(
         DriftCheckResult(check_name="drift_vnindex_change_pct", status=v_status, observation=v_obs)
     )
 
-    # 4. Action distribution drift
+    # Action distribution drift
     a_warn, a_fail = _get_thresh(
         "DRIFT_THRESHOLD_ACTION_DISTRIBUTION", DRIFT_THRESHOLD_ACTION_DISTRIBUTION
     )
@@ -1441,7 +1441,7 @@ def evaluate_data_and_model_drift(
         DriftCheckResult(check_name="drift_action_distribution", status=a_status, observation=a_obs)
     )
 
-    # 5. Confidence bucket distribution drift
+    # Confidence bucket distribution drift
     c_warn, c_fail = _get_thresh(
         "DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION", DRIFT_THRESHOLD_CONFIDENCE_DISTRIBUTION
     )
@@ -1478,7 +1478,7 @@ def evaluate_data_and_model_drift(
         )
     )
 
-    # 6. Signal score mean drift
+    # Signal score mean drift
     s_warn, s_fail = _get_thresh(
         "DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN", DRIFT_THRESHOLD_SIGNAL_SCORE_MEAN
     )
@@ -1513,7 +1513,7 @@ def evaluate_data_and_model_drift(
         DriftCheckResult(check_name="drift_signal_score", status=s_status, observation=s_obs)
     )
 
-    # 7. Risk-adjusted score mean drift
+    # Risk-adjusted score mean drift
     r_warn, r_fail = _get_thresh(
         "DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN", DRIFT_THRESHOLD_RISK_ADJUSTED_SCORE_MEAN
     )
@@ -1548,7 +1548,7 @@ def evaluate_data_and_model_drift(
         DriftCheckResult(check_name="drift_risk_adjusted_score", status=r_status, observation=r_obs)
     )
 
-    # 8. Confidence mean drift
+    # Confidence mean drift
     cm_warn, cm_fail = _get_thresh(
         "DRIFT_THRESHOLD_CONFIDENCE_MEAN", DRIFT_THRESHOLD_CONFIDENCE_MEAN
     )

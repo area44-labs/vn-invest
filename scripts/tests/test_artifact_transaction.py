@@ -20,7 +20,7 @@ from scripts.generate_report import (
 
 @pytest.mark.unit
 class TestArtifactTransactionSuite:
-    """Test suite covering single-writer locking, transaction lifecycle, and deterministic recovery."""
+    """Test suite for covering single-writer locking, transaction lifecycle, and deterministic recovery."""
 
     def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -316,7 +316,7 @@ class TestArtifactTransactionSuite:
 
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
 
-        # Scenario A: Corrupted non-JSON file -> raises ArtifactTransactionError, preserves journal & target
+        # Corrupted non-JSON file -> raises ArtifactTransactionError, preserves journal & target
         with open(state_file, "w", encoding="utf-8") as f:
             f.write("CORRUPTED_NOT_JSON {{{")
 
@@ -326,7 +326,7 @@ class TestArtifactTransactionSuite:
         with open(target_file, "r", encoding="utf-8") as f:
             assert f.read() == '{"v": "good_data"}\n'
 
-        # Scenario B: Missing required fields
+        # Missing required fields
         with open(state_file, "w", encoding="utf-8") as f:
             json.dump({"txn_id": "123", "stage": "STAGING"}, f)
 
@@ -334,7 +334,7 @@ class TestArtifactTransactionSuite:
             recover_interrupted_publish(self.target_dir)
         assert os.path.exists(state_file)
 
-        # Scenario C: Unknown stage string
+        # Unknown stage string
         invalid_journal = {
             "txn_id": "123",
             "stage": "UNKNOWN_STAGE",
@@ -349,7 +349,7 @@ class TestArtifactTransactionSuite:
             recover_interrupted_publish(self.target_dir)
         assert os.path.exists(state_file)
 
-        # Scenario D: Path escape check
+        # Path escape check
         path_escape_journal = {
             "txn_id": "123",
             "stage": "STAGING",
@@ -370,7 +370,7 @@ class TestArtifactTransactionSuite:
         bak_dir = f"{self.target_dir}_bak"
         staging_dir = f"{self.target_dir}_staging_test"
 
-        # Boundary A: Crashed during STAGING
+        # Crashed during STAGING
         os.makedirs(staging_dir, exist_ok=True)
         with open(
             os.path.join(self.target_dir, "recommendations.json"), "w", encoding="utf-8"
@@ -393,7 +393,7 @@ class TestArtifactTransactionSuite:
         assert os.path.exists(os.path.join(self.target_dir, "recommendations.json"))
         assert not os.path.exists(state_file)
 
-        # Boundary B: Crashed during BACKUP (target_dir moved to bak_dir, target_dir missing)
+        # Crashed during BACKUP (target_dir moved to bak_dir, target_dir missing)
         os.makedirs(bak_dir, exist_ok=True)
         with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
             f.write('{"v": "backed_up_good"}\n')
@@ -415,7 +415,7 @@ class TestArtifactTransactionSuite:
         assert not os.path.exists(bak_dir)
         assert not os.path.exists(state_file)
 
-        # Boundary C: Crashed during COMMIT with missing target_dir and backup_dir present
+        # Crashed during COMMIT with missing target_dir and backup_dir present
         os.makedirs(bak_dir, exist_ok=True)
         with open(os.path.join(bak_dir, "recommendations.json"), "w", encoding="utf-8") as f:
             f.write('{"v": "restore_me"}\n')
@@ -638,7 +638,7 @@ class TestArtifactTransactionSuite:
             ):
                 txn.execute_publish(self.sample_artifacts)
 
-        # Scenario A: CLEANUP interrupt + Target valid -> keep target, cleanup backup & journal
+        # CLEANUP interrupt + Target valid -> keep target, cleanup backup & journal
         execute_interrupted_publish_at_cleanup()
 
         assert os.path.exists(state_file)
@@ -658,7 +658,7 @@ class TestArtifactTransactionSuite:
         assert not os.path.exists(bak_dir)
         assert not os.path.exists(state_file)
 
-        # Scenario B: CLEANUP interrupt + Target missing, backup exists -> restore backup
+        # CLEANUP interrupt + Target missing, backup exists -> restore backup
         execute_interrupted_publish_at_cleanup()
         shutil.rmtree(self.target_dir, ignore_errors=True)
 
@@ -668,7 +668,7 @@ class TestArtifactTransactionSuite:
         assert not os.path.exists(bak_dir)
         assert not os.path.exists(state_file)
 
-        # Scenario C: CLEANUP interrupt + Target missing AND backup missing -> raise ArtifactTransactionError & keep journal
+        # CLEANUP interrupt + Target missing AND backup missing -> raise ArtifactTransactionError & keep journal
         execute_interrupted_publish_at_cleanup()
         shutil.rmtree(self.target_dir, ignore_errors=True)
         shutil.rmtree(bak_dir, ignore_errors=True)
@@ -678,7 +678,7 @@ class TestArtifactTransactionSuite:
 
         assert os.path.exists(state_file)
 
-        # Scenario D: CLEANUP interrupt + Required restore/cleanup failure -> raise exception & preserve journal + backup
+        # CLEANUP interrupt + Required restore/cleanup failure -> raise exception & preserve journal + backup
         shutil.rmtree(state_file, ignore_errors=True)
         execute_interrupted_publish_at_cleanup()
         shutil.rmtree(self.target_dir, ignore_errors=True)
@@ -692,7 +692,7 @@ class TestArtifactTransactionSuite:
         assert os.path.exists(state_file)
         assert os.path.exists(bak_dir)
 
-        # Scenario E: Repeated recovery runs are idempotent
+        # Repeated recovery runs are idempotent
         # Fix permission patch and complete recovery twice
         recover_interrupted_publish(self.target_dir)
         recover_interrupted_publish(self.target_dir)

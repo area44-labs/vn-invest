@@ -1,4 +1,4 @@
-"""Unit, boundary, contract, and regression tests for quantitative engines in scripts/quant/ (#174)."""
+"""Unit, boundary, contract, and regression tests for quantitative engines in scripts/quant/."""
 
 from collections.abc import Mapping
 
@@ -71,7 +71,7 @@ class CustomMapping(Mapping):
 
 @pytest.mark.unit
 class TestQuantContracts:
-    """Test CandidateSpec and quantitative contract validation."""
+    """Test suite for CandidateSpec and quantitative contract validation."""
 
     def test_candidate_spec_normalization_and_validation(self):
         cand = CandidateSpec(
@@ -94,7 +94,7 @@ class TestQuantContracts:
 
 @pytest.mark.unit
 class TestQuantMarketAnalysisAndRegimeEngine:
-    """Test scripts/quant/features.py, scripts/quant/regime.py, and MarketAnalysisEngine."""
+    """Test suite for scripts/quant/features.py, scripts/quant/regime.py, and MarketAnalysisEngine."""
 
     def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -144,7 +144,7 @@ class TestQuantMarketAnalysisAndRegimeEngine:
 
 @pytest.mark.unit
 class TestQuantSignalEngine:
-    """Test scripts/quant/signal.py decomposed calculations."""
+    """Test suite for scripts/quant/signal.py decomposed calculations."""
 
     def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -175,7 +175,7 @@ class TestQuantSignalEngine:
 
 @pytest.mark.unit
 class TestQuantRiskEngine:
-    """Test scripts/quant/risk.py risk assessment and trade plan calculations."""
+    """Test suite for scripts/quant/risk.py risk assessment and trade plan calculations."""
 
     def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -235,7 +235,7 @@ class TestQuantRiskEngine:
 
 @pytest.mark.unit
 class TestQuantRecommendationEngine:
-    """Test SignalRecommendationEngine unit behavior, contracts, provenance, and parity."""
+    """Test suite for SignalRecommendationEngine unit behavior, contracts, provenance, and parity."""
 
     def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=60, start_price=1200.0, trend=2.0)
@@ -267,7 +267,7 @@ class TestQuantRecommendationEngine:
         assert rec.symbol if hasattr(rec, "symbol") else rec["symbol"] == "VNM"
 
     def test_production_sufficient_stock_provenance(self):
-        """1. Production + sufficient stock -> data_source equals actual source tag."""
+        """Production + sufficient stock -> data_source equals actual source tag."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
@@ -286,7 +286,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["data_source"] == "REAL_DATA"
 
     def test_production_provider_failure_provenance(self):
-        """2. Production + provider failure -> data_source is None."""
+        """Production + provider failure -> data_source is None."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
@@ -305,7 +305,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["data_source"] is None
 
     def test_production_insufficient_data_provenance(self):
-        """3. Production + insufficient data -> data_source is None."""
+        """Production + insufficient data -> data_source is None."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
@@ -324,7 +324,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["data_source"] is None
 
     def test_production_symbol_not_processed_provenance(self):
-        """4. Production + symbol not processed -> recommendation created with data_source is None."""
+        """Production + symbol not processed -> recommendation created with data_source is None."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
@@ -344,7 +344,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["action"] == "AVOID"
 
     def test_historical_valid_dataset_provenance(self):
-        """5. Historical + valid dataset -> retains correct historical date/source semantics."""
+        """Historical + valid dataset -> retains correct historical date/source semantics."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": self.df_stock},
@@ -363,7 +363,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["data_as_of"] == "2025-01-20"
 
     def test_historical_empty_dataset_provenance(self):
-        """6. Historical + empty dataset -> data_source is None."""
+        """Historical + empty dataset -> data_source is None."""
         input_data = RecommendationInput(
             candidates=[self.candidate],
             stock_data_map={"VNM": pd.DataFrame()},
@@ -381,7 +381,7 @@ class TestQuantRecommendationEngine:
         assert rec_dict["data_source"] is None
 
     def test_engine_and_single_recommendation_parity(self):
-        """7. Engine parity -> full payload comparison between SignalRecommendationEngine and generate_single_recommendation."""
+        """Engine parity -> full payload comparison between SignalRecommendationEngine and generate_single_recommendation."""
         engine_res = SignalRecommendationEngine.generate_recommendations(
             RecommendationInput(
                 candidates=[self.candidate],
@@ -416,7 +416,7 @@ class TestQuantRecommendationEngine:
         assert engine_dict == single_dict
 
     def test_legacy_wrapper_backward_compatibility(self):
-        """8. Backward compatibility -> legacy scripts.quant wrapper delegates to scripts.quant with exact payload equivalence."""
+        """Backward compatibility -> legacy scripts.quant wrapper delegates to scripts.quant with exact payload equivalence."""
         from scripts.quant.recommendation import (
             generate_single_recommendation as legacy_generate_rec,
         )
@@ -452,7 +452,7 @@ class TestQuantRecommendationEngine:
 
 @pytest.mark.unit
 class TestQuantUnificationAndBacktestParity:
-    """Test Issue #175: Proof of unification between production and backtest quantitative engines."""
+    """Test suite for Proof of unification between production and backtest quantitative engines."""
 
     def setup_method(self):
         self.df_vnindex = make_sample_ohlcv(days=80, start_price=1200.0, trend=2.0)
@@ -484,10 +484,10 @@ class TestQuantUnificationAndBacktestParity:
         exchange = "HOSE"
         universe_map = {"VNM": self.df_stock}
 
-        # 1. Compute exact PIT market breadth as of T
+        # Compute exact PIT market breadth as of T
         pit_breadth = calculate_as_of_market_breadth(universe_map, self.as_of_date)
 
-        # 2. Backtest call at as_of_date using explicit market breadth and metadata
+        # Backtest call at as_of_date using explicit market breadth and metadata
         results = run_backtest_for_symbol(
             symbol="VNM",
             df_stock=self.df_stock,
@@ -503,7 +503,7 @@ class TestQuantUnificationAndBacktestParity:
         assert len(results) == 1
         backtest_sig = results[0].signal
 
-        # 3. Production engine call with identical point-in-time sliced datasets <= as_of_date
+        # Production engine call with identical point-in-time sliced datasets <= as_of_date
         df_stock_pit = get_as_of_dataset(self.df_stock, self.as_of_date)
         df_vnindex_pit = get_as_of_dataset(self.df_vnindex, self.as_of_date)
         df_vn30_pit = get_as_of_dataset(self.df_vn30, self.as_of_date)
@@ -526,7 +526,7 @@ class TestQuantUnificationAndBacktestParity:
             data_as_of=self.as_of_date,
         )
 
-        # 4. Assert full quantitative equivalence
+        # Assert full quantitative equivalence
         assert backtest_sig.action == prod_rec.action
         assert backtest_sig.signal_score == prod_rec.signal_score
         assert backtest_sig.confidence == prod_rec.confidence

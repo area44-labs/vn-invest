@@ -9,7 +9,7 @@ from scripts.data.normalization import normalize_raw_market_data
 
 @pytest.mark.unit
 class TestMarketDataNormalizationBoundary:
-    """Test MarketDataNormalizer and canonical normalization rules."""
+    """Test suite for MarketDataNormalizer and canonical normalization rules."""
 
     def test_stock_price_unit_normalization(self):
         # Raw provider output for stock symbol (prices in thousand_VND/share)

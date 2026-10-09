@@ -56,7 +56,7 @@ def create_mock_ohlcv(
 
 @pytest.mark.unit
 class TestDownstreamDataValidation:
-    """Test suite ensuring no corrupted/invalid data reaches quantitative calculations."""
+    """Test suite for ensuring no corrupted/invalid data reaches quantitative calculations."""
 
     def test_valid_dataset(self):
         """Verifies that a valid dataset produces clean risk metrics, market regime classification, recommendations, and liquidity scores."""

@@ -224,7 +224,7 @@ class DataValidationStage(PipelineStage):
             self._execute_historical(context)
             return
 
-        # 1. Normalize and Validate VNINDEX via canonical boundary
+        # Normalize and Validate VNINDEX via canonical boundary
         raw_vn_payload = context.raw_vnindex_payload or RawMarketDataPayload(
             symbol="VNINDEX",
             raw_df=context.df_vnindex_raw,
@@ -275,7 +275,7 @@ class DataValidationStage(PipelineStage):
         context.source_date = context.data_as_of
         context.data_source = context.vn_source if not df_clean_vn.empty else None
 
-        # 2. Normalize and Validate VN30 via canonical boundary
+        # Normalize and Validate VN30 via canonical boundary
         raw_vn30_payload = context.raw_vn30_payload or RawMarketDataPayload(
             symbol="VN30",
             raw_df=context.df_vn30_raw,
@@ -323,7 +323,7 @@ class DataValidationStage(PipelineStage):
         else:
             context.record_symbol_processed("VN30")
 
-        # 3. Normalize and Validate Candidate Stock Universe via canonical boundary
+        # Normalize and Validate Candidate Stock Universe via canonical boundary
         for cand in context.universe.candidates:
             sym = cand.symbol
             raw_st_payload = context.raw_stock_payloads.get(sym) or RawMarketDataPayload(

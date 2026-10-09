@@ -89,11 +89,11 @@ class ArtifactPublisher:
         else:
             raise TypeError("artifacts must be a dict or ArtifactManifest instance")
 
-        # Step 1: Pre-publish schema and payload integrity validation of all manifest artifacts
+        # Pre-publish schema and payload integrity validation of all manifest artifacts
         for rel_path, payload in manifest.artifacts.items():
             self.validate_artifact(rel_path, payload)
 
-        # Step 1b: Pre-publish batch-level data_as_of consistency check across ALL artifacts
+        # Pre-publish batch-level data_as_of consistency check across ALL artifacts
         effective_canonical_date = canonical_data_as_of or self.canonical_data_as_of
 
         artifact_dates: dict[str, str] = {}
@@ -121,7 +121,7 @@ class ArtifactPublisher:
                         f"Artifact '{rel_path}' data_as_of ({art_date!r}) does not match canonical date ({effective_canonical_date!r})"
                     )
 
-        # Step 1c: Pre-publish provenance manifest validation
+        # Pre-publish provenance manifest validation
         batch_paths = set(manifest.artifacts.keys())
 
         if "provenance.json" in manifest.artifacts:
@@ -136,7 +136,7 @@ class ArtifactPublisher:
                 "Missing required provenance manifest artifact 'provenance.json' in publication batch"
             )
 
-        # Step 2: Acquire single-writer lock and execute atomic transaction
+        # Acquire single-writer lock and execute atomic transaction
         target_dir = os.path.abspath(manifest.target_dir)
 
         with ArtifactLock(target_dir):

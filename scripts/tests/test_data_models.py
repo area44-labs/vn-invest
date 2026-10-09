@@ -10,7 +10,7 @@ from scripts.domain.ohlcv import OHLCVData
 
 @pytest.mark.unit
 class TestCanonicalMarketDataModel:
-    """Test CanonicalMarketData model contracts and boundaries."""
+    """Test suite for CanonicalMarketData model contracts and boundaries."""
 
     def test_basic_instantiation(self):
         rec = OHLCVData(

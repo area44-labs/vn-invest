@@ -1,4 +1,4 @@
-"""Data models and constants for the VN Invest v2 Monitoring Subsystem."""
+"""Data models and constants for the VN Invest Monitoring Subsystem."""
 
 import math
 import os

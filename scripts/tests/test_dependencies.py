@@ -9,7 +9,7 @@ import pytest
 
 @pytest.mark.unit
 class TestDependencyVersions:
-    """Test critical dependency versions expected by active pipeline."""
+    """Test suite for critical dependency versions expected by active pipeline."""
 
     def test_vnstock_version(self):
         """Verify vnstock version matches supported reproducible version contract."""

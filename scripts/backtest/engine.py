@@ -34,21 +34,21 @@ Key Architectural Principles:
      ValueError exceptions rather than being silently swallowed, sorted, or positionally misindexed.
 6. Framework Distinction & Disclaimers:
    This module explicitly distinguishes five separate concepts:
-   1. Production Market Regime & Signal Generation: Real-time, point-in-time calculation of complete market
+   - Production Market Regime & Signal Generation: Real-time, point-in-time calculation of complete market
       regimes and stock signal recommendations using production model weights, confidence rules, and trade plans.
-   2. Historical Market-Regime Validation: Point-in-time descriptive evaluation measuring how production
+   - Historical Market-Regime Validation: Point-in-time descriptive evaluation measuring how production
       market regimes (STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC) assigned at date T map to forward market returns
       (5D, 10D, 20D) strictly without lookahead bias, threshold tuning, or model modification.
-   3. Historical Component Evaluation: Point-in-time measurement of individual signal component scores
+   - Historical Component Evaluation: Point-in-time measurement of individual signal component scores
       (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns
       on identical evaluation dates and horizons without model or weight modification.
-   4. Execution & Liquidity Eligibility Evaluation: Point-in-time evaluation of whether historical observable
+   - Execution & Liquidity Eligibility Evaluation: Point-in-time evaluation of whether historical observable
       market liquidity timestamped <= T satisfies deterministic execution assumptions (min turnover, min volume,
       min price, max participation rate) without altering production signal scores or model weights.
-   5. Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
+   - Portfolio Backtesting: Simulation of portfolio-level capital allocation, position sizing,
       slippage, transaction costs, leverage, order book matching, and intraday execution dynamics
       (OUT OF SCOPE for this framework).
-   6. Historical Confidence Evaluation & Calibration: Point-in-time observational measurement of production
+   - Historical Confidence Evaluation & Calibration: Point-in-time observational measurement of production
       recommendation confidence values against observed forward outcomes (e.g., positive forward return rate,
       calibration gap) strictly without formula recomputation, probability assumptions, or model modification.
 
@@ -1135,10 +1135,10 @@ def run_backtest_for_symbol(
     for eval_date in evaluation_dates:
         target_date_str = pd.to_datetime(eval_date).strftime("%Y-%m-%d")
 
-        # 1. Point-in-time stock data slicing (<= T)
+        # Point-in-time stock data slicing (<= T)
         df_stock_as_of = get_as_of_dataset(df_stock, target_date_str)
 
-        # 2. Point-in-time market data slicing (<= T) for production regime inputs
+        # Point-in-time market data slicing (<= T) for production regime inputs
         df_vnindex_clean_as_of = None
         if df_vnindex is not None and not df_vnindex.empty:
             df_vnindex_as_of = get_as_of_dataset(df_vnindex, target_date_str)
@@ -1158,14 +1158,14 @@ def run_backtest_for_symbol(
         if effective_breadth is None and universe_stock_map:
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_date_str)
 
-        # 3. Market regime evaluation at T using production regime engine
+        # Market regime evaluation at T using production regime engine
         market_regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,
             breadth_ratio=effective_breadth,
         )
 
-        # 4. Recommendation generation at T using production engine
+        # Recommendation generation at T using production engine
         rec = generate_single_recommendation(
             symbol=symbol,
             company_name=company_name or f"Company {symbol}",
@@ -1203,7 +1203,7 @@ def run_backtest_for_symbol(
             execution_eligibility=exec_eligibility,
         )
 
-        # 5. Forward outcome evaluation (> T)
+        # Forward outcome evaluation (> T)
         outcome = evaluate_forward_outcomes(
             df_stock=df_stock,
             evaluation_date=target_date_str,
@@ -1887,13 +1887,13 @@ def evaluate_market_regimes(
     observations: list[RegimeObservation] = []
 
     for target_d in eval_dates:
-        # 1. Point-in-time VNINDEX data slicing (<= T)
+        # Point-in-time VNINDEX data slicing (<= T)
         df_vn_as_of = get_as_of_dataset(df_vnindex, target_d)
         df_vnindex_clean_as_of, val_vn = get_clean_ohlcv_data(df_vn_as_of, "VNINDEX")
         if val_vn["status"] == "INSUFFICIENT":
             df_vnindex_clean_as_of = None
 
-        # 2. Point-in-time VN30 data slicing (<= T)
+        # Point-in-time VN30 data slicing (<= T)
         df_vn30_clean_as_of = None
         if df_vn30 is not None:
             if df_vn30.empty:
@@ -1903,19 +1903,19 @@ def evaluate_market_regimes(
             if val_30["status"] == "INSUFFICIENT":
                 df_vn30_clean_as_of = None
 
-        # 3. Market breadth as-of T
+        # Market breadth as-of T
         effective_breadth = breadth_ratio
         if effective_breadth is None and universe_stock_map:
             effective_breadth = calculate_as_of_market_breadth(universe_stock_map, target_d)
 
-        # 4. Production regime detection at T
+        # Production regime detection at T
         regime_info = detect_market_regime(
             df_vnindex=df_vnindex_clean_as_of,
             df_vn30=df_vn30_clean_as_of,
             breadth_ratio=effective_breadth,
         )
 
-        # 5. Future VNINDEX outcomes (> T)
+        # Future VNINDEX outcomes (> T)
         outcome = evaluate_forward_outcomes(
             df_stock=df_vnindex,
             evaluation_date=target_d,
@@ -1923,7 +1923,7 @@ def evaluate_market_regimes(
             action="BUY",
         )
 
-        # 6. Granular observations
+        # Granular observations
         for h in horizons:
             fwd_ret = outcome.returns.get(h)
             is_avail = outcome.availability.get(h, False)

@@ -24,7 +24,7 @@ from scripts.schema import SchemaResolutionError
 
 @pytest.mark.unit
 class TestArtifactPublisherSuite:
-    """Independent unit tests for ArtifactPublisher, manifest generation, schema validation, atomic transactions, recovery, and pipeline integration."""
+    """Test suite for ArtifactPublisher, manifest generation, schema validation, atomic transactions, recovery, and pipeline integration."""
 
     def setup_method(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -248,7 +248,7 @@ class TestArtifactPublisherSuite:
         """Verify successful atomic publish and subsequent replacement of existing artifacts."""
         publisher = ArtifactPublisher(target_dir=self.target_dir, strict_provenance=False)
 
-        # 1. First publish
+        # First publish
         batch_v1 = {
             "recommendations.json": self.make_valid_rec_payload("2026-03-31"),
             "market.json": {"schema_version": "2.0", "market": {"regime": "BULL"}},
@@ -258,7 +258,7 @@ class TestArtifactPublisherSuite:
         rec_path = os.path.join(self.target_dir, "recommendations.json")
         assert os.path.exists(rec_path)
 
-        # 2. Second publish replacing existing
+        # Second publish replacing existing
         batch_v2 = {
             "recommendations.json": self.make_valid_rec_payload("2026-03-31"),
             "market.json": {"schema_version": "2.0", "market": {"regime": "BEAR"}},

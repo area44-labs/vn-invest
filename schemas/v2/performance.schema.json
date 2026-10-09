@@ -1,9 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "VN Invest Production Performance Payload Schema",
-  "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload v2.0",
+  "description": "Authoritative Draft 2020-12 JSON Schema for production performance profiling payload",
   "type": "object",
-  "required": ["schema_version", "stages", "provider", "duplicate_operations", "workload"],
+  "required": [
+    "schema_version",
+    "stages",
+    "provider",
+    "duplicate_operations",
+    "workload"
+  ],
   "additionalProperties": false,
   "properties": {
     "schema_version": {
@@ -14,7 +20,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["stage", "elapsed_seconds", "status"],
+        "required": [
+          "stage",
+          "elapsed_seconds",
+          "status"
+        ],
         "additionalProperties": false,
         "properties": {
           "stage": {
@@ -38,7 +48,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["SUCCESS", "DEGRADED", "FAILED"]
+            "enum": [
+              "SUCCESS",
+              "DEGRADED",
+              "FAILED"
+            ]
           }
         }
       }
@@ -91,7 +105,11 @@
     },
     "workload": {
       "type": "object",
-      "required": ["benchmark_request_count", "stock_request_count", "total_request_count"],
+      "required": [
+        "benchmark_request_count",
+        "stock_request_count",
+        "total_request_count"
+      ],
       "additionalProperties": false,
       "properties": {
         "benchmark_request_count": {
@@ -157,12 +175,19 @@
     },
     "regression": {
       "type": "object",
-      "required": ["overall_status", "stage_evaluations"],
+      "required": [
+        "overall_status",
+        "stage_evaluations"
+      ],
       "additionalProperties": false,
       "properties": {
         "overall_status": {
           "type": "string",
-          "enum": ["PASS", "DEGRADED", "FAILED"]
+          "enum": [
+            "PASS",
+            "DEGRADED",
+            "FAILED"
+          ]
         },
         "stage_evaluations": {
           "type": "array",
@@ -195,7 +220,12 @@
               },
               "status": {
                 "type": "string",
-                "enum": ["PASS", "DEGRADED", "FAILED", "UNBASELINED"]
+                "enum": [
+                  "PASS",
+                  "DEGRADED",
+                  "FAILED",
+                  "UNBASELINED"
+                ]
               },
               "message": {
                 "type": "string"
@@ -221,7 +251,11 @@
       "properties": {
         "overall_status": {
           "type": "string",
-          "enum": ["PASS", "DEGRADED", "FAILED"]
+          "enum": [
+            "PASS",
+            "DEGRADED",
+            "FAILED"
+          ]
         },
         "total_calls": {
           "type": "integer",

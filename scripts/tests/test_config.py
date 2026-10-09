@@ -1,4 +1,4 @@
-"""Tests for Quantitative Configuration Defaults and Engine Behavior Preservation.
+"""Test suite for Quantitative Configuration Defaults and Engine Behavior Preservation.
 
 Verifies that:
 - Centralized parameter values match expected defaults and re-exported constants remain identical.
