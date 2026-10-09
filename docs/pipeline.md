@@ -89,7 +89,7 @@ State is communicated between stages exclusively through `PipelineContext` (`scr
 ### Stage 8: `MonitoringStage`
 
 - **Class**: `MonitoringStage` in `scripts/pipeline/stages.py`.
-- **Responsibility**: Executes operational quality checks (`checks.py`), payload integrity validation, and data/model drift evaluation (`drift.py`) against qualified historical baseline lookbacks.
+- **Responsibility**: Executes operational quality checks (`checks.py`), payload integrity validation, performance regression evaluation with mode-aware update baselines, and data/model drift evaluation (`drift.py`) against qualified historical baseline lookbacks (including PANIC regime action distribution shift handling).
 - **Engine**: Invokes `evaluate_production_monitoring` (`scripts/monitoring/evaluator.py`).
 - **Output**: Populates `context.monitoring_result`.
 

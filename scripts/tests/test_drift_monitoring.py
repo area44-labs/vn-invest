@@ -1220,6 +1220,175 @@ class TestBaselineAggregationSemantics:
 
 
 @pytest.mark.unit
+class TestPanicAndRegimeShiftDriftRules:
+    """Test suite for strict PANIC market regime action distribution shift handling."""
+
+    def test_panic_regime_with_valid_100_percent_avoid_passes(self):
+        """PANIC + 100% AVOID hợp lệ -> PASS with diagnostic message."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=0,
+            watch_count=0,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=20,
+            regime="PANIC",
+            signal_score=40.0,
+            risk_adjusted_score=35.0,
+            confidence=0.70,
+        )
+        for r in curr["recommendations"]:
+            r["action"] = "AVOID"
+            r["data_quality"] = "SUFFICIENT"
+            r["signal_score"] = 40.0
+            r["risk_adjusted_score"] = 35.0
+            r["confidence"] = 0.70
+
+        baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                buy_count=5,
+                watch_count=5,
+                hold_count=5,
+                sell_count=5,
+                avoid_count=0,
+                signal_score=45.0,
+                risk_adjusted_score=40.0,
+                confidence=0.75,
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        assert res.overall_status == "PASS"
+        action_chk = next(
+            c for c in res.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        assert action_chk.status == "PASS"
+        assert "extreme market regime PANIC" in action_chk.observation.message
+
+    def test_non_panic_regime_with_100_percent_avoid_fails(self):
+        """Non-PANIC + 100% AVOID -> FAIL."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=0,
+            watch_count=0,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=20,
+            regime="BEAR",
+            data_quality="INSUFFICIENT",
+        )
+        for r in curr["recommendations"]:
+            r["action"] = "AVOID"
+
+        baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                buy_count=5,
+                watch_count=5,
+                hold_count=5,
+                sell_count=5,
+                avoid_count=0,
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        assert res.overall_status == "FAIL"
+        action_chk = next(
+            c for c in res.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        assert action_chk.status == "FAIL"
+
+    def test_panic_regime_with_invalid_avoid_summary_mismatch_fails(self):
+        """PANIC regime where summary avoid_count != total_scanned -> FAIL."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=1,
+            watch_count=0,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=19,
+            regime="PANIC",
+        )
+
+        baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                buy_count=5,
+                watch_count=5,
+                hold_count=5,
+                sell_count=5,
+                avoid_count=0,
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        assert res.overall_status == "FAIL"
+        action_chk = next(
+            c for c in res.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        assert action_chk.status == "FAIL"
+
+    def test_unexplained_large_action_distribution_shift_fails(self):
+        """Distribution shift lớn không có nguyên nhân hợp lệ -> FAIL."""
+        curr = make_mock_payload(
+            data_as_of="2026-09-17",
+            total_scanned=20,
+            buy_count=20,
+            watch_count=0,
+            hold_count=0,
+            sell_count=0,
+            avoid_count=0,
+            regime="SIDEWAYS",
+        )
+
+        baselines = [
+            make_mock_payload(
+                data_as_of=f"2026-09-{16 - i:02d}",
+                buy_count=5,
+                watch_count=5,
+                hold_count=5,
+                sell_count=5,
+                avoid_count=0,
+            )
+            for i in range(5)
+        ]
+
+        res = evaluate_data_and_model_drift(
+            data_as_of="2026-09-17",
+            current_payload=curr,
+            baseline_reports=baselines,
+        )
+
+        assert res.overall_status == "FAIL"
+        action_chk = next(
+            c for c in res.drift_checks if c.check_name == "drift_action_distribution"
+        )
+        assert action_chk.status == "FAIL"
+
+
+@pytest.mark.unit
 class TestQualityAwareDriftMonitoring:
     """Test suite for quality-aware drift monitoring, coverage filtering, and diagnostics."""
 

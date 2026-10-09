@@ -167,6 +167,12 @@ class TestProductionMonitoring:
                 "calls_by_source": {"kbs": 2},
             },
             "duplicate_operations": [],
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 2,
+                "total_request_count": 4,
+                "requested_symbols": ["FPT", "MWG", "VN30", "VNINDEX"],
+            },
         }
         self.healthy_payload = {
             "schema_version": "2.0",

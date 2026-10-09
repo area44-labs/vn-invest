@@ -84,6 +84,7 @@ def evaluate_production_monitoring(
     df_vn30: Any | None = None,
     universe_audit: dict | None = None,
     in_memory_artifacts: dict | None = None,
+    update_data: bool = False,
 ) -> PipelineMonitoringResult:
     """Execute operational production monitoring across the pipeline and generated artifacts.
 
@@ -304,7 +305,11 @@ def evaluate_production_monitoring(
                 )
             )
 
-            reg_eval = evaluate_performance_regression(perf_data)
+            is_update = update_data or (
+                isinstance(universe_audit, dict)
+                and bool(universe_audit.get("summary", {}).get("update_data"))
+            )
+            reg_eval = evaluate_performance_regression(perf_data, is_update_mode=is_update)
             perf_data["regression"] = reg_eval
 
             if reg_eval["overall_status"] == "FAILED":

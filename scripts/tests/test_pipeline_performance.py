@@ -74,6 +74,12 @@ def make_valid_performance_payload():
                 "retry_count": 0,
             }
         ],
+        "workload": {
+            "benchmark_request_count": 1,
+            "stock_request_count": 1,
+            "total_request_count": 2,
+            "requested_symbols": ["VNINDEX", "FPT"],
+        },
     }
 
 
@@ -928,6 +934,9 @@ class TestPerformanceRegressionAndBudget:
             )
             context.set_universe(u)
             context.processed_symbols = {"VNINDEX", "VN30", "FPT"}
+            if context.tracker:
+                for sym in context.processed_symbols:
+                    context.tracker.record_request(sym)
             if isinstance(audit, dict) and "performance" in audit:
                 context.performance_data = audit["performance"]
             context.recommendations_payload = payload
@@ -1344,9 +1353,9 @@ class TestPerformanceRegressionAndBudget:
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
-                        "elapsed_seconds": 10.0,
+                        "elapsed_seconds": 11.0,
                         "status": "SUCCESS",
-                    },  # Exceeds degraded threshold (7.5s) but <= failed threshold (15s) -> DEGRADED
+                    },  # Exceeds live update degraded threshold (10.0s) but <= failed threshold (12.5s) for 1 stock call -> DEGRADED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1358,6 +1367,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1412,13 +1427,14 @@ class TestPerformanceRegressionAndBudget:
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
                         "stage": "stock_fetch",
                         "elapsed_seconds": 20.0,
                         "status": "SUCCESS",
-                    },  # Exceeds failed threshold (15s) -> FAILED
+                    },  # Exceeds live update failed threshold (12.5s) for 1 stock call -> FAILED
                 ],
                 "provider": {
                     "total_calls": 3,
@@ -1430,6 +1446,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1482,6 +1504,7 @@ class TestPerformanceRegressionAndBudget:
             },
             "exclusions": [],
             "performance": {
+                "schema_version": "2.0",
                 "stages": [
                     {"stage": "pipeline", "elapsed_seconds": 2.0, "status": "SUCCESS"},
                     {
@@ -1500,6 +1523,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1586,6 +1615,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 200},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 
@@ -1660,6 +1695,12 @@ class TestPerformanceRegressionAndBudget:
                     "calls_by_source": {"kbs": 3},
                 },
                 "duplicate_operations": [],
+                "workload": {
+                    "benchmark_request_count": 2,
+                    "stock_request_count": 1,
+                    "total_request_count": 3,
+                    "requested_symbols": ["FPT", "VN30", "VNINDEX"],
+                },
             },
         }
 

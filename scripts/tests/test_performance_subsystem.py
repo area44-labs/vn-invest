@@ -257,6 +257,103 @@ class TestPerformanceRegression:
         res = evaluate_performance_regression(payload)
         assert res["overall_status"] == "FAILED"
 
+    def test_update_data_true_selects_live_baseline(self):
+        """update_data=True -> chọn live baseline động dựa trên workload metadata trong performance_data."""
+        payload = {
+            "provider": {"total_calls": 120},  # total calls != logical workload
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 44,
+                "total_request_count": 46,
+                "requested_symbols": ["VNINDEX", "VN30"] + [f"SYM_{i}" for i in range(44)],
+            },
+            "duplicate_operations": [],
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 8.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 195.0, "status": "SUCCESS"},
+            ],
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=True)
+        assert res["overall_status"] == "PASS"
+
+    def test_update_data_true_missing_workload_raises_workload_metadata_error(self):
+        """update_data=True thiếu thông tin workload trong performance_data -> raise WorkloadMetadataError."""
+        from scripts.performance.regression import WorkloadMetadataError
+
+        payload = {
+            "provider": {"total_calls": 46},
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 8.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+            ],
+        }
+        with pytest.raises(
+            WorkloadMetadataError, match="Missing required canonical 'workload' metadata"
+        ):
+            evaluate_performance_regression(payload, is_update_mode=True)
+
+    def test_regression_does_not_depend_on_provider_total_calls(self):
+        """Regression calculation strictly depends on workload metadata, independent of provider.total_calls."""
+        payload_few_calls = {
+            "provider": {"total_calls": 2},
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 10,
+                "total_request_count": 12,
+            },
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"},
+            ],
+        }
+        payload_many_calls = {
+            "provider": {"total_calls": 999},  # Many retries / provider calls
+            "workload": {
+                "benchmark_request_count": 2,
+                "stock_request_count": 10,
+                "total_request_count": 12,
+            },
+            "stages": [
+                {"stage": "benchmark_fetch", "elapsed_seconds": 1.0, "status": "SUCCESS"},
+                {"stage": "stock_fetch", "elapsed_seconds": 10.0, "status": "SUCCESS"},
+            ],
+        }
+        res_few = evaluate_performance_regression(payload_few_calls, is_update_mode=True)
+        res_many = evaluate_performance_regression(payload_many_calls, is_update_mode=True)
+
+        assert res_few["overall_status"] == res_many["overall_status"]
+        assert (
+            res_few["stage_evaluations"][0]["baseline_seconds"]
+            == res_many["stage_evaluations"][0]["baseline_seconds"]
+        )
+
+    def test_update_data_false_selects_offline_baseline(self):
+        """update_data=False -> chọn offline baseline."""
+        payload = {
+            "stages": [
+                {"stage": "stock_fetch", "elapsed_seconds": 2.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 5.0, "status": "SUCCESS"},
+            ]
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=False)
+        assert res["overall_status"] == "PASS"
+
+    def test_large_elapsed_time_with_update_data_false_fails_offline_baseline(self):
+        """Elapsed time lớn nhưng update_data=False -> không tự chuyển sang live baseline, FAIL offline baseline."""
+        payload = {
+            "provider": {"total_calls": 46},
+            "stages": [
+                {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
+                {"stage": "pipeline", "elapsed_seconds": 200.0, "status": "SUCCESS"},
+            ],
+        }
+        res = evaluate_performance_regression(payload, is_update_mode=False)
+        assert res["overall_status"] == "FAILED"
+        stock_eval = next(e for e in res["stage_evaluations"] if e["stage"] == "stock_fetch")
+        assert stock_eval["status"] == "FAILED"
+        assert stock_eval["baseline_seconds"] == 5.0
+
     def test_unbaselined_stage_evaluates_as_unbaselined(self):
         payload = {
             "stages": [
@@ -281,10 +378,17 @@ class TestPerformanceTrackerSubsystem:
     def setup_method(self):
         self.tracker = PerformanceTracker()
 
-    def test_tracker_record_request_and_stages(self):
+    def test_tracker_record_request_and_workload_metadata(self):
+        self.tracker.record_request("VNINDEX")
+        self.tracker.record_request("VN30")
         self.tracker.record_request("fpt")
-        self.tracker.record_request("FPT")
-        assert self.tracker.symbol_requests["FPT"] == 2
+        self.tracker.record_request("vnm")
+
+        workload = self.tracker.get_workload_metadata()
+        assert workload["benchmark_request_count"] == 2
+        assert workload["stock_request_count"] == 2
+        assert workload["total_request_count"] == 4
+        assert workload["requested_symbols"] == ["FPT", "VN30", "VNINDEX", "VNM"]
 
         with self.tracker.measure_stage("benchmark_fetch"):
             pass
@@ -295,6 +399,98 @@ class TestPerformanceTrackerSubsystem:
         assert len(stages) == 2
         assert stages[0]["stage"] == "benchmark_fetch"
         assert stages[1]["stage"] == "stock_fetch"
+
+    def test_retry_and_provider_calls_do_not_change_logical_workload(self):
+        """Multiple provider calls or retries for the same symbol do not inflate logical workload."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        workload_before = tracker.get_workload_metadata()
+        assert workload_before["total_request_count"] == 3
+
+        # Simulate provider retries (call_history with 10 API calls for FPT)
+        call_history = [{"symbol": "FPT", "success": False, "retry_count": i} for i in range(10)]
+        payload = tracker.get_performance_payload(pipeline_elapsed=1.0, call_history=call_history)
+
+        assert payload["provider"]["total_calls"] == 10
+        assert payload["workload"]["benchmark_request_count"] == 2
+        assert payload["workload"]["stock_request_count"] == 1
+        assert payload["workload"]["total_request_count"] == 3
+
+    def test_update_mode_fails_closed_on_workload_error(self):
+        """get_performance_payload in update mode does NOT swallow workload errors silently."""
+        from scripts.performance.regression import WorkloadMetadataError
+
+        tracker = PerformanceTracker()  # No requests recorded
+        with pytest.raises(WorkloadMetadataError, match="Insufficient workload request counts"):
+            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
+    def test_update_mode_handles_non_workload_instrumentation_error_with_fallback(self):
+        """Non-workload instrumentation errors in update mode return fallback payload safely without failing update mode."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with patch(
+            "scripts.performance.tracker.aggregate_provider_performance",
+            side_effect=RuntimeError("Corrupted call history log"),
+        ):
+            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+            assert "stages" in payload
+            assert payload["workload"]["total_request_count"] == 3
+            assert payload["regression"]["overall_status"] == "PASS"
+            validate_performance_payload(payload)
+
+    def test_schema_validation_error_in_update_mode_fails_closed(self):
+        """Schema validation errors in update mode fail closed and raise validation error directly."""
+        import jsonschema
+
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        # Inject an invalid stage status into tracker stage collector
+        tracker.stage_collector.record_stage("stock_fetch", 1.0, status="INVALID_STATUS")
+
+        with pytest.raises(jsonschema.ValidationError):
+            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
+    def test_budget_evaluation_error_in_update_mode_fails_closed(self):
+        """Budget evaluation error in update mode fails closed and raises exception directly."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with (
+            patch(
+                "scripts.performance.tracker.evaluate_provider_budget",
+                side_effect=RuntimeError("Budget engine failure"),
+            ),
+            pytest.raises(RuntimeError, match="Budget engine failure"),
+        ):
+            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
+    def test_budget_evaluation_error_in_non_update_mode_sets_degraded_status(self):
+        """Budget evaluation error in non-update mode sets overall_status DEGRADED, never PASS."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with patch(
+            "scripts.performance.tracker.evaluate_provider_budget",
+            side_effect=RuntimeError("Budget engine failure"),
+        ):
+            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=False)
+            assert payload["budget"]["overall_status"] == "DEGRADED"
+            assert any(
+                "Provider budget evaluation error" in v for v in payload["budget"]["violations"]
+            )
 
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")

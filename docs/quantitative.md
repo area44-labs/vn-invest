@@ -119,5 +119,5 @@ scripts/backtest/
 Performance tracking is isolated in `scripts/performance/` (`tracker.py`, `provider_metrics.py`, `stage_metrics.py`, `budget.py`, `regression.py`).
 
 - Measures stage execution runtimes (`StageMetricsCollector`) and provider call metrics without altering quantitative logic.
-- Evaluates provider call budgets (`evaluate_provider_budget`) and flags performance regressions (`evaluate_performance_regression`).
+- Evaluates provider call budgets (`evaluate_provider_budget`) and flags performance regressions (`evaluate_performance_regression`) using mode-aware baselines (`PERFORMANCE_STAGE_BASELINES` for test/offline, `PRODUCTION_UPDATE_PERFORMANCE_BASELINES` for live `--update` mode accounting for `DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s`).
 - Exports performance payload conforming to `schemas/v2/performance.schema.json`.

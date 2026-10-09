@@ -1376,17 +1376,52 @@ def evaluate_data_and_model_drift(
         raise ValueError(f"DRIFT_BOUNDARY_TOLERANCE_ACTION_DISTRIBUTION is invalid: {a_tolerance}")
 
     curr_action_props = current_metrics["action_proportions"]
+    curr_regime = current_metrics.get("market_regime")
     action_diffs = {
         act: round(abs(curr_action_props[act] - baseline_action_props[act]), 6)
         for act in ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
     }
     max_action_diff = max(action_diffs.values())
-    if max_action_diff > a_fail + a_tolerance:
+
+    # Regime-driven check: When Market Regime == "PANIC", classify_action() sets all valid actions to "AVOID".
+    # Strictly verify payload summary and all individual recommendation actions match 100% AVOID rule.
+    curr_recs = current_payload.get("recommendations", [])
+    curr_summary = current_payload.get("summary", {})
+    all_recs_are_avoid = bool(curr_recs) and all(
+        isinstance(r, dict) and r.get("action") == "AVOID" for r in curr_recs
+    )
+    summary_is_all_avoid = (
+        isinstance(curr_summary, dict)
+        and curr_summary.get("total_scanned", 0) > 0
+        and curr_summary.get("avoid_count") == curr_summary.get("total_scanned")
+        and curr_summary.get("buy_count", 0) == 0
+        and curr_summary.get("watch_count", 0) == 0
+        and curr_summary.get("hold_count", 0) == 0
+        and curr_summary.get("sell_count", 0) == 0
+    )
+
+    is_panic_regime_shift = (
+        curr_regime == "PANIC"
+        and curr_action_props.get("AVOID", 0.0) == 1.0
+        and all_recs_are_avoid
+        and summary_is_all_avoid
+    )
+
+    if is_panic_regime_shift:
+        a_status = "PASS"
+        a_msg = (
+            f"Action distribution shift (max shift={max_action_diff:.4f}) is valid and verified "
+            f"due to extreme market regime PANIC (100% AVOID across all {len(curr_recs)} recommendations per quantitative signal rules)"
+        )
+    elif max_action_diff > a_fail + a_tolerance:
         a_status = "FAIL"
+        a_msg = f"Action distribution max proportion shift is {max_action_diff:.4f} across actions"
     elif max_action_diff > a_warn:
         a_status = "WARNING"
+        a_msg = f"Action distribution max proportion shift is {max_action_diff:.4f} across actions"
     else:
         a_status = "PASS"
+        a_msg = f"Action distribution max proportion shift is {max_action_diff:.4f} across actions"
 
     a_obs = DriftObservation(
         check_name="drift_action_distribution",
@@ -1400,7 +1435,7 @@ def evaluate_data_and_model_drift(
         },
         threshold={"warning": a_warn, "fail": a_fail},
         status=a_status,
-        message=f"Action distribution max proportion shift is {max_action_diff:.4f} across actions",
+        message=a_msg,
     )
     drift_checks.append(
         DriftCheckResult(check_name="drift_action_distribution", status=a_status, observation=a_obs)
