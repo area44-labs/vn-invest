@@ -8,12 +8,12 @@ This document specifies the GitHub Actions workflows, automated scheduled pipeli
 
 The repository includes four primary GitHub Actions workflows:
 
-| Workflow File          | Trigger Events                                                                      | Primary Responsibilities                                                        |
-| :--------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| **`tests.yml`**        | `push` / `pull_request` on `main` (matching `**/*.py`, `pyproject.toml`, `uv.lock`) | Python backend test suite execution (`uv run --frozen pytest`) on Python 3.14.  |
-| **`lint-format.yml`**  | `push` / `pull_request` on `main`                                                   | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check. |
+| Workflow File         | Trigger Events                                                                      | Primary Responsibilities                                                        |
+| :-------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
+| **`tests.yml`**       | `push` / `pull_request` on `main` (matching `**/*.py`, `pyproject.toml`, `uv.lock`) | Python backend test suite execution (`uv run --frozen pytest`) on Python 3.14.  |
+| **`lint-format.yml`** | `push` / `pull_request` on `main`                                                   | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check. |
 | **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                           | Scheduled EOD market data update and daily report regeneration.                 |
-| **`pages.yml`**        | `push` on `main` / `pull_request` / `workflow_dispatch`                             | SSG prerender build via Vite+ and deployment to GitHub Pages.                   |
+| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`                             | SSG prerender build via Vite+ and deployment to GitHub Pages.                   |
 
 ---
 

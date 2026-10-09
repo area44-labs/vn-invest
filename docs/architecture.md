@@ -122,13 +122,13 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 
 ## 4. Production Entry Points
 
-| Entry Point                        | Location                             | Purpose                                                                                  |
-| :--------------------------------- | :----------------------------------- | :--------------------------------------------------------------------------------------- |
-| **CLI Runner**                     | `scripts/generate_report.py`         | Command-line interface for running report pipelines (`--update` or offline cached mode). |
-| **Pipeline Runner**                | `scripts/pipeline/runner.py`         | Orchestrates stage-by-stage execution via `ProductionPipeline.run()`.                    |
+| Entry Point                        | Location                            | Purpose                                                                                  |
+| :--------------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------- |
+| **CLI Runner**                     | `scripts/generate_report.py`        | Command-line interface for running report pipelines (`--update` or offline cached mode). |
+| **Pipeline Runner**                | `scripts/pipeline/runner.py`        | Orchestrates stage-by-stage execution via `ProductionPipeline.run()`.                    |
 | **Scheduled Data Update Workflow** | `.github/workflows/update-data.yml` | GitHub Actions workflow executing daily EOD updates after market close.                  |
-| **CI Test Workflow**               | `.github/workflows/tests.yml`        | GitHub Actions workflow running `uv run --frozen pytest`.                                |
-| **Static Build Workflow**          | `.github/workflows/pages.yml`        | GitHub Actions workflow building React SSG frontend.                           |
+| **CI Test Workflow**               | `.github/workflows/tests.yml`       | GitHub Actions workflow running `uv run --frozen pytest`.                                |
+| **Static Build Workflow**          | `.github/workflows/pages.yml`       | GitHub Actions workflow building React SSG frontend.                                     |
 
 ---
 
