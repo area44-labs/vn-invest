@@ -79,7 +79,7 @@ class TestPortfolioConfigValidation:
         with pytest.raises(ValueError):
             PortfolioConfig(max_positions=2.5)  # float not allowed for int
 
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(max_positions=True)  # bool not allowed
 
     def test_invalid_thresholds(self) -> None:
@@ -106,10 +106,10 @@ class TestPortfolioConfigValidation:
             PortfolioConfig(max_weight_per_position=float("-inf"))
 
     def test_bool_and_non_numeric_types(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(min_signal_score=True)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(min_signal_score="invalid")
 
         with pytest.raises((ValueError, TypeError)):
@@ -153,7 +153,7 @@ class TestPortfolioWeightValidation:
             validate_portfolio_weights([0.5, float("inf")])
 
     def test_bool_weight_rejected(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             validate_portfolio_weights([0.5, True])
 
 

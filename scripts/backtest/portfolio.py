@@ -94,17 +94,17 @@ def _validate_numeric_param(
     allow_zero: bool = True,
     strict_int: bool = False,
 ) -> None:
-    """Validate numeric configuration parameter deterministically, raising ValueError on failure."""
+    """Validate numeric configuration parameter deterministically, raising TypeError/ValueError on failure."""
     if param_value is None:
         return
 
     if isinstance(param_value, bool):
-        raise ValueError(f"{field_name} cannot be a boolean, got {param_value}")  # noqa: TRY004
+        raise TypeError(f"{field_name} cannot be a boolean, got {param_value}")
 
     if not isinstance(param_value, (int, float)):
-        raise ValueError(
+        raise TypeError(
             f"{field_name} must be numeric, got {type(param_value).__name__}: {param_value}"
-        )  # noqa: TRY004
+        )
 
     if strict_int and not isinstance(param_value, int):
         raise ValueError(
