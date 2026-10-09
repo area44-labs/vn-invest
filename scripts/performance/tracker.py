@@ -178,7 +178,7 @@ class PerformanceTracker:
             payload["budget"] = evaluate_provider_budget(
                 payload, enforce_ci_budget=self.enable_ci_budget
             )
-        except Exception as budget_exc:  # noqa: BLE001
+        except Exception as budget_exc:
             if update_data:
                 logger.error("Provider budget evaluation error in update mode: %s", budget_exc)
                 raise
