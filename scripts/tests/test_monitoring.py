@@ -530,43 +530,34 @@ class TestProductionMonitoring:
             idx_p = os.path.join(hist_dir, "index.json")
             as_of_p = os.path.join(hist_dir, "2026-09-17.json")
 
-            # Case 1: missing recommendations.json => FAIL
             chk1 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
             assert chk1.status == "FAIL"
             assert "recommendations.json" in chk1.measured_value["missing"]
 
-            # Create recommendations.json
             with open(recs_p, "w") as f:
                 f.write("{}")
 
-            # Case 2: missing market.json => FAIL
             chk2 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
             assert chk2.status == "FAIL"
             assert "market.json" in chk2.measured_value["missing"]
 
-            # Create market.json
             with open(mkt_p, "w") as f:
                 f.write("{}")
 
-            # Case 3: missing history/index.json => FAIL
             chk3 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
             assert chk3.status == "FAIL"
             assert "index.json" in chk3.measured_value["missing"]
 
-            # Create history/index.json
             with open(idx_p, "w") as f:
                 f.write("{}")
 
-            # Case 4: missing history/{data_as_of}.json => FAIL
             chk4 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
             assert chk4.status == "FAIL"
             assert "2026-09-17.json" in chk4.measured_value["missing"]
 
-            # Create history/{data_as_of}.json
             with open(as_of_p, "w") as f:
                 f.write("{}")
 
-            # Case 5: all required artifacts present => PASS
             chk5 = check_required_artifacts(tmpdir, data_as_of="2026-09-17")
             assert chk5.status == "PASS"
 

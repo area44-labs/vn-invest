@@ -684,8 +684,8 @@ class TestArtifactProvenanceSuite:
         assert manifest.signal_model_version == "2.0"
         assert manifest.pipeline_version != manifest.signal_model_version
 
-    def test_25_changing_model_version_does_not_change_pipeline_version(self):
-        """25. Verify modifying signal_model_version in payload does not alter pipeline_version."""
+    def test_changing_model_version_does_not_change_pipeline_version(self):
+        """Verify modifying signal_model_version in payload does not alter pipeline_version."""
         context = PipelineContext(
             generated_dir=self.target_dir,
             reference_date="2026-03-31T00:00:00Z",
