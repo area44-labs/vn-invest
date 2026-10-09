@@ -101,8 +101,6 @@ Performance regression monitoring uses explicit mode selection (`update_data=Tru
 
 ---
 
----
-
 ## 6. Fail-Closed Invariants
 
 1. **Unreadable Baseline Handling**: Missing, unreadable, or malformed history index or baseline JSON files result in an immediate `FAIL` status for history/drift checks.
