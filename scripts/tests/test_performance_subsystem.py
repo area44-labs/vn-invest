@@ -466,14 +466,12 @@ class TestPerformanceTrackerSubsystem:
         tracker.record_request("VN30")
         tracker.record_request("FPT")
 
-        with (
-            patch(
-                "scripts.performance.tracker.evaluate_provider_budget",
-                side_effect=RuntimeError("Budget engine failure"),
-            ),
-            pytest.raises(RuntimeError, match="Budget engine failure"),
+        with patch(
+            "scripts.performance.tracker.evaluate_provider_budget",
+            side_effect=RuntimeError("Budget engine failure"),
         ):
-            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+            with pytest.raises(RuntimeError, match="Budget engine failure"):
+                tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
     def test_budget_evaluation_error_in_non_update_mode_sets_degraded_status(self):
         """Budget evaluation error in non-update mode sets overall_status DEGRADED, never PASS."""
