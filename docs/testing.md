@@ -26,7 +26,6 @@ scripts/tests/
 ├── test_backtest.py              # Signal engine backtest and execution eligibility tests
 ├── test_config.py                # Pipeline and baseline configuration unit tests
 ├── test_data_*.py                # Data acquisition, validation, normalization, and bounds
-├── test_dependencies.py          # Lockfile, uv, and dependency version invariants
 ├── test_domain.py                # Domain dataclasses, Universe, and candidate models
 ├── test_drift_monitoring.py      # Operational model/data drift and baseline lookbacks
 ├── test_e2e_backtest_integrity.py# End-to-end backtest pipeline integrity and non-lookahead
