@@ -98,7 +98,6 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 - Wildcard imports (`from module import *`) are strictly prohibited.
 - Absolute imports using canonical package roots (`from scripts.quant.signal import compute_signal`) are required.
-- Do not import from removed `scripts.lib/*` modules.
 
 ---
 

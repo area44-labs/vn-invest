@@ -7,7 +7,7 @@ This document specifies the operational guidelines, execution rules, and workflo
 ## 1. Core Directives & Guiding Principles
 
 1. **Read & Inspect Before Modifying Code**: Always inspect existing canonical subsystem code and tests in `scripts/` before altering functionality. Do not guess internal interfaces.
-2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`). Never import from or re-create deleted `scripts/lib/*` modules.
+2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`).
 3. **Focused Changes**: Work in small, focused increments addressing a single task or feature scope. Do not mix unrelated refactorings or formatting changes into a single PR.
 4. **No Financial Math in Frontend**: Do not add quantitative calculations to `src/`. The frontend is strictly a read-only viewer for pre-rendered artifacts in `generated/`.
 5. **Fail-Closed & Anti-Lookahead Safety**: Maintain point-in-time isolation ($\le T$) for all historical data and signal logic. Do not fabricate missing values or create silent fallbacks.
@@ -38,7 +38,10 @@ This document specifies the operational guidelines, execution rules, and workflo
 7. Update Documentation if System Architecture Changed
                │
                ▼
-8. Complete Pre-Commit Validation & Submit
+8. Execute the verification script (uv run --frozen python scripts/generate_report.py --update)
+               │
+               ▼
+9. Complete Pre-Commit Validation & Submit
 ```
 
 ---

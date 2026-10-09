@@ -20,13 +20,12 @@ For comprehensive details on specific system components, refer directly to the a
 - **Frontend SSG Architecture**: [`docs/frontend.md`](docs/frontend.md)
 - **CI/CD Workflows**: [`docs/ci-cd.md`](docs/ci-cd.md)
 - **Agent Guidelines & Workflow**: [`docs/agent-workflow.md`](docs/agent-workflow.md)
-- **Historical Architecture Baseline**: [`docs/architecture-inventory.md`](docs/architecture-inventory.md)
 
 ---
 
 ## 2. Core Architectural Rules & Non-Negotiable Constraints
 
-1. **Subsystem Isolation**: Backend logic resides natively under `scripts/` (`domain`, `data`, `quant`, `pipeline`, `backtest`, `performance`, `monitoring`, `artifacts`, `schema`). Zero legacy `scripts/lib/*` modules exist. Do not re-create `scripts/lib`.
+1. **Subsystem Isolation**: Backend logic resides natively under `scripts/` (`domain`, `data`, `quant`, `pipeline`, `backtest`, `performance`, `monitoring`, `artifacts`, `schema`).
 2. **Frontend Responsibility Boundary**: `src/` is a read-only React SSG visualizer for static JSON in `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
 3. **Fail-Closed & Anti-Lookahead Principles**: Market data and calculations timestamped $\le T$ must never access future data ($> T$). Invalid or missing market data must result in explicit errors or `INSUFFICIENT` / `None` values without fabricating synthetic defaults.
 4. **Schema Compliance**: Payload artifacts published to `generated/` must validate against version-aware JSON Schemas in `schemas/v2/` resolved strictly via `scripts/schema/registry.py`.
@@ -35,7 +34,9 @@ For comprehensive details on specific system components, refer directly to the a
 
 ## 3. Authoritative Essential Commands
 
-### Python Backend (Python >= 3.14 via `uv`)
+### Python Backend
+
+Requirements: Python >= 3.14 via [uv](https://docs.astral.sh).
 
 ```bash
 # Sync dependencies
@@ -52,7 +53,9 @@ uv run --frozen python scripts/generate_report.py          # Cached offline data
 uv run --frozen python scripts/generate_report.py --update # Live market update
 ```
 
-### Frontend & Tooling (Vite+ `vp`)
+### Frontend & Tooling
+
+Requirements: [Vite+](https://viteplus.dev).
 
 ```bash
 vp install               # Install dependencies
@@ -66,9 +69,9 @@ vp build                 # SSG prerender build
 ## 4. Required Agent Workflow
 
 1. **Read Documentation First**: Read the relevant documentation in `docs/` before modifying code to understand canonical architecture, contracts, and expectations.
-2. **Follow Canonical Architecture**: Respect documented subsystem boundaries (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`, `scripts/schema`). Never recreate removed `scripts/lib/*` modules.
+2. **Follow Canonical Architecture**: Respect documented subsystem boundaries (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`, `scripts/schema`).
 3. **Make Focused Changes**: Implement minimal, targeted edits satisfying existing domain contracts. Do not mix unrelated refactorings or formatting changes into a single change.
-4. **Run Validation & Tests**: Execute targeted unit tests first, followed by full test suite (`uv run --frozen pytest`) and formatting checks (`pnpm run check` / `uv run --frozen ruff check --fix scripts`).
+4. **Run Validation & Tests**: Execute targeted unit tests first, followed by full test suite (`uv run --frozen pytest`) and formatting checks (`pnpm run check` / `uv run --frozen ruff check --fix scripts`). Finally, execute the verification script ( `uv run --frozen python scripts/generate_report.py --update`). If successful, do not generate any artifact files; if it fails, report the error.
 5. **Keep Documentation Synchronized**: If a code change affects documented architecture, behavior, contracts, workflow, or conventions, update the relevant documentation in `docs/` within the same change.
 
 ---

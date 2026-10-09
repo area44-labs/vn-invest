@@ -8,7 +8,7 @@ This document specifies the React static site generation (SSG) frontend architec
 
 - **Framework**: React 19 + TanStack Start (SSG Prerendering).
 - **Styling**: Tailwind CSS.
-- **Build & Lint Standard**: Vite+ (`vp`). All frontend commands use `vp` (`vp install`, `vp check`, `vp build`, `vp dev`).
+- **Build & Lint Standard**: Vite+ (`vp`). All frontend commands use `vp` (`vp install`, `vp check`, `vpr build`, `vp dev`).
 - **Configuration**: Merged into `vite.config.ts` and `package.json`.
 
 ---
@@ -19,10 +19,12 @@ Frontend source code resides under `src/`.
 
 ```text
 src/
-├── routes/          # TanStack Start file-based routing
 ├── components/      # React UI components (charts, tables, cards, navigation)
 ├── data/            # Static JSON data loaders and adapters (loader.ts)
+├── hooks/           # Custom React hooks for state management and logic
 ├── lib/             # Utility functions (utils.ts re-exporting cn)
+├── pages/           # Page-level components
+├── routes/          # TanStack Start file-based routing
 ├── types/           # TypeScript interface definitions (recommendation.ts, etc.)
 └── styles/          # Global Tailwind CSS definitions
 ```

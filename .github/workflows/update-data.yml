@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-update-${{ github.ref }}
+  group: update-data-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add generated/
-            git commit -m "chore(data): update daily market recommendations"
+            git commit -m "chore(data): update data market recommendations"
             git fetch origin main
             git rebase origin/main
             git push origin main

@@ -12,7 +12,7 @@ The repository includes four primary GitHub Actions workflows:
 | :--------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
 | **`tests.yml`**        | `push` / `pull_request` on `main` (matching `**/*.py`, `pyproject.toml`, `uv.lock`) | Python backend test suite execution (`uv run --frozen pytest`) on Python 3.14.  |
 | **`lint-format.yml`**  | `push` / `pull_request` on `main`                                                   | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check. |
-| **`daily-update.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                           | Scheduled EOD market data update and daily report regeneration.                 |
+| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                           | Scheduled EOD market data update and daily report regeneration.                 |
 | **`pages.yml`**        | `push` on `main` / `pull_request` / `workflow_dispatch`                             | SSG prerender build via Vite+ and deployment to GitHub Pages.                   |
 
 ---
@@ -40,7 +40,7 @@ The repository includes four primary GitHub Actions workflows:
   ```
 - **Frontend Step**: Uses `area44/workflows/lint-format` for Vite+ checks.
 
-### 2.3 Daily Scheduled EOD Market Update (`daily-update.yml`)
+### 2.3 Daily Scheduled EOD Market Update (`update-data.yml`)
 
 - **Schedule**: `cron: "0 11 * * 1-5"` (11:00 UTC = 18:00 ICT, Mon–Fri, following HOSE/HNX/UPCoM market close).
 - **Execution Command**:
@@ -49,13 +49,13 @@ The repository includes four primary GitHub Actions workflows:
   ```
 - **Commit & Push Step**:
   - Checks `git status --porcelain generated/`.
-  - If new data was generated, commits updated `generated/` artifacts with message `chore(data): update daily market recommendations` and pushes to `main`.
+  - If new data was generated, commits updated `generated/` artifacts with message `chore(data): update data market recommendations` and pushes to `main`.
 - **Fail-Closed Invariant**: If market data acquisition fails or is incomplete, `generate_report.py --update` exits code 1, halting the workflow and preserving existing on-disk report artifacts without pushing corrupt updates.
 
 ### 2.4 GitHub Pages SSG Deployment (`pages.yml`)
 
 - **Build Step**: Executes `area44/workflows/vite-plus` outputting static SSG files to `dist/client`.
-- **Deploy Step**: Deploys `dist/client` to GitHub Pages environment using `actions/deploy-pages@v5`.
+- **Deploy Step**: Deploys `dist/client` to GitHub Pages environment.
 
 ---
 
