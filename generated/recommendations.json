@@ -3,7 +3,7 @@
   "signal_model_version": "2.0",
   "quant_version": "1.0.0",
   "config_hash": "07b74635ffca",
-  "generated_at": "2026-10-09T00:38:16.169117+00:00",
+  "generated_at": "2026-10-09T01:25:09.249020+00:00",
   "data_as_of": "2026-10-08",
   "source_date": "2026-10-08",
   "data_source": "REAL_DATA",
@@ -21,7 +21,7 @@
       "vn30_change_pct": -0.91,
       "market_breadth_ratio": 0.24,
       "volatility": 0.1324,
-      "volume_20d_ratio": 1.26
+      "volume_20d_ratio": 1.0
     }
   },
   "summary": {

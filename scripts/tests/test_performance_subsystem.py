@@ -444,6 +444,21 @@ class TestPerformanceTrackerSubsystem:
             assert payload["regression"]["overall_status"] == "PASS"
             validate_performance_payload(payload)
 
+    def test_schema_validation_error_in_update_mode_fails_closed(self):
+        """Schema validation errors in update mode fail closed and raise validation error directly."""
+        import jsonschema
+
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        # Inject an invalid stage status into tracker stage collector
+        tracker.stage_collector.record_stage("stock_fetch", 1.0, status="INVALID_STATUS")
+
+        with pytest.raises(jsonschema.ValidationError):
+            tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")
         self.tracker.record_stage("market_calculation", 0.1)

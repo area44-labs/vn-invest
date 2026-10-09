@@ -109,19 +109,31 @@ class PerformanceTracker:
     ) -> dict[str, Any]:
         """Construct unified canonical performance payload.
 
-        Enforces fail-safe isolation for non-workload instrumentation metrics while ensuring
-        canonical workload metadata errors in update mode fail closed.
+        Enforces stage-segregated exception handling: provider instrumentation failures use
+        safe fallbacks, while canonical workload metadata errors and payload schema validation errors
+        in update mode fail closed.
         """
+        import jsonschema
+
         from scripts.performance.regression import WorkloadMetadataError
         from scripts.pipeline.validation import validate_performance_payload
+        from scripts.schema import SchemaResolutionError
 
-        # 1. Non-critical provider instrumentation (safe fallback if call_history is unreadable)
+        # 1. Non-critical provider call history instrumentation
         try:
             provider_summary = aggregate_provider_performance(call_history)
             duplicates = detect_duplicate_operations(call_history, self.symbol_requests)
         except Exception as provider_exc:  # noqa: BLE001
             logger.warning("Provider call history instrumentation error: %s", provider_exc)
-            provider_summary = create_default_performance_payload()["provider"]
+            provider_summary = {
+                "total_calls": 0,
+                "successful_calls": 0,
+                "failed_calls": 0,
+                "retry_count": 0,
+                "total_elapsed_seconds": 0.0,
+                "average_call_seconds": 0.0,
+                "calls_by_source": {},
+            }
             duplicates = []
 
         # 2. Stage metrics & Workload metadata assembly
@@ -146,32 +158,60 @@ class PerformanceTracker:
             "workload": workload_meta,
         }
 
-        # 3. Regression evaluation & Budget evaluation
+        # 3. Performance regression evaluation
         try:
             payload["regression"] = evaluate_performance_regression(
                 payload, is_update_mode=update_data
             )
-            payload["budget"] = evaluate_provider_budget(
-                payload, enforce_ci_budget=self.enable_ci_budget
-            )
-
-            validate_performance_payload(payload)
-            return payload
         except WorkloadMetadataError as workload_exc:
             if update_data:
                 logger.error("Canonical workload metadata error in update mode: %s", workload_exc)
                 raise
             logger.warning("Workload metadata error in non-update mode: %s", workload_exc)
+            payload["regression"] = {
+                "overall_status": "PASS",
+                "stage_evaluations": [],
+            }
+
+        # 4. Budget evaluation
+        try:
+            payload["budget"] = evaluate_provider_budget(
+                payload, enforce_ci_budget=self.enable_ci_budget
+            )
+        except Exception as budget_exc:  # noqa: BLE001
+            logger.warning("Provider budget evaluation error: %s", budget_exc)
+            payload["budget"] = {
+                "overall_status": "PASS",
+                "total_calls": provider_summary.get("total_calls", 0),
+                "max_calls_budget": 120,
+                "duplicate_operations_count": len(duplicates),
+                "max_duplicates_budget": 5,
+                "total_elapsed_seconds": provider_summary.get("total_elapsed_seconds", 0.0),
+                "max_elapsed_budget_seconds": 60.0,
+                "violations": [],
+            }
+
+        # 5. Authoritative schema validation
+        try:
+            validate_performance_payload(payload)
+        except (
+            jsonschema.ValidationError,
+            SchemaResolutionError,
+            TypeError,
+            ValueError,
+        ) as val_exc:
+            if update_data:
+                logger.error(
+                    "Performance payload schema validation error in update mode: %s", val_exc
+                )
+                raise
+            logger.warning(
+                "Performance payload schema validation error in non-update mode: %s", val_exc
+            )
             fallback = create_default_performance_payload()
             return fallback
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Instrumentation error during get_performance_payload: %s", exc)
-            fallback = create_default_performance_payload()
-            try:
-                validate_performance_payload(fallback)
-            except Exception as fallback_exc:  # noqa: BLE001
-                logger.error("Fallback performance payload validation error: %s", fallback_exc)
-            return fallback
+
+        return payload
 
 
 __all__ = ["PerformanceTracker", "create_default_performance_payload"]
