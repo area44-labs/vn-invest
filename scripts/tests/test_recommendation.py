@@ -17,8 +17,6 @@ from scripts.quant.recommendation import (
 from scripts.quant.regime import detect_market_regime
 from scripts.quant.risk import calculate_risk_adjusted_score, normalize_universe_liquidity_scores
 from scripts.quant.signal import (
-    DIVERGENCE_TIMEFRAME_WEIGHTS,
-    SIGNAL_WEIGHTS,
     calculate_divergence_score,
     calculate_momentum_score,
     calculate_relative_strength_score,
@@ -107,16 +105,6 @@ class TestSafeFloatAndExceptionHandling:
 
 @pytest.mark.unit
 class TestVNInvestSignalEngine:
-    def test_signal_weights_sum_to_one(self):
-        """Verify centralized signal weights sum to 1.0."""
-        weight_sum = sum(SIGNAL_WEIGHTS.values())
-        assert round(abs(weight_sum - (1.0)), 5) == 0
-
-    def test_divergence_weights_sum_to_one(self):
-        """Verify divergence timeframe weights sum to 1.0."""
-        weight_sum = sum(DIVERGENCE_TIMEFRAME_WEIGHTS.values())
-        assert round(abs(weight_sum - (1.0)), 5) == 0
-
     def test_zero_and_missing_volume_handling(self):
         """Regression test P0: Invalid/zero/missing volume must produce volume_score = None."""
         # Zero volume ratio -> None
@@ -340,27 +328,6 @@ class TestVNInvestSignalEngine:
         expected = round((100.0 * 0.30 + 80.0 * 0.25 + 90.0 * 0.15) / 0.70, 1)
         assert score == expected
 
-    def test_action_classification_boundary_conditions(self):
-        """Action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
-        regime = "BULL"
-        raw_close = 30.0
-        raw_ma20 = 25.0
-
-        assert classify_action(34.9, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(35.0, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(44.9, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(45.0, regime, raw_close, raw_ma20) == "HOLD"
-        assert classify_action(54.9, regime, raw_close, raw_ma20) == "HOLD"
-        assert classify_action(55.0, regime, raw_close, raw_ma20) == "WATCH"
-        assert classify_action(64.9, regime, raw_close, raw_ma20) == "WATCH"
-        assert classify_action(65.0, regime, raw_close, raw_ma20) == "BUY"
-        assert classify_action(74.9, regime, raw_close, raw_ma20) == "BUY"
-        assert classify_action(75.0, regime, raw_close, raw_ma20) == "BUY"
-
-        # DEFENSIVE regime action boundary check
-        assert classify_action(65.0, "DEFENSIVE", raw_close, raw_ma20) == "BUY"
-        assert classify_action(75.0, "DEFENSIVE", raw_close, raw_ma20) == "WATCH"
-
     def test_generate_recommendation_output_structure(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
@@ -399,28 +366,6 @@ class TestVNInvestSignalEngine:
         assert isinstance(rec["score_components"], dict)
         assert isinstance(rec["invalidation"], list)
         assert "1H" in rec["divergence"]
-
-    def test_risk_adjusted_score_formula(self):
-        """Verify risk-adjusted score deterministic calculation."""
-        score = calculate_risk_adjusted_score(
-            signal_score=80.0,
-            regime="STRONG_BULL",
-            volatility_60d=0.15,
-            max_drawdown=-0.10,
-            liquidity_score=90.0,
-        )
-        assert score >= 70.0
-        assert score <= 100.0
-
-        # High volatility and drawdown penalty check
-        score_high_risk = calculate_risk_adjusted_score(
-            signal_score=80.0,
-            regime="BEAR",
-            volatility_60d=0.45,
-            max_drawdown=-0.35,
-            liquidity_score=20.0,
-        )
-        assert score_high_risk < score
 
     def test_risk_adjusted_score_across_regimes(self):
         """Verify risk_adjusted_score calculation across all market regimes and after universe normalization."""

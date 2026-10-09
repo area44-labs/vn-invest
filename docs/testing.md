@@ -47,6 +47,14 @@ scripts/tests/
 └── test_unit_normalization.py    # Stock unit conversions and market tick price rounding
 ```
 
+### 2.1 Dependency Version Inspection Policy
+
+The test suite in `scripts/tests/test_dependencies.py` enforces runtime dependency version invariants.
+
+- **Inspection Mechanism**: Uses `importlib.metadata.version()` to inspect installed runtime package versions without relying on deprecated package attributes (such as `jsonschema.__version__`) or permissive default fallbacks.
+- **Contract Boundary**: Verifies that installed versions satisfy minimum required version bounds declared in `pyproject.toml` (`vnstock >= 4.0.8`, `pandas >= 3.0.0`, `numpy >= 2.5.0`, `jsonschema >= 4.26.0`).
+- **Reproducibility Guarantee**: In CI and production builds, `uv sync --frozen` installs the exact pinned versions locked in `uv.lock`.
+
 ---
 
 ## 3. Network Isolation Mechanics
