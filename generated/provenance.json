@@ -1,6 +1,6 @@
 {
-  "data_as_of": "2026-10-08",
-  "generated_at": "2026-10-08T16:38:39.472048+00:00",
+  "data_as_of": "2026-10-09",
+  "generated_at": "2026-10-09T02:24:26.905272+00:00",
   "pipeline_version": "2.0.0",
   "signal_model_version": "2.0",
   "quantitative_config_version": {
@@ -18,7 +18,7 @@
     "universe_size": 42
   },
   "artifacts": [
-    "history/2026-10-08.json",
+    "history/2026-10-09.json",
     "history/index.json",
     "market.json",
     "monitoring.json",

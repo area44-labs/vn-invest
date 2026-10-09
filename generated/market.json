@@ -1,8 +1,8 @@
 {
   "schema_version": "2.0",
-  "data_as_of": "2026-10-08",
-  "source_date": "2026-10-08",
-  "generated_at": "2026-10-08T16:38:39.472048+00:00",
+  "data_as_of": "2026-10-09",
+  "source_date": "2026-10-09",
+  "generated_at": "2026-10-09T02:24:26.905272+00:00",
   "data_source": "REAL_DATA",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
@@ -13,12 +13,12 @@
     "regime_score": 7.0,
     "confidence": 0.85,
     "metrics": {
-      "vnindex_value": 1738.97,
-      "vnindex_change_pct": -0.82,
-      "vn30_change_pct": -0.91,
+      "vnindex_value": 1737.89,
+      "vnindex_change_pct": -0.06,
+      "vn30_change_pct": -0.02,
       "market_breadth_ratio": 0.24,
-      "volatility": 0.1324,
-      "volume_20d_ratio": 1.26
+      "volatility": 0.118,
+      "volume_20d_ratio": 0.16
     }
   },
   "summary": {
