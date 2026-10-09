@@ -262,19 +262,19 @@ def load_historical_ohlcv(
         raw_ohlcv_map = {str(k).upper(): v for k, v in data.items()}
 
     parsed_map: dict[str, pd.DataFrame] = {}
-    for sym, val in raw_ohlcv_map.items():
+    for sym, raw_ohlcv_value in raw_ohlcv_map.items():
         sym_upper = sym.upper()
-        if isinstance(val, pd.DataFrame):
-            parsed_map[sym_upper] = val.copy()
-        elif isinstance(val, list):
-            parsed_map[sym_upper] = pd.DataFrame(val)
-        elif isinstance(val, dict):
-            if "data" in val and isinstance(val["data"], list):
-                parsed_map[sym_upper] = pd.DataFrame(val["data"])
-            elif "records" in val and isinstance(val["records"], list):
-                parsed_map[sym_upper] = pd.DataFrame(val["records"])
+        if isinstance(raw_ohlcv_value, pd.DataFrame):
+            parsed_map[sym_upper] = raw_ohlcv_value.copy()
+        elif isinstance(raw_ohlcv_value, list):
+            parsed_map[sym_upper] = pd.DataFrame(raw_ohlcv_value)
+        elif isinstance(raw_ohlcv_value, dict):
+            if "data" in raw_ohlcv_value and isinstance(raw_ohlcv_value["data"], list):
+                parsed_map[sym_upper] = pd.DataFrame(raw_ohlcv_value["data"])
+            elif "records" in raw_ohlcv_value and isinstance(raw_ohlcv_value["records"], list):
+                parsed_map[sym_upper] = pd.DataFrame(raw_ohlcv_value["records"])
             else:
-                parsed_map[sym_upper] = pd.DataFrame(val)
+                parsed_map[sym_upper] = pd.DataFrame(raw_ohlcv_value)
         else:
             raise TypeError(
                 f"Unsupported OHLCV data type for symbol '{sym_upper}' in '{ohlcv_path_or_dir}'"

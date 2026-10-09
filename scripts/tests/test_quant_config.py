@@ -1,16 +1,16 @@
 """Tests for Quantitative Configuration and Version Contract (`scripts/quant/config.py`).
 
 Verifies:
-1. Production and backtest engines use identical central quantitative configuration.
-2. Quant version and config hash propagate consistently across models and outputs.
-3. No duplicated quantitative parameter definitions exist across modules.
-4. Identical input + identical configuration/version produces deterministic output.
-5. Parameter changes alter config_hash and version contract explicitly.
-6. Existing quantitative behavior is preserved intact under DEFAULT_QUANT_CONFIG.
-7. QuantConfig nested fields cannot be mutated in-place.
-8. Production and backtest outputs carry identical quant_version and config_hash for the same config.
-9. PipelineContext validates batch quant_version and config_hash consistency, failing closed on mixed configs.
-10. SignalRecommendationEngine propagates QuantConfig to custom recommendation generators and validates matching version/hash outputs.
+- Production and backtest engines use identical central quantitative configuration.
+- Quant version and config hash propagate consistently across models and outputs.
+- No duplicated quantitative parameter definitions exist across modules.
+- Identical input + identical configuration/version produces deterministic output.
+- Parameter changes alter config_hash and version contract explicitly.
+- Existing quantitative behavior is preserved intact under DEFAULT_QUANT_CONFIG.
+- QuantConfig nested fields cannot be mutated in-place.
+- Production and backtest outputs carry identical quant_version and config_hash for the same config.
+- PipelineContext validates batch quant_version and config_hash consistency, failing closed on mixed configs.
+- SignalRecommendationEngine propagates QuantConfig to custom recommendation generators and validates matching version/hash outputs.
 """
 
 from dataclasses import replace
@@ -40,7 +40,7 @@ from scripts.quant.signal import (
 @pytest.mark.unit
 class TestQuantitativeConfigAndVersionContract:
     def test_default_config_properties_and_version_contract(self):
-        """1. Verify DEFAULT_QUANT_CONFIG properties, hash calculation, and version contract structure."""
+        """Verifies DEFAULT_QUANT_CONFIG properties, SHA-256 hash calculation, and version contract structure."""
         cfg = DEFAULT_QUANT_CONFIG
         assert cfg.quant_version == "1.0.0"
         assert cfg.model_version == "2.0"
@@ -55,7 +55,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert len(cfg.get_config_hash()) == 12
 
     def test_quant_config_immutability(self):
-        """2. Verify QuantConfig instance and nested fields cannot be mutated in-place."""
+        """Verifies that QuantConfig instances and nested mapping fields cannot be mutated in-place."""
         cfg = DEFAULT_QUANT_CONFIG
 
         # Attribute assignment on frozen dataclass
@@ -73,7 +73,7 @@ class TestQuantitativeConfigAndVersionContract:
             cfg.regime_score_factors["BULL"] = 2.00
 
     def test_default_quant_config_canonical_defaults(self):
-        """3. Verify DEFAULT_QUANT_CONFIG canonical defaults and weight structure."""
+        """Verifies DEFAULT_QUANT_CONFIG canonical defaults, parameter values, and weight structures."""
         assert DEFAULT_QUANT_CONFIG.quant_version == "1.0.0"
         assert DEFAULT_QUANT_CONFIG.model_version == "2.0"
         assert sum(DEFAULT_QUANT_CONFIG.signal_weights.values()) == pytest.approx(1.0)
@@ -83,7 +83,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert DEFAULT_QUANT_CONFIG.ma_long_period == 50
 
     def test_version_contract_detects_parameter_changes(self):
-        """4. Verify modifying configuration parameters changes config_hash and version_contract explicitly."""
+        """Verifies that modifying configuration parameters explicitly alters config_hash and version_contract."""
         base_hash = DEFAULT_QUANT_CONFIG.get_config_hash()
 
         # Modify signal weights
@@ -101,7 +101,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert base_hash != cfg_mod_thresh.get_config_hash()
 
     def test_quant_version_and_config_hash_propagation(self):
-        """5. Verify production recommendation and backtest output carry identical quant_version + config_hash."""
+        """Verifies that production recommendation and backtest outputs carry identical quant_version and config_hash."""
         dates = pd.date_range("2026-01-01", periods=60)
         df_stock = pd.DataFrame(
             {
@@ -153,7 +153,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert bt_dict["config"]["quant_config_hash"] == expected_hash
 
     def test_deterministic_output_under_identical_config(self):
-        """6. Verify identical input + identical config yields exact deterministic outputs across repeated runs."""
+        """Verifies that identical input data and configuration produce exact deterministic outputs across repeated runs."""
         dates = pd.date_range("2026-01-01", periods=60)
         df_stock = pd.DataFrame(
             {
@@ -196,7 +196,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert rec1.config_hash == DEFAULT_QUANT_CONFIG.get_config_hash()
 
     def test_custom_config_propagation_and_behavior_change(self):
-        """7. Verify custom QuantConfig alters scoring behavior explicitly when thresholds or weights change."""
+        """Verifies that custom QuantConfig parameter changes alter scoring behavior explicitly when thresholds or weights change."""
         # Standard trend score with Close (55), MA20 (50), MA50 (45) => Base 50 + 25 + 15 + 10 = 100
         score_std = calculate_trend_score(55.0, 50.0, 45.0, config=DEFAULT_QUANT_CONFIG)
         assert score_std == 100.0
@@ -215,7 +215,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert action_strict == "WATCH"  # 68 < 70 strict buy threshold
 
     def test_engine_consumers_accept_config(self):
-        """8. Verify MarketAnalysisEngine and SignalRecommendationEngine accept and use custom config payload."""
+        """Verifies that MarketAnalysisEngine and SignalRecommendationEngine accept and apply custom configuration parameters."""
         dates = pd.date_range("2026-01-01", periods=60)
         df_stock = pd.DataFrame(
             {
@@ -249,7 +249,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert rec.config_hash == custom_cfg.get_config_hash()
 
     def test_batch_quant_config_validation_in_pipeline_context(self):
-        """9. Verify PipelineContext.build_payloads() validates batch quant version/hash consistency."""
+        """Verifies that PipelineContext.build_payloads() validates batch quant_version and config_hash consistency, failing closed on mixed configurations."""
         dates = pd.date_range("2026-01-01", periods=60)
         df_stock = pd.DataFrame(
             {
@@ -296,7 +296,7 @@ class TestQuantitativeConfigAndVersionContract:
 
         u = Universe(universe_type="TEST", candidates=[])
 
-        # Case 1: Batch with identical configuration -> build_payloads succeeds
+        # Batch with identical configuration -> build_payloads succeeds
         ctx_ok = PipelineContext()
         ctx_ok.set_universe(u)
         ctx_ok.scanned_recs = [rec_a1, rec_a2]
@@ -305,7 +305,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert recs_payload["quant_version"] == cfg_a.quant_version
         assert recs_payload["config_hash"] == cfg_a.get_config_hash()
 
-        # Case 2: Batch with mixed configuration -> build_payloads fails closed with ValueError
+        # Batch with mixed configuration -> build_payloads fails closed with ValueError
         ctx_mixed = PipelineContext()
         ctx_mixed.set_universe(u)
         ctx_mixed.scanned_recs = [rec_a1, rec_b1]
@@ -316,7 +316,7 @@ class TestQuantitativeConfigAndVersionContract:
         assert "Mixed quantitative configuration versions" in str(err_ctx.value)
 
     def test_custom_recommendation_generator_config_propagation_and_validation(self):
-        """10. Verify custom recommendation generator receives QuantConfig and output version/hash is validated."""
+        """Verifies that custom recommendation generators receive QuantConfig and that output version contracts match."""
         dates = pd.date_range("2026-01-01", periods=60)
         df_stock = pd.DataFrame(
             {
@@ -357,7 +357,7 @@ class TestQuantitativeConfigAndVersionContract:
                 config=config,
             )
 
-        # Case 1: Custom generator returns matching quant_version and config_hash -> succeeds
+        # Custom generator returning matching quant_version and config_hash succeeds
         input_data_matching = RecommendationInput(
             candidates=[
                 CandidateSpec(
@@ -404,7 +404,7 @@ class TestQuantitativeConfigAndVersionContract:
             )
             return rec
 
-        # Case 2: Custom generator returns mismatched config_hash -> fails closed
+        # Custom generator returning mismatched config_hash fails closed
         with pytest.raises(ValueError) as err_ctx:
             SignalRecommendationEngine.generate_recommendations(
                 input_data_matching, recommendation_generator=custom_gen_mismatched

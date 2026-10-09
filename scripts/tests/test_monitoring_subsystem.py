@@ -1,9 +1,9 @@
 """Deterministic unit and integration tests for the Decomposed Monitoring Subsystem (scripts/monitoring/).
 
 Verifies:
-1. Subsystem module decomposition and clean internal contracts.
-2. Output schema, invariant structure, and payload integrity preservation.
-3. Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
+- Subsystem module decomposition and clean internal contracts.
+- Output schema, invariant structure, and payload integrity preservation.
+- Monitoring fail-safe isolation (monitoring logic does not mutate business/quantitative calculations).
 """
 
 import json

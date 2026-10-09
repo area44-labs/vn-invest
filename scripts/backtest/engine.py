@@ -119,7 +119,7 @@ REASON_ZERO_OR_NEGATIVE_LIQUIDITY = "zero_or_negative_liquidity"
 
 
 def _validate_config_number(
-    val: Any,
+    param_value: Any,
     field_name: str,
     min_val: float = 0.0,
     max_val: float | None = None,
@@ -127,31 +127,35 @@ def _validate_config_number(
     strict_int: bool = False,
 ) -> None:
     """Validate numeric configuration parameters deterministically, raising ValueError on failure."""
-    if val is None:
+    if param_value is None:
         return
 
-    if isinstance(val, bool):
-        raise ValueError(f"{field_name} cannot be a boolean, got {val}")  # noqa: TRY004
+    if isinstance(param_value, bool):
+        raise ValueError(f"{field_name} cannot be a boolean, got {param_value}")  # noqa: TRY004
 
-    if not isinstance(val, (int, float)):
-        raise ValueError(f"{field_name} must be numeric, got {type(val).__name__}: {val}")  # noqa: TRY004
+    if not isinstance(param_value, (int, float)):
+        raise ValueError(
+            f"{field_name} must be numeric, got {type(param_value).__name__}: {param_value}"
+        )  # noqa: TRY004
 
-    if strict_int and not isinstance(val, int):
-        raise ValueError(f"{field_name} must be an integer, got {type(val).__name__}: {val}")
+    if strict_int and not isinstance(param_value, int):
+        raise ValueError(
+            f"{field_name} must be an integer, got {type(param_value).__name__}: {param_value}"
+        )
 
-    f = float(val)
+    f = float(param_value)
     if math.isnan(f) or math.isinf(f):
-        raise ValueError(f"{field_name} cannot be NaN or Inf, got {val}")
+        raise ValueError(f"{field_name} cannot be NaN or Inf, got {param_value}")
 
     if allow_zero:
         if f < min_val:
-            raise ValueError(f"{field_name} must be >= {min_val}, got {val}")
+            raise ValueError(f"{field_name} must be >= {min_val}, got {param_value}")
     else:
         if f <= min_val:
-            raise ValueError(f"{field_name} must be > {min_val}, got {val}")
+            raise ValueError(f"{field_name} must be > {min_val}, got {param_value}")
 
     if max_val is not None and f > max_val:
-        raise ValueError(f"{field_name} must be <= {max_val}, got {val}")
+        raise ValueError(f"{field_name} must be <= {max_val}, got {param_value}")
 
 
 @dataclass
@@ -412,12 +416,12 @@ class ExecutionEligibility:
         }
 
 
-def _safe_float(val: Any) -> float | None:
+def _safe_float(value: Any) -> float | None:
     """Safely convert value to float, returning None if None, NaN, or Inf."""
-    if val is None:
+    if value is None:
         return None
     try:
-        f = float(val)
+        f = float(value)
         if math.isnan(f) or math.isinf(f):
             return None
         return f

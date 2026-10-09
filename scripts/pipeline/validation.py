@@ -202,14 +202,14 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
                     )
 
             for sc_key in ("signal_score", "risk_adjusted_score"):
-                val = rec.get(sc_key)
-                if val is not None and (
-                    not isinstance(val, (int, float))
-                    or isinstance(val, bool)
-                    or not (0.0 <= val <= 100.0)
+                score_value = rec.get(sc_key)
+                if score_value is not None and (
+                    not isinstance(score_value, (int, float))
+                    or isinstance(score_value, bool)
+                    or not (0.0 <= score_value <= 100.0)
                 ):
                     issues.append(
-                        f"Recommendation [{sym}] '{sc_key}' value {val} out of range [0.0, 100.0]"
+                        f"Recommendation [{sym}] '{sc_key}' value {score_value} out of range [0.0, 100.0]"
                     )
 
             conf = rec.get("confidence")

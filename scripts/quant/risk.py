@@ -236,9 +236,9 @@ def normalize_universe_liquidity_scores(
                 else None
             )
 
-        val = _safe_float(avg_val)
-        if val is not None and val > 0:
-            values.append(val)
+        val_float = _safe_float(avg_val)
+        if val_float is not None and val_float > 0:
+            values.append(val_float)
             valid_recs_indices.append(idx)
         else:
             if isinstance(r, Recommendation):

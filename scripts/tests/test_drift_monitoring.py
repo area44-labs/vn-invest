@@ -814,20 +814,20 @@ class TestFeedbackRegressionCases:
 
     def test_summary_inconsistencies_fail_closed(self):
         """Verify malformed or inconsistent payload summary fails closed with FAIL status."""
-        # Case 1: Negative total_scanned
+        # Negative total_scanned value
         curr1 = make_mock_payload(data_as_of="2026-09-17")
         curr1["summary"]["total_scanned"] = -10
         res1 = evaluate_data_and_model_drift(current_payload=curr1)
         assert res1.overall_status == "FAIL"
         assert res1.drift_checks[0].check_name == "drift_current_payload_malformed"
 
-        # Case 2: Negative action count
+        # Negative action count value
         curr2 = make_mock_payload(data_as_of="2026-09-17")
         curr2["summary"]["buy_count"] = -1
         res2 = evaluate_data_and_model_drift(current_payload=curr2)
         assert res2.overall_status == "FAIL"
 
-        # Case 3: Action count sum > total_scanned
+        # Action count sum exceeds total_scanned
         curr3 = make_mock_payload(data_as_of="2026-09-17")
         curr3["summary"]["total_scanned"] = 10
         curr3["summary"]["buy_count"] = 10
@@ -835,33 +835,33 @@ class TestFeedbackRegressionCases:
         res3 = evaluate_data_and_model_drift(current_payload=curr3)
         assert res3.overall_status == "FAIL"
 
-        # Case 4: total_scanned != len(recommendations)
+        # total_scanned mismatch with length of recommendations list
         curr4 = make_mock_payload(data_as_of="2026-09-17")
         curr4["summary"]["total_scanned"] = 30  # len(recs) is 20
         res4 = evaluate_data_and_model_drift(current_payload=curr4)
         assert res4.overall_status == "FAIL"
 
-        # Case 5: Summary action count does not match actual recommendation actions
+        # Summary action count mismatch with actual recommendation item actions
         curr5 = make_mock_payload(data_as_of="2026-09-17")
         curr5["summary"]["buy_count"] = 10  # Actual BUY is 5
         curr5["summary"]["watch_count"] = 0
         res5 = evaluate_data_and_model_drift(current_payload=curr5)
         assert res5.overall_status == "FAIL"
 
-        # Case 6: Sum of action counts < total_scanned
+        # Sum of action counts less than total_scanned
         curr6 = make_mock_payload(data_as_of="2026-09-17")
         curr6["summary"]["total_scanned"] = 20
         curr6["summary"]["buy_count"] = 0  # Sum = 15 < 20
         res6 = evaluate_data_and_model_drift(current_payload=curr6)
         assert res6.overall_status == "FAIL"
 
-        # Case 7: Non-integer action count
+        # Non-integer action count value
         curr7 = make_mock_payload(data_as_of="2026-09-17")
         curr7["summary"]["buy_count"] = 5.5  # type: ignore[typeddict-item]
         res7 = evaluate_data_and_model_drift(current_payload=curr7)
         assert res7.overall_status == "FAIL"
 
-        # Case 8: Bool count
+        # Boolean action count value
         curr8 = make_mock_payload(data_as_of="2026-09-17")
         curr8["summary"]["buy_count"] = True  # type: ignore[typeddict-item]
         res8 = evaluate_data_and_model_drift(current_payload=curr8)

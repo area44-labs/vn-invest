@@ -7,24 +7,24 @@ from typing import Any
 from scripts.monitoring.models import CANONICAL_CONFIDENCE_BUCKETS
 
 
-def is_canonical_yyyy_mm_dd(val: Any) -> bool:
+def is_canonical_yyyy_mm_dd(value: Any) -> bool:
     """Validate if a value is strictly a canonical YYYY-MM-DD calendar date string.
 
     Rejects booleans, non-strings, single-digit months/days, time components,
     timezone offsets/suffixes, and invalid calendar dates.
     """
-    if not isinstance(val, str) or isinstance(val, bool):
+    if not isinstance(value, str) or isinstance(value, bool):
         return False
-    if len(val) != 10:
+    if len(value) != 10:
         return False
-    parts = val.split("-")
+    parts = value.split("-")
     if len(parts) != 3 or len(parts[0]) != 4 or len(parts[1]) != 2 or len(parts[2]) != 2:
         return False
     if not (parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit()):
         return False
     try:
-        dt = datetime.strptime(val, "%Y-%m-%d").replace(tzinfo=UTC)
-        return dt.strftime("%Y-%m-%d") == val
+        dt = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=UTC)
+        return dt.strftime("%Y-%m-%d") == value
     except ValueError:
         return False
 

@@ -132,10 +132,10 @@ class Recommendation:
 
         # Ensure tuple types for sequence fields
         for field_name in ("data_quality_issues", "reasons", "warnings", "invalidation"):
-            val = getattr(self, field_name)
-            if isinstance(val, (list, set)):
-                object.__setattr__(self, field_name, tuple(str(x) for x in val))
-            elif not isinstance(val, tuple):
+            field_value = getattr(self, field_name)
+            if isinstance(field_value, (list, set)):
+                object.__setattr__(self, field_name, tuple(str(x) for x in field_value))
+            elif not isinstance(field_value, tuple):
                 raise TypeError(
                     f"Recommendation [{sym_u}] field '{field_name}' must be tuple or list"
                 )

@@ -185,7 +185,7 @@ class TestAuditTrailObservability:
         }
 
     def test_complete_production_universe(self):
-        """Scenario 1: Complete production universe -> no failures, 100% processed."""
+        """Verifies that a complete healthy production universe results in 100% symbol processing with zero audit failures."""
         expected = ["FPT", "MWG", "VN30", "VNINDEX"]
         summary = {
             "status": "SUCCESS",
@@ -217,7 +217,7 @@ class TestAuditTrailObservability:
         assert audit["summary"]["diagnostic_count"] == 0
 
     def test_one_invalid_symbol(self):
-        """Scenario 2: One invalid symbol in candidates universe."""
+        """Verifies that an invalid candidate symbol is recorded in audit exclusions and passes audit set invariants."""
         payload = copy.deepcopy(self.healthy_payload)
         bad_rec = self._make_insufficient_rec("BADSYM")
         payload["recommendations"].append(bad_rec)
@@ -261,7 +261,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["stage"] == "STOCK_FETCH"
 
     def test_one_insufficient_history_symbol(self):
-        """Scenario 3: One symbol with insufficient historical data."""
+        """Verifies that a candidate symbol with insufficient history is classified under INSUFFICIENT_HISTORICAL_DATA in audit exclusions."""
         payload = copy.deepcopy(self.healthy_payload)
         insuf_rec = self._make_insufficient_rec("SHORT")
         payload["recommendations"].append(insuf_rec)
@@ -304,7 +304,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "INSUFFICIENT_HISTORICAL_DATA"
 
     def test_one_provider_failure(self):
-        """Scenario 4: One symbol encountering provider failure."""
+        """Verifies that a provider network failure for a symbol is classified under PROVIDER_FAILURE in audit exclusions."""
         payload = copy.deepcopy(self.healthy_payload)
         fail_rec = self._make_insufficient_rec("FAILSYM")
         payload["recommendations"].append(fail_rec)
@@ -347,7 +347,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "PROVIDER_FAILURE"
 
     def test_one_temporal_invalid_symbol(self):
-        """Scenario 5: One symbol failing temporal validation."""
+        """Verifies that a stale or temporally invalid candidate symbol is classified under TEMPORAL_INVALID in audit exclusions."""
         payload = copy.deepcopy(self.healthy_payload)
         stale_rec = self._make_insufficient_rec("STALE")
         payload["recommendations"].append(stale_rec)
@@ -391,7 +391,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "TEMPORAL_INVALID"
 
     def test_mixed_classifications(self):
-        """Scenario 6: Universe containing mixed symbol classifications."""
+        """Verifies audit invariant checks across a universe containing mixed symbol failure categories."""
         payload = copy.deepcopy(self.healthy_payload)
         payload["recommendations"].extend(
             [
@@ -482,7 +482,7 @@ class TestAuditTrailObservability:
         )
 
     def test_missing_symbol_detection(self):
-        """Scenario 7: Symbol in expected universe missing from scan results."""
+        """Verifies that candidate symbols missing from scan results are flagged as UNIVERSE_INCOMPLETE with MISSING status."""
         payload = copy.deepcopy(self.healthy_payload)
 
         ex_record = {
@@ -523,7 +523,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["status"] == "MISSING"
 
     def test_duplicate_classification_detection(self):
-        """Scenario 8: Detection of duplicate classification (symbol in multiple disjoint sets)."""
+        """Verifies that a symbol classified in multiple disjoint sets triggers an audit invariant failure."""
         audit = {
             "status": "FAILED",
             "failed_stage": "STOCK_FETCH",
@@ -566,7 +566,7 @@ class TestAuditTrailObservability:
         assert "Duplicate symbol classification detected" in res.message
 
     def test_monitoring_count_consistency(self):
-        """Scenario 9: Verification that production monitoring consumes exact pipeline universe_audit counts."""
+        """Verifies that production monitoring consumes exact pipeline universe audit counts without modification."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
@@ -617,7 +617,7 @@ class TestAuditTrailObservability:
             assert mon_dict["metrics"]["universe_audit"] == audit_input
 
     def test_monitoring_count_mismatch_internal_consistency_failure(self):
-        """Scenario 10: Count mismatch between set lengths and reported counts raises internal consistency failure."""
+        """Verifies that a count mismatch between set lengths and reported summary counts triggers an audit invariant failure."""
         audit_mismatched = {
             "status": "SUCCESS",
             "failed_stage": None,
@@ -645,7 +645,7 @@ class TestAuditTrailObservability:
         assert "Count mismatch for expected" in res.message
 
     def test_monitoring_fail_diagnostic_identifies_failed_check(self):
-        """Scenario 11: When monitoring produces FAIL, diagnostics explicitly identify the failed check."""
+        """Verifies that when monitoring status is FAIL, output diagnostics explicitly identify the failing monitoring check."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
             os.makedirs(hist_dir, exist_ok=True)
@@ -679,7 +679,7 @@ class TestAuditTrailObservability:
                 assert d["status"] == "FAIL"
 
     def test_output_validation_failure_correct_stage_category(self):
-        """Scenario 12: Payload validation failure identifies stage = OUTPUT_VALIDATION, category = OUTPUT_VALIDATION_FAILURE."""
+        """Verifies that payload validation failure attaches stage OUTPUT_VALIDATION and category OUTPUT_VALIDATION_FAILURE to error diagnostics."""
         from scripts.generate_report import validate_final_payload_integrity
 
         invalid_payload = copy.deepcopy(self.healthy_payload)
@@ -698,7 +698,7 @@ class TestAuditTrailObservability:
         assert diag["status"] == "FAIL"
 
     def test_rate_limit_failure(self):
-        """Scenario 13: Rate limit failure produces stage = STOCK_FETCH, category = RATE_LIMIT."""
+        """Verifies that provider rate limiting produces audit exclusion records with stage STOCK_FETCH and category RATE_LIMIT."""
         payload = copy.deepcopy(self.healthy_payload)
         rl_rec = self._make_insufficient_rec("RLSYM")
         payload["recommendations"].append(rl_rec)
@@ -743,7 +743,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "RATE_LIMIT"
 
     def test_artifact_preservation_remains_unchanged(self):
-        """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk byte-for-byte."""
+        """Verifies that failed output validation preserves existing generated report artifacts on disk byte-for-byte."""
         from scripts.generate_report import validate_final_payload_integrity
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -803,7 +803,7 @@ class TestAuditTrailObservability:
             assert all_files_in_hist == {"index.json", "2026-09-25.json"}
 
     def test_diagnostics_deterministic_across_repeated_runs(self):
-        """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
+        """Verifies that build_universe_audit produces identical output and deterministically sorted symbol lists across repeated executions."""
         from scripts.domain.universe import Universe, UniverseScanResult
         from scripts.generate_report import build_universe_audit
 
