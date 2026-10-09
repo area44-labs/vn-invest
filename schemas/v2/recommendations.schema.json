@@ -32,22 +32,13 @@
       "type": "string"
     },
     "data_as_of": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "source_date": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "data_source": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "universe_info": {
       "type": "object",
@@ -64,84 +55,47 @@
     "market": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "regime",
-        "confidence",
-        "metrics"
-      ],
+      "required": ["regime", "confidence", "metrics"],
       "properties": {
         "regime": {
           "type": "string",
-          "enum": [
-            "STRONG_BULL",
-            "BULL",
-            "DEFENSIVE",
-            "BEAR",
-            "PANIC"
-          ]
+          "enum": ["STRONG_BULL", "BULL", "DEFENSIVE", "BEAR", "PANIC"]
         },
         "confidence": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 1.0,
           "description": "Deterministic heuristic market regime confidence score (0.0 to 1.0), derived from data completeness rules and historical sequence length. Not a statistically calibrated probability."
         },
         "regime_score": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
         },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "vnindex_value",
-            "vnindex_change_pct"
-          ],
+          "required": ["vnindex_value", "vnindex_change_pct"],
           "properties": {
             "vnindex_value": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "vnindex_change_pct": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "vn30_change_pct": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "market_breadth_ratio": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": ["number", "null"],
               "minimum": 0.0,
               "maximum": 1.0
             },
             "volatility": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "volume_20d_ratio": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             }
           }
         }
@@ -216,24 +170,14 @@
         },
         "exchange": {
           "type": "string",
-          "enum": [
-            "HOSE",
-            "HNX",
-            "UPCOM"
-          ]
+          "enum": ["HOSE", "HNX", "UPCOM"]
         },
         "sector": {
           "type": "string"
         },
         "action": {
           "type": "string",
-          "enum": [
-            "BUY",
-            "WATCH",
-            "HOLD",
-            "SELL",
-            "AVOID"
-          ]
+          "enum": ["BUY", "WATCH", "HOLD", "SELL", "AVOID"]
         },
         "model_version": {
           "type": "string"
@@ -246,11 +190,7 @@
         },
         "data_quality": {
           "type": "string",
-          "enum": [
-            "SUFFICIENT",
-            "PARTIAL",
-            "INSUFFICIENT"
-          ]
+          "enum": ["SUFFICIENT", "PARTIAL", "INSUFFICIENT"]
         },
         "data_quality_issues": {
           "type": "array",
@@ -259,170 +199,92 @@
           }
         },
         "data_as_of": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "data_source": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "signal_score": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
         },
         "risk_adjusted_score": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 100.0
         },
         "score_components": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": ["object", "null"],
           "additionalProperties": false,
           "properties": {
             "trend": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "momentum": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "volume": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "relative_strength": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "divergence": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             }
           }
         },
         "confidence": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": 0.0,
           "maximum": 1.0,
           "description": "Deterministic heuristic model-confidence score (0.0 to 1.0) derived from data completeness, signal component agreement, volatility/drawdown bounds, and RSI extremes. Not a statistically calibrated probability."
         },
         "risk_level": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "enum": [
-            "LOW",
-            "MEDIUM",
-            "HIGH",
-            null
-          ]
+          "type": ["string", "null"],
+          "enum": ["LOW", "MEDIUM", "HIGH", null]
         },
         "expected_return": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "expected_return_5d",
-            "expected_return_10d",
-            "expected_return_20d"
-          ],
+          "required": ["expected_return_5d", "expected_return_10d", "expected_return_20d"],
           "properties": {
             "expected_return_5d": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "expected_return_10d": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "expected_return_20d": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             }
           }
         },
         "risk_metrics": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "var_t25",
-            "es_t25",
-            "volatility_60d",
-            "max_drawdown",
-            "liquidity_score"
-          ],
+          "required": ["var_t25", "es_t25", "volatility_60d", "max_drawdown", "liquidity_score"],
           "properties": {
             "var_t25": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "es_t25": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "volatility_60d": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "max_drawdown": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "liquidity_score": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": ["number", "null"],
               "minimum": 0.0,
               "maximum": 100.0
             },
             "avg_value_20d": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             }
           }
         },
@@ -441,52 +303,28 @@
           ],
           "properties": {
             "current_price": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "entry_low": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "entry_high": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "stop_loss": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "tp1": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "tp2": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "risk_reward": {
-              "type": [
-                "number",
-                "null"
-              ]
+              "type": ["number", "null"]
             },
             "position_percent": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": ["number", "null"],
               "minimum": 0.0,
               "maximum": 100.0
             }
@@ -511,43 +349,24 @@
           }
         },
         "divergence": {
-          "type": [
-            "object",
-            "null"
-          ],
+          "type": ["object", "null"],
           "additionalProperties": false,
           "properties": {
             "1H": {
               "type": "string",
-              "enum": [
-                "BULLISH",
-                "BEARISH",
-                "NONE"
-              ]
+              "enum": ["BULLISH", "BEARISH", "NONE"]
             },
             "1D": {
               "type": "string",
-              "enum": [
-                "BULLISH",
-                "BEARISH",
-                "NONE"
-              ]
+              "enum": ["BULLISH", "BEARISH", "NONE"]
             },
             "1W": {
               "type": "string",
-              "enum": [
-                "BULLISH",
-                "BEARISH",
-                "NONE"
-              ]
+              "enum": ["BULLISH", "BEARISH", "NONE"]
             },
             "1M": {
               "type": "string",
-              "enum": [
-                "BULLISH",
-                "BEARISH",
-                "NONE"
-              ]
+              "enum": ["BULLISH", "BEARISH", "NONE"]
             }
           }
         }
