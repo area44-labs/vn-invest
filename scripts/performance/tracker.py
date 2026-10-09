@@ -109,37 +109,45 @@ class PerformanceTracker:
     ) -> dict[str, Any]:
         """Construct unified canonical performance payload.
 
-        Enforces fail-safe isolation: if any metric extraction, budget, or validation error occurs,
-        logs a warning and returns a valid fallback payload without interrupting business or quantitative pipeline processing.
+        Enforces fail-safe isolation for non-workload instrumentation metrics while ensuring
+        canonical workload metadata errors in update mode fail closed.
         """
+        from scripts.performance.regression import WorkloadMetadataError
         from scripts.pipeline.validation import validate_performance_payload
 
+        # 1. Non-critical provider instrumentation (safe fallback if call_history is unreadable)
         try:
             provider_summary = aggregate_provider_performance(call_history)
             duplicates = detect_duplicate_operations(call_history, self.symbol_requests)
+        except Exception as provider_exc:  # noqa: BLE001
+            logger.warning("Provider call history instrumentation error: %s", provider_exc)
+            provider_summary = create_default_performance_payload()["provider"]
+            duplicates = []
 
-            stages_list: list[dict[str, Any]] = []
-            if pipeline_elapsed is not None:
-                stages_list.append(
-                    {
-                        "stage": "pipeline",
-                        "elapsed_seconds": round(max(0.0, float(pipeline_elapsed)), 4),
-                        "status": str(pipeline_status),
-                    }
-                )
+        # 2. Stage metrics & Workload metadata assembly
+        stages_list: list[dict[str, Any]] = []
+        if pipeline_elapsed is not None:
+            stages_list.append(
+                {
+                    "stage": "pipeline",
+                    "elapsed_seconds": round(max(0.0, float(pipeline_elapsed)), 4),
+                    "status": str(pipeline_status),
+                }
+            )
 
-            stages_list.extend(self.stage_collector.get_stages())
+        stages_list.extend(self.stage_collector.get_stages())
+        workload_meta = self.get_workload_metadata()
 
-            workload_meta = self.get_workload_metadata()
+        payload: dict[str, Any] = {
+            "schema_version": "2.0",
+            "stages": stages_list,
+            "provider": provider_summary,
+            "duplicate_operations": duplicates,
+            "workload": workload_meta,
+        }
 
-            payload: dict[str, Any] = {
-                "schema_version": "2.0",
-                "stages": stages_list,
-                "provider": provider_summary,
-                "duplicate_operations": duplicates,
-                "workload": workload_meta,
-            }
-
+        # 3. Regression evaluation & Budget evaluation
+        try:
             payload["regression"] = evaluate_performance_regression(
                 payload, is_update_mode=update_data
             )
@@ -149,13 +157,14 @@ class PerformanceTracker:
 
             validate_performance_payload(payload)
             return payload
-        except Exception as exc:
+        except WorkloadMetadataError as workload_exc:
             if update_data:
-                logger.error(
-                    "Critical performance instrumentation/regression error in update mode: %s",
-                    exc,
-                )
+                logger.error("Canonical workload metadata error in update mode: %s", workload_exc)
                 raise
+            logger.warning("Workload metadata error in non-update mode: %s", workload_exc)
+            fallback = create_default_performance_payload()
+            return fallback
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Instrumentation error during get_performance_payload: %s", exc)
             fallback = create_default_performance_payload()
             try:

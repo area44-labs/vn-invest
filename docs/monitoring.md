@@ -97,7 +97,7 @@ Performance regression monitoring uses explicit mode selection (`update_data=Tru
   - `stock_fetch` baseline: $N_{stocks} \times (3.5 + 0.8)\text{s}$ (e.g. 189.2s for 44 stocks)
   - `pipeline` total baseline: $B_{bench} + B_{stock} + 5.0\text{s}$
 - **Logical Request Isolation**: Workload counts derive strictly from logical pipeline requests recorded in `PerformanceTracker.get_workload_metadata()`. Provider retries, rate-limit cooldowns, or source fallbacks do not inflate logical workload request counts.
-- **Explicit Mode Propagation & Fail-Closed Validation**: `update_data` is passed explicitly from `PipelineContext` through `PerformanceStage` and `PerformanceTracker` to `evaluate_performance_regression()`. In update mode, missing or invalid canonical workload metadata fails closed immediately without falling back to provider call history or duplicate operation counts.
+- **Explicit Mode Propagation & Exception Classification**: `update_data` is passed explicitly from `PipelineContext` through `PerformanceStage` and `PerformanceTracker` to `evaluate_performance_regression()`. In update mode, missing or invalid canonical workload metadata raises `WorkloadMetadataError` and fails closed immediately without returning fallback payloads. Non-workload instrumentation errors continue to use safe fallback payloads as designed.
 
 ---
 

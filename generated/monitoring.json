@@ -1,6 +1,6 @@
 {
   "overall_status": "WARNING",
-  "generated_at": "2026-10-08T16:38:39.472048+00:00",
+  "generated_at": "2026-10-09T00:38:16.169117+00:00",
   "data_as_of": "2026-10-08",
   "checks": [
     {
@@ -27,10 +27,10 @@
       "status": "PASS",
       "measured_value": {
         "data_as_of": "2026-10-08",
-        "staleness_days": 0
+        "staleness_days": 1
       },
       "expected_condition": "staleness_days <= 3",
-      "message": "Data is fresh (0 days old as of 2026-10-08)"
+      "message": "Data is fresh (1 days old as of 2026-10-08)"
     },
     {
       "check_name": "numeric_sanity",
@@ -98,20 +98,20 @@
       "status": "PASS",
       "measured_value": {
         "status": "SUFFICIENT",
-        "valid_row_count": 249
+        "valid_row_count": 248
       },
       "expected_condition": "OHLCV data for VNINDEX is SUFFICIENT",
-      "message": "OHLCV data quality for 'VNINDEX' is SUFFICIENT (249 valid rows)"
+      "message": "OHLCV data quality for 'VNINDEX' is SUFFICIENT (248 valid rows)"
     },
     {
       "check_name": "ohlcv_quality_vn30",
       "status": "PASS",
       "measured_value": {
         "status": "SUFFICIENT",
-        "valid_row_count": 249
+        "valid_row_count": 248
       },
       "expected_condition": "OHLCV data for VN30 is SUFFICIENT",
-      "message": "OHLCV data quality for 'VN30' is SUFFICIENT (249 valid rows)"
+      "message": "OHLCV data quality for 'VN30' is SUFFICIENT (248 valid rows)"
     },
     {
       "check_name": "drift_processed_ratio",
@@ -175,9 +175,9 @@
     {
       "check_name": "drift_risk_adjusted_score",
       "status": "WARNING",
-      "measured_value": 15.9,
+      "measured_value": 15.9024,
       "expected_condition": "Within threshold of baseline (32.1997)",
-      "message": "Risk-adjusted score mean diff is 16.2997 (current=15.9000, baseline=32.1997)"
+      "message": "Risk-adjusted score mean diff is 16.2973 (current=15.9024, baseline=32.1997)"
     },
     {
       "check_name": "drift_confidence_mean",
@@ -204,26 +204,26 @@
           {
             "stage": "pipeline",
             "baseline_seconds": 194.2,
-            "actual_seconds": 208.2679,
-            "exceeded_ratio": 1.0724,
+            "actual_seconds": 240.184,
+            "exceeded_ratio": 1.2368,
             "status": "PASS",
-            "message": "Stage 'pipeline' duration 208.2679s within thresholds (baseline=194.2000s)"
+            "message": "Stage 'pipeline' duration 240.1840s within thresholds (baseline=194.2000s)"
           },
           {
             "stage": "benchmark_fetch",
             "baseline_seconds": 8.6,
-            "actual_seconds": 11.3471,
-            "exceeded_ratio": 1.3194,
+            "actual_seconds": 11.4766,
+            "exceeded_ratio": 1.3345,
             "status": "PASS",
-            "message": "Stage 'benchmark_fetch' duration 11.3471s within thresholds (baseline=8.6000s)"
+            "message": "Stage 'benchmark_fetch' duration 11.4766s within thresholds (baseline=8.6000s)"
           },
           {
             "stage": "stock_fetch",
             "baseline_seconds": 180.6,
-            "actual_seconds": 192.4899,
-            "exceeded_ratio": 1.0658,
+            "actual_seconds": 224.0319,
+            "exceeded_ratio": 1.2405,
             "status": "PASS",
-            "message": "Stage 'stock_fetch' duration 192.4899s within thresholds (baseline=180.6000s)"
+            "message": "Stage 'stock_fetch' duration 224.0319s within thresholds (baseline=180.6000s)"
           },
           {
             "stage": "temporal_validation",
@@ -236,10 +236,10 @@
           {
             "stage": "market_calculation",
             "baseline_seconds": 0.5,
-            "actual_seconds": 0.0078,
-            "exceeded_ratio": 0.0156,
+            "actual_seconds": 0.0081,
+            "exceeded_ratio": 0.0162,
             "status": "PASS",
-            "message": "Stage 'market_calculation' duration 0.0078s within thresholds (baseline=0.5000s)"
+            "message": "Stage 'market_calculation' duration 0.0081s within thresholds (baseline=0.5000s)"
           },
           {
             "stage": "regime_calculation",
@@ -252,18 +252,18 @@
           {
             "stage": "recommendation_calculation",
             "baseline_seconds": 2.0,
-            "actual_seconds": 3.1847,
-            "exceeded_ratio": 1.5923,
+            "actual_seconds": 3.3242,
+            "exceeded_ratio": 1.6621,
             "status": "PASS",
-            "message": "Stage 'recommendation_calculation' duration 3.1847s within thresholds (baseline=2.0000s)"
+            "message": "Stage 'recommendation_calculation' duration 3.3242s within thresholds (baseline=2.0000s)"
           },
           {
             "stage": "risk_calculation",
             "baseline_seconds": 1.0,
-            "actual_seconds": 0.002,
-            "exceeded_ratio": 0.002,
+            "actual_seconds": 0.0021,
+            "exceeded_ratio": 0.0021,
             "status": "PASS",
-            "message": "Stage 'risk_calculation' duration 0.0020s within thresholds (baseline=1.0000s)"
+            "message": "Stage 'risk_calculation' duration 0.0021s within thresholds (baseline=1.0000s)"
           }
         ]
       },
@@ -272,19 +272,21 @@
     },
     {
       "check_name": "provider_budget",
-      "status": "PASS",
+      "status": "WARNING",
       "measured_value": {
-        "overall_status": "PASS",
+        "overall_status": "DEGRADED",
         "total_calls": 44,
         "max_calls_budget": 120,
         "duplicate_operations_count": 0,
         "max_duplicates_budget": 5,
-        "total_elapsed_seconds": 49.6312,
+        "total_elapsed_seconds": 81.2537,
         "max_elapsed_budget_seconds": 60.0,
-        "violations": []
+        "violations": [
+          "Total provider elapsed time (81.2537s) exceeded budget (60.0000s)"
+        ]
       },
       "expected_condition": "Provider operations stay within allocated call, duplicate, and time budgets",
-      "message": "Provider budget check passed (44/120 calls, 0/5 duplicates, 49.63s/60.00s elapsed)"
+      "message": "Provider budget exceeded: Total provider elapsed time (81.2537s) exceeded budget (60.0000s)"
     }
   ],
   "metrics": {
@@ -424,17 +426,17 @@
         "stages": [
           {
             "stage": "pipeline",
-            "elapsed_seconds": 208.4952,
+            "elapsed_seconds": 240.4252,
             "status": "SUCCESS"
           },
           {
             "stage": "benchmark_fetch",
-            "elapsed_seconds": 11.3471,
+            "elapsed_seconds": 11.4766,
             "status": "SUCCESS"
           },
           {
             "stage": "stock_fetch",
-            "elapsed_seconds": 192.4899,
+            "elapsed_seconds": 224.0319,
             "status": "SUCCESS"
           },
           {
@@ -444,7 +446,7 @@
           },
           {
             "stage": "market_calculation",
-            "elapsed_seconds": 0.0078,
+            "elapsed_seconds": 0.0081,
             "status": "SUCCESS"
           },
           {
@@ -454,22 +456,22 @@
           },
           {
             "stage": "recommendation_calculation",
-            "elapsed_seconds": 3.1847,
+            "elapsed_seconds": 3.3242,
             "status": "SUCCESS"
           },
           {
             "stage": "risk_calculation",
-            "elapsed_seconds": 0.002,
+            "elapsed_seconds": 0.0021,
             "status": "SUCCESS"
           },
           {
             "stage": "monitoring",
-            "elapsed_seconds": 0.1467,
+            "elapsed_seconds": 0.1572,
             "status": "SUCCESS"
           },
           {
             "stage": "payload_validation",
-            "elapsed_seconds": 0.0592,
+            "elapsed_seconds": 0.0597,
             "status": "SUCCESS"
           }
         ],
@@ -478,39 +480,90 @@
           "successful_calls": 44,
           "failed_calls": 0,
           "retry_count": 0,
-          "total_elapsed_seconds": 49.6312,
-          "average_call_seconds": 1.128,
+          "total_elapsed_seconds": 81.2537,
+          "average_call_seconds": 1.8467,
           "calls_by_source": {
             "kbs": 44
           }
         },
         "duplicate_operations": [],
+        "workload": {
+          "benchmark_request_count": 2,
+          "stock_request_count": 42,
+          "total_request_count": 44,
+          "requested_symbols": [
+            "ACB",
+            "BCM",
+            "BID",
+            "BVH",
+            "CTG",
+            "DGC",
+            "DIG",
+            "DXG",
+            "FPT",
+            "FRT",
+            "GAS",
+            "GMD",
+            "GVR",
+            "HCM",
+            "HDB",
+            "HPG",
+            "HSG",
+            "MBB",
+            "MSN",
+            "MWG",
+            "NKG",
+            "PDR",
+            "PLX",
+            "POW",
+            "PVD",
+            "SAB",
+            "SHB",
+            "SSB",
+            "SSI",
+            "STB",
+            "TCB",
+            "TPB",
+            "VCB",
+            "VCI",
+            "VHM",
+            "VIB",
+            "VIC",
+            "VJC",
+            "VN30",
+            "VND",
+            "VNINDEX",
+            "VNM",
+            "VPB",
+            "VRE"
+          ]
+        },
         "regression": {
           "overall_status": "PASS",
           "stage_evaluations": [
             {
               "stage": "pipeline",
               "baseline_seconds": 194.2,
-              "actual_seconds": 208.4952,
-              "exceeded_ratio": 1.0736,
+              "actual_seconds": 240.4252,
+              "exceeded_ratio": 1.238,
               "status": "PASS",
-              "message": "Stage 'pipeline' duration 208.4952s within thresholds (baseline=194.2000s)"
+              "message": "Stage 'pipeline' duration 240.4252s within thresholds (baseline=194.2000s)"
             },
             {
               "stage": "benchmark_fetch",
               "baseline_seconds": 8.6,
-              "actual_seconds": 11.3471,
-              "exceeded_ratio": 1.3194,
+              "actual_seconds": 11.4766,
+              "exceeded_ratio": 1.3345,
               "status": "PASS",
-              "message": "Stage 'benchmark_fetch' duration 11.3471s within thresholds (baseline=8.6000s)"
+              "message": "Stage 'benchmark_fetch' duration 11.4766s within thresholds (baseline=8.6000s)"
             },
             {
               "stage": "stock_fetch",
               "baseline_seconds": 180.6,
-              "actual_seconds": 192.4899,
-              "exceeded_ratio": 1.0658,
+              "actual_seconds": 224.0319,
+              "exceeded_ratio": 1.2405,
               "status": "PASS",
-              "message": "Stage 'stock_fetch' duration 192.4899s within thresholds (baseline=180.6000s)"
+              "message": "Stage 'stock_fetch' duration 224.0319s within thresholds (baseline=180.6000s)"
             },
             {
               "stage": "temporal_validation",
@@ -523,10 +576,10 @@
             {
               "stage": "market_calculation",
               "baseline_seconds": 0.5,
-              "actual_seconds": 0.0078,
-              "exceeded_ratio": 0.0156,
+              "actual_seconds": 0.0081,
+              "exceeded_ratio": 0.0162,
               "status": "PASS",
-              "message": "Stage 'market_calculation' duration 0.0078s within thresholds (baseline=0.5000s)"
+              "message": "Stage 'market_calculation' duration 0.0081s within thresholds (baseline=0.5000s)"
             },
             {
               "stage": "regime_calculation",
@@ -539,46 +592,48 @@
             {
               "stage": "recommendation_calculation",
               "baseline_seconds": 2.0,
-              "actual_seconds": 3.1847,
-              "exceeded_ratio": 1.5923,
+              "actual_seconds": 3.3242,
+              "exceeded_ratio": 1.6621,
               "status": "PASS",
-              "message": "Stage 'recommendation_calculation' duration 3.1847s within thresholds (baseline=2.0000s)"
+              "message": "Stage 'recommendation_calculation' duration 3.3242s within thresholds (baseline=2.0000s)"
             },
             {
               "stage": "risk_calculation",
               "baseline_seconds": 1.0,
-              "actual_seconds": 0.002,
-              "exceeded_ratio": 0.002,
+              "actual_seconds": 0.0021,
+              "exceeded_ratio": 0.0021,
               "status": "PASS",
-              "message": "Stage 'risk_calculation' duration 0.0020s within thresholds (baseline=1.0000s)"
+              "message": "Stage 'risk_calculation' duration 0.0021s within thresholds (baseline=1.0000s)"
             },
             {
               "stage": "monitoring",
               "baseline_seconds": 1.5,
-              "actual_seconds": 0.1467,
-              "exceeded_ratio": 0.0978,
+              "actual_seconds": 0.1572,
+              "exceeded_ratio": 0.1048,
               "status": "PASS",
-              "message": "Stage 'monitoring' duration 0.1467s within thresholds (baseline=1.5000s)"
+              "message": "Stage 'monitoring' duration 0.1572s within thresholds (baseline=1.5000s)"
             },
             {
               "stage": "payload_validation",
               "baseline_seconds": 0.5,
-              "actual_seconds": 0.0592,
-              "exceeded_ratio": 0.1184,
+              "actual_seconds": 0.0597,
+              "exceeded_ratio": 0.1194,
               "status": "PASS",
-              "message": "Stage 'payload_validation' duration 0.0592s within thresholds (baseline=0.5000s)"
+              "message": "Stage 'payload_validation' duration 0.0597s within thresholds (baseline=0.5000s)"
             }
           ]
         },
         "budget": {
-          "overall_status": "PASS",
+          "overall_status": "DEGRADED",
           "total_calls": 44,
           "max_calls_budget": 120,
           "duplicate_operations_count": 0,
           "max_duplicates_budget": 5,
-          "total_elapsed_seconds": 49.6312,
+          "total_elapsed_seconds": 81.2537,
           "max_elapsed_budget_seconds": 60.0,
-          "violations": []
+          "violations": [
+            "Total provider elapsed time (81.2537s) exceeded budget (60.0000s)"
+          ]
         }
       }
     },
@@ -587,17 +642,17 @@
       "stages": [
         {
           "stage": "pipeline",
-          "elapsed_seconds": 208.4952,
+          "elapsed_seconds": 240.4252,
           "status": "SUCCESS"
         },
         {
           "stage": "benchmark_fetch",
-          "elapsed_seconds": 11.3471,
+          "elapsed_seconds": 11.4766,
           "status": "SUCCESS"
         },
         {
           "stage": "stock_fetch",
-          "elapsed_seconds": 192.4899,
+          "elapsed_seconds": 224.0319,
           "status": "SUCCESS"
         },
         {
@@ -607,7 +662,7 @@
         },
         {
           "stage": "market_calculation",
-          "elapsed_seconds": 0.0078,
+          "elapsed_seconds": 0.0081,
           "status": "SUCCESS"
         },
         {
@@ -617,22 +672,22 @@
         },
         {
           "stage": "recommendation_calculation",
-          "elapsed_seconds": 3.1847,
+          "elapsed_seconds": 3.3242,
           "status": "SUCCESS"
         },
         {
           "stage": "risk_calculation",
-          "elapsed_seconds": 0.002,
+          "elapsed_seconds": 0.0021,
           "status": "SUCCESS"
         },
         {
           "stage": "monitoring",
-          "elapsed_seconds": 0.1467,
+          "elapsed_seconds": 0.1572,
           "status": "SUCCESS"
         },
         {
           "stage": "payload_validation",
-          "elapsed_seconds": 0.0592,
+          "elapsed_seconds": 0.0597,
           "status": "SUCCESS"
         }
       ],
@@ -641,39 +696,90 @@
         "successful_calls": 44,
         "failed_calls": 0,
         "retry_count": 0,
-        "total_elapsed_seconds": 49.6312,
-        "average_call_seconds": 1.128,
+        "total_elapsed_seconds": 81.2537,
+        "average_call_seconds": 1.8467,
         "calls_by_source": {
           "kbs": 44
         }
       },
       "duplicate_operations": [],
+      "workload": {
+        "benchmark_request_count": 2,
+        "stock_request_count": 42,
+        "total_request_count": 44,
+        "requested_symbols": [
+          "ACB",
+          "BCM",
+          "BID",
+          "BVH",
+          "CTG",
+          "DGC",
+          "DIG",
+          "DXG",
+          "FPT",
+          "FRT",
+          "GAS",
+          "GMD",
+          "GVR",
+          "HCM",
+          "HDB",
+          "HPG",
+          "HSG",
+          "MBB",
+          "MSN",
+          "MWG",
+          "NKG",
+          "PDR",
+          "PLX",
+          "POW",
+          "PVD",
+          "SAB",
+          "SHB",
+          "SSB",
+          "SSI",
+          "STB",
+          "TCB",
+          "TPB",
+          "VCB",
+          "VCI",
+          "VHM",
+          "VIB",
+          "VIC",
+          "VJC",
+          "VN30",
+          "VND",
+          "VNINDEX",
+          "VNM",
+          "VPB",
+          "VRE"
+        ]
+      },
       "regression": {
         "overall_status": "PASS",
         "stage_evaluations": [
           {
             "stage": "pipeline",
             "baseline_seconds": 194.2,
-            "actual_seconds": 208.4952,
-            "exceeded_ratio": 1.0736,
+            "actual_seconds": 240.4252,
+            "exceeded_ratio": 1.238,
             "status": "PASS",
-            "message": "Stage 'pipeline' duration 208.4952s within thresholds (baseline=194.2000s)"
+            "message": "Stage 'pipeline' duration 240.4252s within thresholds (baseline=194.2000s)"
           },
           {
             "stage": "benchmark_fetch",
             "baseline_seconds": 8.6,
-            "actual_seconds": 11.3471,
-            "exceeded_ratio": 1.3194,
+            "actual_seconds": 11.4766,
+            "exceeded_ratio": 1.3345,
             "status": "PASS",
-            "message": "Stage 'benchmark_fetch' duration 11.3471s within thresholds (baseline=8.6000s)"
+            "message": "Stage 'benchmark_fetch' duration 11.4766s within thresholds (baseline=8.6000s)"
           },
           {
             "stage": "stock_fetch",
             "baseline_seconds": 180.6,
-            "actual_seconds": 192.4899,
-            "exceeded_ratio": 1.0658,
+            "actual_seconds": 224.0319,
+            "exceeded_ratio": 1.2405,
             "status": "PASS",
-            "message": "Stage 'stock_fetch' duration 192.4899s within thresholds (baseline=180.6000s)"
+            "message": "Stage 'stock_fetch' duration 224.0319s within thresholds (baseline=180.6000s)"
           },
           {
             "stage": "temporal_validation",
@@ -686,10 +792,10 @@
           {
             "stage": "market_calculation",
             "baseline_seconds": 0.5,
-            "actual_seconds": 0.0078,
-            "exceeded_ratio": 0.0156,
+            "actual_seconds": 0.0081,
+            "exceeded_ratio": 0.0162,
             "status": "PASS",
-            "message": "Stage 'market_calculation' duration 0.0078s within thresholds (baseline=0.5000s)"
+            "message": "Stage 'market_calculation' duration 0.0081s within thresholds (baseline=0.5000s)"
           },
           {
             "stage": "regime_calculation",
@@ -702,46 +808,48 @@
           {
             "stage": "recommendation_calculation",
             "baseline_seconds": 2.0,
-            "actual_seconds": 3.1847,
-            "exceeded_ratio": 1.5923,
+            "actual_seconds": 3.3242,
+            "exceeded_ratio": 1.6621,
             "status": "PASS",
-            "message": "Stage 'recommendation_calculation' duration 3.1847s within thresholds (baseline=2.0000s)"
+            "message": "Stage 'recommendation_calculation' duration 3.3242s within thresholds (baseline=2.0000s)"
           },
           {
             "stage": "risk_calculation",
             "baseline_seconds": 1.0,
-            "actual_seconds": 0.002,
-            "exceeded_ratio": 0.002,
+            "actual_seconds": 0.0021,
+            "exceeded_ratio": 0.0021,
             "status": "PASS",
-            "message": "Stage 'risk_calculation' duration 0.0020s within thresholds (baseline=1.0000s)"
+            "message": "Stage 'risk_calculation' duration 0.0021s within thresholds (baseline=1.0000s)"
           },
           {
             "stage": "monitoring",
             "baseline_seconds": 1.5,
-            "actual_seconds": 0.1467,
-            "exceeded_ratio": 0.0978,
+            "actual_seconds": 0.1572,
+            "exceeded_ratio": 0.1048,
             "status": "PASS",
-            "message": "Stage 'monitoring' duration 0.1467s within thresholds (baseline=1.5000s)"
+            "message": "Stage 'monitoring' duration 0.1572s within thresholds (baseline=1.5000s)"
           },
           {
             "stage": "payload_validation",
             "baseline_seconds": 0.5,
-            "actual_seconds": 0.0592,
-            "exceeded_ratio": 0.1184,
+            "actual_seconds": 0.0597,
+            "exceeded_ratio": 0.1194,
             "status": "PASS",
-            "message": "Stage 'payload_validation' duration 0.0592s within thresholds (baseline=0.5000s)"
+            "message": "Stage 'payload_validation' duration 0.0597s within thresholds (baseline=0.5000s)"
           }
         ]
       },
       "budget": {
-        "overall_status": "PASS",
+        "overall_status": "DEGRADED",
         "total_calls": 44,
         "max_calls_budget": 120,
         "duplicate_operations_count": 0,
         "max_duplicates_budget": 5,
-        "total_elapsed_seconds": 49.6312,
+        "total_elapsed_seconds": 81.2537,
         "max_elapsed_budget_seconds": 60.0,
-        "violations": []
+        "violations": [
+          "Total provider elapsed time (81.2537s) exceeded budget (60.0000s)"
+        ]
       }
     },
     "drift_monitoring": {
@@ -1686,14 +1794,14 @@
             },
             "current_period": "2026-10-08",
             "baseline_value": 32.1997,
-            "current_value": 15.9,
-            "absolute_difference": 16.2997,
+            "current_value": 15.9024,
+            "absolute_difference": 16.2973,
             "threshold": {
               "warning": 15.0,
               "fail": 25.0
             },
             "status": "WARNING",
-            "message": "Risk-adjusted score mean diff is 16.2997 (current=15.9000, baseline=32.1997)"
+            "message": "Risk-adjusted score mean diff is 16.2973 (current=15.9024, baseline=32.1997)"
           }
         },
         {
@@ -1802,8 +1910,8 @@
     "failed_checks": [],
     "check_counts": {
       "total_checks": 21,
-      "pass_count": 20,
-      "warning_count": 1,
+      "pass_count": 19,
+      "warning_count": 2,
       "fail_count": 0
     }
   }

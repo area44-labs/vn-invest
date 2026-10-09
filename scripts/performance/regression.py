@@ -33,20 +33,24 @@ PERFORMANCE_STAGE_THRESHOLDS = {
 }
 
 
+class WorkloadMetadataError(ValueError):
+    """Raised when canonical workload metadata is missing, incomplete, or invalid."""
+
+
 def extract_update_workload_counts(
     performance_data: dict[str, Any],
 ) -> tuple[int, int]:
     """Extract actual benchmark and stock request counts strictly from logical workload metadata.
 
     Returns tuple of (n_benchmarks, n_stocks).
-    Raises ValueError if required canonical workload metadata is missing or invalid.
+    Raises WorkloadMetadataError if required canonical workload metadata is missing or invalid.
     """
     if not isinstance(performance_data, dict):
         raise TypeError(f"performance_data must be a dict, got {type(performance_data).__name__}")
 
     workload = performance_data.get("workload")
     if not isinstance(workload, dict):
-        raise TypeError(
+        raise WorkloadMetadataError(
             "Missing required canonical 'workload' metadata dict in performance_data for live update regression evaluation"
         )
 
@@ -62,26 +66,28 @@ def extract_update_workload_counts(
         or isinstance(stock_cnt, bool)
         or isinstance(total_cnt, bool)
     ):
-        raise TypeError(
+        raise WorkloadMetadataError(
             f"Invalid workload request counts in performance_data (benchmark_request_count={bench_cnt}, "
             f"stock_request_count={stock_cnt}, total_request_count={total_cnt})"
         )
 
     if bench_cnt <= 0 or stock_cnt <= 0:
-        raise ValueError(
+        raise WorkloadMetadataError(
             f"Insufficient workload request counts for live update regression evaluation "
             f"(benchmark_request_count={bench_cnt}, stock_request_count={stock_cnt})"
         )
 
     if total_cnt != bench_cnt + stock_cnt:
-        raise ValueError(
+        raise WorkloadMetadataError(
             f"Inconsistent workload request counts: total_request_count ({total_cnt}) != "
             f"benchmark_request_count ({bench_cnt}) + stock_request_count ({stock_cnt})"
         )
 
     requested_symbols = workload.get("requested_symbols")
     if requested_symbols is not None and not isinstance(requested_symbols, list):
-        raise TypeError("Invalid 'requested_symbols' in workload metadata; expected a list")
+        raise WorkloadMetadataError(
+            "Invalid 'requested_symbols' in workload metadata; expected a list"
+        )
 
     return bench_cnt, stock_cnt
 
@@ -223,4 +229,4 @@ def evaluate_performance_regression(
     }
 
 
-__all__ = ["evaluate_performance_regression"]
+__all__ = ["WorkloadMetadataError", "evaluate_performance_regression"]

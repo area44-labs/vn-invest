@@ -277,8 +277,10 @@ class TestPerformanceRegression:
         res = evaluate_performance_regression(payload, is_update_mode=True)
         assert res["overall_status"] == "PASS"
 
-    def test_update_data_true_missing_workload_raises_type_error(self):
-        """update_data=True thiếu thông tin workload trong performance_data -> raise TypeError."""
+    def test_update_data_true_missing_workload_raises_workload_metadata_error(self):
+        """update_data=True thiếu thông tin workload trong performance_data -> raise WorkloadMetadataError."""
+        from scripts.performance.regression import WorkloadMetadataError
+
         payload = {
             "provider": {"total_calls": 46},
             "stages": [
@@ -286,7 +288,9 @@ class TestPerformanceRegression:
                 {"stage": "stock_fetch", "elapsed_seconds": 180.0, "status": "SUCCESS"},
             ],
         }
-        with pytest.raises(TypeError, match="Missing required canonical 'workload' metadata"):
+        with pytest.raises(
+            WorkloadMetadataError, match="Missing required canonical 'workload' metadata"
+        ):
             evaluate_performance_regression(payload, is_update_mode=True)
 
     def test_regression_does_not_depend_on_provider_total_calls(self):
@@ -417,9 +421,28 @@ class TestPerformanceTrackerSubsystem:
 
     def test_update_mode_fails_closed_on_workload_error(self):
         """get_performance_payload in update mode does NOT swallow workload errors silently."""
+        from scripts.performance.regression import WorkloadMetadataError
+
         tracker = PerformanceTracker()  # No requests recorded
-        with pytest.raises(ValueError, match="Insufficient workload request counts"):
+        with pytest.raises(WorkloadMetadataError, match="Insufficient workload request counts"):
             tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+
+    def test_update_mode_handles_non_workload_instrumentation_error_with_fallback(self):
+        """Non-workload instrumentation errors in update mode return fallback payload safely without failing update mode."""
+        tracker = PerformanceTracker()
+        tracker.record_request("VNINDEX")
+        tracker.record_request("VN30")
+        tracker.record_request("FPT")
+
+        with patch(
+            "scripts.performance.tracker.aggregate_provider_performance",
+            side_effect=RuntimeError("Corrupted call history log"),
+        ):
+            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+            assert "stages" in payload
+            assert payload["workload"]["total_request_count"] == 3
+            assert payload["regression"]["overall_status"] == "PASS"
+            validate_performance_payload(payload)
 
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")
