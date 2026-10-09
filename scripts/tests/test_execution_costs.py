@@ -120,7 +120,7 @@ class TestTransactionCostSemantics:
             )
 
     def test_invalid_transaction_cost(self) -> None:
-        """Verifies that invalid transaction cost parameters (negative, NaN, Inf, boolean) raise ValueError fail-closed."""
+        """Verifies that invalid transaction cost parameters (negative, NaN, Inf, boolean) raise ValueError/TypeError fail-closed."""
         # Negative cost
         with pytest.raises(ValueError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=-0.01)
@@ -134,11 +134,11 @@ class TestTransactionCostSemantics:
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=float("inf"))
 
         # Boolean cost
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct=True)  # type: ignore[arg-type]
 
         # Non-numeric string cost
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, transaction_cost_pct="invalid")  # type: ignore[arg-type]
 
 
@@ -213,7 +213,7 @@ class TestSlippageSemantics:
         assert res_sell.slippage_adjusted_return < res_sell.gross_return
 
     def test_invalid_slippage(self) -> None:
-        """Verifies that invalid slippage parameters (negative, NaN, Inf, boolean) raise ValueError fail-closed."""
+        """Verifies that invalid slippage parameters (negative, NaN, Inf, boolean) raise ValueError/TypeError fail-closed."""
         # Negative slippage
         with pytest.raises(ValueError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=-0.005)
@@ -227,7 +227,7 @@ class TestSlippageSemantics:
             calculate_execution_return(10000.0, 11000.0, slippage_pct=float("inf"))
 
         # Boolean slippage
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             calculate_execution_return(10000.0, 11000.0, slippage_pct=True)  # type: ignore[arg-type]
 
 
@@ -962,7 +962,7 @@ class TestCostAwarePortfolioConsistency:
             PortfolioConfig(transaction_cost_pct=float("nan"))
         with pytest.raises(ValueError):
             PortfolioConfig(transaction_cost_pct=float("inf"))
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(transaction_cost_pct=True)  # type: ignore[arg-type]
 
         # Reject negative slippage
@@ -978,7 +978,7 @@ class TestCostAwarePortfolioConsistency:
             PortfolioConfig(slippage_pct=float("nan"))
         with pytest.raises(ValueError):
             PortfolioConfig(slippage_pct=float("inf"))
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             PortfolioConfig(slippage_pct=False)  # type: ignore[arg-type]
 
     @patch("scripts.backtest.portfolio.generate_single_recommendation")
