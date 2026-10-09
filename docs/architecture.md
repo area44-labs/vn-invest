@@ -26,7 +26,7 @@ VN Invest operates as an automated quantitative analysis and static report gener
                        ▼
 ┌───────────────────────────────────────────────┐
 │       React SSG Frontend (TanStack Start)     │
-│             Published to GitHub Pages         │
+│                Published site                 │
 └───────────────────────────────────────────────┘
 ```
 
@@ -64,7 +64,6 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 - **`scripts/data` & `scripts/quant`**: Depend on `scripts/domain`. Contain pure functions and isolated calculation engines without pipeline I/O.
 - **`scripts/pipeline`**: Coordinates execution across `data`, `quant`, `performance`, `monitoring`, and `artifacts`.
 - **`scripts/artifacts`**: Manages file transactions and locking. Has **zero top-level import dependencies on `scripts.pipeline`** to prevent circular dependencies.
-- **No legacy `scripts/lib/*`**: The legacy `scripts/lib/` package is completely removed. All code imports directly from canonical packages.
 
 ---
 
@@ -123,13 +122,13 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 
 ## 4. Production Entry Points
 
-| Entry Point                        | Location                             | Purpose                                                                                  |
-| :--------------------------------- | :----------------------------------- | :--------------------------------------------------------------------------------------- |
-| **CLI Runner**                     | `scripts/generate_report.py`         | Command-line interface for running report pipelines (`--update` or offline cached mode). |
-| **Pipeline Runner**                | `scripts/pipeline/runner.py`         | Orchestrates stage-by-stage execution via `ProductionPipeline.run()`.                    |
-| **Scheduled Data Update Workflow** | `.github/workflows/daily-update.yml` | GitHub Actions workflow executing daily EOD updates after market close.                  |
-| **CI Test Workflow**               | `.github/workflows/tests.yml`        | GitHub Actions workflow running `uv run --frozen pytest`.                                |
-| **Static Build Workflow**          | `.github/workflows/pages.yml`        | GitHub Actions workflow building React SSG frontend via Vite+.                           |
+| Entry Point                        | Location                            | Purpose                                                                                  |
+| :--------------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------- |
+| **CLI Runner**                     | `scripts/generate_report.py`        | Command-line interface for running report pipelines (`--update` or offline cached mode). |
+| **Pipeline Runner**                | `scripts/pipeline/runner.py`        | Orchestrates stage-by-stage execution via `ProductionPipeline.run()`.                    |
+| **Scheduled Data Update Workflow** | `.github/workflows/update-data.yml` | GitHub Actions workflow executing daily EOD updates after market close.                  |
+| **CI Test Workflow**               | `.github/workflows/tests.yml`       | GitHub Actions workflow running `uv run --frozen pytest`.                                |
+| **Static Build Workflow**          | `.github/workflows/pages.yml`       | GitHub Actions workflow building React SSG frontend.                                     |
 
 ---
 
@@ -142,6 +141,5 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
    - New pipeline steps -> `scripts/pipeline/stages.py`
    - New backtesting metrics -> `scripts/backtest/`
    - New monitoring metrics or drift checks -> `scripts/monitoring/`
-2. **Zero `scripts/lib/*` Reintroduction**: Do not recreate `scripts/lib` or add compatibility delegation wrappers. Import directly from canonical packages.
-3. **No Financial Math in Frontend**: The frontend is exclusively a static visualizer for artifacts in `generated/`.
-4. **Fail-Closed Principle**: Missing, corrupted, or insufficient data must result in explicit error raising or `None`/`INSUFFICIENT` statuses. Never fabricate synthetic default values to bypass errors.
+2. **No Financial Math in Frontend**: The frontend is exclusively a static visualizer for artifacts in `generated/`.
+3. **Fail-Closed Principle**: Missing, corrupted, or insufficient data must result in explicit error raising or `None`/`INSUFFICIENT` statuses. Never fabricate synthetic default values to bypass errors.

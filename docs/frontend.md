@@ -19,10 +19,12 @@ Frontend source code resides under `src/`.
 
 ```text
 src/
-├── routes/          # TanStack Start file-based routing
 ├── components/      # React UI components (charts, tables, cards, navigation)
 ├── data/            # Static JSON data loaders and adapters (loader.ts)
+├── hooks/           # Custom React hooks for state management and logic
 ├── lib/             # Utility functions (utils.ts re-exporting cn)
+├── pages/           # Page-level components
+├── routes/          # TanStack Start file-based routing
 ├── types/           # TypeScript interface definitions (recommendation.ts, etc.)
 └── styles/          # Global Tailwind CSS definitions
 ```

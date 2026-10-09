@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-update-${{ github.ref }}
+  group: update-data-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
