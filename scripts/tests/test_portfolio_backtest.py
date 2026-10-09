@@ -1832,7 +1832,7 @@ class TestPortfolioTemporalBoundaries:
             assert p1.entry_price == p2.entry_price
             assert p1.is_executable == p2.is_executable
 
-    def test_case_a_evaluation_date_at_min_history_boundary(self) -> None:
+    def test_evaluation_date_at_min_history_boundary(self) -> None:
         """1. Evaluation date at the start of sufficient min_history window (T-30 ... T ... T+N).
 
         Verify:
@@ -1883,7 +1883,7 @@ class TestPortfolioTemporalBoundaries:
         pos2_aaa = next(p for p in res2.positions if p.symbol == "AAA")
         assert pos1_aaa.forward_returns[5] != pos2_aaa.forward_returns[5]
 
-    def test_case_b_evaluation_date_at_last_trading_session(self) -> None:
+    def test_evaluation_date_at_last_trading_session(self) -> None:
         """2. Evaluation date at the last trading session in the dataset.
 
         Verify:
@@ -1929,7 +1929,7 @@ class TestPortfolioTemporalBoundaries:
         assert h5["hit_rate"] is None
         assert h5["sequential_compounded_return"] is None
 
-    def test_case_c_evaluation_date_near_dataset_end(self) -> None:
+    def test_evaluation_date_near_dataset_end(self) -> None:
         """3. Evaluation date near the dataset end (e.g. exactly 1 session available after T).
 
         Verify:
@@ -1969,7 +1969,7 @@ class TestPortfolioTemporalBoundaries:
         assert not eval_res.horizon_availability[5]
         assert eval_res.portfolio_forward_returns[5] is None
 
-    def test_case_d_evaluation_date_before_min_history(self) -> None:
+    def test_evaluation_date_before_min_history(self) -> None:
         """4. Evaluation date before min_history requirement is satisfied.
 
         Verify:
@@ -2357,7 +2357,7 @@ class TestPortfolioDeterminismAndStateIsolation:
         }
         self.eval_dates = [self.df_aaa["date"].iloc[40], self.df_aaa["date"].iloc[50]]
 
-    def test_1_deterministic_repeated_execution(self) -> None:
+    def test_deterministic_repeated_execution(self) -> None:
         """Requirement 1: Verify repeated backtest runs on identical inputs yield exact deterministic results."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -2425,7 +2425,7 @@ class TestPortfolioDeterminismAndStateIsolation:
                     assert pos_a.forward_returns == pos_b.forward_returns
                     assert pos_a.forward_availability == pos_b.forward_availability
 
-    def test_2_input_dataframe_immutability(self) -> None:
+    def test_input_dataframe_immutability(self) -> None:
         """Requirement 2: Prove that running backtest does not mutate input DataFrames."""
         # Deep copy inputs before execution
         vni_snapshot = self.df_vni.copy(deep=True)
@@ -2455,7 +2455,7 @@ class TestPortfolioDeterminismAndStateIsolation:
         for sym, df_orig in self.universe.items():
             pd.testing.assert_frame_equal(df_orig, stock_snapshots[sym], check_exact=True)
 
-    def test_3_configuration_immutability(self) -> None:
+    def test_configuration_immutability(self) -> None:
         """Requirement 3: Verify PortfolioConfig is not mutated after running backtest, including nested execution_config."""
         from copy import deepcopy
 
@@ -2520,7 +2520,7 @@ class TestPortfolioDeterminismAndStateIsolation:
         )
         assert cfg.execution_config.lookback_window == cfg_snapshot.execution_config.lookback_window
 
-    def test_4_universe_ordering_independence(self) -> None:
+    def test_universe_ordering_independence(self) -> None:
         """Requirement 4: Verify dictionary insertion order of universe symbols does not alter quantitative results."""
         universe1 = {
             "AAA": self.df_aaa,
@@ -2556,7 +2556,7 @@ class TestPortfolioDeterminismAndStateIsolation:
 
         assert res1.to_dict() == res2.to_dict()
 
-    def test_5_horizon_ordering_independence(self) -> None:
+    def test_horizon_ordering_independence(self) -> None:
         """Requirement 5: Verify horizon parameter ordering does not affect forward return results per horizon."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -2592,7 +2592,7 @@ class TestPortfolioDeterminismAndStateIsolation:
                     assert pos1.forward_returns[h] == pos2.forward_returns[h]
                     assert pos1.forward_availability[h] == pos2.forward_availability[h]
 
-    def test_6_evaluation_date_ordering_contract(self) -> None:
+    def test_evaluation_date_ordering_contract(self) -> None:
         """Requirement 6: Verify independent calls to evaluate_portfolio_at_date have no state leakage depending on call order."""
         t1, t2 = self.eval_dates[0], self.eval_dates[1]
 
@@ -2634,7 +2634,7 @@ class TestPortfolioDeterminismAndStateIsolation:
         assert eval_t1_seq1.to_dict() == eval_t1_seq2.to_dict()
         assert eval_t2_seq1.to_dict() == eval_t2_seq2.to_dict()
 
-    def test_7_fresh_state_sequence_repeatability(self) -> None:
+    def test_fresh_state_sequence_repeatability(self) -> None:
         """Requirement 7: Verify A -> B -> A evaluation sequence produces identical result for A without state leakage."""
         t1, t2 = self.eval_dates[0], self.eval_dates[1]
 
@@ -2669,7 +2669,7 @@ class TestPortfolioDeterminismAndStateIsolation:
 
         assert res_a1.to_dict() == res_a2.to_dict()
 
-    def test_8_nested_structures_isolation(self) -> None:
+    def test_nested_structures_isolation(self) -> None:
         """Requirement 8: Verify mutating result objects from one backtest run does not corrupt other result objects or input data."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -2704,7 +2704,7 @@ class TestPortfolioDeterminismAndStateIsolation:
         # Verify res2 remains completely unmutated
         assert res2.to_dict() == snapshot_res2
 
-    def test_9_deterministic_independent_oracle(self) -> None:
+    def test_deterministic_independent_oracle(self) -> None:
         """Requirement 9: Validate allocation invariants and position weights against independent oracle."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -2750,7 +2750,7 @@ class TestPortfolioSerializationAndResultContract:
         }
         self.eval_dates = [self.df_aaa["date"].iloc[40], self.df_aaa["date"].iloc[50]]
 
-    def test_1_to_dict_representation_completeness(self) -> None:
+    def test_to_dict_representation_completeness(self) -> None:
         """Test 1: Verify to_dict() returns a complete dict matching the public result contract."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -2835,7 +2835,7 @@ class TestPortfolioSerializationAndResultContract:
             for pos_dict in eval_dict["positions"]:
                 assert set(pos_dict.keys()) == required_pos_keys
 
-    def test_2_nested_result_completeness(self) -> None:
+    def test_nested_result_completeness(self) -> None:
         """Test 2: Verify .to_dict() preserves all nested fields across all levels."""
         exec_cfg = ExecutionConfig(min_avg_volume=50000.0)
         cfg = PortfolioConfig(
@@ -2886,7 +2886,7 @@ class TestPortfolioSerializationAndResultContract:
                 assert dict_pos["forward_returns"] == obj_pos.forward_returns
                 assert dict_pos["forward_availability"] == obj_pos.forward_availability
 
-    def test_3_none_unavailable_semantics(self) -> None:
+    def test_none_unavailable_semantics(self) -> None:
         """Test 3: Verify None values remain strictly None in memory and serialized output."""
         # Date at end of dataset -> forward outcomes unavailable
         last_date = self.df_aaa["date"].iloc[-1]
@@ -2932,7 +2932,7 @@ class TestPortfolioSerializationAndResultContract:
                 assert val_pos != []
                 assert val_pos is not False
 
-    def test_4_empty_portfolio_result(self) -> None:
+    def test_empty_portfolio_result(self) -> None:
         """Test 4: Verify empty portfolio result serializes safely without creating fake numerical values."""
         cfg = PortfolioConfig(
             min_history=30,
@@ -2979,7 +2979,7 @@ class TestPortfolioSerializationAndResultContract:
                 assert eval_dict["portfolio_forward_returns"][h] is None
                 assert not eval_dict["horizon_availability"][h]
 
-    def test_5_numerical_serialization_integrity(self) -> None:
+    def test_numerical_serialization_integrity(self) -> None:
         """Test 5: Verify numeric fields preserve values and float types without loss of precision or string conversion."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -3041,7 +3041,7 @@ class TestPortfolioSerializationAndResultContract:
                     assert isinstance(pos_ret, float)
                     assert pos_ret == pos_obj.forward_returns[5]
 
-    def test_6_deterministic_key_and_ordering_representation(self) -> None:
+    def test_deterministic_key_and_ordering_representation(self) -> None:
         """Test 6: Verify same logical result produces deterministic key/value ordering across multiple calls and universe orderings."""
         universe1 = {"AAA": self.df_aaa, "BBB": self.df_bbb, "CCC": self.df_ccc}
         universe2 = {"CCC": self.df_ccc, "AAA": self.df_aaa, "BBB": self.df_bbb}
@@ -3070,7 +3070,7 @@ class TestPortfolioSerializationAndResultContract:
         # Verify exact equality of serialized representations regardless of universe insertion order
         assert res1.to_dict() == res2.to_dict()
 
-    def test_7_result_mutation_isolation_after_serialization(self) -> None:
+    def test_result_mutation_isolation_after_serialization(self) -> None:
         """Test 7: Verify bi-directional mutation isolation between dataclass objects and serialized dictionary."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -3119,7 +3119,7 @@ class TestPortfolioSerializationAndResultContract:
         assert dict_fresh["evaluations"][0]["positions"][0]["weight"] != 888.0
         assert dict_fresh["evaluations"][0]["positions"][0]["forward_returns"][5] != 777.0
 
-    def test_8_repeated_serialization(self) -> None:
+    def test_repeated_serialization(self) -> None:
         """Test 8: Verify calling .to_dict() multiple times is idempotent and does not mutate result."""
         cfg = PortfolioConfig(
             max_positions=2,
@@ -3148,7 +3148,7 @@ class TestPortfolioSerializationAndResultContract:
 class TestPortfolioAggregationConsistencyAndOracles:
     """Test Suite verifying portfolio-level aggregation consistency and independent math oracles."""
 
-    def test_1_evaluation_count_consistency(self) -> None:
+    def test_evaluation_count_consistency(self) -> None:
         """Test 1: Verify len(result.evaluations) == aggregate['total_evaluation_points'] across non-empty, empty, and mixed evaluations."""
         # Non-empty evaluation
         p1 = PortfolioPosition(
@@ -3209,7 +3209,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert len(evals) == agg["total_evaluation_points"]
         assert agg["total_evaluation_points"] == 3
 
-    def test_2_empty_non_empty_aggregation_oracle(self) -> None:
+    def test_empty_non_empty_aggregation_oracle(self) -> None:
         """Test 2: Verify non_empty + empty == total_evaluation_points matching independent count oracles."""
         # Fixture: T1 -> non-empty, T2 -> empty, T3 -> non-empty, T4 -> empty
         p1 = PortfolioPosition(
@@ -3288,7 +3288,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
             == agg["total_evaluation_points"]
         )
 
-    def test_3_empty_reason_breakdown_oracle(self) -> None:
+    def test_empty_reason_breakdown_oracle(self) -> None:
         """Test 3: Verify sum(empty_reasons_breakdown.values()) == empty_portfolios_count matching independent oracle."""
         e1 = PortfolioEvaluation(
             evaluation_date="2024-01-01",
@@ -3341,7 +3341,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert sum(agg["empty_reasons_breakdown"].values()) == agg["empty_portfolios_count"]
         assert agg["empty_portfolios_count"] == 4
 
-    def test_4_valid_evaluation_point_count_oracle(self) -> None:
+    def test_valid_evaluation_point_count_oracle(self) -> None:
         """Test 4: Verify horizon valid_evaluation_points matches independent availability count oracle."""
         # Available outcome
         p1 = PortfolioPosition(
@@ -3427,7 +3427,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert agg["horizon_metrics"][5]["valid_evaluation_points"] == 2
         assert agg["horizon_metrics"][10]["valid_evaluation_points"] == 1
 
-    def test_5_mean_return_oracle(self) -> None:
+    def test_mean_return_oracle(self) -> None:
         """Test 5: Verify arithmetic mean matches independent mathematical formula on finite valid returns."""
         rets = [0.08, -0.03, 0.05, 0.12]
         evals = []
@@ -3461,7 +3461,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert agg["horizon_metrics"][5]["mean"] == oracle_mean
         assert oracle_mean == 0.055
 
-    def test_6_median_min_max_std_oracle(self) -> None:
+    def test_median_min_max_std_oracle(self) -> None:
         """Test 6: Verify median, min, max, std match independent mathematical oracles across 5 distinct return values."""
         # Fixture with 5 distinct values
         rets = [0.02, -0.01, 0.05, 0.03, -0.04]
@@ -3507,7 +3507,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert h5["median"] == oracle_median
         assert h5["std"] == oracle_std
 
-    def test_7_positive_return_hit_rate_oracle(self) -> None:
+    def test_positive_return_hit_rate_oracle(self) -> None:
         """Test 7: Verify hit_rate strictly requires return > 0 (zero return is not positive) on valid observations."""
         rets = [0.10, -0.05, 0.0, 0.04, None]
         evals = []
@@ -3571,7 +3571,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert h5["hit_rate"] == oracle_hit_rate
         assert oracle_hit_rate == 0.5
 
-    def test_8_sequential_compounded_return_oracle(self) -> None:
+    def test_sequential_compounded_return_oracle(self) -> None:
         """Test 8: Verify sequential_compounded_return = ∏(1 + r_i) - 1.0 using independent math product oracle."""
         rets = [0.10, -0.05, 0.0, 0.02]
         evals = []
@@ -3644,7 +3644,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert h5["sequential_compounded_return"] == oracle_seq_comp
         assert oracle_seq_comp == 0.0659
 
-    def test_9_position_to_portfolio_weighted_return_consistency(self) -> None:
+    def test_position_to_portfolio_weighted_return_consistency(self) -> None:
         """Test 9: Verify portfolio_forward_returns[N] == Σ(w_i × r_i) matching independent weighted sum oracle on production evaluate_portfolio_at_date output."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
@@ -3690,7 +3690,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         # Assert production weighted-return matches independent oracle
         assert actual_port_ret == expected_port_ret
 
-    def test_10_unavailable_constituent_propagation(self) -> None:
+    def test_unavailable_constituent_propagation(self) -> None:
         """Test 10: Verify unavailable constituent in portfolio forces portfolio return to None and horizon_availability to False."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 50, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 50, 10000.0, 100.0)
@@ -3722,7 +3722,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert not eval_res.horizon_availability[5]
         assert eval_res.portfolio_forward_returns[5] is None
 
-    def test_11_allocation_weight_invariant_oracle(self) -> None:
+    def test_allocation_weight_invariant_oracle(self) -> None:
         """Test 11: Verify sum(pos.weight) == allocated_weight and allocated_weight + unallocated_weight == 1.0 across full, partial, and empty portfolios using production evaluate_portfolio_at_date."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
@@ -3797,7 +3797,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert res_empty.empty_reason == "no_eligible_candidates"
         assert round(abs(res_empty.allocated_weight + res_empty.unallocated_weight - (1.0)), 6) == 0
 
-    def test_12_serialized_result_matches_in_memory_aggregation(self) -> None:
+    def test_serialized_result_matches_in_memory_aggregation(self) -> None:
         """Test 12: Verify serialized result (.to_dict()) aggregate metrics match in-memory dataclass objects and independent oracles."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 80, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 80, 10000.0, 100.0)
@@ -3832,7 +3832,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
             assert dict_eval["allocated_weight"] == obj_eval.allocated_weight
             assert dict_eval["unallocated_weight"] == obj_eval.unallocated_weight
 
-    def test_13_horizon_isolation_mutation_test(self) -> None:
+    def test_horizon_isolation_mutation_test(self) -> None:
         """Test 13: Verify mutating outcome data for horizon 10 does NOT alter horizon 1 or horizon 5 metrics."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 90, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 90, 10000.0, 100.0)
@@ -3887,7 +3887,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
         assert res1.portfolio_forward_returns[10] != res2.portfolio_forward_returns[10]
         assert pos1_a.forward_returns[10] != pos2_a.forward_returns[10]
 
-    def test_14_evaluation_isolation_mutation_test(self) -> None:
+    def test_evaluation_isolation_mutation_test(self) -> None:
         """Test 14: Verify mutating forward outcome after T3 does not alter signal/construction state at T1, T2, or T3, and only affects outcomes depending on mutated data."""
         df_vni = create_synthetic_ohlcv("2024-01-01", 100, 1200.0, 1.0)
         df_aaa = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
@@ -3962,7 +3962,7 @@ class TestPortfolioAggregationConsistencyAndOracles:
             != res_mut.evaluations[2].portfolio_forward_returns[5]
         )
 
-    def test_15_fail_closed_malformed_aggregation_inputs(self) -> None:
+    def test_fail_closed_malformed_aggregation_inputs(self) -> None:
         """Test 15: Verify aggregate_portfolio_results fails closed with TypeError or ValueError on malformed inputs."""
         p1 = PortfolioPosition(
             symbol="AAA",

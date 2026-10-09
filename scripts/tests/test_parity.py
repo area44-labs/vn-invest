@@ -174,7 +174,7 @@ class TestProductionHistoricalParity:
 
         return prod_res, hist_res
 
-    def test_1_same_pit_inputs_produce_same_market_regime(self):
+    def test_same_pit_inputs_produce_same_market_regime(self):
         """Test 1: Given identical VNINDEX/VN30/breadth inputs at date T, production and historical regimes match exactly."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -191,7 +191,7 @@ class TestProductionHistoricalParity:
         # Summary counts
         assert prod_recs_payload["summary"] == hist_recs_payload["summary"]
 
-    def test_2_same_pit_inputs_produce_same_recommendation(self):
+    def test_same_pit_inputs_produce_same_recommendation(self):
         """Test 2: Production recommendation == historical recommendation for all quantitative/model fields."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -208,7 +208,7 @@ class TestProductionHistoricalParity:
                 f"Quantitative recommendation mismatch for symbol '{sym}'"
             )
 
-    def test_3_signal_parity(self):
+    def test_signal_parity(self):
         """Test 3: Compare signal_score, risk_adjusted_score, action, confidence, and score_components across paths."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -225,7 +225,7 @@ class TestProductionHistoricalParity:
             assert p_rec["score_components"] == h_rec["score_components"]
             assert p_rec["divergence"] == h_rec["divergence"]
 
-    def test_4_risk_parity(self):
+    def test_risk_parity(self):
         """Test 4: Compare VaR, Expected Shortfall, volatility, max drawdown, liquidity, and average traded value."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -248,7 +248,7 @@ class TestProductionHistoricalParity:
             assert p_rm["liquidity_score"] == h_rm["liquidity_score"]
             assert p_rm["avg_value_20d"] == h_rm["avg_value_20d"]
 
-    def test_5_trade_plan_parity(self):
+    def test_trade_plan_parity(self):
         """Test 5: Compare generated trade plan and invalidation quantitative outputs."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -263,7 +263,7 @@ class TestProductionHistoricalParity:
             assert p_rec["reasons"] == h_rec["reasons"]
             assert p_rec["warnings"] == h_rec["warnings"]
 
-    def test_6_multi_stock_parity(self):
+    def test_multi_stock_parity(self):
         """Test 6: Multi-stock parity across diverse stocks producing different actions."""
         prod_res, hist_res = self._run_both_pipelines()
 
@@ -281,7 +281,7 @@ class TestProductionHistoricalParity:
             h_quant = extract_quantitative_recommendation(h_rec)
             assert p_quant == h_quant
 
-    def test_7_reproducibility(self):
+    def test_reproducibility(self):
         """Test 7: Run same parity comparison more than once and verify Run A == Run B."""
         prod_res_a, hist_res_a = self._run_both_pipelines(reference_date="2025-03-01T10:00:00Z")
         prod_res_b, hist_res_b = self._run_both_pipelines(reference_date="2025-03-01T10:00:00Z")
@@ -300,7 +300,7 @@ class TestProductionHistoricalParity:
         assert hist_res_a[0]["market"] == hist_res_b[0]["market"]
         assert hist_res_a[0]["summary"] == hist_res_b[0]["summary"]
 
-    def test_8_temporal_safety_future_data_invariance(self):
+    def test_temporal_safety_future_data_invariance(self):
         """Test 8: Temporal safety - appending future data > T does not alter historical report at T or create parity divergence."""
         # Baseline run at target date T using raw PIT datasets
         prod_res_base, hist_res_base = self._run_both_pipelines()

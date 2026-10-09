@@ -28,13 +28,13 @@ class TestHistoryIndexLoader:
     def teardown_method(self):
         self.temp_dir.cleanup()
 
-    def test_1_missing_file_returns_initialized_empty_index(self):
+    def test_missing_file_returns_initialized_empty_index(self):
         """Test 1: Non-existent history index file initializes an empty index contract."""
         assert not os.path.exists(self.index_path)
         data = load_history_index(self.index_path)
         assert data == {"dates": []}
 
-    def test_2_valid_index_loads_successfully(self):
+    def test_valid_index_loads_successfully(self):
         """Test 2: Valid JSON and expected structure loads successfully."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
         valid_payload = {
@@ -49,7 +49,7 @@ class TestHistoryIndexLoader:
         assert data["dates"] == ["2026-09-14", "2026-09-13"]
         assert data["total_reports"] == 2
 
-    def test_3_malformed_json_raises(self):
+    def test_malformed_json_raises(self):
         """Test 3: Existing file with invalid JSON raises ValueError with file path context."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
         with open(self.index_path, "w", encoding="utf-8") as f:
@@ -61,7 +61,7 @@ class TestHistoryIndexLoader:
         assert "invalid JSON" in str(ctx.value)
         assert self.index_path in str(ctx.value)
 
-    def test_4_invalid_root_type_raises(self):
+    def test_invalid_root_type_raises(self):
         """Test 4: Valid JSON with non-object root type (array, string, int, null) raises TypeError or ValueError."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
 
@@ -75,7 +75,7 @@ class TestHistoryIndexLoader:
             assert "Invalid history index structure" in str(ctx.value)
             assert self.index_path in str(ctx.value)
 
-    def test_5_invalid_structure_raises(self):
+    def test_invalid_structure_raises(self):
         """Test 5: Valid JSON object with invalid or missing 'dates' structure raises TypeError or ValueError."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
 
@@ -96,7 +96,7 @@ class TestHistoryIndexLoader:
             assert "Invalid history index structure" in str(ctx.value)
             assert self.index_path in str(ctx.value)
 
-    def test_6_permission_read_failure_raises(self):
+    def test_permission_read_failure_raises(self):
         """Test 6: Read/Permission filesystem failures raise OSError and are NOT converted into empty index."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
         with open(self.index_path, "w", encoding="utf-8") as f:
@@ -108,7 +108,7 @@ class TestHistoryIndexLoader:
 
             assert "Permission denied" in str(ctx.value)
 
-    def test_7_corrupted_file_is_not_overwritten(self):
+    def test_corrupted_file_is_not_overwritten(self):
         """Test 7: Updating history index with an existing corrupted file raises and leaves original file untouched."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
         corrupted_content = "CORRUPTED_INDEX_DATA_NON_JSON\n"

@@ -211,7 +211,7 @@ class TestE2EMissingOutcomePropagation:
             min_history=30,
         )
 
-    def test_scenario_1_all_outcomes_available(self) -> None:
+    def test_all_outcomes_available(self) -> None:
         """Scenario 1: All outcomes available."""
         df1 = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 100, 20000.0, 150.0)
@@ -240,7 +240,7 @@ class TestE2EMissingOutcomePropagation:
             assert agg["horizon_metrics"][h]["valid_evaluation_points"] == 1
             assert agg["horizon_metrics"][h]["mean"] is not None
 
-    def test_scenario_2_one_horizon_unavailable(self) -> None:
+    def test_one_horizon_unavailable(self) -> None:
         """Scenario 2: One horizon unavailable (e.g., 5D available, 20D unavailable due to proximity to end of data)."""
         df1 = create_synthetic_ohlcv("2024-01-01", 60, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 60, 20000.0, 150.0)
@@ -269,7 +269,7 @@ class TestE2EMissingOutcomePropagation:
         assert agg["horizon_metrics"][20]["mean"] is None
         assert agg["horizon_metrics"][20]["hit_rate"] is None
 
-    def test_scenario_3_one_symbol_unavailable(self) -> None:
+    def test_one_symbol_unavailable(self) -> None:
         """Scenario 3: One symbol in portfolio lacks future data for horizon, rendering portfolio outcome None."""
         df1 = create_synthetic_ohlcv("2024-01-01", 100, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 55, 20000.0, 150.0)  # df2 ends at day 55
@@ -303,7 +303,7 @@ class TestE2EMissingOutcomePropagation:
         assert agg["horizon_metrics"][10]["valid_evaluation_points"] == 0
         assert agg["horizon_metrics"][10]["mean"] is None
 
-    def test_scenario_4_multiple_symbols_unavailable(self) -> None:
+    def test_multiple_symbols_unavailable(self) -> None:
         """Scenario 4: Multiple symbols in portfolio lack future data for horizon."""
         df1 = create_synthetic_ohlcv("2024-01-01", 52, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 52, 20000.0, 150.0)
@@ -325,7 +325,7 @@ class TestE2EMissingOutcomePropagation:
         assert not eval_res.horizon_availability[5]
         assert eval_res.portfolio_forward_returns[5] is None
 
-    def test_scenario_5_entire_horizon_unavailable(self) -> None:
+    def test_entire_horizon_unavailable(self) -> None:
         """Scenario 5: Entire horizon unavailable for all symbols in portfolio."""
         df1 = create_synthetic_ohlcv("2024-01-01", 50, 10000.0, 100.0)
         df2 = create_synthetic_ohlcv("2024-01-01", 50, 20000.0, 150.0)

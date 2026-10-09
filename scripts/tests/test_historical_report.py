@@ -76,7 +76,7 @@ class TestHistoricalReportGeneration:
     def teardown_method(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
-    def test_1_explicit_historical_date(self):
+    def test_explicit_historical_date(self):
         """Test 1: Given valid historical input and as_of date T, historical report is generated successfully."""
         res = generate_historical_report(
             data_as_of=self.as_of_date,
@@ -96,7 +96,7 @@ class TestHistoricalReportGeneration:
         assert market_data["data_as_of"] == self.as_of_date
         assert history_data["data_as_of"] == self.as_of_date
 
-    def test_2_repeated_generation_is_deterministic(self):
+    def test_repeated_generation_is_deterministic(self):
         """Test 2: Repeated generation with identical inputs and controlled reference date produces identical payload."""
         res1 = generate_historical_report(
             data_as_of=self.as_of_date,
@@ -133,7 +133,7 @@ class TestHistoricalReportGeneration:
         canon3 = canonicalize_report_for_reproducibility(res3[0])
         assert canon1 == canon3
 
-    def test_3_future_observation_rejected(self):
+    def test_future_observation_rejected(self):
         """Test 3: Unsorted or future corrupted OHLCV observation is rejected fail-closed."""
         corrupted_vnm = self.df_vnm.copy()
         # Insert duplicate/unsorted row
@@ -150,7 +150,7 @@ class TestHistoricalReportGeneration:
                 candidate_metadata=self.candidate_metadata,
             )
 
-    def test_4_missing_evaluation_date(self):
+    def test_missing_evaluation_date(self):
         """Test 4: Requested target date absent from benchmark dataset fails closed."""
         absent_date = "2020-01-01"
         with pytest.raises(ValueError):
@@ -162,7 +162,7 @@ class TestHistoricalReportGeneration:
                 candidate_metadata=self.candidate_metadata,
             )
 
-    def test_5_duplicate_unsorted_dates(self):
+    def test_duplicate_unsorted_dates(self):
         """Test 5: Duplicate dates in benchmark data fail closed."""
         corrupted_vnindex = self.df_vnindex.copy()
         corrupted_vnindex.loc[len(corrupted_vnindex)] = corrupted_vnindex.iloc[5].to_dict()
@@ -176,7 +176,7 @@ class TestHistoricalReportGeneration:
                 candidate_metadata=self.candidate_metadata,
             )
 
-    def test_6_malformed_ohlcv(self):
+    def test_malformed_ohlcv(self):
         """Test 6: Malformed OHLCV (missing required column 'close') fails closed."""
         corrupted_fpt = self.df_fpt.copy().drop(columns=["close"])
 
@@ -191,7 +191,7 @@ class TestHistoricalReportGeneration:
                 candidate_metadata=self.candidate_metadata,
             )
 
-    def test_7_no_fallback_to_latest_data(self):
+    def test_no_fallback_to_latest_data(self):
         """Test 7: Changing future prices at T+5 does not alter historical report at T."""
         report_before = generate_historical_report(
             data_as_of=self.as_of_date,
@@ -220,7 +220,7 @@ class TestHistoricalReportGeneration:
 
         assert report_before[0] == report_after[0]
 
-    def test_8_provenance(self):
+    def test_provenance(self):
         """Test 8: Historical report retains model version, schema version, and as_of date provenance."""
         res = generate_historical_report(
             data_as_of=self.as_of_date,
@@ -235,7 +235,7 @@ class TestHistoricalReportGeneration:
         assert recs_data["data_as_of"] == self.as_of_date
         assert recs_data["source_date"] == self.as_of_date
 
-    def test_9_generated_at_does_not_affect_quantitative_output(self):
+    def test_generated_at_does_not_affect_quantitative_output(self):
         """Test 9: Varying runtime timestamp leaves signal scores, actions, regime, and risk unchanged."""
         res_t1 = generate_historical_report(
             data_as_of=self.as_of_date,
@@ -263,7 +263,7 @@ class TestHistoricalReportGeneration:
         assert canon1["summary"] == canon2["summary"]
         assert canon1["recommendations"] == canon2["recommendations"]
 
-    def test_10_load_universe_snapshot_and_ohlcv_file_loading(self):
+    def test_load_universe_snapshot_and_ohlcv_file_loading(self):
         """Test 10: File loader helpers load snapshot and OHLCV JSON maps fail-closed on malformed inputs."""
         snapshot_file = os.path.join(self.tmp_dir, "snapshot.json")
         with open(snapshot_file, "w", encoding="utf-8") as f:

@@ -25,7 +25,7 @@ from scripts.backtest.portfolio import (
 class TestTransactionCostSemantics:
     """Test suite validating transaction cost semantics, formula, and input bounds."""
 
-    def test_case_a_zero_transaction_cost(self) -> None:
+    def test_zero_transaction_cost(self) -> None:
         """1. Zero transaction cost: return remains unchanged from gross return."""
         entry_price = 10_000.0
         exit_price = 11_000.0
@@ -41,7 +41,7 @@ class TestTransactionCostSemantics:
         assert res.slippage_adjusted_return == 0.10
         assert res.net_return == expected_gross
 
-    def test_case_b_positive_transaction_cost(self) -> None:
+    def test_positive_transaction_cost(self) -> None:
         """2. Positive transaction cost: synthetic trade with hand-calculated exact expected value."""
         entry_price = 50_000.0
         exit_price = 55_000.0
@@ -62,7 +62,7 @@ class TestTransactionCostSemantics:
         assert res.net_return == expected_net
         assert res.net_return == 0.096702
 
-    def test_case_c_transaction_cost_symmetry(self) -> None:
+    def test_transaction_cost_symmetry(self) -> None:
         """3. Cost symmetry: explicit entry and exit fee legs apply consistently across BUY and SELL."""
         entry_price = 20_000.0
         exit_price = 22_000.0
@@ -119,7 +119,7 @@ class TestTransactionCostSemantics:
                 action="BUY",
             )
 
-    def test_case_d_invalid_transaction_cost(self) -> None:
+    def test_invalid_transaction_cost(self) -> None:
         """4. Invalid transaction cost parameters raise ValueError or TypeError fail-closed."""
         # Negative cost
         with pytest.raises(ValueError):
@@ -146,7 +146,7 @@ class TestTransactionCostSemantics:
 class TestSlippageSemantics:
     """Test suite validating execution slippage semantics, directionality, and input bounds."""
 
-    def test_case_a_zero_slippage(self) -> None:
+    def test_zero_slippage(self) -> None:
         """1. Zero slippage: execution prices match reference prices exactly."""
         p_entry = 25_000.0
         p_exit = 27_500.0
@@ -161,7 +161,7 @@ class TestSlippageSemantics:
         assert res.exit_exec_price == p_exit
         assert res.slippage_adjusted_return == res.gross_return
 
-    def test_case_b_positive_slippage(self) -> None:
+    def test_positive_slippage(self) -> None:
         """2. Positive slippage: hand-calculated expected execution price and return."""
         p_entry = 10_000.0
         p_exit = 12_000.0
@@ -181,7 +181,7 @@ class TestSlippageSemantics:
         assert res.gross_return == 0.20
         assert res.slippage_adjusted_return == round((11_988.0 / 10_010.0) - 1.0, 6)
 
-    def test_case_c_buy_vs_sell_directionality(self) -> None:
+    def test_buy_vs_sell_directionality(self) -> None:
         """3. Buy vs Sell slippage directionality: both legs experience adverse pricing."""
         p_entry = 40_000.0
         p_exit = 44_000.0
@@ -212,7 +212,7 @@ class TestSlippageSemantics:
         assert res_sell.exit_exec_price == 36_072.0  # 36,000 * 1.002
         assert res_sell.slippage_adjusted_return < res_sell.gross_return
 
-    def test_case_d_invalid_slippage(self) -> None:
+    def test_invalid_slippage(self) -> None:
         """4. Invalid slippage parameters raise ValueError or TypeError fail-closed."""
         # Negative slippage
         with pytest.raises(ValueError):
@@ -713,7 +713,7 @@ class TestCostAwarePortfolioConsistency:
         self.eval_date = self.dates[49]
 
     @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_case_a_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
+    def test_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
         """1. Zero cost and zero slippage: portfolio forward returns match gross strategy returns exactly."""
 
         def side_effect(symbol, **kwargs):
@@ -779,7 +779,7 @@ class TestCostAwarePortfolioConsistency:
         assert eval_res.portfolio_forward_returns[5] == expected_portfolio_5d
 
     @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_case_b_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
+    def test_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
         self, mock_gen_rec
     ) -> None:
         """2. Position-level aggregation and BUY+SELL mixed portfolio with pure hand-calculated mathematical oracle."""

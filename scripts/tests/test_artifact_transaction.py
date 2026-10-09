@@ -60,7 +60,7 @@ class TestArtifactTransactionSuite:
     def teardown_method(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_1_successful_transaction_lifecycle(self):
+    def test_successful_transaction_lifecycle(self):
         """1. Verify successful transaction completes STAGING -> BACKUP -> COMMIT -> CLEANUP cleanly."""
         publish_artifacts_atomically(
             self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
@@ -84,7 +84,7 @@ class TestArtifactTransactionSuite:
         assert not os.path.exists(bak_dir)
         assert not os.path.exists(state_file)
 
-    def test_2_second_writer_blocked_by_active_lock(self):
+    def test_second_writer_blocked_by_active_lock(self):
         """2. Verify second writer is blocked with ArtifactLockError when lock is active."""
         with ArtifactLock(self.target_dir):
             lock2 = ArtifactLock(self.target_dir, timeout=0.0)
@@ -92,7 +92,7 @@ class TestArtifactTransactionSuite:
                 lock2.acquire()
             assert "locked by another process" in str(cm.value)
 
-    def test_3_stale_lock_recovery(self):
+    def test_stale_lock_recovery(self):
         """3. Verify stale lock file metadata belonging to a non-existent process PID is handled safely."""
         lock_path = os.path.join(self.temp_dir, ".generated.lock")
         stale_pid = 99999999  # Guaranteed non-existent PID
@@ -103,7 +103,7 @@ class TestArtifactTransactionSuite:
         with ArtifactLock(self.target_dir, timeout=0.1) as lock:
             assert lock.is_acquired
 
-    def test_4_interruption_after_staging(self):
+    def test_interruption_after_staging(self):
         """4. Verify interruption after STAGING leaves valid target intact and cleans staging dir."""
         # Setup initial valid target
         initial_file = os.path.join(self.target_dir, "recommendations.json")
@@ -136,7 +136,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "original"}\n'
         assert not os.path.exists(staging_dir)
 
-    def test_5_interruption_after_backup(self):
+    def test_interruption_after_backup(self):
         """5. Verify interruption after BACKUP (target missing, backup exists) restores backup to target."""
         bak_dir = f"{self.target_dir}_bak"
         os.makedirs(bak_dir, exist_ok=True)
@@ -156,7 +156,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "backed_up_data"}\n'
         assert not os.path.exists(bak_dir)
 
-    def test_6_backup_exists_and_production_target_valid(self):
+    def test_backup_exists_and_production_target_valid(self):
         """6. Verify when target is valid and backup exists, backup is discarded and target preserved."""
         # Valid production target
         target_file = os.path.join(self.target_dir, "recommendations.json")
@@ -176,7 +176,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "valid_target"}\n'
         assert not os.path.exists(bak_dir)
 
-    def test_7_staging_exists_and_production_target_valid(self):
+    def test_staging_exists_and_production_target_valid(self):
         """7. Verify when target is valid and staging exists, staging is discarded."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -204,7 +204,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "valid_target"}\n'
         assert not os.path.exists(staging_dir)
 
-    def test_8_commit_publish_failure_rollback(self):
+    def test_commit_publish_failure_rollback(self):
         """8. Verify commit failure triggers rollback restoring previous valid artifacts."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -229,7 +229,7 @@ class TestArtifactTransactionSuite:
         with open(target_file, "r", encoding="utf-8") as f:
             assert f.read() == '{"v": "pre_commit_val"}\n'
 
-    def test_16_rollback_failure_preserves_journal_and_backup(self):
+    def test_rollback_failure_preserves_journal_and_backup(self):
         """16. Verify when publish fails AND rollback fails to restore target, journal and backup are preserved for recovery."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -267,7 +267,7 @@ class TestArtifactTransactionSuite:
         assert not os.path.exists(state_file)
         assert not os.path.exists(bak_dir)
 
-    def test_9_repeated_recovery_is_idempotent(self):
+    def test_repeated_recovery_is_idempotent(self):
         """9. Verify running recovery multiple times produces identical clean state."""
         bak_dir = f"{self.target_dir}_bak"
         os.makedirs(bak_dir, exist_ok=True)
@@ -285,7 +285,7 @@ class TestArtifactTransactionSuite:
         with open(target_file, "r", encoding="utf-8") as f:
             assert f.read() == '{"v": "backed_up_data"}\n'
 
-    def test_10_failed_transaction_preserves_previous_valid_artifacts(self):
+    def test_failed_transaction_preserves_previous_valid_artifacts(self):
         """10. Verify failed transaction preserves previous valid artifacts and cleans up temporary staging/state files."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -308,7 +308,7 @@ class TestArtifactTransactionSuite:
             assert "staging" not in item
             assert "bak" not in item
 
-    def test_11_corrupted_or_invalid_journal_recovery(self):
+    def test_corrupted_or_invalid_journal_recovery(self):
         """11. Verify recovery raises ArtifactTransactionError and preserves journal/target when journal is corrupt or invalid."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -364,7 +364,7 @@ class TestArtifactTransactionSuite:
             recover_interrupted_publish(self.target_dir)
         assert os.path.exists(state_file)
 
-    def test_12_stage_boundary_failure_injection_with_journal(self):
+    def test_stage_boundary_failure_injection_with_journal(self):
         """12. Verify failure-injection at STAGING, BACKUP, COMMIT, and CLEANUP boundaries using persisted journal."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
         bak_dir = f"{self.target_dir}_bak"
@@ -440,7 +440,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "restore_me"}\n'
         assert not os.path.exists(state_file)
 
-    def test_15_cleanup_boundary_scenarios(self):
+    def test_cleanup_boundary_scenarios(self):
         """15. Behavior-based tests for CLEANUP boundary scenarios."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
         bak_dir = f"{self.target_dir}_bak"
@@ -529,7 +529,7 @@ class TestArtifactTransactionSuite:
 
         assert os.path.exists(state_file)
 
-    def test_13_required_vs_optional_cleanup_failures(self):
+    def test_required_vs_optional_cleanup_failures(self):
         """13. Verify required cleanup failure raises error while optional cleanup failure logs warning and preserves success."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
         staging_dir = f"{self.target_dir}_staging_req_test"
@@ -590,7 +590,7 @@ class TestArtifactTransactionSuite:
         # Journal is removed because recovery completed successfully
         assert not os.path.exists(state_file)
 
-    def test_14_unrelated_staging_directories_preserved(self):
+    def test_unrelated_staging_directories_preserved(self):
         """14. Verify unrelated staging directories not belonging to current journal are preserved."""
         unrelated_staging = f"{self.target_dir}_staging_unrelated_999"
         os.makedirs(unrelated_staging, exist_ok=True)
@@ -600,7 +600,7 @@ class TestArtifactTransactionSuite:
         # Unrelated staging dir must NOT be blindly deleted
         assert os.path.exists(unrelated_staging)
 
-    def test_17_real_cleanup_interruption_and_recovery(self):
+    def test_real_cleanup_interruption_and_recovery(self):
         """17. Real transaction CLEANUP boundary interruption test across all recovery scenarios.
 
         - Executes a real transaction advancing through STAGING -> BACKUP -> COMMIT -> CLEANUP.

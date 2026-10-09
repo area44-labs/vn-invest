@@ -184,7 +184,7 @@ class TestAuditTrailObservability:
             "invalidation": [],
         }
 
-    def test_scenario_1_complete_production_universe(self):
+    def test_complete_production_universe(self):
         """Scenario 1: Complete production universe -> no failures, 100% processed."""
         expected = ["FPT", "MWG", "VN30", "VNINDEX"]
         summary = {
@@ -216,7 +216,7 @@ class TestAuditTrailObservability:
         assert res.status == "PASS"
         assert audit["summary"]["diagnostic_count"] == 0
 
-    def test_scenario_2_one_invalid_symbol(self):
+    def test_one_invalid_symbol(self):
         """Scenario 2: One invalid symbol in candidates universe."""
         payload = copy.deepcopy(self.healthy_payload)
         bad_rec = self._make_insufficient_rec("BADSYM")
@@ -260,7 +260,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "INVALID_SYMBOL"
         assert audit["exclusions"][0]["stage"] == "STOCK_FETCH"
 
-    def test_scenario_3_one_insufficient_history_symbol(self):
+    def test_one_insufficient_history_symbol(self):
         """Scenario 3: One symbol with insufficient historical data."""
         payload = copy.deepcopy(self.healthy_payload)
         insuf_rec = self._make_insufficient_rec("SHORT")
@@ -303,7 +303,7 @@ class TestAuditTrailObservability:
         assert res.status == "PASS"
         assert audit["exclusions"][0]["category"] == "INSUFFICIENT_HISTORICAL_DATA"
 
-    def test_scenario_4_one_provider_failure(self):
+    def test_one_provider_failure(self):
         """Scenario 4: One symbol encountering provider failure."""
         payload = copy.deepcopy(self.healthy_payload)
         fail_rec = self._make_insufficient_rec("FAILSYM")
@@ -346,7 +346,7 @@ class TestAuditTrailObservability:
         assert res.status == "PASS"
         assert audit["exclusions"][0]["category"] == "PROVIDER_FAILURE"
 
-    def test_scenario_5_one_temporal_invalid_symbol(self):
+    def test_one_temporal_invalid_symbol(self):
         """Scenario 5: One symbol failing temporal validation."""
         payload = copy.deepcopy(self.healthy_payload)
         stale_rec = self._make_insufficient_rec("STALE")
@@ -390,7 +390,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["stage"] == "TEMPORAL_VALIDATION"
         assert audit["exclusions"][0]["category"] == "TEMPORAL_INVALID"
 
-    def test_scenario_6_mixed_classifications(self):
+    def test_mixed_classifications(self):
         """Scenario 6: Universe containing mixed symbol classifications."""
         payload = copy.deepcopy(self.healthy_payload)
         payload["recommendations"].extend(
@@ -481,7 +481,7 @@ class TestAuditTrailObservability:
             + c["missing_count"]
         )
 
-    def test_scenario_7_missing_symbol_detection(self):
+    def test_missing_symbol_detection(self):
         """Scenario 7: Symbol in expected universe missing from scan results."""
         payload = copy.deepcopy(self.healthy_payload)
 
@@ -522,7 +522,7 @@ class TestAuditTrailObservability:
         assert audit["exclusions"][0]["category"] == "UNIVERSE_INCOMPLETE"
         assert audit["exclusions"][0]["status"] == "MISSING"
 
-    def test_scenario_8_duplicate_classification_detection(self):
+    def test_duplicate_classification_detection(self):
         """Scenario 8: Detection of duplicate classification (symbol in multiple disjoint sets)."""
         audit = {
             "status": "FAILED",
@@ -565,7 +565,7 @@ class TestAuditTrailObservability:
         assert res.status == "FAIL"
         assert "Duplicate symbol classification detected" in res.message
 
-    def test_scenario_9_monitoring_count_consistency(self):
+    def test_monitoring_count_consistency(self):
         """Scenario 9: Verification that production monitoring consumes exact pipeline universe_audit counts."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
@@ -616,7 +616,7 @@ class TestAuditTrailObservability:
             mon_dict = mon_res.to_dict()
             assert mon_dict["metrics"]["universe_audit"] == audit_input
 
-    def test_scenario_10_monitoring_count_mismatch_internal_consistency_failure(self):
+    def test_monitoring_count_mismatch_internal_consistency_failure(self):
         """Scenario 10: Count mismatch between set lengths and reported counts raises internal consistency failure."""
         audit_mismatched = {
             "status": "SUCCESS",
@@ -644,7 +644,7 @@ class TestAuditTrailObservability:
         assert res.status == "FAIL"
         assert "Count mismatch for expected" in res.message
 
-    def test_scenario_11_monitoring_fail_diagnostic_identifies_failed_check(self):
+    def test_monitoring_fail_diagnostic_identifies_failed_check(self):
         """Scenario 11: When monitoring produces FAIL, diagnostics explicitly identify the failed check."""
         with tempfile.TemporaryDirectory() as tmpdir:
             hist_dir = os.path.join(tmpdir, "history")
@@ -678,7 +678,7 @@ class TestAuditTrailObservability:
                 assert d["category"] == "MONITORING_FAILURE"
                 assert d["status"] == "FAIL"
 
-    def test_scenario_12_output_validation_failure_correct_stage_category(self):
+    def test_output_validation_failure_correct_stage_category(self):
         """Scenario 12: Payload validation failure identifies stage = OUTPUT_VALIDATION, category = OUTPUT_VALIDATION_FAILURE."""
         from scripts.generate_report import validate_final_payload_integrity
 
@@ -697,7 +697,7 @@ class TestAuditTrailObservability:
         assert diag["payload"] == "recommendations"
         assert diag["status"] == "FAIL"
 
-    def test_scenario_13_rate_limit_failure(self):
+    def test_rate_limit_failure(self):
         """Scenario 13: Rate limit failure produces stage = STOCK_FETCH, category = RATE_LIMIT."""
         payload = copy.deepcopy(self.healthy_payload)
         rl_rec = self._make_insufficient_rec("RLSYM")
@@ -742,7 +742,7 @@ class TestAuditTrailObservability:
         assert res.status == "PASS"
         assert audit["exclusions"][0]["category"] == "RATE_LIMIT"
 
-    def test_scenario_14_artifact_preservation_remains_unchanged(self):
+    def test_artifact_preservation_remains_unchanged(self):
         """Scenario 14: Failed validation or monitoring preserves existing generated artifacts on disk byte-for-byte."""
         from scripts.generate_report import validate_final_payload_integrity
 
@@ -802,7 +802,7 @@ class TestAuditTrailObservability:
             }
             assert all_files_in_hist == {"index.json", "2026-09-25.json"}
 
-    def test_scenario_15_diagnostics_deterministic_across_repeated_runs(self):
+    def test_diagnostics_deterministic_across_repeated_runs(self):
         """Scenario 15: Run build_universe_audit twice on identical input state (with different container orders) and assert exact equality and stable symbol ordering."""
         from scripts.domain.universe import Universe, UniverseScanResult
         from scripts.generate_report import build_universe_audit

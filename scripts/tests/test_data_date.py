@@ -660,7 +660,7 @@ class TestProductionDataFreshness:
 
     """Deterministic offline unit tests verifying production data freshness rules."""
 
-    def test_1_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
+    def test_vnindex_and_all_stocks_same_latest_date_update_succeeds(self):
         """1. VNINDEX and all stocks have the same latest date -> update succeeds."""
         df_valid = pd.DataFrame(
             {
@@ -681,7 +681,7 @@ class TestProductionDataFreshness:
             assert recs["data_as_of"] == "2026-09-20"
             assert mkt["data_as_of"] == "2026-09-20"
 
-    def test_2_one_stock_one_day_behind_update_fails(self):
+    def test_one_stock_one_day_behind_update_fails(self):
         """2. One stock is one day behind -> update fails."""
         df_vnindex = pd.DataFrame(
             {
@@ -720,7 +720,7 @@ class TestProductionDataFreshness:
                 run_pipeline(update_data=True)
             assert "FPT" in str(ctx.value)
 
-    def test_3_one_stock_several_days_behind_update_fails(self):
+    def test_one_stock_several_days_behind_update_fails(self):
         """3. One stock is several days behind -> update fails."""
         df_vnindex = pd.DataFrame(
             {
@@ -759,7 +759,7 @@ class TestProductionDataFreshness:
                 run_pipeline(update_data=True)
             assert "SSI" in str(ctx.value)
 
-    def test_4_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
+    def test_stock_contains_canonical_date_with_older_rows_succeeds_and_uses_canonical_close(
         self,
     ):
         """4. Stock data contains canonical date with older rows -> update succeeds and uses canonical-date close."""
@@ -790,7 +790,7 @@ class TestProductionDataFreshness:
                 assert r["data_as_of"] == "2026-09-20"
                 assert r["trade_plan"]["current_price"] == 69000.0
 
-    def test_5_provider_source_a_stale_source_b_canonical_selected(self):
+    def test_provider_source_a_stale_source_b_canonical_selected(self):
         """5. Provider source A is stale while source B has canonical date -> source B selected."""
         df_stale_raw = pd.DataFrame(
             {
@@ -830,7 +830,7 @@ class TestProductionDataFreshness:
             # Close prices converted from thousand_VND -> VND
             assert res_df["close"].iloc[-1] == 55000.0
 
-    def test_6_no_source_has_canonical_date_update_fails_closed(self):
+    def test_no_source_has_canonical_date_update_fails_closed(self):
         """6. No source has canonical date -> update fails closed."""
         df_stale_raw = pd.DataFrame(
             {
@@ -854,7 +854,7 @@ class TestProductionDataFreshness:
             # Returns stale best candidate (2026-09-19)
             assert res_df["time"].max() == "2026-09-19"
 
-    def test_7_current_price_equals_close_from_canonical_date_row(self):
+    def test_current_price_equals_close_from_canonical_date_row(self):
         """7. Verify current_price equals the close from the canonical-date row."""
         dates = pd.date_range("2026-09-01", periods=20, freq="D").strftime("%Y-%m-%d")
         df_stock = pd.DataFrame(
@@ -881,7 +881,7 @@ class TestProductionDataFreshness:
                     f"Recommendation for {r['symbol']} current_price mismatch"
                 )
 
-    def test_8_existing_generated_artifacts_unchanged_after_freshness_failure(self):
+    def test_existing_generated_artifacts_unchanged_after_freshness_failure(self):
         """8. Verify existing generated artifacts are byte-for-byte unchanged after freshness failure."""
         df_vnindex = pd.DataFrame(
             {
@@ -944,7 +944,7 @@ class TestProductionDataFreshness:
             assert mkt_p.read_bytes() == dummy_mkt
             assert mon_p.read_bytes() == dummy_mon
 
-    def test_9_historical_non_production_behavior_unchanged(self):
+    def test_historical_non_production_behavior_unchanged(self):
         """9. Verify historical/non-production behavior remains unchanged."""
         data_as_of = "2026-09-20"
         stock_dates = {

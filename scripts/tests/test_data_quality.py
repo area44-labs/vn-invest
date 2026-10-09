@@ -300,7 +300,7 @@ class TestHardenedPerSymbolDataValidation:
     def teardown_method(self):
         patch.stopall()
 
-    def test_1_valid_ohlcv_returns_real_data(self):
+    def test_valid_ohlcv_returns_real_data(self):
         """1. Valid OHLCV DataFrame -> 'REAL_DATA' tag."""
         from scripts.data.acquisition import get_historical_data
 
@@ -311,7 +311,7 @@ class TestHardenedPerSymbolDataValidation:
             assert tag == "REAL_DATA"
             assert issues == []
 
-    def test_2_empty_dataframe_fails(self):
+    def test_empty_dataframe_fails(self):
         """2. Empty dataframe -> failure."""
         res_none = validate_ohlcv_data(None)
         assert res_none["status"] == "INSUFFICIENT"
@@ -321,14 +321,14 @@ class TestHardenedPerSymbolDataValidation:
         assert res_empty["status"] == "INSUFFICIENT"
         assert "empty_dataframe" in res_empty["issues"]
 
-    def test_3_missing_required_column_fails(self):
+    def test_missing_required_column_fails(self):
         """3. Missing required column -> failure."""
         df = make_valid_df(25).drop(columns=["close"])
         res = validate_ohlcv_data(df)
         assert res["status"] == "INSUFFICIENT"
         assert "missing_required_columns" in res["issues"]
 
-    def test_4_nan_in_close_fails(self):
+    def test_nan_in_close_fails(self):
         """4. NaN in close -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -344,7 +344,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_5_inf_in_volume_fails(self):
+    def test_inf_in_volume_fails(self):
         """5. Inf in volume -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -361,7 +361,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_6_negative_price_fails(self):
+    def test_negative_price_fails(self):
         """6. Negative price -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -377,7 +377,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_7_negative_volume_fails(self):
+    def test_negative_volume_fails(self):
         """7. Negative volume -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -393,7 +393,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_8_invalid_ohlc_relationship_fails(self):
+    def test_invalid_ohlc_relationship_fails(self):
         """8. Invalid OHLC relationship -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -410,7 +410,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_9_duplicate_dates_fail(self):
+    def test_duplicate_dates_fail(self):
         """9. Duplicate dates -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -426,7 +426,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_10_non_monotonic_dates_fail(self):
+    def test_non_monotonic_dates_fail(self):
         """10. Non-monotonic dates -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -444,7 +444,7 @@ class TestHardenedPerSymbolDataValidation:
             _df_res, tag, _ = get_historical_data("FPT")
             assert tag == "EXPLICITLY_INVALID"
 
-    def test_11_insufficient_history(self):
+    def test_insufficient_history(self):
         """11. Insufficient history -> 'INSUFFICIENT_HISTORICAL_DATA'."""
         from scripts.data.acquisition import get_historical_data
 
@@ -455,7 +455,7 @@ class TestHardenedPerSymbolDataValidation:
             assert tag == "INSUFFICIENT_HISTORICAL_DATA"
             assert "insufficient_history" in issues
 
-    def test_12_invalid_vnindex_fails_closed(self):
+    def test_invalid_vnindex_fails_closed(self):
         """12. Invalid VNINDEX -> fail closed."""
         invalid_df = make_valid_df(25)
         invalid_df.loc[10, "close"] = None
@@ -475,7 +475,7 @@ class TestHardenedPerSymbolDataValidation:
 
             assert "VNINDEX" in str(ctx.value)
 
-    def test_13_invalid_vn30_fails_closed(self):
+    def test_invalid_vn30_fails_closed(self):
         """13. Invalid VN30 -> fail closed."""
         invalid_df = make_valid_df(25)
         invalid_df.loc[5, "volume"] = -100
@@ -495,7 +495,7 @@ class TestHardenedPerSymbolDataValidation:
 
             assert "VN30" in str(ctx.value)
 
-    def test_14_invalid_stock_data_existing_artifacts_unchanged(self):
+    def test_invalid_stock_data_existing_artifacts_unchanged(self):
         """14. Invalid stock data -> existing artifacts unchanged."""
         import json
         import tempfile
@@ -536,7 +536,7 @@ class TestHardenedPerSymbolDataValidation:
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             assert saved_content == initial_content
 
-    def test_15_valid_complete_universe_report_generated_successfully(self):
+    def test_valid_complete_universe_report_generated_successfully(self):
         """15. Valid complete universe -> report generated successfully."""
         import tempfile
         from pathlib import Path
