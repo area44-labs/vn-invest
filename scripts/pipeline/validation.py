@@ -78,27 +78,27 @@ def find_payload_integrity_issues(payload: dict) -> list[str]:
             except (jsonschema.SchemaError, TypeError, ValueError) as err:
                 issues.append(f"JSON Schema validation error: {err}")
 
-    def _walk_check(obj, path=""):
-        if obj is None:
+    def _walk_check(payload_node, path=""):
+        if payload_node is None:
             return
         loc = path if path else "root"
-        obj_type_mod = getattr(type(obj), "__module__", "")
+        obj_type_mod = getattr(type(payload_node), "__module__", "")
         if obj_type_mod.startswith(("numpy", "pandas")):
-            issues.append(f"Non-serializable {type(obj).__name__} scalar/object at {loc}")
+            issues.append(f"Non-serializable {type(payload_node).__name__} scalar/object at {loc}")
 
-        if isinstance(obj, float):
-            if math.isnan(obj):
+        if isinstance(payload_node, float):
+            if math.isnan(payload_node):
                 issues.append(f"NaN floating point value at {loc}")
-            elif math.isinf(obj):
+            elif math.isinf(payload_node):
                 issues.append(f"Infinity floating point value at {loc}")
-        elif isinstance(obj, str):
-            if obj.lower() in ("nan", "infinity", "-infinity", "inf", "-inf"):
-                issues.append(f"Invalid numeric string representation '{obj}' at {loc}")
-        elif isinstance(obj, dict):
-            for k, v in obj.items():
+        elif isinstance(payload_node, str):
+            if payload_node.lower() in ("nan", "infinity", "-infinity", "inf", "-inf"):
+                issues.append(f"Invalid numeric string representation '{payload_node}' at {loc}")
+        elif isinstance(payload_node, dict):
+            for k, v in payload_node.items():
                 _walk_check(v, f"{path}.{k}" if path else str(k))
-        elif isinstance(obj, (list, tuple)):
-            for idx, item in enumerate(obj):
+        elif isinstance(payload_node, (list, tuple)):
+            for idx, item in enumerate(payload_node):
                 _walk_check(item, f"{path}[{idx}]")
 
     _walk_check(payload)

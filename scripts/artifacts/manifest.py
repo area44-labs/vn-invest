@@ -106,13 +106,13 @@ class ArtifactManifestBuilder:
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
         self._artifacts: dict[str, dict[str, Any]] = {}
 
-    def add_artifact(self, relative_path: str, data: dict[str, Any]) -> ArtifactManifestBuilder:
+    def add_artifact(self, relative_path: str, payload: dict[str, Any]) -> ArtifactManifestBuilder:
         """Add an artifact payload under a relative destination path."""
         if not relative_path or not isinstance(relative_path, str):
             raise ValueError("relative_path must be a non-empty string")
-        if not isinstance(data, dict):
+        if not isinstance(payload, dict):
             raise TypeError(f"Artifact payload for '{relative_path}' must be a dict")
-        self._artifacts[relative_path] = data
+        self._artifacts[relative_path] = payload
         return self
 
     def build_history_index(

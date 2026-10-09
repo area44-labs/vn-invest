@@ -12,33 +12,35 @@ from scripts.domain.universe import VALID_EXCHANGES
 VALID_ACTIONS = {"BUY", "WATCH", "HOLD", "SELL", "AVOID"}
 
 
-def _validate_score_or_none(val: Any, name: str) -> float | None:
-    """Validate that val can be float or None in range [0.0, 100.0]."""
-    if val is None:
+def _validate_score_or_none(score_value: Any, field_name: str) -> float | None:
+    """Validate that score_value can be float or None in range [0.0, 100.0]."""
+    if score_value is None:
         return None
-    if isinstance(val, bool):
-        raise TypeError(f"Field '{name}' must be numeric or None, got bool")
+    if isinstance(score_value, bool):
+        raise TypeError(f"Field '{field_name}' must be numeric or None, got bool")
     try:
-        f = float(val)
+        f = float(score_value)
     except (ValueError, TypeError) as err:
         raise TypeError(
-            f"Field '{name}' must be numeric or None, got {type(val).__name__}"
+            f"Field '{field_name}' must be numeric or None, got {type(score_value).__name__}"
         ) from err
     if math.isnan(f) or math.isinf(f):
-        raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")
+        raise ValueError(f"Field '{field_name}' cannot be NaN or Inf, got {f}")
     if f < 0.0 or f > 100.0:
-        raise ValueError(f"Field '{name}' must be between 0.0 and 100.0, got {f}")
+        raise ValueError(f"Field '{field_name}' must be between 0.0 and 100.0, got {f}")
     return f
 
 
-def _validate_confidence(val: Any) -> float:
-    """Validate that val is a float in range [0.0, 1.0]."""
-    if val is None or isinstance(val, bool):
-        raise TypeError(f"Field 'confidence' must be float, got {type(val).__name__}")
+def _validate_confidence(confidence_value: Any) -> float:
+    """Validate that confidence_value is a float in range [0.0, 1.0]."""
+    if confidence_value is None or isinstance(confidence_value, bool):
+        raise TypeError(f"Field 'confidence' must be float, got {type(confidence_value).__name__}")
     try:
-        f = float(val)
+        f = float(confidence_value)
     except (ValueError, TypeError) as err:
-        raise TypeError(f"Field 'confidence' must be numeric, got {type(val).__name__}") from err
+        raise TypeError(
+            f"Field 'confidence' must be numeric, got {type(confidence_value).__name__}"
+        ) from err
     if math.isnan(f) or math.isinf(f):
         raise ValueError(f"Field 'confidence' cannot be NaN or Inf, got {f}")
     if f < 0.0 or f > 1.0:
@@ -269,36 +271,36 @@ class Recommendation:
         return iter(self.to_dict())
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
+    def from_dict(cls, data_dict: dict[str, Any]) -> Self:
         """Construct Recommendation contract from dictionary representation."""
-        if not isinstance(data, dict):
-            raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
-        comp_val = data.get("company_name") or data.get("companyName") or ""
-        sec_val = data.get("sector") or ""
-        ex_val = data.get("exchange") or ""
+        if not isinstance(data_dict, dict):
+            raise TypeError(f"Input data must be a dict, got {type(data_dict).__name__}")
+        comp_val = data_dict.get("company_name") or data_dict.get("companyName") or ""
+        sec_val = data_dict.get("sector") or ""
+        ex_val = data_dict.get("exchange") or ""
         return cls(
-            symbol=data.get("symbol", ""),
+            symbol=data_dict.get("symbol", ""),
             company_name=comp_val,
             exchange=ex_val,
             sector=sec_val,
-            action=data.get("action", "AVOID"),
-            model_version=data.get("model_version", "2.0"),
-            quant_version=data.get("quant_version", "1.0.0"),
-            config_hash=data.get("config_hash", ""),
-            data_quality=data.get("data_quality", "INSUFFICIENT"),
-            data_quality_issues=tuple(data.get("data_quality_issues", [])),
-            data_as_of=data.get("data_as_of"),
-            data_source=data.get("data_source"),
-            signal_score=data.get("signal_score"),
-            risk_adjusted_score=data.get("risk_adjusted_score"),
-            score_components=data.get("score_components"),
-            confidence=data.get("confidence", 0.10),
-            risk_level=data.get("risk_level"),
-            expected_return=data.get("expected_return"),
-            risk_metrics=data.get("risk_metrics"),
-            trade_plan=data.get("trade_plan"),
-            reasons=tuple(data.get("reasons", [])),
-            warnings=tuple(data.get("warnings", [])),
-            invalidation=tuple(data.get("invalidation", [])),
-            divergence=data.get("divergence"),
+            action=data_dict.get("action", "AVOID"),
+            model_version=data_dict.get("model_version", "2.0"),
+            quant_version=data_dict.get("quant_version", "1.0.0"),
+            config_hash=data_dict.get("config_hash", ""),
+            data_quality=data_dict.get("data_quality", "INSUFFICIENT"),
+            data_quality_issues=tuple(data_dict.get("data_quality_issues", [])),
+            data_as_of=data_dict.get("data_as_of"),
+            data_source=data_dict.get("data_source"),
+            signal_score=data_dict.get("signal_score"),
+            risk_adjusted_score=data_dict.get("risk_adjusted_score"),
+            score_components=data_dict.get("score_components"),
+            confidence=data_dict.get("confidence", 0.10),
+            risk_level=data_dict.get("risk_level"),
+            expected_return=data_dict.get("expected_return"),
+            risk_metrics=data_dict.get("risk_metrics"),
+            trade_plan=data_dict.get("trade_plan"),
+            reasons=tuple(data_dict.get("reasons", [])),
+            warnings=tuple(data_dict.get("warnings", [])),
+            invalidation=tuple(data_dict.get("invalidation", [])),
+            divergence=data_dict.get("divergence"),
         )

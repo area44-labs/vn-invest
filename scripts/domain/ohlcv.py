@@ -5,16 +5,18 @@ from dataclasses import dataclass
 from typing import Any, Self
 
 
-def _validate_finite_float(val: Any, name: str) -> float:
-    """Validate that val can be float and is non-NaN and non-Inf."""
-    if val is None or isinstance(val, bool):
-        raise TypeError(f"Field '{name}' must be a finite float, got {type(val).__name__}")
+def _validate_finite_float(value: Any, field_name: str) -> float:
+    """Validate that value can be float and is non-NaN and non-Inf."""
+    if value is None or isinstance(value, bool):
+        raise TypeError(f"Field '{field_name}' must be a finite float, got {type(value).__name__}")
     try:
-        f = float(val)
+        f = float(value)
     except (ValueError, TypeError) as err:
-        raise TypeError(f"Field '{name}' must be numeric, got {type(val).__name__}") from err
+        raise TypeError(
+            f"Field '{field_name}' must be numeric, got {type(value).__name__}"
+        ) from err
     if math.isnan(f) or math.isinf(f):
-        raise ValueError(f"Field '{name}' cannot be NaN or Inf, got {f}")
+        raise ValueError(f"Field '{field_name}' cannot be NaN or Inf, got {f}")
     return f
 
 
@@ -86,15 +88,15 @@ class OHLCVData:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
+    def from_dict(cls, data_dict: dict[str, Any]) -> Self:
         """Construct OHLCVData contract from dictionary representation."""
-        if not isinstance(data, dict):
-            raise TypeError(f"Input data must be a dict, got {type(data).__name__}")
+        if not isinstance(data_dict, dict):
+            raise TypeError(f"Input data must be a dict, got {type(data_dict).__name__}")
         return cls(
-            date=data.get("date") or data.get("time") or "",
-            open=data.get("open"),
-            high=data.get("high"),
-            low=data.get("low"),
-            close=data.get("close"),
-            volume=data.get("volume"),
+            date=data_dict.get("date") or data_dict.get("time") or "",
+            open=data_dict.get("open"),
+            high=data_dict.get("high"),
+            low=data_dict.get("low"),
+            close=data_dict.get("close"),
+            volume=data_dict.get("volume"),
         )
