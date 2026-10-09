@@ -49,7 +49,7 @@ class TestVersionedSchemaRegistry:
         """Verify recommendations and performance v2.0 resolve correctly."""
         rec_schema = resolve_schema("recommendations", "2.0")
         assert isinstance(rec_schema, dict)
-        assert rec_schema.get("title") == "VnInvestRecommendationsSchema"
+        assert rec_schema.get("title") == "VN Invest Recommendations Schema"
 
         perf_schema = resolve_schema("performance", "2.0")
         assert isinstance(perf_schema, dict)
