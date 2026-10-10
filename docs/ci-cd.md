@@ -8,12 +8,12 @@ This document specifies the GitHub Actions workflows, automated scheduled pipeli
 
 The repository includes four primary GitHub Actions workflows:
 
-| Workflow File         | Trigger Events                                            | Primary Responsibilities                                                                        |
-| :-------------------- | :-------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| **`tests.yml`**       | `push` / `pull_request` on `main`                         | Python backend test suite execution (`uv run --frozen pytest`) with conditional path detection. |
-| **`lint-format.yml`** | `push` / `pull_request` on `main`                         | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check.                 |
-| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch` | Scheduled EOD market data update and daily report regeneration.                                 |
-| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`   | SSG prerender build via Vite+ and deployment to GitHub Pages.                                   |
+| Workflow File         | Trigger Events                                                                                                                   | Primary Responsibilities                                                        |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
+| **`tests.yml`**       | `push` / `pull_request` on `main` (matching `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, `.github/workflows/tests.yml`) | Python backend test suite execution (`uv run --frozen pytest`) on Python 3.14.  |
+| **`lint-format.yml`** | `push` / `pull_request` on `main`                                                                                                | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check. |
+| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                                                                        | Scheduled EOD market data update and daily report regeneration.                 |
+| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`                                                                          | SSG prerender build via Vite+ and deployment to GitHub Pages.                   |
 
 ---
 
@@ -22,16 +22,14 @@ The repository includes four primary GitHub Actions workflows:
 ### 2.1 Python Test Suite Workflow (`tests.yml`)
 
 - **Environment**: `ubuntu-latest`, Python 3.14, managed via `astral-sh/setup-uv@v10`.
-- **Timeout**: `timeout-minutes: 10` for test job.
-- **Conditional Job Execution**:
-  - Uses `dorny/paths-filter` in a `changes` job to inspect modified files against `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`.
-  - Executes the `test` job (`uv sync --frozen` & `uv run --frozen pytest`) only when Python code, dependencies, or test configurations change.
-  - Skips the `test` job cleanly for documentation-only changes without leaving status checks stuck in pending.
-- **Aggregate Status (`tests-status`)**:
-  - Evaluates both `changes` and `test` job outcomes.
-  - Reports success (`exit 0`) when tests pass OR when tests are legitimately skipped for documentation-only commits.
-  - Reports failure (`exit 1`) when test execution fails or cancels.
-- **Required Check Configuration**: Repository branch protection settings requiring Python tests must reference `tests-status` (or `Tests / tests-status`) as the required check.
+- **Timeout**: `timeout-minutes: 10`.
+- **Steps**:
+  ```bash
+  uv sync --frozen
+  uv run --frozen pytest
+  ```
+- **Paths Filter**: Workflow-level `paths` filter triggers execution for changes affecting `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`. Skips test execution for documentation-only modifications.
+- **Note on Required Status Checks**: When a workflow is skipped due to path filters, GitHub Actions does not create the workflow run. If repository branch protection requires the `test` check, documentation-only pull requests may leave the status check pending unless updated in repository settings.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
 
