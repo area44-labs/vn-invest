@@ -29,7 +29,7 @@ def _extract_latest_trading_date(df: pd.DataFrame) -> str | None:
     date_col = "time" if "time" in df.columns else ("date" if "date" in df.columns else None)
     if not date_col:
         return None
-    parsed_dates = pd.to_datetime(df[date_col], errors="coerce").dropna()
+    parsed_dates = pd.to_datetime(df[date_col], errors="coerce", format="mixed").dropna()
     if parsed_dates.empty:
         return None
     return str(parsed_dates.max().strftime("%Y-%m-%d"))
