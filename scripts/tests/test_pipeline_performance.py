@@ -141,7 +141,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(10.0, 0.01)
         mock_perf.side_effect = lambda: next(counter)
@@ -197,7 +197,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(1.0, 0.05)
         mock_perf.side_effect = lambda: next(counter)
@@ -675,7 +675,7 @@ class TestPipelinePerformanceProfiling:
     def test_stage_ordering_in_main_flow_remains_unchanged(self, mock_fetch_ohlcv, mock_perf):
         """Main pipeline stage ordering matches expected canonical order strictly."""
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         mock_fetch_ohlcv.return_value = valid_df
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
