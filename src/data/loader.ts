@@ -5,6 +5,11 @@ import type {
   RecommendationsPayload,
 } from "@/types/recommendation";
 
+export type LoadResult<T> =
+  | { status: "SUCCESS"; data: T }
+  | { status: "NOT_FOUND" }
+  | { status: "ERROR"; error: string };
+
 function getBaseUrl(): string {
   const base = import.meta.env.BASE_URL || "/";
   return base.endsWith("/") ? base : `${base}/`;
@@ -12,9 +17,9 @@ function getBaseUrl(): string {
 
 /**
  * Reads local static JSON artifact from disk during SSG build,
- * or fetches via HTTP in browser runtime.
+ * or fetches via HTTP in browser runtime, returning a typed LoadResult.
  */
-async function loadArtifact<T>(relativePath: string): Promise<T | null> {
+async function loadArtifactResult<T>(relativePath: string): Promise<LoadResult<T>> {
   if (import.meta.env.SSR) {
     try {
       const fsModule = "node:fs/promises";
@@ -23,13 +28,24 @@ async function loadArtifact<T>(relativePath: string): Promise<T | null> {
       const path = await import(/* @vite-ignore */ pathModule);
 
       const filePath = path.join(process.cwd(), relativePath);
-      const content = await fs.readFile(filePath, "utf-8");
-      return JSON.parse(content) as T;
-    } catch (err) {
-      console.error(`[SSG Fatal Error] Failed to read static artifact ${relativePath}:`, err);
-      throw new Error(
-        `[SSG Build Error] Required static artifact ${relativePath} is missing or invalid: ${(err as Error).message}`,
-      );
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
+        const data = JSON.parse(content) as T;
+        return { status: "SUCCESS", data };
+      } catch (err: any) {
+        if (err?.code === "ENOENT") {
+          return { status: "NOT_FOUND" };
+        }
+        console.error(`[SSG Fatal Error] Failed to read static artifact ${relativePath}:`, err);
+        throw new Error(
+          `[SSG Build Error] Required static artifact ${relativePath} is invalid: ${(err as Error).message}`,
+        );
+      }
+    } catch (err: any) {
+      if (err.message?.startsWith("[SSG Build Error]")) {
+        throw err;
+      }
+      return { status: "ERROR", error: (err as Error).message || "SSG artifact read error" };
     }
   }
 
@@ -38,70 +54,126 @@ async function loadArtifact<T>(relativePath: string): Promise<T | null> {
 
   try {
     const res = await fetch(url);
-    if (res.ok) {
-      return (await res.json()) as T;
+    if (res.status === 404) {
+      return { status: "NOT_FOUND" };
+    }
+    if (!res.ok) {
+      return {
+        status: "ERROR",
+        error: `HTTP ${res.status}: ${res.statusText || "Request failed"}`,
+      };
+    }
+    try {
+      const data = (await res.json()) as T;
+      return { status: "SUCCESS", data };
+    } catch (err) {
+      return {
+        status: "ERROR",
+        error: `Failed to parse JSON response: ${(err as Error).message}`,
+      };
     }
   } catch (err) {
-    console.error(`Failed to fetch artifact ${url}:`, err);
+    return {
+      status: "ERROR",
+      error: `Network or fetch error: ${(err as Error).message}`,
+    };
   }
-  return null;
 }
 
 /**
- * Fetches canonical recommendations JSON artifact.
+ * Fetches canonical recommendations JSON artifact as LoadResult.
  */
-export async function loadRecommendations(): Promise<RecommendationsPayload | null> {
-  const data = await loadArtifact<RecommendationsPayload>("generated/recommendations.json");
-  if (data && data.recommendations) {
-    return data;
+export async function loadRecommendationsResult(): Promise<LoadResult<RecommendationsPayload>> {
+  const result = await loadArtifactResult<RecommendationsPayload>("generated/recommendations.json");
+  if (result.status === "SUCCESS" && (!result.data || !result.data.recommendations)) {
+    return { status: "ERROR", error: "Malformed recommendations payload" };
   }
-  return null;
+  return result;
 }
 
 /**
- * Fetches canonical market summary JSON artifact.
+ * Fetches canonical market summary JSON artifact as LoadResult.
  */
-export async function loadMarket(): Promise<MarketPayload | null> {
-  const data = await loadArtifact<MarketPayload>("generated/market.json");
-  if (data && data.market) {
-    return data;
+export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
+  const result = await loadArtifactResult<MarketPayload>("generated/market.json");
+  if (result.status === "SUCCESS" && (!result.data || !result.data.market)) {
+    return { status: "ERROR", error: "Malformed market payload" };
   }
-  return null;
+  return result;
 }
 
 /**
- * Fetches history index JSON artifact.
+ * Fetches history index JSON artifact as LoadResult.
  */
-export async function loadHistoryIndex(): Promise<HistoryIndexPayload | null> {
-  const data = await loadArtifact<HistoryIndexPayload>("generated/history/index.json");
-  if (data && data.dates) {
-    return data;
+export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexPayload>> {
+  const result = await loadArtifactResult<HistoryIndexPayload>("generated/history/index.json");
+  if (result.status === "SUCCESS" && (!result.data || !result.data.dates)) {
+    return { status: "ERROR", error: "Malformed history index payload" };
   }
-  return null;
+  return result;
 }
 
 /**
- * Fetches historical recommendation report JSON artifact for a given date (YYYY-MM-DD).
+ * Fetches historical recommendation report JSON artifact for a given date (YYYY-MM-DD) as LoadResult.
  */
-export async function loadHistoryReport(date: string): Promise<RecommendationsPayload | null> {
+export async function loadHistoryReportResult(
+  date: string,
+): Promise<LoadResult<RecommendationsPayload>> {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return null;
+    return { status: "NOT_FOUND" };
   }
-  const data = await loadArtifact<RecommendationsPayload>(`generated/history/${date}.json`);
-  if (data && data.recommendations) {
-    return data;
+  const result = await loadArtifactResult<RecommendationsPayload>(`generated/history/${date}.json`);
+  if (result.status === "SUCCESS" && (!result.data || !result.data.recommendations)) {
+    return { status: "ERROR", error: "Malformed history report payload" };
   }
-  return null;
+  return result;
 }
 
 /**
- * Finds a single stock recommendation by symbol from canonical recommendations.
+ * Finds a single stock recommendation by symbol as LoadResult.
  */
-export async function loadStock(symbol: string): Promise<Recommendation | null> {
-  if (!symbol) return null;
-  const payload = await loadRecommendations();
-  if (!payload || !payload.recommendations) return null;
+export async function loadStockResult(symbol: string): Promise<LoadResult<Recommendation>> {
+  if (!symbol) {
+    return { status: "NOT_FOUND" };
+  }
+  const recsResult = await loadRecommendationsResult();
+  if (recsResult.status === "NOT_FOUND") {
+    return { status: "NOT_FOUND" };
+  }
+  if (recsResult.status === "ERROR") {
+    return { status: "ERROR", error: recsResult.error };
+  }
 
   const target = symbol.toUpperCase();
-  return payload.recommendations.find((r) => r.symbol.toUpperCase() === target) || null;
+  const stock = recsResult.data.recommendations.find((r) => r.symbol.toUpperCase() === target);
+  if (!stock) {
+    return { status: "NOT_FOUND" };
+  }
+  return { status: "SUCCESS", data: stock };
+}
+
+// Backward-compatibility wrappers returning T | null
+export async function loadRecommendations(): Promise<RecommendationsPayload | null> {
+  const res = await loadRecommendationsResult();
+  return res.status === "SUCCESS" ? res.data : null;
+}
+
+export async function loadMarket(): Promise<MarketPayload | null> {
+  const res = await loadMarketResult();
+  return res.status === "SUCCESS" ? res.data : null;
+}
+
+export async function loadHistoryIndex(): Promise<HistoryIndexPayload | null> {
+  const res = await loadHistoryIndexResult();
+  return res.status === "SUCCESS" ? res.data : null;
+}
+
+export async function loadHistoryReport(date: string): Promise<RecommendationsPayload | null> {
+  const res = await loadHistoryReportResult(date);
+  return res.status === "SUCCESS" ? res.data : null;
+}
+
+export async function loadStock(symbol: string): Promise<Recommendation | null> {
+  const res = await loadStockResult(symbol);
+  return res.status === "SUCCESS" ? res.data : null;
 }

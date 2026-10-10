@@ -26,7 +26,7 @@ For comprehensive details on specific system components, refer directly to the a
 ## 2. Core Architectural Rules & Non-Negotiable Constraints
 
 1. **Subsystem Isolation**: Backend logic resides natively under `scripts/` (`domain`, `data`, `quant`, `pipeline`, `backtest`, `performance`, `monitoring`, `artifacts`, `schema`).
-2. **Frontend Responsibility Boundary**: `src/` is a read-only React SSG visualizer for static JSON in `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
+2. **Frontend Responsibility Boundary & File Naming**: `src/` is a read-only React SSG visualizer for static JSON in `generated/`. **Zero financial or quantitative calculations occur in the frontend.** All frontend files under `src/` must use `kebab-case` filenames (`ten-file.tsx` / `.ts`), while exported React component identifiers remain `PascalCase`. See [`docs/naming.md`](docs/naming.md) and [`docs/frontend.md`](docs/frontend.md).
 3. **Fail-Closed & Anti-Lookahead Principles**: Market data and calculations timestamped $\le T$ must never access future data ($> T$). Invalid or missing market data must result in explicit errors or `INSUFFICIENT` / `None` values without fabricating synthetic defaults.
 4. **Schema Compliance**: Payload artifacts published to `generated/` must validate against version-aware JSON Schemas in `schemas/v2/` resolved strictly via `scripts/schema/registry.py`.
 
@@ -59,6 +59,7 @@ Requirements: [Vite+](https://viteplus.dev).
 
 ```bash
 vp install               # Install dependencies
+vp test                  # Frontend unit & regression test runner (vite-plus/test)
 vp check --fix           # Frontend lint/format check
 vp dev                   # Local dev server
 vp build                 # SSG prerender build

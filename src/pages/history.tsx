@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { HistoryIndexPayload, RecommendationsPayload } from "@/types/recommendation";
 
 import { Badge } from "@/components/ui/badge";
-import { loadHistoryIndex, loadHistoryReport } from "@/data/loader";
+import { loadHistoryIndexResult, loadHistoryReportResult } from "@/data/loader";
 import { formatDate, formatVnd } from "@/lib/format";
 
 export function History() {
@@ -14,31 +14,23 @@ export function History() {
   const [reportData, setReportData] = useState<RecommendationsPayload | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
-  const [reportError, setReportError] = useState(false);
+  const [reportStatus, setReportStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
 
     async function initHistoryIndex() {
       setLoadingIndex(true);
-      try {
-        const data = await loadHistoryIndex();
-        if (!isCancelled) {
-          if (data && data.dates && data.dates.length > 0) {
-            setIndexData(data);
-            setSelectedDate(data.dates[0]);
-          } else {
-            setIndexData(null);
-          }
-        }
-      } catch {
-        if (!isCancelled) {
+      const res = await loadHistoryIndexResult();
+      if (!isCancelled) {
+        if (res.status === "SUCCESS" && res.data.dates && res.data.dates.length > 0) {
+          setIndexData(res.data);
+          setSelectedDate(res.data.dates[0]);
+        } else {
           setIndexData(null);
         }
-      } finally {
-        if (!isCancelled) {
-          setLoadingIndex(false);
-        }
+        setLoadingIndex(false);
       }
     }
 
@@ -57,37 +49,35 @@ export function History() {
         if (!isCancelled) {
           setReportData(null);
           setLoadingReport(false);
-          setReportError(false);
+          setReportStatus("IDLE");
+          setErrorMessage(null);
         }
         return;
       }
 
       if (!isCancelled) {
         setLoadingReport(true);
-        setReportError(false);
+        setReportStatus("IDLE");
+        setErrorMessage(null);
         setReportData(null);
       }
 
-      try {
-        const report = await loadHistoryReport(selectedDate);
-        if (!isCancelled) {
-          if (report) {
-            setReportData(report);
-            setReportError(false);
-          } else {
-            setReportData(null);
-            setReportError(true);
-          }
-        }
-      } catch {
-        if (!isCancelled) {
+      const res = await loadHistoryReportResult(selectedDate);
+      if (!isCancelled) {
+        if (res.status === "SUCCESS") {
+          setReportData(res.data);
+          setReportStatus("IDLE");
+          setErrorMessage(null);
+        } else if (res.status === "NOT_FOUND") {
           setReportData(null);
-          setReportError(true);
+          setReportStatus("NOT_FOUND");
+          setErrorMessage(null);
+        } else {
+          setReportData(null);
+          setReportStatus("ERROR");
+          setErrorMessage(res.error);
         }
-      } finally {
-        if (!isCancelled) {
-          setLoadingReport(false);
-        }
+        setLoadingReport(false);
       }
     }
 
@@ -151,7 +141,12 @@ export function History() {
         <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">
           Đang tải báo cáo ngày {formatDate(selectedDate)}...
         </div>
-      ) : reportError || !reportData ? (
+      ) : reportStatus === "ERROR" ? (
+        <div className="p-8 text-center font-mono text-xs text-trend-down-text">
+          Lỗi tải báo cáo ngày {formatDate(selectedDate)}:{" "}
+          {errorMessage || "Không thể kết nối máy chủ."}
+        </div>
+      ) : reportStatus === "NOT_FOUND" || !reportData ? (
         <div className="p-8 text-center font-mono text-xs text-muted-foreground">
           Không tìm thấy file báo cáo ngày {formatDate(selectedDate)}.
         </div>

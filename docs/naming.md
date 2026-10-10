@@ -6,17 +6,28 @@ This document specifies the current canonical terminology, module/class/function
 
 ## 1. Code Base Naming Conventions
 
-| Entity Type              | Convention               | Examples                                                     |
-| :----------------------- | :----------------------- | :----------------------------------------------------------- |
-| **Directory / Package**  | `snake_case`             | `scripts/domain`, `scripts/quant`, `scripts/pipeline`        |
-| **Python File / Module** | `snake_case.py`          | `acquisition.py`, `runner.py`, `portfolio.py`                |
-| **Class / Dataclass**    | `PascalCase`             | `UniverseCandidate`, `QuantConfig`, `PipelineContext`        |
-| **Function / Method**    | `snake_case`             | `detect_market_regime`, `compute_signal`, `to_dict`          |
-| **Variable / Attribute** | `snake_case`             | `data_as_of`, `processed_symbols`, `liquidity_score`         |
-| **Constant**             | `UPPER_SNAKE_CASE`       | `PIPELINE_VERSION`, `DEFAULT_QUANT_CONFIG`, `SCHEMA_VERSION` |
-| **JSON Schema File**     | `snake_case.schema.json` | `recommendations.schema.json`, `performance.schema.json`     |
+| Entity Type                    | Convention               | Examples                                                           |
+| :----------------------------- | :----------------------- | :----------------------------------------------------------------- |
+| **Directory / Package**        | `snake_case`             | `scripts/domain`, `scripts/quant`, `scripts/pipeline`              |
+| **Python File / Module**       | `snake_case.py`          | `acquisition.py`, `runner.py`, `portfolio.py`                      |
+| **Class / Dataclass**          | `PascalCase`             | `UniverseCandidate`, `QuantConfig`, `PipelineContext`              |
+| **Function / Method**          | `snake_case`             | `detect_market_regime`, `compute_signal`, `to_dict`                |
+| **Variable / Attribute**       | `snake_case`             | `data_as_of`, `processed_symbols`, `liquidity_score`               |
+| **Constant**                   | `UPPER_SNAKE_CASE`       | `PIPELINE_VERSION`, `DEFAULT_QUANT_CONFIG`, `SCHEMA_VERSION`       |
+| **JSON Schema File**           | `snake_case.schema.json` | `recommendations.schema.json`, `performance.schema.json`           |
+| **Frontend File (`src/`)**     | `kebab-case.tsx` / `.ts` | `dashboard.tsx`, `stock-detail.tsx`, `market-summary.tsx`          |
+| **React Component Identifier** | `PascalCase`             | `export function StockDetail()`, `export function MarketSummary()` |
 
-### 1.1 Expressive Domain Naming Guidelines
+### 1.1 Frontend File Naming Rules (`src/`)
+
+- **Kebab-Case File Names**: Every frontend source file under `src/` (pages, components, hooks, utilities, tests, styles) MUST use `kebab-case` filenames (`ten-file.tsx` / `ten-file.ts`).
+  - Pages: `src/pages/dashboard.tsx`, `src/pages/history.tsx`, `src/pages/methodology.tsx`, `src/pages/stock-detail.tsx`
+  - Components: `src/components/market-summary.tsx`, `src/components/stock-table.tsx`, `src/components/recommendation-card.tsx`
+  - Tests: `src/tests/frontend-correctness.test.tsx`
+  - Utilities: `src/lib/format.ts`, `src/data/loader.ts`
+- **PascalCase Export Identifiers**: React component functions, TypeScript types, and interfaces maintain standard `PascalCase` exported names (e.g., `export function StockDetail()`, `export interface MarketSummaryProps`). The kebab-case convention applies strictly to filenames, not exported code identifiers.
+
+### 1.2 Expressive Domain Naming Guidelines
 
 - **Behavior & Intent**: Names must clearly communicate domain responsibility and behavior. Prefer descriptive names like `calculate_risk_adjusted_score`, `validate_temporal_integrity`, `evaluate_execution_eligibility` over vague catch-alls like `process_data`, `handle_result`, `helper`, or `manager`.
 - **Variable Clarity**: Avoid placeholder or uninformative variable/parameter names (such as `obj`, `val`, `temp`, `data`) when precise domain identifiers exist (e.g., `score_value`, `field_value`, `payload_node`, `instance`).

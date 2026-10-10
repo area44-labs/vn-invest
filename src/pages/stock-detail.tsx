@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import type { Recommendation } from "@/types/recommendation";
 
 import { Badge } from "@/components/ui/badge";
-import { loadStock } from "@/data/loader";
+import { loadStockResult } from "@/data/loader";
 import { formatRisk, formatScore, formatVnd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,8 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   const activeSymbol = propsSymbol || "FPT";
   const [stock, setStock] = useState<Recommendation | null>(initialStock);
   const [loading, setLoading] = useState(!initialStock);
+  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -36,28 +38,35 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         if (!isCancelled) {
           setStock(initialStock);
           setLoading(false);
+          setStockStatus("IDLE");
+          setErrorMessage(null);
         }
         return;
       }
 
       if (!isCancelled) {
         setLoading(true);
+        setStockStatus("IDLE");
+        setErrorMessage(null);
         setStock(null);
       }
 
-      try {
-        const rec = await loadStock(activeSymbol);
-        if (!isCancelled) {
-          setStock(rec);
-        }
-      } catch {
-        if (!isCancelled) {
+      const res = await loadStockResult(activeSymbol);
+      if (!isCancelled) {
+        if (res.status === "SUCCESS") {
+          setStock(res.data);
+          setStockStatus("IDLE");
+          setErrorMessage(null);
+        } else if (res.status === "NOT_FOUND") {
           setStock(null);
+          setStockStatus("NOT_FOUND");
+          setErrorMessage(null);
+        } else {
+          setStock(null);
+          setStockStatus("ERROR");
+          setErrorMessage(res.error);
         }
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     }
 
@@ -76,15 +85,32 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     );
   }
 
-  if (!stock) {
+  if (stockStatus === "ERROR") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center">
-        <p className="font-mono text-sm font-bold text-foreground">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono">
+        <p className="text-sm font-bold text-trend-down-text">
+          Lỗi tải phân tích định lượng cho mã "{activeSymbol}":{" "}
+          {errorMessage || "Không thể kết nối máy chủ"}
+        </p>
+        <Link
+          to="/"
+          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (!stock || stockStatus === "NOT_FOUND") {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono">
+        <p className="text-sm font-bold text-foreground">
           Không tìm thấy dữ liệu phân tích cho mã "{activeSymbol}"
         </p>
         <Link
           to="/"
-          className="flex cursor-pointer items-center gap-1 font-mono text-xs text-muted-foreground underline hover:text-foreground"
+          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
         </Link>
