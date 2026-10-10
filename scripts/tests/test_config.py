@@ -214,7 +214,7 @@ class TestScoringFunctionsAndThresholds:
         )
         assert score_base == 100.0
 
-        # Controlled comparison 1: Volatility change only (volatility 0.30 vs 0.20)
+        # Volatility change only (volatility 0.30 vs 0.20)
         # Volatility 0.30 => penalty = min(0.25, (0.30 - 0.20)*0.5) = 0.05 => score = 100 * 0.95 = 95.0
         score_vol_pen = calculate_risk_adjusted_score(
             100.0, "BULL", volatility_60d=0.30, max_drawdown=-0.15, liquidity_score=100.0
@@ -222,7 +222,7 @@ class TestScoringFunctionsAndThresholds:
         assert score_vol_pen == 95.0
         assert score_vol_pen < score_base
 
-        # Controlled comparison 2: Drawdown change only (mdd -0.25 vs -0.15)
+        # Drawdown change only (mdd -0.25 vs -0.15)
         # Drawdown 0.25 => penalty = min(0.25, (0.25 - 0.15)*0.5) = 0.05 => score = 100 * 0.95 = 95.0
         score_mdd_pen = calculate_risk_adjusted_score(
             100.0, "BULL", volatility_60d=0.20, max_drawdown=-0.25, liquidity_score=100.0
@@ -230,7 +230,7 @@ class TestScoringFunctionsAndThresholds:
         assert score_mdd_pen == 95.0
         assert score_mdd_pen < score_base
 
-        # Controlled comparison 3: Liquidity change only (liquidity 50.0 vs 100.0)
+        # Liquidity change only (liquidity 50.0 vs 100.0)
         # Liquidity score 50 => factor = 0.85 + 0.15*(50/100) = 0.925 => score = 100 * 0.925 = 92.5
         score_liq_pen = calculate_risk_adjusted_score(
             100.0, "BULL", volatility_60d=0.20, max_drawdown=-0.15, liquidity_score=50.0
@@ -238,7 +238,7 @@ class TestScoringFunctionsAndThresholds:
         assert score_liq_pen == 92.5
         assert score_liq_pen < score_base
 
-        # Controlled comparison 4: Market regime change only (BEAR factor 0.75 vs BULL 1.0)
+        # Market regime change only (BEAR factor 0.75 vs BULL 1.0)
         score_bear_regime = calculate_risk_adjusted_score(
             100.0, "BEAR", volatility_60d=0.20, max_drawdown=-0.15, liquidity_score=100.0
         )
