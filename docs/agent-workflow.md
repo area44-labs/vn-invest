@@ -7,11 +7,10 @@ This document specifies the operational guidelines, execution rules, and workflo
 ## 1. Core Directives & Guiding Principles
 
 1. **Read & Inspect Before Modifying Code**: Always inspect existing canonical subsystem code and tests in `scripts/` or `src/` before altering functionality. Do not guess internal interfaces.
-2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`) and frontend layer separation (`src/`).
+2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/`) and frontend layer separation (`src/`).
 3. **Focused Changes**: Work in small, focused increments addressing a single task or feature scope. Do not mix unrelated refactorings or formatting changes into a single PR.
 4. **No Financial Math in Frontend**: Do not add quantitative calculations to `src/`. The frontend is strictly a read-only viewer for pre-rendered artifacts in `generated/`.
-5. **Frontend File Naming Convention**: Use `kebab-case` filenames (`ten-file.tsx` / `ten-file.ts`) for all files under `src/` (pages, components, hooks, utilities, tests, styles). Keep React component exported identifiers in `PascalCase`.
-6. **Fail-Closed & Anti-Lookahead Safety**: Maintain point-in-time isolation ($\le T$) for all historical data and signal logic. Do not fabricate missing values or create silent fallbacks.
+5. **Fail-Closed & Anti-Lookahead Safety**: Maintain point-in-time isolation ($\le T$) for all historical data and signal logic. Do not fabricate missing values or create silent fallbacks.
 
 ---
 
@@ -47,33 +46,13 @@ _Note: Run tests only when necessary (e.g. when modifying backend or frontend co
 
 To keep feedback loops fast during development, run the smallest relevant test file while editing files:
 
-- Frontend Tests (via Vite+):
+- Frontend Tests:
   ```bash
   vp test
   ```
-- Domain Models & Universe:
+- Backend Tests:
   ```bash
-  uv run --frozen pytest scripts/tests/test_domain.py
-  ```
-- Quantitative Signals & Recommendations:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_recommendation.py scripts/tests/test_engines.py
-  ```
-- T+2.5 Risk & Trade Plans:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_risk.py
-  ```
-- Backtest Subsystem & Cost Deductions:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_portfolio_backtest.py scripts/tests/test_backtest.py
-  ```
-- Monitoring & Operational Drift:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_monitoring.py scripts/tests/test_drift_monitoring.py
-  ```
-- Artifact Publishing & Transactions:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_artifact_publisher.py scripts/tests/test_artifact_transaction.py
+  uv run --frozen pytest scripts/tests/test_*.py
   ```
 
 ---
