@@ -266,7 +266,7 @@ def extract_latest_trading_date(df: pd.DataFrame) -> str | None:
     if series.empty:
         return None
 
-    parsed_series = pd.to_datetime(series, errors="coerce")
+    parsed_series = pd.to_datetime(series, errors="coerce", format="mixed")
     valid_dates = parsed_series.dropna()
     if valid_dates.empty:
         return None
