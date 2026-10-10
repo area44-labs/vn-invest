@@ -25,13 +25,8 @@ The repository includes four primary GitHub Actions workflows:
 - **Timeout**: `timeout-minutes: 10` for test job.
 - **Conditional Job Execution (`dorny/paths-filter`)**:
   - Uses `dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad` (# v3.0.4) in a `changes` job to inspect modified files against `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`.
-  - Executes the `test` job (`uv sync --frozen` & `uv run --frozen pytest`) only when Python code, dependencies, or test configurations change.
-  - Skips the `test` job cleanly for documentation-only changes without leaving required checks stuck in pending status.
-- **Aggregate Status Check (`tests-status`)**:
-  - Evaluates both `changes` and `test` job outcomes via `if: always()`.
-  - Reports success (`exit 0`) when tests pass OR when tests are legitimately skipped for documentation-only commits.
-  - Reports failure (`exit 1`) when test execution fails or cancels.
-- **Required Check Configuration**: Repository branch protection settings requiring Python tests must reference `tests-status` (or `Tests / tests-status`) as the required check.
+  - Executes the `test` job (`actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` # v4.2.2, `uv sync --frozen` & `uv run --frozen pytest`) conditionally when Python code, dependencies, or test configurations change.
+  - Skips the `test` job cleanly for documentation-only changes.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
 
