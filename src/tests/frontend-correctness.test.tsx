@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { MarketSummary } from "@/components/market-summary";
+import { loadHistoryIndexResult, loadHistoryReportResult, loadMarketResult } from "@/data/loader";
 import { formatDate } from "@/lib/format";
 import { Dashboard } from "@/pages/dashboard";
 import { History } from "@/pages/history";
@@ -83,7 +84,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("Dashboard error, missing data, and retry behavior", () => {
+  describe("Dashboard error, missing data, market.json fallback, and retry behavior", () => {
     it("displays distinct NOT_FOUND vs ERROR states and recovers on retry", async () => {
       let callCount = 0;
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
@@ -240,6 +241,94 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       await waitTicks();
 
       expect(container.textContent).toContain("Không tìm thấy dữ liệu khuyến nghị");
+    });
+
+    it("displays fallback market banner when recommendations succeeds but market.json returns 404 or fails", async () => {
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("recommendations.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                schema_version: "2.0",
+                data_as_of: "2026-10-09",
+                source_date: "2026-10-09",
+                generated_at: "2026-10-09T16:00:00Z",
+                market: {
+                  regime: "BULL",
+                  regime_score: 80,
+                  confidence: 0.9,
+                  metrics: { vnindex_value: 1280, vnindex_change_pct: 1.2 },
+                },
+                summary: {
+                  total_scanned: 1,
+                  buy_count: 1,
+                  watch_count: 0,
+                  hold_count: 0,
+                  sell_count: 0,
+                  avoid_count: 0,
+                },
+                recommendations: [],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        if (urlStr.includes("market.json")) {
+          return Promise.resolve(new Response("Not Found", { status: 404 }));
+        }
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
+      });
+
+      act(() => {
+        root.render(<Dashboard />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain(
+        "Dữ liệu tổng quan thị trường đang hiển thị từ báo cáo đợt ngày",
+      );
+      expect(container.textContent).toContain("market.json không khả dụng");
+    });
+  });
+
+  describe("Typed Loader Schema Validation", () => {
+    it("rejects malformed market payload schema with ERROR", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ market: { regime: 123 } }), { status: 200 })),
+      );
+
+      const res = await loadMarketResult();
+      expect(res).toEqual({
+        status: "ERROR",
+        error: "Malformed payload: invalid market schema",
+      });
+    });
+
+    it("rejects malformed history index schema with ERROR", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ dates: [123, 456] }), { status: 200 })),
+      );
+
+      const res = await loadHistoryIndexResult();
+      expect(res).toEqual({
+        status: "ERROR",
+        error: "Malformed payload: invalid history index schema",
+      });
+    });
+
+    it("rejects malformed history report schema with ERROR", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ recommendations: "not_an_array" }), { status: 200 }),
+        ),
+      );
+
+      const res = await loadHistoryReportResult("2026-10-09");
+      expect(res).toEqual({
+        status: "ERROR",
+        error: "Malformed payload: invalid history report schema",
+      });
     });
   });
 

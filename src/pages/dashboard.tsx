@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowDownRight, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowDownRight, Info, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { LoadResult } from "@/data/loader";
@@ -190,7 +190,8 @@ export function Dashboard({
   const topBuys = sortedBuys.slice(0, 4);
   const topSells = sortedSells.slice(0, 4);
 
-  // Explicit market summary metrics resolution: prefer standalone market.json, fall back to recommendations.data.market
+  // Standalone market.json is optional; if missing/failed, fall back to embedded data.market
+  const isMarketFallback = !marketPayload && Boolean(data.market);
   const mktMetrics = marketPayload?.market?.metrics || data.market?.metrics;
   const vnVal = mktMetrics?.vnindex_value ?? null;
   const vnChgPct = mktMetrics?.vnindex_change_pct ?? null;
@@ -237,6 +238,17 @@ export function Dashboard({
           </div>
         )}
       </div>
+
+      {/* Fallback Market Data Notification Banner */}
+      {isMarketFallback && (
+        <div className="flex items-center space-x-2 rounded-sm border border-warning-border bg-warning-bg/40 px-4 py-2 font-mono text-xs text-warning-text">
+          <Info className="h-4 w-4 flex-shrink-0" />
+          <span>
+            Dữ liệu tổng quan thị trường đang hiển thị từ báo cáo đợt ngày{" "}
+            <strong>{formatDate(data.source_date)}</strong> (market.json không khả dụng).
+          </span>
+        </div>
+      )}
 
       {/* Real-time Market Overview Banner */}
       <MarketSummary
