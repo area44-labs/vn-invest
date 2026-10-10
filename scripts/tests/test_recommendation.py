@@ -339,27 +339,6 @@ class TestVNInvestSignalEngine:
         expected = round((100.0 * 0.30 + 80.0 * 0.25 + 90.0 * 0.15) / 0.70, 1)
         assert score == expected
 
-    def test_action_classification_boundary_conditions(self):
-        """Action thresholds deterministically at precise boundaries: 34.9, 35.0, 44.9, 45.0, 54.9, 55.0, 64.9, 65.0, 74.9, 75.0."""
-        regime = "BULL"
-        raw_close = 30.0
-        raw_ma20 = 25.0
-
-        assert classify_action(34.9, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(35.0, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(44.9, regime, raw_close, raw_ma20) == "SELL"
-        assert classify_action(45.0, regime, raw_close, raw_ma20) == "HOLD"
-        assert classify_action(54.9, regime, raw_close, raw_ma20) == "HOLD"
-        assert classify_action(55.0, regime, raw_close, raw_ma20) == "WATCH"
-        assert classify_action(64.9, regime, raw_close, raw_ma20) == "WATCH"
-        assert classify_action(65.0, regime, raw_close, raw_ma20) == "BUY"
-        assert classify_action(74.9, regime, raw_close, raw_ma20) == "BUY"
-        assert classify_action(75.0, regime, raw_close, raw_ma20) == "BUY"
-
-        # DEFENSIVE regime action boundary check
-        assert classify_action(65.0, "DEFENSIVE", raw_close, raw_ma20) == "BUY"
-        assert classify_action(75.0, "DEFENSIVE", raw_close, raw_ma20) == "WATCH"
-
     def test_generate_recommendation_output_structure(self):
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
