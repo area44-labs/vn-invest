@@ -16,7 +16,7 @@ VN Invest operates as an automated quantitative analysis and static report gener
 │           Python Quantitative Engine          │
 │       (Data -> Quant -> Pipeline)             │
 └──────────────────────┬────────────────────────┘
-                       │ Validated Static JSON
+                       │ Validated Static JSON Artifacts
                        ▼
 ┌───────────────────────────────────────────────┐
 │        Generated Artifacts (generated/)       │
@@ -26,14 +26,14 @@ VN Invest operates as an automated quantitative analysis and static report gener
                        ▼
 ┌───────────────────────────────────────────────┐
 │       React SSG Frontend (TanStack Start)     │
-│                Published site                 │
+│             (shadcn/ui Primitives)            │
 └───────────────────────────────────────────────┘
 ```
 
 The system is split into two primary environments:
 
-1. **Python Quantitative Backend (`scripts/`)**: Handles market data collection, canonical validation, technical indicators, signal generation, risk modeling (T+2.5 VaR/ES), portfolio backtesting, operational monitoring, and atomic artifact publishing.
-2. **React SSG Frontend (`src/`)**: A read-only static web application that consumes generated JSON payloads. **Zero financial or quantitative calculations occur in the frontend.**
+1. **Python Quantitative Backend (`scripts/`)**: Handles market data collection, canonical validation, technical indicators, signal generation, risk modeling (T+2.5 VaR/ES), portfolio backtesting, operational monitoring, schema compliance validation against `schemas/v2/`, and atomic artifact publishing.
+2. **React SSG Frontend (`src/`)**: A read-only static web application that consumes pre-rendered JSON payloads from `generated/` using shadcn/ui component primitives. **Zero financial or quantitative calculations occur in the frontend.**
 
 ---
 
@@ -118,6 +118,12 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 - **Primary Responsibility**: Safe, atomic persistence of generated JSON artifacts using POSIX single-writer locks (`ArtifactLock`), transaction rollback (`ArtifactTransaction`), provenance manifests, and schema registry resolution (`scripts/schema/registry.py`).
 - **See**: [docs/artifacts.md](artifacts.md).
 
+### 3.9 Frontend SSG & Visualization (`src/`)
+
+- **Primary Responsibility**: Read-only static presentation of generated JSON artifacts using shadcn/ui component primitives, Tailwind CSS, and TanStack Start SSG prerendering.
+- **Boundary Contract**: Consumes static JSON payloads from `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/*.json`). Performs zero quantitative math or status re-evaluation.
+- **See**: [docs/frontend.md](frontend.md).
+
 ---
 
 ## 4. Production Entry Points
@@ -141,5 +147,6 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
    - New pipeline steps -> `scripts/pipeline/stages.py`
    - New backtesting metrics -> `scripts/backtest/`
    - New monitoring metrics or drift checks -> `scripts/monitoring/`
-2. **No Financial Math in Frontend**: The frontend is exclusively a static visualizer for artifacts in `generated/`.
+   - New UI components or visual controls -> `src/components/ui/` (primitives) or `src/components/` (composite UI)
+2. **No Financial Math in Frontend**: The frontend is exclusively a static visualizer for schema-validated artifacts in `generated/`.
 3. **Fail-Closed Principle**: Missing, corrupted, or insufficient data must result in explicit error raising or `None`/`INSUFFICIENT` statuses. Never fabricate synthetic default values to bypass errors.
