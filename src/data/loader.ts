@@ -1,5 +1,8 @@
 import type {
   ActionType,
+  DataQuality,
+  DivergenceDetails,
+  DivergenceSignal,
   ExchangeType,
   ExpectedReturn,
   HistoryIndexPayload,
@@ -11,8 +14,10 @@ import type {
   RecommendationsPayload,
   RiskLevel,
   RiskMetrics,
+  ScoreComponents,
   SummaryInfo,
   TradePlan,
+  UniverseInfo,
 } from "@/types/recommendation";
 
 export type LoadResult<T> =
@@ -34,16 +39,168 @@ const VALID_EXCHANGES: Set<string> = new Set<ExchangeType>(["HOSE", "HNX", "UPCO
 
 const VALID_RISK_LEVELS: Set<string | null> = new Set<RiskLevel>(["LOW", "MEDIUM", "HIGH", null]);
 
-function isRequiredNullableNumber(val: any): boolean {
-  return val === null || typeof val === "number";
+const VALID_DATA_QUALITY: Set<string> = new Set<DataQuality>([
+  "SUFFICIENT",
+  "PARTIAL",
+  "INSUFFICIENT",
+]);
+
+const VALID_DIVERGENCE_SIGNALS: Set<string> = new Set<DivergenceSignal>([
+  "BULLISH",
+  "BEARISH",
+  "NONE",
+]);
+
+const ALLOWED_RECOMMENDATIONS_PAYLOAD_KEYS = new Set([
+  "schema_version",
+  "signal_model_version",
+  "quant_version",
+  "config_hash",
+  "generated_at",
+  "data_as_of",
+  "source_date",
+  "data_source",
+  "universe_info",
+  "market",
+  "summary",
+  "recommendations",
+]);
+
+const ALLOWED_MARKET_PAYLOAD_KEYS = new Set([
+  "data_as_of",
+  "source_date",
+  "generated_at",
+  "data_source",
+  "universe_info",
+  "market",
+  "summary",
+]);
+
+const ALLOWED_MARKET_INFO_KEYS = new Set(["regime", "confidence", "regime_score", "metrics"]);
+
+const ALLOWED_MARKET_METRICS_KEYS = new Set([
+  "vnindex_value",
+  "vnindex_change_pct",
+  "vn30_change_pct",
+  "market_breadth_ratio",
+  "volatility",
+  "volume_20d_ratio",
+]);
+
+const ALLOWED_SUMMARY_INFO_KEYS = new Set([
+  "total_scanned",
+  "buy_count",
+  "watch_count",
+  "hold_count",
+  "sell_count",
+  "avoid_count",
+]);
+
+const ALLOWED_RECOMMENDATION_KEYS = new Set([
+  "symbol",
+  "company_name",
+  "exchange",
+  "sector",
+  "action",
+  "model_version",
+  "quant_version",
+  "config_hash",
+  "data_quality",
+  "data_quality_issues",
+  "data_as_of",
+  "data_source",
+  "signal_score",
+  "risk_adjusted_score",
+  "score_components",
+  "confidence",
+  "risk_level",
+  "expected_return",
+  "risk_metrics",
+  "trade_plan",
+  "reasons",
+  "warnings",
+  "invalidation",
+  "divergence",
+]);
+
+const ALLOWED_EXPECTED_RETURN_KEYS = new Set([
+  "expected_return_5d",
+  "expected_return_10d",
+  "expected_return_20d",
+]);
+
+const ALLOWED_RISK_METRICS_KEYS = new Set([
+  "var_t25",
+  "es_t25",
+  "volatility_60d",
+  "max_drawdown",
+  "liquidity_score",
+  "avg_value_20d",
+]);
+
+const ALLOWED_TRADE_PLAN_KEYS = new Set([
+  "current_price",
+  "entry_low",
+  "entry_high",
+  "stop_loss",
+  "tp1",
+  "tp2",
+  "risk_reward",
+  "position_percent",
+]);
+
+const ALLOWED_SCORE_COMPONENTS_KEYS = new Set([
+  "trend",
+  "momentum",
+  "volume",
+  "relative_strength",
+  "divergence",
+]);
+
+const ALLOWED_DIVERGENCE_KEYS = new Set(["1H", "1D", "1W", "1M"]);
+
+const ALLOWED_UNIVERSE_INFO_KEYS = new Set(["universe_type", "universe_size"]);
+
+const ALLOWED_HISTORY_INDEX_KEYS = new Set(["last_updated", "total_reports", "dates"]);
+
+function hasOnlyAllowedKeys(obj: object, allowedKeys: Set<string>): boolean {
+  for (const key of Object.keys(obj)) {
+    if (!allowedKeys.has(key)) return false;
+  }
+  return true;
 }
 
-function isOptionalNullableNumber(val: any): boolean {
-  return val === undefined || val === null || typeof val === "number";
+function isFiniteNumber(val: any): boolean {
+  return typeof val === "number" && Number.isFinite(val) && !Number.isNaN(val);
+}
+
+function isNonNegativeInteger(val: any): boolean {
+  return typeof val === "number" && Number.isInteger(val) && val >= 0;
+}
+
+function isRequiredNullableFiniteNumber(val: any, min?: number, max?: number): boolean {
+  if (val === undefined) return false;
+  if (val === null) return true;
+  if (!isFiniteNumber(val)) return false;
+  if (min !== undefined && val < min) return false;
+  if (max !== undefined && val > max) return false;
+  return true;
+}
+
+function isOptionalNullableFiniteNumber(val: any, min?: number, max?: number): boolean {
+  if (val === undefined || val === null) return true;
+  if (!isFiniteNumber(val)) return false;
+  if (min !== undefined && val < min) return false;
+  if (max !== undefined && val > max) return false;
+  return true;
 }
 
 function isRequiredNullableString(val: any): boolean {
-  return val === null || typeof val === "string";
+  return val !== undefined && (val === null || typeof val === "string");
+}
+
+function isOptionalNullableString(val: any): boolean {
+  return val === undefined || val === null || typeof val === "string";
 }
 
 function isStringArray(arr: any): boolean {
@@ -51,101 +208,173 @@ function isStringArray(arr: any): boolean {
 }
 
 function isMarketMetrics(obj: any): obj is MarketMetrics {
-  if (!obj || typeof obj !== "object") return false;
-  if (!isRequiredNullableNumber(obj.vnindex_value)) return false;
-  if (!isRequiredNullableNumber(obj.vnindex_change_pct)) return false;
-  if (!isOptionalNullableNumber(obj.vn30_change_pct)) return false;
-  if (!isOptionalNullableNumber(obj.market_breadth_ratio)) return false;
-  if (!isOptionalNullableNumber(obj.volatility)) return false;
-  if (!isOptionalNullableNumber(obj.volume_20d_ratio)) return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_MARKET_METRICS_KEYS)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.vnindex_value)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.vnindex_change_pct)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.vn30_change_pct)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.market_breadth_ratio, 0.0, 1.0)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.volatility)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.volume_20d_ratio)) return false;
   return true;
 }
 
 function isMarketInfo(obj: any): obj is MarketInfo {
-  if (!obj || typeof obj !== "object") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_MARKET_INFO_KEYS)) return false;
   if (typeof obj.regime !== "string" || !VALID_MARKET_REGIMES.has(obj.regime)) return false;
-  if (!isRequiredNullableNumber(obj.confidence)) return false;
-  if (!isOptionalNullableNumber(obj.regime_score)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.confidence, 0.0, 1.0)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.regime_score, 0.0, 100.0)) return false;
   if (!isMarketMetrics(obj.metrics)) return false;
   return true;
 }
 
 function isSummaryInfo(obj: any): obj is SummaryInfo {
-  if (!obj || typeof obj !== "object") return false;
-  if (typeof obj.total_scanned !== "number") return false;
-  if (typeof obj.buy_count !== "number") return false;
-  if (typeof obj.watch_count !== "number") return false;
-  if (typeof obj.hold_count !== "number") return false;
-  if (typeof obj.sell_count !== "number") return false;
-  if (typeof obj.avoid_count !== "number") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_SUMMARY_INFO_KEYS)) return false;
+  if (!isNonNegativeInteger(obj.total_scanned)) return false;
+  if (!isNonNegativeInteger(obj.buy_count)) return false;
+  if (!isNonNegativeInteger(obj.watch_count)) return false;
+  if (!isNonNegativeInteger(obj.hold_count)) return false;
+  if (!isNonNegativeInteger(obj.sell_count)) return false;
+  if (!isNonNegativeInteger(obj.avoid_count)) return false;
   return true;
 }
 
 function isExpectedReturn(obj: any): obj is ExpectedReturn {
-  if (!obj || typeof obj !== "object") return false;
-  if (!isRequiredNullableNumber(obj.expected_return_5d)) return false;
-  if (!isRequiredNullableNumber(obj.expected_return_10d)) return false;
-  if (!isRequiredNullableNumber(obj.expected_return_20d)) return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_EXPECTED_RETURN_KEYS)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.expected_return_5d)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.expected_return_10d)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.expected_return_20d)) return false;
   return true;
 }
 
 function isRiskMetrics(obj: any): obj is RiskMetrics {
-  if (!obj || typeof obj !== "object") return false;
-  if (!isRequiredNullableNumber(obj.var_t25)) return false;
-  if (!isRequiredNullableNumber(obj.es_t25)) return false;
-  if (!isRequiredNullableNumber(obj.volatility_60d)) return false;
-  if (!isRequiredNullableNumber(obj.max_drawdown)) return false;
-  if (!isRequiredNullableNumber(obj.liquidity_score)) return false;
-  if (!isOptionalNullableNumber(obj.avg_value_20d)) return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_RISK_METRICS_KEYS)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.var_t25)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.es_t25)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.volatility_60d)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.max_drawdown)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.liquidity_score, 0.0, 100.0)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.avg_value_20d)) return false;
   return true;
 }
 
 function isTradePlan(obj: any): obj is TradePlan {
-  if (!obj || typeof obj !== "object") return false;
-  if (!isRequiredNullableNumber(obj.current_price)) return false;
-  if (!isRequiredNullableNumber(obj.entry_low)) return false;
-  if (!isRequiredNullableNumber(obj.entry_high)) return false;
-  if (!isRequiredNullableNumber(obj.stop_loss)) return false;
-  if (!isRequiredNullableNumber(obj.tp1)) return false;
-  if (!isRequiredNullableNumber(obj.tp2)) return false;
-  if (!isRequiredNullableNumber(obj.risk_reward)) return false;
-  if (!isRequiredNullableNumber(obj.position_percent)) return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_TRADE_PLAN_KEYS)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.current_price)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.entry_low)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.entry_high)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.stop_loss)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.tp1)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.tp2)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.risk_reward)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.position_percent, 0.0, 100.0)) return false;
+  return true;
+}
+
+function isScoreComponents(obj: any): obj is ScoreComponents {
+  if (obj === null || obj === undefined) return true;
+  if (typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_SCORE_COMPONENTS_KEYS)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.trend)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.momentum)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.volume)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.relative_strength)) return false;
+  if (!isOptionalNullableFiniteNumber(obj.divergence)) return false;
+  return true;
+}
+
+function isDivergenceDetails(obj: any): obj is DivergenceDetails {
+  if (obj === null || obj === undefined) return true;
+  if (typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_DIVERGENCE_KEYS)) return false;
+  for (const k of ["1H", "1D", "1W", "1M"]) {
+    if (
+      obj[k] !== undefined &&
+      (typeof obj[k] !== "string" || !VALID_DIVERGENCE_SIGNALS.has(obj[k]))
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isUniverseInfo(obj: any): obj is UniverseInfo {
+  if (obj === undefined) return true;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_UNIVERSE_INFO_KEYS)) return false;
+  if (obj.universe_type !== undefined && typeof obj.universe_type !== "string") return false;
+  if (obj.universe_size !== undefined && !isNonNegativeInteger(obj.universe_size)) return false;
   return true;
 }
 
 function isRecommendation(obj: any): obj is Recommendation {
-  if (!obj || typeof obj !== "object") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_RECOMMENDATION_KEYS)) return false;
+
   if (typeof obj.symbol !== "string" || obj.symbol.trim().length === 0) return false;
   if (typeof obj.company_name !== "string") return false;
   if (typeof obj.exchange !== "string" || !VALID_EXCHANGES.has(obj.exchange)) return false;
   if (typeof obj.sector !== "string") return false;
   if (typeof obj.action !== "string" || !VALID_ACTIONS.has(obj.action)) return false;
-  if (!isRequiredNullableNumber(obj.signal_score)) return false;
-  if (!isRequiredNullableNumber(obj.risk_adjusted_score)) return false;
-  if (!isRequiredNullableNumber(obj.confidence)) return false;
+
+  if (obj.model_version !== undefined && typeof obj.model_version !== "string") return false;
+  if (obj.quant_version !== undefined && typeof obj.quant_version !== "string") return false;
+  if (obj.config_hash !== undefined && typeof obj.config_hash !== "string") return false;
   if (
-    obj.risk_level === undefined ||
-    (!VALID_RISK_LEVELS.has(obj.risk_level) && typeof obj.risk_level !== "string")
+    obj.data_quality !== undefined &&
+    (typeof obj.data_quality !== "string" || !VALID_DATA_QUALITY.has(obj.data_quality))
   ) {
-    if (!VALID_RISK_LEVELS.has(obj.risk_level ?? null)) return false;
+    return false;
   }
+  if (obj.data_quality_issues !== undefined && !isStringArray(obj.data_quality_issues)) {
+    return false;
+  }
+
+  if (!isOptionalNullableString(obj.data_as_of)) return false;
+  if (!isOptionalNullableString(obj.data_source)) return false;
+
+  if (!isRequiredNullableFiniteNumber(obj.signal_score, 0.0, 100.0)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.risk_adjusted_score, 0.0, 100.0)) return false;
+  if (!isScoreComponents(obj.score_components)) return false;
+  if (!isRequiredNullableFiniteNumber(obj.confidence, 0.0, 1.0)) return false;
+
+  if (obj.risk_level === undefined || !VALID_RISK_LEVELS.has(obj.risk_level)) return false;
+
   if (!isExpectedReturn(obj.expected_return)) return false;
   if (!isRiskMetrics(obj.risk_metrics)) return false;
   if (!isTradePlan(obj.trade_plan)) return false;
+
   if (!isStringArray(obj.reasons)) return false;
   if (!isStringArray(obj.warnings)) return false;
   if (!isStringArray(obj.invalidation)) return false;
+  if (!isDivergenceDetails(obj.divergence)) return false;
+
   return true;
 }
 
 export function isRecommendationsPayload(obj: any): obj is RecommendationsPayload {
-  if (!obj || typeof obj !== "object") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_RECOMMENDATIONS_PAYLOAD_KEYS)) return false;
+
   if (typeof obj.schema_version !== "string" || obj.schema_version !== "2.0") return false;
+  if (typeof obj.signal_model_version !== "string") return false;
+  if (obj.quant_version !== undefined && typeof obj.quant_version !== "string") return false;
+  if (obj.config_hash !== undefined && typeof obj.config_hash !== "string") return false;
+
   if (typeof obj.generated_at !== "string") return false;
   if (!isRequiredNullableString(obj.data_as_of)) return false;
   if (!isRequiredNullableString(obj.source_date)) return false;
+  if (!isOptionalNullableString(obj.data_source)) return false;
+
+  if (!isUniverseInfo(obj.universe_info)) return false;
   if (!isMarketInfo(obj.market)) return false;
   if (!isSummaryInfo(obj.summary)) return false;
+
   if (!Array.isArray(obj.recommendations)) return false;
   for (const rec of obj.recommendations) {
     if (!isRecommendation(rec)) return false;
@@ -154,18 +383,27 @@ export function isRecommendationsPayload(obj: any): obj is RecommendationsPayloa
 }
 
 export function isMarketPayload(obj: any): obj is MarketPayload {
-  if (!obj || typeof obj !== "object") return false;
-  if (typeof obj.generated_at !== "string") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_MARKET_PAYLOAD_KEYS)) return false;
+
+  if (!isOptionalNullableString(obj.data_as_of)) return false;
   if (!isRequiredNullableString(obj.source_date)) return false;
+  if (typeof obj.generated_at !== "string") return false;
+  if (!isOptionalNullableString(obj.data_source)) return false;
+
+  if (!isUniverseInfo(obj.universe_info)) return false;
   if (!isMarketInfo(obj.market)) return false;
   if (!isSummaryInfo(obj.summary)) return false;
+
   return true;
 }
 
 export function isHistoryIndexPayload(obj: any): obj is HistoryIndexPayload {
-  if (!obj || typeof obj !== "object") return false;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  if (!hasOnlyAllowedKeys(obj, ALLOWED_HISTORY_INDEX_KEYS)) return false;
+
   if (typeof obj.last_updated !== "string") return false;
-  if (typeof obj.total_reports !== "number") return false;
+  if (!isNonNegativeInteger(obj.total_reports)) return false;
   if (!Array.isArray(obj.dates)) return false;
   for (const d of obj.dates) {
     if (typeof d !== "string" || d.trim().length === 0) return false;

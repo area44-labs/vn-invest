@@ -4,10 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { MarketSummary } from "@/components/market-summary";
 import {
+  isHistoryIndexPayload,
+  isMarketPayload,
   isRecommendationsPayload,
   loadHistoryIndexResult,
   loadHistoryReportResult,
   loadMarketResult,
+  loadRecommendationsResult,
 } from "@/data/loader";
 import { formatDate } from "@/lib/format";
 import { Dashboard } from "@/pages/dashboard";
@@ -73,6 +76,7 @@ function getValidRecommendationSample(overrides: Record<string, any> = {}) {
 function getValidRecommendationsPayloadSample(overrides: Record<string, any> = {}) {
   return {
     schema_version: "2.0",
+    signal_model_version: "v2.1",
     generated_at: "2026-10-09T16:00:00Z",
     data_as_of: "2026-10-09",
     source_date: "2026-10-09",
@@ -160,12 +164,10 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         callCount++;
         const urlStr = String(url);
         if (callCount === 1) {
-          // First attempt: return 500 error for recommendations
           return Promise.resolve(
             new Response("Internal Error", { status: 500, statusText: "Internal Error" }),
           );
         }
-        // Second attempt (retry): return valid recommendations and market payloads
         if (urlStr.includes("recommendations.json")) {
           return Promise.resolve(
             new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
@@ -195,25 +197,21 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         );
       });
 
-      // Render initially without initialRecsResult to trigger fetch
       act(() => {
         root.render(<Dashboard />);
       });
       await waitTicks();
 
-      // Should display ERROR state with retry button
       expect(container.textContent).toContain("Lỗi tải dữ liệu khuyến nghị");
       const retryBtn = container.querySelector("button");
       expect(retryBtn).not.toBeNull();
       expect(retryBtn!.textContent).toContain("Thử lại");
 
-      // Click retry
       act(() => {
         retryBtn!.click();
       });
       await waitTicks();
 
-      // Should recover and display FPT recommendation
       expect(container.textContent).toContain("FPT");
       expect(container.textContent).toContain("FPT Corp");
     });
@@ -278,7 +276,13 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("Typed Loader Schema Validation - Strict Checks", () => {
+  describe("Typed Loader Schema Validation - Strict Fail-Closed Checks", () => {
+    it("rejects recommendations payload missing required field 'signal_model_version'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      delete (payload as any).signal_model_version;
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
     it("rejects recommendations payload missing required field 'summary'", () => {
       const payload = getValidRecommendationsPayloadSample();
       delete (payload as any).summary;
@@ -291,28 +295,81 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(isRecommendationsPayload(payload)).toBe(false);
     });
 
-    it("rejects recommendation with invalid enum action 'SUPER_BUY'", () => {
-      const payload = getValidRecommendationsPayloadSample();
-      (payload.recommendations[0] as any).action = "SUPER_BUY";
-      expect(isRecommendationsPayload(payload)).toBe(false);
+    it("validates 'risk_level' enum strictly: accepts LOW, MEDIUM, HIGH, null and rejects EXTREME, empty string, number, object", () => {
+      const validLow = getValidRecommendationsPayloadSample();
+      validLow.recommendations[0].risk_level = "LOW";
+      expect(isRecommendationsPayload(validLow)).toBe(true);
+
+      const validMed = getValidRecommendationsPayloadSample();
+      validMed.recommendations[0].risk_level = "MEDIUM";
+      expect(isRecommendationsPayload(validMed)).toBe(true);
+
+      const validHigh = getValidRecommendationsPayloadSample();
+      validHigh.recommendations[0].risk_level = "HIGH";
+      expect(isRecommendationsPayload(validHigh)).toBe(true);
+
+      const validNull = getValidRecommendationsPayloadSample();
+      validNull.recommendations[0].risk_level = null;
+      expect(isRecommendationsPayload(validNull)).toBe(true);
+
+      // Rejections
+      const invalidExtreme = getValidRecommendationsPayloadSample();
+      (invalidExtreme.recommendations[0] as any).risk_level = "EXTREME";
+      expect(isRecommendationsPayload(invalidExtreme)).toBe(false);
+
+      const invalidEmpty = getValidRecommendationsPayloadSample();
+      (invalidEmpty.recommendations[0] as any).risk_level = "";
+      expect(isRecommendationsPayload(invalidEmpty)).toBe(false);
+
+      const invalidNumber = getValidRecommendationsPayloadSample();
+      (invalidNumber.recommendations[0] as any).risk_level = 1;
+      expect(isRecommendationsPayload(invalidNumber)).toBe(false);
+
+      const invalidObject = getValidRecommendationsPayloadSample();
+      (invalidObject.recommendations[0] as any).risk_level = {};
+      expect(isRecommendationsPayload(invalidObject)).toBe(false);
     });
 
-    it("rejects recommendation with invalid exchange 'NASDAQ'", () => {
-      const payload = getValidRecommendationsPayloadSample();
-      (payload.recommendations[0] as any).exchange = "NASDAQ";
-      expect(isRecommendationsPayload(payload)).toBe(false);
+    it("rejects numeric fields out of schema range or non-finite numbers", () => {
+      // confidence > 1.0
+      const invalidConf = getValidRecommendationsPayloadSample();
+      invalidConf.market.confidence = 1.5;
+      expect(isRecommendationsPayload(invalidConf)).toBe(false);
+
+      // NaN or Infinity
+      const invalidNaN = getValidRecommendationsPayloadSample();
+      invalidNaN.recommendations[0].signal_score = NaN;
+      expect(isRecommendationsPayload(invalidNaN)).toBe(false);
+
+      const invalidInf = getValidRecommendationsPayloadSample();
+      invalidInf.recommendations[0].signal_score = Infinity;
+      expect(isRecommendationsPayload(invalidInf)).toBe(false);
+
+      // position_percent > 100
+      const invalidPos = getValidRecommendationsPayloadSample();
+      invalidPos.recommendations[0].trade_plan.position_percent = 150;
+      expect(isRecommendationsPayload(invalidPos)).toBe(false);
     });
 
-    it("rejects market info with invalid regime 'SUPER_BULL'", () => {
-      const payload = getValidRecommendationsPayloadSample();
-      (payload.market as any).regime = "SUPER_BULL";
-      expect(isRecommendationsPayload(payload)).toBe(false);
+    it("rejects non-integers in summary count fields", () => {
+      const invalidSummary = getValidRecommendationsPayloadSample();
+      invalidSummary.summary.buy_count = 1.5;
+      expect(isRecommendationsPayload(invalidSummary)).toBe(false);
     });
 
-    it("rejects recommendation with non-string array element in reasons", () => {
-      const payload = getValidRecommendationsPayloadSample();
-      (payload.recommendations[0] as any).reasons = ["Good", 12345];
-      expect(isRecommendationsPayload(payload)).toBe(false);
+    it("rejects payloads containing additional properties (additionalProperties: false)", () => {
+      const extraPayloadProp = getValidRecommendationsPayloadSample({
+        extra_field_disallowed: true,
+      });
+      expect(isRecommendationsPayload(extraPayloadProp)).toBe(false);
+
+      const extraRecProp = getValidRecommendationsPayloadSample();
+      (extraRecProp.recommendations[0] as any).extra_rec_field = "bad";
+      expect(isRecommendationsPayload(extraRecProp)).toBe(false);
+
+      const extraTradePlanProp = getValidRecommendationsPayloadSample();
+      (extraTradePlanProp.recommendations[0].trade_plan as any).unknown_plan_key = 100;
+      expect(isRecommendationsPayload(extraTradePlanProp)).toBe(false);
     });
 
     it("accepts valid recommendations payload with legitimate null values", () => {
@@ -401,19 +458,21 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("History page race conditions and retry request isolation", () => {
-    it("prevents stale retry error or data from overwriting newer active report request", async () => {
-      let resolveReport1: (val: Response) => void = () => {};
-      let resolveReport2: (val: Response) => void = () => {};
+  describe("UI Retry Actions & Race Condition Isolation Tests", () => {
+    it("handles UI Retry action then date change, ensuring stale retry completion (both error and success) is discarded", async () => {
+      let resolveRetryReq: (val: Response) => void = () => {};
+      let resolveDate2Req: (val: Response) => void = () => {};
 
-      const promiseReport1 = new Promise<Response>((res) => {
-        resolveReport1 = res;
+      const retryPromise = new Promise<Response>((r) => {
+        resolveRetryReq = r;
       });
-      const promiseReport2 = new Promise<Response>((res) => {
-        resolveReport2 = res;
+      const date2Promise = new Promise<Response>((r) => {
+        resolveDate2Req = r;
       });
 
+      let callCount = 0;
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        callCount++;
         const urlStr = String(url);
         if (urlStr.includes("history/index.json")) {
           return Promise.resolve(
@@ -427,17 +486,42 @@ describe("Frontend Data Correctness & Market Metrics", () => {
             ),
           );
         }
-        if (urlStr.includes("history/2026-10-09.json")) return promiseReport1;
-        if (urlStr.includes("history/2026-10-08.json")) return promiseReport2;
-        return Promise.resolve(new Response(null, { status: 404 }));
+        if (urlStr.includes("history/2026-10-09.json")) {
+          if (callCount === 2) {
+            // Initial load fails with 500 error
+            return Promise.resolve(new Response("500 Internal Error", { status: 500 }));
+          }
+          // Retry load for 2026-10-09
+          return retryPromise;
+        }
+        if (urlStr.includes("history/2026-10-08.json")) {
+          return date2Promise;
+        }
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
       });
 
+      // Render History page
       act(() => {
         root.render(<History />);
       });
       await waitTicks();
 
-      // Change date to 2026-10-08
+      // Initial Date 1 load fails -> displays error message & Thử lại button
+      expect(container.textContent).toContain("Lỗi tải báo cáo ngày 2026-10-09");
+      const retryBtn = container.querySelector("button");
+      expect(retryBtn).not.toBeNull();
+
+      // Step 2: User clicks Thử lại button
+      act(() => {
+        retryBtn!.click();
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain(
+        `Đang tải báo cáo ngày ${formatDate("2026-10-09")}...`,
+      );
+
+      // Step 3: User changes selected date to 2026-10-08 BEFORE retry finishes
       const select = container.querySelector("select");
       act(() => {
         select!.value = "2026-10-08";
@@ -445,27 +529,18 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
       await waitTicks();
 
-      // Resolve Date 1 (2026-10-09) WITH AN ERROR after user already switched to Date 2 (2026-10-08)
-      resolveReport1(new Response("Internal Server Error", { status: 500 }));
-      await waitTicks();
-
-      // Stale error from Date 1 MUST NOT set error view for Date 2
-      expect(container.textContent).not.toContain("Lỗi tải báo cáo ngày 2026-10-09");
       expect(container.textContent).toContain(
         `Đang tải báo cáo ngày ${formatDate("2026-10-08")}...`,
       );
 
-      // Resolve Date 2 (2026-10-08) WITH SUCCESS
-      resolveReport2(
+      // Step 4: Allow Date 2 (2026-10-08) to complete FIRST with SUCCESS
+      resolveDate2Req(
         new Response(
           JSON.stringify(
             getValidRecommendationsPayloadSample({
               source_date: "2026-10-08",
               recommendations: [
-                getValidRecommendationSample({
-                  symbol: "VCB",
-                  company_name: "Vietcombank",
-                }),
+                getValidRecommendationSample({ symbol: "VCB", company_name: "Vietcombank" }),
               ],
             }),
           ),
@@ -476,46 +551,77 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain(`Báo cáo ngày ${formatDate("2026-10-08")}`);
+
+      // Step 5: Allow old retry request for 2026-10-09 to complete LATER (testing stale retry completion)
+      resolveRetryReq(
+        new Response(
+          JSON.stringify(
+            getValidRecommendationsPayloadSample({
+              source_date: "2026-10-09",
+              recommendations: [
+                getValidRecommendationSample({ symbol: "FPT", company_name: "FPT Corp" }),
+              ],
+            }),
+          ),
+          { status: 200 },
+        ),
+      );
+      await waitTicks();
+
+      // Step 6: Verify stale retry completion MUST NOT overwrite current view or clear Date 2 data
+      expect(container.textContent).toContain("VCB");
+      expect(container.textContent).not.toContain("FPT");
     });
-  });
 
-  describe("StockDetail page race conditions, error states, and retry behavior", () => {
-    it("handles controlled out-of-order symbol requests correctly without showing stale stock data", async () => {
-      let resolveFPT: (val: Response) => void = () => {};
-      let resolveVCB: (val: Response) => void = () => {};
+    it("handles UI Retry action on StockDetail then symbol switch, discarding stale retry error response", async () => {
+      let resolveRetryReq: (val: Response) => void = () => {};
+      let resolveVCBReq: (val: Response) => void = () => {};
 
-      const promiseFPT = new Promise<Response>((res) => {
-        resolveFPT = res;
+      const retryPromise = new Promise<Response>((r) => {
+        resolveRetryReq = r;
       });
-      const promiseVCB = new Promise<Response>((res) => {
-        resolveVCB = res;
+      const vcbPromise = new Promise<Response>((r) => {
+        resolveVCBReq = r;
       });
 
-      let fptFetchCount = 0;
-      let vcbFetchCount = 0;
-
+      let recsFetchCount = 0;
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
         const urlStr = String(url);
         if (urlStr.includes("recommendations.json")) {
-          if (fptFetchCount > 0 && vcbFetchCount === 0) {
-            return promiseFPT;
+          recsFetchCount++;
+          if (recsFetchCount === 1) {
+            // First attempt for FPT fails
+            return Promise.resolve(new Response("Internal Error", { status: 500 }));
           }
-          return promiseVCB;
+          if (recsFetchCount === 2) {
+            // Retry for FPT
+            return retryPromise;
+          }
+          // Request for VCB
+          return vcbPromise;
         }
         return Promise.resolve(new Response("Not Found", { status: 404 }));
       });
 
-      // Render FPT
-      fptFetchCount++;
+      // Render StockDetail for FPT
       act(() => {
         root.render(<StockDetail symbol="FPT" />);
       });
       await waitTicks();
 
+      expect(container.textContent).toContain('Lỗi tải phân tích định lượng cho mã "FPT"');
+      const retryBtn = container.querySelector("button");
+      expect(retryBtn).not.toBeNull();
+
+      // Click Thử lại
+      act(() => {
+        retryBtn!.click();
+      });
+      await waitTicks();
+
       expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu FPT...");
 
-      // Render VCB before FPT finishes
-      vcbFetchCount++;
+      // Switch symbol to VCB before FPT retry finishes
       act(() => {
         root.render(<StockDetail symbol="VCB" />);
       });
@@ -523,67 +629,31 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
       expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu VCB...");
 
-      // Resolve VCB FIRST
-      const mockVCBData = getValidRecommendationsPayloadSample({
-        recommendations: [
-          getValidRecommendationSample({
-            symbol: "VCB",
-            company_name: "Vietcombank",
-          }),
-        ],
-      });
+      // Resolve stale FPT retry with 500 ERROR
+      resolveRetryReq(new Response("500 Internal Error", { status: 500 }));
+      await waitTicks();
 
-      resolveVCB(new Response(JSON.stringify(mockVCBData), { status: 200 }));
+      // Ensure stale FPT error does NOT set error state for VCB
+      expect(container.textContent).not.toContain('Lỗi tải phân tích định lượng cho mã "FPT"');
+      expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu VCB...");
+
+      // Resolve VCB request with SUCCESS
+      resolveVCBReq(
+        new Response(
+          JSON.stringify(
+            getValidRecommendationsPayloadSample({
+              recommendations: [
+                getValidRecommendationSample({ symbol: "VCB", company_name: "Vietcombank" }),
+              ],
+            }),
+          ),
+          { status: 200 },
+        ),
+      );
       await waitTicks();
 
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain("Vietcombank");
-
-      // Resolve FPT LATER (out-of-order)
-      const mockFPTData = getValidRecommendationsPayloadSample({
-        recommendations: [
-          getValidRecommendationSample({
-            symbol: "FPT",
-            company_name: "FPT Corp",
-          }),
-        ],
-      });
-
-      resolveFPT(new Response(JSON.stringify(mockFPTData), { status: 200 }));
-      await waitTicks();
-
-      expect(container.textContent).toContain("VCB");
-      expect(container.textContent).not.toContain("FPT Corp");
-    });
-
-    it("displays error state when fetch fails and recovers on retry", async () => {
-      let callCount = 0;
-      vi.spyOn(window, "fetch").mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.reject(new TypeError("NetworkError: Failed to fetch"));
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
-        );
-      });
-
-      act(() => {
-        root.render(<StockDetail symbol="FPT" />);
-      });
-      await waitTicks();
-
-      expect(container.textContent).toContain("NetworkError: Failed to fetch");
-      const retryBtn = container.querySelector("button");
-      expect(retryBtn).not.toBeNull();
-
-      act(() => {
-        retryBtn!.click();
-      });
-      await waitTicks();
-
-      expect(container.textContent).toContain("FPT");
-      expect(container.textContent).toContain("FPT Corp");
     });
   });
 });
