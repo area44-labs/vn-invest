@@ -1,20 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { loadMarket, loadRecommendations } from "@/data/loader";
-import { Dashboard } from "@/pages/Dashboard";
+import { loadMarketResult, loadRecommendationsResult } from "@/data/loader";
+import { Dashboard } from "@/pages/dashboard";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [recommendations, marketPayload] = await Promise.all([
-      loadRecommendations(),
-      loadMarket(),
+    const [recsResult, marketResult] = await Promise.all([
+      loadRecommendationsResult(),
+      loadMarketResult(),
     ]);
-    return { recommendations, marketPayload };
+    return { recsResult, marketResult };
   },
   component: IndexComponent,
 });
 
 function IndexComponent() {
-  const { recommendations, marketPayload } = Route.useLoaderData();
-  return <Dashboard initialData={recommendations} initialMarketPayload={marketPayload} />;
+  const { recsResult, marketResult } = Route.useLoaderData();
+  return <Dashboard initialRecsResult={recsResult} initialMarketResult={marketResult} />;
 }

@@ -9,12 +9,12 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Recommendation } from "@/types/recommendation";
 
 import { Badge } from "@/components/ui/badge";
-import { loadStock } from "@/data/loader";
+import { loadStockResult } from "@/data/loader";
 import { formatRisk, formatScore, formatVnd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -27,21 +27,78 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   const activeSymbol = propsSymbol || "FPT";
   const [stock, setStock] = useState<Recommendation | null>(initialStock);
   const [loading, setLoading] = useState(!initialStock);
+  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const reqIdRef = useRef(0);
+
+  async function fetchStock() {
+    const currentId = ++reqIdRef.current;
+    setLoading(true);
+    setStockStatus("IDLE");
+    setErrorMessage(null);
+    setStock(null);
+
+    const res = await loadStockResult(activeSymbol);
+    if (reqIdRef.current !== currentId) return;
+
+    if (res.status === "SUCCESS") {
+      setStock(res.data);
+      setStockStatus("IDLE");
+      setErrorMessage(null);
+    } else if (res.status === "NOT_FOUND") {
+      setStock(null);
+      setStockStatus("NOT_FOUND");
+      setErrorMessage(null);
+    } else {
+      setStock(null);
+      setStockStatus("ERROR");
+      setErrorMessage(res.error);
+    }
+    setLoading(false);
+  }
 
   useEffect(() => {
-    if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
-      return;
+    const currentId = ++reqIdRef.current;
+
+    async function loadStockData() {
+      if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
+        if (reqIdRef.current === currentId) {
+          setStock(initialStock);
+          setLoading(false);
+          setStockStatus("IDLE");
+          setErrorMessage(null);
+        }
+        return;
+      }
+
+      if (reqIdRef.current === currentId) {
+        setLoading(true);
+        setStockStatus("IDLE");
+        setErrorMessage(null);
+        setStock(null);
+      }
+
+      const res = await loadStockResult(activeSymbol);
+      if (reqIdRef.current === currentId) {
+        if (res.status === "SUCCESS") {
+          setStock(res.data);
+          setStockStatus("IDLE");
+          setErrorMessage(null);
+        } else if (res.status === "NOT_FOUND") {
+          setStock(null);
+          setStockStatus("NOT_FOUND");
+          setErrorMessage(null);
+        } else {
+          setStock(null);
+          setStockStatus("ERROR");
+          setErrorMessage(res.error);
+        }
+        setLoading(false);
+      }
     }
 
-    async function fetchStock() {
-      setLoading(true);
-      const rec = await loadStock(activeSymbol);
-      if (rec) {
-        setStock(rec);
-      }
-      setLoading(false);
-    }
-    fetchStock();
+    loadStockData();
   }, [activeSymbol, initialStock]);
 
   if (loading) {
@@ -52,15 +109,40 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     );
   }
 
-  if (!stock) {
+  if (stockStatus === "ERROR") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center">
-        <p className="font-mono text-sm font-bold text-foreground">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
+        <p className="text-sm font-bold text-trend-down-text">
+          Lỗi tải phân tích định lượng cho mã "{activeSymbol}":{" "}
+          {errorMessage || "Không thể kết nối máy chủ"}
+        </p>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={fetchStock}
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          >
+            Thử lại
+          </button>
+          <Link
+            to="/"
+            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stock || stockStatus === "NOT_FOUND") {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
+        <p className="text-sm font-bold text-foreground">
           Không tìm thấy dữ liệu phân tích cho mã "{activeSymbol}"
         </p>
         <Link
           to="/"
-          className="flex cursor-pointer items-center gap-1 font-mono text-xs text-muted-foreground underline hover:text-foreground"
+          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
         </Link>

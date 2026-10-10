@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { loadStock } from "@/data/loader";
-import { StockDetail } from "@/pages/StockDetail";
+import { StockDetail } from "@/pages/stock-detail";
 
 export const Route = createFileRoute("/stock/$symbol")({
   loader: async ({ params }) => {
