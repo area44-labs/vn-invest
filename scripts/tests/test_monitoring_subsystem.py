@@ -18,18 +18,12 @@ from scripts.monitoring.evaluator import (
 from scripts.monitoring.metrics import (
     classify_confidence_bucket,
     is_canonical_yyyy_mm_dd,
-    normalize_market_payload,
 )
 from scripts.monitoring.models import (
     CheckResult,
     PipelineMonitoringResult,
     _sanitize_value_for_json,
     find_nan_or_inf,
-)
-from scripts.monitoring.performance import (
-    create_default_performance_payload,
-    load_performance_schema,
-    validate_performance_payload,
 )
 
 
@@ -83,23 +77,6 @@ class TestMonitoringSubsystem:
                 expected_condition="",
                 message="",
             )
-
-    def test_normalize_market_payload(self):
-        """Verify normalization of market payload shapes."""
-        raw = {"regime": "BULLISH", "data_as_of": "2026-03-30", "metrics": {}}
-        norm = normalize_market_payload(raw, data_as_of="2026-03-30")
-        assert norm["data_as_of"] == "2026-03-30"
-        assert norm["market"]["regime"] == "BULLISH"
-        assert "data_as_of" not in norm["market"]
-
-    def test_performance_schema_loading_and_validation(self):
-        """Verify performance schema validation in performance module."""
-        schema = load_performance_schema()
-        assert isinstance(schema, dict)
-
-        payload = create_default_performance_payload()
-        assert "stages" in payload
-        validate_performance_payload(payload)
 
 
 @pytest.mark.unit

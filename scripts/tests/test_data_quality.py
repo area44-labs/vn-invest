@@ -321,7 +321,7 @@ class TestHardenedPerSymbolDataValidation:
         assert "missing_required_columns" in res["issues"]
 
     def test_nan_in_close_fails(self, mocker):
-        """NaN in close -> failure."""
+        """NaN in close -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -337,7 +337,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_inf_in_volume_fails(self, mocker):
-        """Inf in volume -> failure."""
+        """Inf in volume -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -354,7 +354,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_negative_price_fails(self, mocker):
-        """Negative price -> failure."""
+        """Negative price -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -370,7 +370,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_negative_volume_fails(self, mocker):
-        """Negative volume -> failure."""
+        """Negative volume -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -386,7 +386,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_invalid_ohlc_relationship_fails(self, mocker):
-        """Invalid OHLC relationship -> failure."""
+        """Invalid OHLC relationship -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -403,7 +403,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_duplicate_dates_fail(self, mocker):
-        """Duplicate dates -> failure."""
+        """Duplicate dates -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
@@ -419,7 +419,7 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "EXPLICITLY_INVALID"
 
     def test_non_monotonic_dates_fail(self, mocker):
-        """Non-monotonic dates -> failure."""
+        """Non-monotonic dates -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)

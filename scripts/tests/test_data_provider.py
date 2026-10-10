@@ -606,35 +606,6 @@ class TestVnstockRealRateLimitRegression:
         assert ctx.value.cooldown_seconds == 62
         assert is_circuit_breaker_active()
 
-    def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self, mocker):
-        """Regression test verifying generate_report.py fails cleanly (exit code 1) and preserves generated files."""
-        from scripts.generate_report import main as generate_report_main
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            generated_dir = Path(tmpdir) / "generated"
-            generated_dir.mkdir(parents=True, exist_ok=True)
-
-            recs_file = generated_dir / "recommendations.json"
-            initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
-            recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
-
-            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
-            mocker.patch(
-                "scripts.generate_report.run_pipeline",
-                side_effect=ProviderRateLimitError("Rate limit reached", cooldown_seconds=42),
-            )
-            mocker.patch("sys.argv", ["generate_report.py", "--update"])
-
-            with pytest.raises(SystemExit) as ctx:
-                generate_report_main()
-
-            # Pipeline exits with status code 1 for provider rate limits
-            assert ctx.value.code == 1
-
-            # Generated output file was NOT modified or overwritten
-            saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
-            assert saved_content == initial_content
-
     def test_generate_report_three_exit_code_paths(self, mocker):
         """Regression test covering the 3 exit paths of generate_report.py:
 
@@ -718,7 +689,8 @@ class TestVnstockRealRateLimitRegression:
 
             mocker.stopall()
 
-            # Rate limit error raises SystemExit(1)
+            # Rate limit error raises SystemExit(1) and preserves existing artifact contents
+            recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
             mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
             mocker.patch(
                 "scripts.generate_report.run_pipeline",
@@ -730,6 +702,8 @@ class TestVnstockRealRateLimitRegression:
                 generate_report_main()
 
             assert ctx2.value.code == 1
+            saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
+            assert saved_content == initial_recs
 
             mocker.stopall()
 
@@ -2172,55 +2146,3 @@ class TestPR155ProviderReliabilityAndPerformance:
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once
         for sym, cnt in call_counts.items():
             assert cnt == 1, f"Symbol {sym} was called {cnt} times instead of 1"
-
-    def test_existing_freshness_tests_remain_green(self, mocker):
-        """Existing freshness test suite passes cleanly."""
-        import inspect
-
-        from scripts.tests.test_data_date import (
-            SINGLE_STOCK_UNIVERSE,
-            TestProductionDataFreshness,
-            TestTemporalIntegrityValidation,
-        )
-
-        mocker.patch("scripts.data.acquisition.time.sleep")
-        mocker.patch("scripts.data_provider.time.sleep")
-        mocker.patch("scripts.pipeline.stages.time.sleep")
-        mocker.patch(
-            "scripts.pipeline.stages.UniverseProvider._get_candidates",
-            return_value=SINGLE_STOCK_UNIVERSE,
-        )
-
-        inst1 = TestProductionDataFreshness()
-        for m in sorted(dir(inst1)):
-            if m.startswith("test_"):
-                mocker.stopall()
-                mocker.patch("scripts.data.acquisition.time.sleep")
-                mocker.patch("scripts.data_provider.time.sleep")
-                mocker.patch("scripts.pipeline.stages.time.sleep")
-                mocker.patch(
-                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                    return_value=SINGLE_STOCK_UNIVERSE,
-                )
-                fn = getattr(inst1, m)
-                if "mocker" in inspect.signature(fn).parameters:
-                    fn(mocker)
-                else:
-                    fn()
-
-        inst2 = TestTemporalIntegrityValidation()
-        for m in sorted(dir(inst2)):
-            if m.startswith("test_"):
-                mocker.stopall()
-                mocker.patch("scripts.data.acquisition.time.sleep")
-                mocker.patch("scripts.data_provider.time.sleep")
-                mocker.patch("scripts.pipeline.stages.time.sleep")
-                mocker.patch(
-                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                    return_value=SINGLE_STOCK_UNIVERSE,
-                )
-                fn = getattr(inst2, m)
-                if "mocker" in inspect.signature(fn).parameters:
-                    fn(mocker)
-                else:
-                    fn()

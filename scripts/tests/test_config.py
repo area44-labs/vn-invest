@@ -206,7 +206,7 @@ class TestScoringFunctionsAndThresholds:
         assert conf_low_risk == 0.85
 
     def test_calculate_risk_adjusted_score_boundaries(self):
-        """Verify risk adjusted score penalties across volatility and drawdown thresholds."""
+        """Verify risk adjusted score penalties across volatility, drawdown, liquidity, and regime factors."""
         # Base score 100 in BULL regime (factor 1.0)
         # Volatility penalty threshold 0.20: at vol=0.20 penalty is 0, score=100
         score_base = calculate_risk_adjusted_score(
@@ -214,17 +214,36 @@ class TestScoringFunctionsAndThresholds:
         )
         assert score_base == 100.0
 
+        # Controlled comparison 1: Volatility change only (volatility 0.30 vs 0.20)
         # Volatility 0.30 => penalty = min(0.25, (0.30 - 0.20)*0.5) = 0.05 => score = 100 * 0.95 = 95.0
         score_vol_pen = calculate_risk_adjusted_score(
             100.0, "BULL", volatility_60d=0.30, max_drawdown=-0.15, liquidity_score=100.0
         )
         assert score_vol_pen == 95.0
+        assert score_vol_pen < score_base
 
+        # Controlled comparison 2: Drawdown change only (mdd -0.25 vs -0.15)
         # Drawdown 0.25 => penalty = min(0.25, (0.25 - 0.15)*0.5) = 0.05 => score = 100 * 0.95 = 95.0
         score_mdd_pen = calculate_risk_adjusted_score(
             100.0, "BULL", volatility_60d=0.20, max_drawdown=-0.25, liquidity_score=100.0
         )
         assert score_mdd_pen == 95.0
+        assert score_mdd_pen < score_base
+
+        # Controlled comparison 3: Liquidity change only (liquidity 50.0 vs 100.0)
+        # Liquidity score 50 => factor = 0.85 + 0.15*(50/100) = 0.925 => score = 100 * 0.925 = 92.5
+        score_liq_pen = calculate_risk_adjusted_score(
+            100.0, "BULL", volatility_60d=0.20, max_drawdown=-0.15, liquidity_score=50.0
+        )
+        assert score_liq_pen == 92.5
+        assert score_liq_pen < score_base
+
+        # Controlled comparison 4: Market regime change only (BEAR factor 0.75 vs BULL 1.0)
+        score_bear_regime = calculate_risk_adjusted_score(
+            100.0, "BEAR", volatility_60d=0.20, max_drawdown=-0.15, liquidity_score=100.0
+        )
+        assert score_bear_regime == 75.0
+        assert score_bear_regime < score_base
 
     def test_classify_action_signal_score_boundaries(self):
         """Verify action classification exact boundaries: 35, 45, 55, 65, 75."""
@@ -255,6 +274,11 @@ class TestScoringFunctionsAndThresholds:
         # Score >= 75.0 => BUY if (STRONG_BULL/BULL & close > ma20) else WATCH
         assert classify_action(75.0, "STRONG_BULL", 100, 90) == "BUY"
         assert classify_action(75.0, "DEFENSIVE", 100, 90) == "WATCH"
+
+        # Boundary assertions for 74.9, DEFENSIVE 65.0, and DEFENSIVE 75.0
+        assert classify_action(74.9, "BULL", 30.0, 25.0) == "BUY"
+        assert classify_action(65.0, "DEFENSIVE", 30.0, 25.0) == "BUY"
+        assert classify_action(75.0, "DEFENSIVE", 30.0, 25.0) == "WATCH"
 
 
 @pytest.mark.unit

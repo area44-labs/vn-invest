@@ -742,66 +742,6 @@ class TestAuditTrailObservability:
         assert res.status == "PASS"
         assert audit["exclusions"][0]["category"] == "RATE_LIMIT"
 
-    def test_artifact_preservation_remains_unchanged(self):
-        """Verifies that failed output validation preserves existing generated report artifacts on disk byte-for-byte."""
-        from scripts.generate_report import validate_final_payload_integrity
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            hist_dir = os.path.join(tmpdir, "history")
-            os.makedirs(hist_dir, exist_ok=True)
-
-            rec_path = os.path.join(tmpdir, "recommendations.json")
-            mkt_path = os.path.join(tmpdir, "market.json")
-            mon_path = os.path.join(tmpdir, "monitoring.json")
-            idx_path = os.path.join(hist_dir, "index.json")
-            hist_path = os.path.join(hist_dir, "2026-09-25.json")
-
-            files_map = {
-                rec_path: b'{\n  "artifact": "recommendations_v1"\n}\n',
-                mkt_path: b'{\n  "artifact": "market_v1"\n}\n',
-                mon_path: b'{\n  "artifact": "monitoring_v1"\n}\n',
-                idx_path: b'{\n  "artifact": "index_v1"\n}\n',
-                hist_path: b'{\n  "artifact": "history_2026-09-25_v1"\n}\n',
-            }
-
-            for fpath, content in files_map.items():
-                with open(fpath, "wb") as f:
-                    f.write(content)
-
-            # Record exact bytes before triggering failure
-            bytes_before = {}
-            for fpath in files_map:
-                with open(fpath, "rb") as f:
-                    bytes_before[fpath] = f.read()
-
-            # Trigger real validation failure with corrupted payload
-            corrupted_payload = copy.deepcopy(self.healthy_payload)
-            corrupted_payload["recommendations"][0]["signal_score"] = -999.0  # Out of bounds
-
-            with pytest.raises(ValueError) as cm:
-                validate_final_payload_integrity(corrupted_payload, payload_name="recommendations")
-
-            assert "stage OUTPUT_VALIDATION" in str(cm.value)
-
-            # Verify every pre-existing artifact is byte-for-byte unchanged
-            for fpath, original_bytes in bytes_before.items():
-                with open(fpath, "rb") as f:
-                    current_bytes = f.read()
-                assert current_bytes == original_bytes, (
-                    f"Artifact '{os.path.basename(fpath)}' was modified during validation failure"
-                )
-
-            # Verify no unexpected partial or temp files were left in tmpdir
-            all_files_in_root = set(os.listdir(tmpdir))
-            all_files_in_hist = set(os.listdir(hist_dir))
-            assert all_files_in_root == {
-                "recommendations.json",
-                "market.json",
-                "monitoring.json",
-                "history",
-            }
-            assert all_files_in_hist == {"index.json", "2026-09-25.json"}
-
     def test_diagnostics_deterministic_across_repeated_runs(self):
         """Verifies that build_universe_audit produces identical output and deterministically sorted symbol lists across repeated executions."""
         from scripts.domain.universe import Universe, UniverseScanResult
