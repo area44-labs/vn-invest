@@ -3,25 +3,36 @@ name: Tests
 on:
   push:
     branches: ["main"]
-    paths:
-      - "**/*.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "pytest.ini"
-      - ".github/workflows/tests.yml"
   pull_request:
-    paths:
-      - "**/*.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "pytest.ini"
-      - ".github/workflows/tests.yml"
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check for relevant file changes
+        id: filter
+        uses: dorny/paths-filter@de5b1a8d05903b41e8e3d81b4f8c474d287042a3 # v3.0.0
+        with:
+          filters: |
+            python:
+              - "**/*.py"
+              - "pyproject.toml"
+              - "uv.lock"
+              - "pytest.ini"
+              - ".github/workflows/tests.yml"
+
   test:
+    needs: changes
+    if: ${{ needs.changes.outputs.python == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -41,3 +52,27 @@ jobs:
 
       - name: Run Python tests
         run: uv run --frozen pytest
+
+  tests-status:
+    needs: [changes, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate test workflow status
+        run: |
+          CHANGES_RESULT="${{ needs.changes.result }}"
+          TEST_RESULT="${{ needs.test.result }}"
+
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "Error: File change detection step failed with status '$CHANGES_RESULT'."
+            exit 1
+          fi
+
+          if [ "$TEST_RESULT" = "success" ] || [ "$TEST_RESULT" = "skipped" ]; then
+            echo "Python test workflow passed or was legitimately skipped (test status: '$TEST_RESULT')."
+            exit 0
+          else
+            echo "Error: Python tests failed or were cancelled (test status: '$TEST_RESULT')."
+            exit 1
+          fi
