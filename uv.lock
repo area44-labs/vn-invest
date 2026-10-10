@@ -1005,6 +1005,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-mock"
+version = "3.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d6/3b/388cb20aa54ebcc5dd9296538b7ef874ddbfcefb71f65313a48e7ee93781/pytest-mock-3.16.0.tar.gz", hash = "sha256:d82dc1c05d0e2e5050f24a0d922a00c6d2524a87c1f887f8f90eb0a726715f21", size = 30999, upload-time = "2025-02-12T08:58:34.922Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/b5/07f0f631bd282b0f491c12d591146c8eb5ca278f244ee1d6edbfcbcf179e/pytest_mock-3.16.0-py3-none-any.whl", hash = "sha256:d021c60a927a4e69b2d87e0767ed505be1b8a51bc97bd3652a9f733dbec5db4e", size = 10103, upload-time = "2025-02-12T08:58:33.722Z" },
+]
+
+[[package]]
 name = "vn-invest"
 version = "0.1.0"
 source = { editable = "." }
@@ -1014,6 +1026,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pytest" },
+    { name = "pytest-mock" },
     { name = "requests" },
     { name = "vnstock" },
 ]
@@ -1025,6 +1038,7 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=3.0.0" },
     { name = "pytest", specifier = ">=9.0.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "vnstock", specifier = ">=4.0.8" },
 ]

@@ -1,7 +1,5 @@
 """Unit tests for acquisition boundary in scripts/data/acquisition.py."""
 
-from unittest.mock import MagicMock, patch
-
 import pandas as pd
 import pytest
 
@@ -47,8 +45,8 @@ class DummyFakeProvider(MarketDataProvider):
 class TestMarketDataAcquisitionBoundary:
     """Test suite for MarketDataAcquirer and acquisition boundary contracts."""
 
-    def test_successful_raw_data_acquisition(self):
-        mock_provider = MagicMock()
+    def test_successful_raw_data_acquisition(self, mocker):
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.return_value = pd.DataFrame(
             {
@@ -79,8 +77,8 @@ class TestMarketDataAcquisitionBoundary:
         assert payload.source_tag == "REAL_DATA"
         assert not payload.raw_df.empty
 
-    def test_acquisition_failure_tagging(self):
-        mock_provider = MagicMock()
+    def test_acquisition_failure_tagging(self, mocker):
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.side_effect = RuntimeError("Provider offline")
 
@@ -92,13 +90,13 @@ class TestMarketDataAcquisitionBoundary:
         assert payload.raw_df.empty
         assert "Provider offline" in payload.error
 
-    def test_client_auth_and_unstructured_exceptions_classified_as_provider_failure(self):
+    def test_client_auth_and_unstructured_exceptions_classified_as_provider_failure(self, mocker):
         """Client auth errors and generic exceptions evaluate as PROVIDER_FAILURE (not INVALID_SYMBOL)."""
-        mock_provider = MagicMock()
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
 
         auth_err = Exception("HTTP 401 Unauthorized")
-        res_mock = MagicMock()
+        res_mock = mocker.MagicMock()
         res_mock.status_code = 401
         auth_err.response = res_mock
 
@@ -108,9 +106,9 @@ class TestMarketDataAcquisitionBoundary:
         assert payload.failure_type == "PROVIDER_FAILURE"
         assert payload.source_tag == "PROVIDER_FAILURE"
 
-    def test_unstructured_exception_message_does_not_infer_invalid_symbol(self):
+    def test_unstructured_exception_message_does_not_infer_invalid_symbol(self, mocker):
         """Regression test: An exception containing string 'INVALID_SYMBOL' without structured failure_type is classified as PROVIDER_FAILURE."""
-        mock_provider = MagicMock()
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.side_effect = RuntimeError(
             "Fetch failed with INVALID_SYMBOL error message"
@@ -121,9 +119,9 @@ class TestMarketDataAcquisitionBoundary:
         assert payload.failure_type == "PROVIDER_FAILURE"
         assert payload.source_tag == "PROVIDER_FAILURE"
 
-    def test_unstructured_exception_message_does_not_infer_explicitly_invalid(self):
+    def test_unstructured_exception_message_does_not_infer_explicitly_invalid(self, mocker):
         """Regression test: An exception containing string 'EXPLICITLY_INVALID' without structured failure_type is classified as PROVIDER_FAILURE."""
-        mock_provider = MagicMock()
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.side_effect = RuntimeError(
             "Fetch failed with EXPLICITLY_INVALID error message"
@@ -134,9 +132,9 @@ class TestMarketDataAcquisitionBoundary:
         assert payload.failure_type == "PROVIDER_FAILURE"
         assert payload.source_tag == "PROVIDER_FAILURE"
 
-    def test_structured_exceptions_classified_correctly(self):
+    def test_structured_exceptions_classified_correctly(self, mocker):
         """Structured InvalidSymbolError and ExplicitlyInvalidDataError are classified accurately."""
-        mock_provider = MagicMock()
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
 
         mock_provider.fetch_ohlcv.side_effect = InvalidSymbolError("Symbol ABC not found")
@@ -149,9 +147,9 @@ class TestMarketDataAcquisitionBoundary:
         assert payload_exp_invalid.failure_type == "EXPLICITLY_INVALID"
         assert payload_exp_invalid.source_tag == "EXPLICITLY_INVALID"
 
-    @patch("scripts.data.acquisition.can_recover_rate_limit", return_value=False)
-    def test_rate_limit_exceeded_raises(self, _mock_can_rec):
-        mock_provider = MagicMock()
+    def test_rate_limit_exceeded_raises(self, mocker):
+        mocker.patch("scripts.data.acquisition.can_recover_rate_limit", return_value=False)
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.side_effect = ProviderRateLimitError(
             "Rate limit exceeded", cooldown_seconds=5

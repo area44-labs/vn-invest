@@ -8,8 +8,6 @@ import copy
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -110,47 +108,40 @@ def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") 
 
 @pytest.mark.integration
 class TestPipelinePerformanceProfiling:
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
-        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_patcher = patch(
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SINGLE_STOCK_UNIVERSE,
         )
-        self.sleep_patcher1.start()
-        self.sleep_patcher2.start()
-        self.sleep_patcher3.start()
-        self.univ_patcher.start()
-
-    def teardown_method(self):
-        patch.stopall()
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
 
-    @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_every_required_pipeline_stage_produces_timing_record(
-        self, mock_fetch_ohlcv, mock_perf
-    ):
+    def test_every_required_pipeline_stage_produces_timing_record(self, mocker):
         """Every required pipeline stage produces a timing record with stable fields in main flow."""
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(10.0, 0.01)
         mock_perf.side_effect = lambda: next(counter)
 
-        with (
-            tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mocker.patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated")
+            mocker.patch("sys.argv", ["generate_report.py"])
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
             hist_dir = gen_dir / "history"
@@ -190,23 +181,23 @@ class TestPipelinePerformanceProfiling:
                 assert isinstance(record["elapsed_seconds"], (int, float))
                 assert record["status"] in ("SUCCESS", "FAILED")
 
-    @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_stage_ordering_is_deterministic(self, mock_fetch_ohlcv, mock_perf):
+    def test_stage_ordering_is_deterministic(self, mocker):
         """Stage ordering in performance payload is strictly deterministic."""
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
         counter = itertools.count(1.0, 0.05)
         mock_perf.side_effect = lambda: next(counter)
 
-        with (
-            tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mocker.patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated")
+            mocker.patch("sys.argv", ["generate_report.py"])
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
             hist_dir = gen_dir / "history"
@@ -388,10 +379,12 @@ class TestPipelinePerformanceProfiling:
         assert duplicates[0]["successful_calls"] == 2
         assert duplicates[0]["failed_calls"] == 0
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_instrumentation_does_not_change_pipeline_output(self, mock_fetch_ohlcv):
+    def test_instrumentation_does_not_change_pipeline_output(self, mocker):
         """Performance instrumentation produces identical quantitative report structure."""
         valid_df = make_valid_canonical_df(25)
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
 
         res_uninstrumented = run_pipeline(update_data=False)
@@ -404,10 +397,12 @@ class TestPipelinePerformanceProfiling:
         assert market1["market"]["regime"] == market2["market"]["regime"]
         assert len(recs1["recommendations"]) == len(recs2["recommendations"])
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_instrumentation_does_not_alter_recommendation_results(self, mock_fetch_ohlcv):
+    def test_instrumentation_does_not_alter_recommendation_results(self, mocker):
         """Recommendations and signals are 100% identical with instrumentation."""
         valid_df = make_valid_canonical_df(25)
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
 
         res1 = run_pipeline(update_data=False)
@@ -422,12 +417,14 @@ class TestPipelinePerformanceProfiling:
             assert r1.get("signal_score") == r2.get("signal_score")
             assert r1.get("risk_adjusted_score") == r2.get("risk_adjusted_score")
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_instrumentation_does_not_alter_monitoring_status(self, mock_fetch_ohlcv):
+    def test_instrumentation_does_not_alter_monitoring_status(self, mocker):
         """Production monitoring status is unchanged by performance tracking."""
         from scripts.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
 
         res = run_pipeline(update_data=False)
@@ -463,9 +460,11 @@ class TestPipelinePerformanceProfiling:
             mon_dict = mon_res.to_dict()
             assert "performance" in mon_dict["metrics"]
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_provider_failure_remains_fail_closed(self, mock_fetch_ohlcv):
+    def test_provider_failure_remains_fail_closed(self, mocker):
         """Provider failure remains fail-closed and attaches performance diagnostics."""
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.side_effect = RuntimeError("Provider offline")
 
         tracker = PerformanceTracker()
@@ -480,9 +479,11 @@ class TestPipelinePerformanceProfiling:
         failed_stages = [s for s in audit["performance"]["stages"] if s["status"] == "FAILED"]
         assert len(failed_stages) > 0
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_rate_limit_behavior_remains_unchanged(self, mock_fetch_ohlcv):
+    def test_rate_limit_behavior_remains_unchanged(self, mocker):
         """Rate limit handling remains unchanged and raises ProviderRateLimitError loudly."""
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.side_effect = ProviderRateLimitError(
             "Quota exceeded for FPT", cooldown_seconds=30, symbol="FPT"
         )
@@ -496,8 +497,7 @@ class TestPipelinePerformanceProfiling:
         assert audit is not None
         assert "performance" in audit
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_canonical_date_freshness_remains_enforced(self, mock_fetch_ohlcv):
+    def test_canonical_date_freshness_remains_enforced(self, mocker):
         """Temporal integrity / canonical date freshness rules remain strictly enforced."""
         vnindex_df = make_valid_canonical_df(25, start_date="2026-08-01")
         stale_df = make_valid_canonical_df(10, start_date="2026-08-01")  # Stale relative to VNINDEX
@@ -507,6 +507,9 @@ class TestPipelinePerformanceProfiling:
                 return vnindex_df
             return stale_df
 
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.side_effect = side_effect
 
         with pytest.raises(RuntimeError) as ctx:
@@ -514,7 +517,7 @@ class TestPipelinePerformanceProfiling:
 
         assert "Incomplete universe scan in update mode" in str(ctx.value)
 
-    def test_output_artifacts_remain_protected_on_failure(self):
+    def test_output_artifacts_remain_protected_on_failure(self, mocker):
         """Output artifacts in generated/ remain protected and untouched on failure."""
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -528,15 +531,14 @@ class TestPipelinePerformanceProfiling:
             }
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.generate_report.run_pipeline",
-                    side_effect=RuntimeError("Pipeline benchmark failure"),
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-                pytest.raises(SystemExit) as ctx,
-            ):
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=RuntimeError("Pipeline benchmark failure"),
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            with pytest.raises(SystemExit) as ctx:
                 generate_report_main()
 
             assert ctx.value.code == 1
@@ -545,19 +547,18 @@ class TestPipelinePerformanceProfiling:
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             assert saved_content == initial_content
 
-    @patch("scripts.pipeline.stages.evaluate_production_monitoring")
-    @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_monitoring_elapsed_time_corresponds_to_mocked_execution(
-        self, mock_fetch_ohlcv, mock_perf, mock_eval_mon
-    ):
+    def test_monitoring_elapsed_time_corresponds_to_mocked_execution(self, mocker):
         """Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
-        from unittest.mock import MagicMock
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        mock_eval_mon = mocker.patch("scripts.pipeline.stages.evaluate_production_monitoring")
+        mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
 
-        valid_df = make_valid_canonical_df(25)
         mock_fetch_ohlcv.return_value = valid_df
 
-        mock_mon_result = MagicMock()
+        mock_mon_result = mocker.MagicMock()
         mock_mon_result.overall_status = "PASS"
         mock_mon_result.to_dict.return_value = {
             "overall_status": "PASS",
@@ -576,11 +577,9 @@ class TestPipelinePerformanceProfiling:
         mock_perf.side_effect = perf_side_effect
         mock_eval_mon.side_effect = eval_mon_side_effect
 
-        with (
-            tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mocker.patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated")
+            mocker.patch("sys.argv", ["generate_report.py"])
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
             generate_report_main()
@@ -670,20 +669,20 @@ class TestPipelinePerformanceProfiling:
         assert "monitoring" not in stages
         assert "payload_validation" in stages
 
-    @patch("scripts.pipeline.tracker.time.perf_counter")
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_stage_ordering_in_main_flow_remains_unchanged(self, mock_fetch_ohlcv, mock_perf):
+    def test_stage_ordering_in_main_flow_remains_unchanged(self, mocker):
         """Main pipeline stage ordering matches expected canonical order strictly."""
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
+        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
         mock_perf.side_effect = [1.0 + (i * 0.05) for i in range(200)]
 
-        with (
-            tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated"),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mocker.patch("scripts.generate_report.GENERATED_DIR", f"{tmpdir}/generated")
+            mocker.patch("sys.argv", ["generate_report.py"])
             gen_dir = Path(tmpdir) / "generated"
             gen_dir.mkdir(parents=True, exist_ok=True)
             hist_dir = gen_dir / "history"
@@ -718,15 +717,13 @@ class TestPerformanceSchemaValidation:
         payload = make_valid_performance_payload()
         validate_performance_payload(payload)
 
-    def test_missing_performance_schema_file_fails_closed(self):
+    def test_missing_performance_schema_file_fails_closed(self, mocker):
         payload = make_valid_performance_payload()
-        with (
-            patch(
-                "scripts.schema.registry.SCHEMA_REGISTRY",
-                {("performance", "2.0"): Path("/non/existent/path/performance.schema.json")},
-            ),
-            pytest.raises(FileNotFoundError),
-        ):
+        mocker.patch(
+            "scripts.schema.registry.SCHEMA_REGISTRY",
+            {("performance", "2.0"): Path("/non/existent/path/performance.schema.json")},
+        )
+        with pytest.raises(FileNotFoundError):
             validate_performance_payload(payload)
 
     def test_missing_required_fields_fail_schema_validation(self):
@@ -795,13 +792,13 @@ class TestPerformanceSchemaValidation:
         with pytest.raises(jsonschema.ValidationError):
             validate_performance_payload(payload)
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(
-        self, mock_fetch_ohlcv
-    ):
+    def test_audit_and_monitoring_metrics_expose_same_canonical_performance_object(self, mocker):
         from scripts.monitoring import evaluate_production_monitoring
 
         valid_df = make_valid_canonical_df(25)
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
         mock_fetch_ohlcv.return_value = valid_df
 
         res = run_pipeline(update_data=False)
@@ -1328,7 +1325,7 @@ class TestPerformanceRegressionAndBudget:
         assert dups[0]["provider_call_count"] == 2
         assert dups[0]["successful_calls"] == 2
 
-    def test_performance_regression_degraded_allows_publishing(self):
+    def test_performance_regression_degraded_allows_publishing(self, mocker):
         """Verify that stage duration exceeding degraded threshold produces DEGRADED status (WARNING) and publishing is allowed."""
         valid_payload = self.make_sample_report_payload()
         audit_degraded = {
@@ -1386,17 +1383,16 @@ class TestPerformanceRegressionAndBudget:
             hist_dir.mkdir(parents=True, exist_ok=True)
             (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_perf_execute(
-                        valid_payload, audit_degraded, df_vnindex, df_vn30
-                    ),
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_perf_execute(
+                    valid_payload, audit_degraded, df_vnindex, df_vn30
                 ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                generate_report_main()
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            generate_report_main()
 
             mon_file = gen_dir / "monitoring.json"
             assert mon_file.exists()
@@ -1407,7 +1403,7 @@ class TestPerformanceRegressionAndBudget:
             )
             assert reg_check["status"] == "WARNING"
 
-    def test_performance_regression_failed_blocks_publishing(self):
+    def test_performance_regression_failed_blocks_publishing(self, mocker):
         """Verify that stage duration exceeding failed threshold produces FAILED status (FAIL) and blocks publishing."""
         valid_payload = self.make_sample_report_payload()
         audit_failed = {
@@ -1468,23 +1464,22 @@ class TestPerformanceRegressionAndBudget:
             recs_file = gen_dir / "recommendations.json"
             recs_file.write_bytes(sentinel_recs)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_perf_execute(
-                        valid_payload, audit_failed, df_vnindex, df_vn30
-                    ),
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_perf_execute(
+                    valid_payload, audit_failed, df_vnindex, df_vn30
                 ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-                pytest.raises(SystemExit) as ctx,
-            ):
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            with pytest.raises(SystemExit) as ctx:
                 generate_report_main()
 
             assert ctx.value.code == 1
             assert recs_file.read_bytes() == sentinel_recs
 
-    def test_performance_stage_failed_blocks_publishing(self):
+    def test_performance_stage_failed_blocks_publishing(self, mocker):
         """Verify that an explicit stage execution failure (status='FAILED') produces FAIL status and blocks publishing."""
         valid_payload = self.make_sample_report_payload()
         audit_failed = {
@@ -1559,17 +1554,16 @@ class TestPerformanceRegressionAndBudget:
             index_file.write_bytes(sentinel_index)
             hist_file.write_bytes(sentinel_hist)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_perf_execute(
-                        valid_payload, audit_failed, df_vnindex, df_vn30
-                    ),
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_perf_execute(
+                    valid_payload, audit_failed, df_vnindex, df_vn30
                 ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-                pytest.raises(SystemExit) as ctx,
-            ):
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            with pytest.raises(SystemExit) as ctx:
                 generate_report_main()
 
             assert ctx.value.code == 1
@@ -1581,7 +1575,7 @@ class TestPerformanceRegressionAndBudget:
             assert index_file.read_bytes() == sentinel_index
             assert hist_file.read_bytes() == sentinel_hist
 
-    def test_provider_budget_exceeded_allows_publishing_and_records_warning(self):
+    def test_provider_budget_exceeded_allows_publishing_and_records_warning(self, mocker):
         """Verify that provider budget violations produce WARNING status and allow publishing with violation diagnostics."""
         valid_payload = self.make_sample_report_payload()
         audit_budget_exceeded = {
@@ -1634,17 +1628,16 @@ class TestPerformanceRegressionAndBudget:
             hist_dir.mkdir(parents=True, exist_ok=True)
             (hist_dir / "index.json").write_text(json.dumps({"dates": []}), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_perf_execute(
-                        valid_payload, audit_budget_exceeded, df_vnindex, df_vn30
-                    ),
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_perf_execute(
+                    valid_payload, audit_budget_exceeded, df_vnindex, df_vn30
                 ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                generate_report_main()
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            generate_report_main()
 
             mon_file = gen_dir / "monitoring.json"
             assert mon_file.exists()

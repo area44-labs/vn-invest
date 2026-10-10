@@ -2,8 +2,6 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
-
 import pandas as pd
 import pytest
 
@@ -364,7 +362,7 @@ class TestPipelineStageOrderAndConstruction:
 class TestPipelineProgrammaticExecution:
     """Verify programmatic execution entry points and result structure."""
 
-    def test_run_pipeline_returns_valid_pipeline_result(self):
+    def test_run_pipeline_returns_pipeline_result_tuple(self, mocker):
         """Verify run_pipeline returns PipelineResult with tuple unpacking support."""
         valid_df = pd.DataFrame(
             {
@@ -377,12 +375,13 @@ class TestPipelineProgrammaticExecution:
             }
         )
 
-        with (
-            tempfile.TemporaryDirectory() as tmpdir,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
-            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-        ):
-            mock_provider = MagicMock()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_fetch = mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+            )
+            mock_provider_cls = mocker.patch("scripts.pipeline.runner.UniverseProvider")
+
+            mock_provider = mocker.MagicMock()
             mock_provider.get_universe.return_value = Universe.from_candidates(
                 [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
                 benchmarks=("VNINDEX", "VN30"),
@@ -445,54 +444,50 @@ SINGLE_STOCK_UNIVERSE = [
 
 @pytest.mark.integration
 class TestPipelineErrorAndFailureBehavior:
-    def setup_method(self):
-        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
-        self.sleep_patcher1.start()
-        self.sleep_patcher2.start()
-        self.sleep_patcher3.start()
-
-    def teardown_method(self):
-        patch.stopall()
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
 
     """Verify error handling and failure behavior compatibility."""
 
-    def test_empty_candidate_universe_raises_runtime_error(self):
+    def test_empty_candidate_universe_raises_runtime_error(self, mocker):
         """Verify empty candidate universe halts data acquisition with RuntimeError."""
-        with patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls:
-            mock_provider = MagicMock()
-            mock_provider.get_universe.return_value = Universe.from_candidates(
-                [], universe_type="EMPTY"
-            )
-            mock_provider_cls.return_value = mock_provider
+        mock_provider_cls = mocker.patch("scripts.pipeline.runner.UniverseProvider")
+        mock_provider = mocker.MagicMock()
+        mock_provider.get_universe.return_value = Universe.from_candidates(
+            [], universe_type="EMPTY"
+        )
+        mock_provider_cls.return_value = mock_provider
 
-            with pytest.raises(RuntimeError) as cm:
-                run_pipeline(update_data=False)
+        with pytest.raises(RuntimeError) as cm:
+            run_pipeline(update_data=False)
 
-            assert "Candidate universe is empty or missing" in str(cm.value)
+        assert "Candidate universe is empty or missing" in str(cm.value)
 
-    def test_update_mode_incomplete_universe_raises_runtime_error(self):
+    def test_update_mode_incomplete_universe_raises_runtime_error(self, mocker):
         """Verify update_data=True fails closed with RuntimeError when candidate fetch fails."""
         empty_df = pd.DataFrame()
-        with (
-            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-            patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv") as mock_fetch,
-        ):
-            mock_provider = MagicMock()
-            mock_provider.get_universe.return_value = Universe.from_candidates(
-                [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
-                benchmarks=("VNINDEX", "VN30"),
-            )
-            mock_provider_cls.return_value = mock_provider
+        mock_provider_cls = mocker.patch("scripts.pipeline.runner.UniverseProvider")
+        mock_fetch = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
 
-            mock_fetch.return_value = empty_df
+        mock_provider = mocker.MagicMock()
+        mock_provider.get_universe.return_value = Universe.from_candidates(
+            [{"symbol": "AAA", "companyName": "Comp A", "sector": "Tech", "exchange": "HOSE"}],
+            benchmarks=("VNINDEX", "VN30"),
+        )
+        mock_provider_cls.return_value = mock_provider
 
-            with pytest.raises(RuntimeError) as cm:
-                run_pipeline(update_data=True)
+        mock_fetch.return_value = empty_df
 
-            assert "Incomplete universe scan in update mode" in str(cm.value)
-            assert hasattr(cm.value, "universe_audit")
+        with pytest.raises(RuntimeError) as cm:
+            run_pipeline(update_data=True)
+
+        assert "Incomplete universe scan in update mode" in str(cm.value)
+        assert hasattr(cm.value, "universe_audit")
 
 
 @pytest.mark.integration
@@ -577,11 +572,11 @@ class TestMonitoringAndPublishingStages:
             assert "market.json" in context.artifacts_to_publish
             assert "monitoring.json" in context.artifacts_to_publish
 
-    def test_artifact_publishing_stage_rejects_monitoring_failure(self, caplog):
+    def test_artifact_publishing_stage_rejects_monitoring_failure(self, caplog, mocker):
         """Verify ArtifactPublishingStage raises SystemExit(1) on monitoring FAIL when publish_artifacts=True and logs failed checks."""
         import logging
 
-        mock_check = MagicMock()
+        mock_check = mocker.MagicMock()
         mock_check.check_name = "drift_market_payload_temporal_safety"
         mock_check.status = "FAIL"
         mock_check.measured_value = "Missing date"
@@ -590,7 +585,7 @@ class TestMonitoringAndPublishingStages:
             "Explicit standalone market_payload missing required data_as_of date field"
         )
 
-        mock_monitoring_res = MagicMock()
+        mock_monitoring_res = mocker.MagicMock()
         mock_monitoring_res.overall_status = "FAIL"
         mock_monitoring_res.checks = [mock_check]
 
@@ -614,7 +609,7 @@ class TestMonitoringAndPublishingStages:
             in logged_text
         )
 
-    def test_atomic_rejection_preserves_disk_artifacts_byte_for_byte(self):
+    def test_atomic_rejection_preserves_disk_artifacts_byte_for_byte(self, mocker):
         """Verify atomic rejection when monitoring fails preserves existing disk artifacts byte-for-byte."""
         with tempfile.TemporaryDirectory() as tmpdir:
             rec_path = os.path.join(tmpdir, "recommendations.json")
@@ -622,14 +617,14 @@ class TestMonitoringAndPublishingStages:
             with open(rec_path, "w", encoding="utf-8") as f:
                 f.write(original_content)
 
-            mock_check = MagicMock()
+            mock_check = mocker.MagicMock()
             mock_check.check_name = "test_check"
             mock_check.status = "FAIL"
             mock_check.measured_value = 0
             mock_check.expected_condition = "1"
             mock_check.message = "Failed check reason"
 
-            mock_monitoring_res = MagicMock()
+            mock_monitoring_res = mocker.MagicMock()
             mock_monitoring_res.overall_status = "FAIL"
             mock_monitoring_res.checks = [mock_check]
 

@@ -6,8 +6,6 @@ schema compliance, and quantitative output invariance.
 """
 
 import os
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -181,27 +179,27 @@ class TestPerformanceBudget:
         assert res["overall_status"] == "FAILED"
         assert "Total provider calls (200) exceeded budget (120)" in res["violations"]
 
-    def test_evaluate_provider_budget_env_var_ci_enforcement(self):
+    def test_evaluate_provider_budget_env_var_ci_enforcement(self, mocker):
         payload = {
             "provider": {"total_calls": 150, "total_elapsed_seconds": 10.0},
             "duplicate_operations": [],
         }
-        with patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "true"}):
-            res = evaluate_provider_budget(payload)
-            assert res["overall_status"] == "FAILED"
+        mocker.patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "true"})
+        res = evaluate_provider_budget(payload)
+        assert res["overall_status"] == "FAILED"
 
-    def test_evaluate_provider_budget_argument_precedence_over_env_var(self):
+    def test_evaluate_provider_budget_argument_precedence_over_env_var(self, mocker):
         payload = {
             "provider": {"total_calls": 150, "total_elapsed_seconds": 10.0},
             "duplicate_operations": [],
         }
-        with patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "true"}):
-            res_degraded = evaluate_provider_budget(payload, enforce_ci_budget=False)
-            assert res_degraded["overall_status"] == "DEGRADED"
+        mocker.patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "true"})
+        res_degraded = evaluate_provider_budget(payload, enforce_ci_budget=False)
+        assert res_degraded["overall_status"] == "DEGRADED"
 
-        with patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "false"}):
-            res_failed = evaluate_provider_budget(payload, enforce_ci_budget=True)
-            assert res_failed["overall_status"] == "FAILED"
+        mocker.patch.dict(os.environ, {"ENABLE_PERFORMANCE_BUDGETS": "false"})
+        res_failed = evaluate_provider_budget(payload, enforce_ci_budget=True)
+        assert res_failed["overall_status"] == "FAILED"
 
     def test_evaluate_provider_budget_custom_threshold_override(self):
         payload = {
@@ -427,22 +425,22 @@ class TestPerformanceTrackerSubsystem:
         with pytest.raises(WorkloadMetadataError, match="Insufficient workload request counts"):
             tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
-    def test_update_mode_handles_non_workload_instrumentation_error_with_fallback(self):
+    def test_update_mode_handles_non_workload_instrumentation_error_with_fallback(self, mocker):
         """Non-workload instrumentation errors in update mode return fallback payload safely without failing update mode."""
         tracker = PerformanceTracker()
         tracker.record_request("VNINDEX")
         tracker.record_request("VN30")
         tracker.record_request("FPT")
 
-        with patch(
+        mocker.patch(
             "scripts.performance.tracker.aggregate_provider_performance",
             side_effect=RuntimeError("Corrupted call history log"),
-        ):
-            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
-            assert "stages" in payload
-            assert payload["workload"]["total_request_count"] == 3
-            assert payload["regression"]["overall_status"] == "PASS"
-            validate_performance_payload(payload)
+        )
+        payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
+        assert "stages" in payload
+        assert payload["workload"]["total_request_count"] == 3
+        assert payload["regression"]["overall_status"] == "PASS"
+        validate_performance_payload(payload)
 
     def test_schema_validation_error_in_update_mode_fails_closed(self):
         """Schema validation errors in update mode fail closed and raise validation error directly."""
@@ -459,38 +457,34 @@ class TestPerformanceTrackerSubsystem:
         with pytest.raises(jsonschema.ValidationError):
             tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
-    def test_budget_evaluation_error_in_update_mode_fails_closed(self):
+    def test_budget_evaluation_error_in_update_mode_fails_closed(self, mocker):
         """Budget evaluation error in update mode fails closed and raises exception directly."""
         tracker = PerformanceTracker()
         tracker.record_request("VNINDEX")
         tracker.record_request("VN30")
         tracker.record_request("FPT")
 
-        with (
-            patch(
-                "scripts.performance.tracker.evaluate_provider_budget",
-                side_effect=RuntimeError("Budget engine failure"),
-            ),
-            pytest.raises(RuntimeError, match="Budget engine failure"),
-        ):
+        mocker.patch(
+            "scripts.performance.tracker.evaluate_provider_budget",
+            side_effect=RuntimeError("Budget engine failure"),
+        )
+        with pytest.raises(RuntimeError, match="Budget engine failure"):
             tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=True)
 
-    def test_budget_evaluation_error_in_non_update_mode_sets_degraded_status(self):
+    def test_budget_evaluation_error_in_non_update_mode_sets_degraded_status(self, mocker):
         """Budget evaluation error in non-update mode sets overall_status DEGRADED, never PASS."""
         tracker = PerformanceTracker()
         tracker.record_request("VNINDEX")
         tracker.record_request("VN30")
         tracker.record_request("FPT")
 
-        with patch(
+        mocker.patch(
             "scripts.performance.tracker.evaluate_provider_budget",
             side_effect=RuntimeError("Budget engine failure"),
-        ):
-            payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=False)
-            assert payload["budget"]["overall_status"] == "DEGRADED"
-            assert any(
-                "Provider budget evaluation error" in v for v in payload["budget"]["violations"]
-            )
+        )
+        payload = tracker.get_performance_payload(pipeline_elapsed=1.0, update_data=False)
+        assert payload["budget"]["overall_status"] == "DEGRADED"
+        assert any("Provider budget evaluation error" in v for v in payload["budget"]["violations"])
 
     def test_get_performance_payload_valid_structure_and_schema(self):
         self.tracker.record_request("VNM")
@@ -508,19 +502,19 @@ class TestPerformanceTrackerSubsystem:
         # Must conform strictly to performance JSON schema Draft 2020-12
         validate_performance_payload(payload)
 
-    def test_fail_safe_isolation_returns_valid_payload_on_non_critical_error(self):
+    def test_fail_safe_isolation_returns_valid_payload_on_non_critical_error(self, mocker):
         tracker = PerformanceTracker()
         tracker.record_stage("market_calculation", 0.1)
 
-        with patch(
+        mocker.patch(
             "scripts.performance.tracker.aggregate_provider_performance",
             side_effect=RuntimeError("Unexpected provider aggregation error"),
-        ):
-            payload = tracker.get_performance_payload(pipeline_elapsed=0.5)
-            assert "stages" in payload
-            assert "provider" in payload
-            assert payload["stages"][0]["stage"] == "pipeline"
-            validate_performance_payload(payload)
+        )
+        payload = tracker.get_performance_payload(pipeline_elapsed=0.5)
+        assert "stages" in payload
+        assert "provider" in payload
+        assert payload["stages"][0]["stage"] == "pipeline"
+        validate_performance_payload(payload)
 
     def test_create_default_performance_payload(self):
         default_payload = create_default_performance_payload()

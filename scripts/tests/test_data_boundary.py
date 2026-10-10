@@ -5,8 +5,6 @@ and end-to-end, confirming offline execution, provider replacement via canonical
 and fail-closed behavior on malformed/temporal data.
 """
 
-from unittest.mock import MagicMock, patch
-
 import pandas as pd
 import pytest
 
@@ -124,9 +122,9 @@ class TestDataBoundaryIsolationAndIntegration:
         mon_stage.execute(ctx)
         assert ctx.monitoring_result is not None
 
-    def test_structured_acquisition_error_propagation_no_string_parsing(self):
+    def test_structured_acquisition_error_propagation_no_string_parsing(self, mocker):
         """Structured acquisition exceptions propagate failure_type directly without error string parsing."""
-        mock_provider = MagicMock()
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.side_effect = InvalidSymbolError("Symbol ABC not found")
 
@@ -175,10 +173,10 @@ class TestDataBoundaryIsolationAndIntegration:
         assert v_invalid_ohlc.data_quality.status == "INSUFFICIENT"
         assert len(v_invalid_ohlc.records) == 0
 
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    def test_production_acquisition_stage_uses_market_data_acquirer(self, mock_fetch_ohlcv):
+    def test_production_acquisition_stage_uses_market_data_acquirer(self, mocker):
         """Verify DataAcquisitionStage in production uses MarketDataAcquirer and provider boundary."""
-        mock_provider = MagicMock()
+        mocker.patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
+        mock_provider = mocker.MagicMock()
         mock_provider.provider_name = "mock_provider"
         mock_provider.fetch_ohlcv.return_value = pd.DataFrame(
             {

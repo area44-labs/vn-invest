@@ -1,8 +1,6 @@
 """Unit tests for VN Invest Signal Engine in scripts/quant/recommendation.py."""
 
 import math
-from unittest.mock import patch
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -895,26 +893,27 @@ class TestVNInvestSignalEngine:
         with pytest.raises(ValueError):
             calculate_risk_adjusted_score(signal_score=80.0, regime="UNKNOWN")
 
-    @patch("scripts.data.acquisition.time.sleep")
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.pipeline.stages.time.sleep")
-    @patch(
-        "scripts.pipeline.stages.UniverseProvider._get_candidates",
-        return_value=[
-            {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
-        ],
-    )
-    @patch("scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv")
-    @patch("scripts.quant.regime._detect_market_regime")
-    def test_run_pipeline_market_regime_propagation(
-        self, mock_detect, mock_fetch_ohlcv, mock_univ, mock_s3, mock_s2, mock_s1
-    ):
+    def test_run_pipeline_market_regime_propagation(self, mocker):
         """Integration test verifying canonical market regime flow in run_pipeline().
 
         Flow: detect_market_regime() -> generate_single_recommendation() -> normalize_universe_liquidity_scores() -> risk_adjusted_score.
         Ensures top-level market regime is propagated and used for final risk_adjusted_score without falling back to DEFENSIVE.
         """
         from scripts.generate_report import run_pipeline
+
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=[
+                {"symbol": "FPT", "companyName": "FPT Corp", "sector": "Tech", "exchange": "HOSE"},
+            ],
+        )
+        mock_fetch_ohlcv = mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
+        )
+        mock_detect = mocker.patch("scripts.quant.regime._detect_market_regime")
 
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")

@@ -5,8 +5,6 @@ execution cost assumptions, slippage semantics, execution prices, effective retu
 and portfolio-level returns after costs in the backtesting framework.
 """
 
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -357,8 +355,8 @@ class TestPortfolioLevelCostConsistency:
         self.universe = {"STKA": df_a, "STKB": df_b}
         self.eval_date = dates[49]  # 50th trading session
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_independent_portfolio_oracle_validation(self, mock_gen_rec) -> None:
+    def test_independent_portfolio_oracle_validation(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Independent oracle test comparing portfolio return against hand-calculated constants with mock action controls."""
 
         # Deterministic mock recommendation responses:
@@ -534,8 +532,8 @@ class TestSellExitPriceReconstructionAndPortfolioCoverage:
         # factor = (1 - 0.0015) * (1 + 0.098198198...) * (1 - 0.0015) - 1.0 = 0.094906
         assert res.net_return == 0.094906
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_combined_buy_and_sell_portfolio_execution(self, mock_gen_rec) -> None:
+    def test_combined_buy_and_sell_portfolio_execution(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Verify combined BUY and SELL positions in portfolio backtest use correct exit prices and net returns."""
         dates = pd.date_range("2024-01-01", periods=60, freq="B").strftime("%Y-%m-%d")
 
@@ -712,8 +710,8 @@ class TestCostAwarePortfolioConsistency:
         }
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_zero_cost_backward_compatibility(self, mock_gen_rec) -> None:
+    def test_zero_cost_backward_compatibility(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Verifies that zero cost and zero slippage settings preserve gross portfolio strategy returns for backward compatibility."""
 
         def side_effect(symbol, **kwargs):
@@ -778,10 +776,8 @@ class TestCostAwarePortfolioConsistency:
         expected_portfolio_5d = round((1.0 / 3.0) * 0.10 + (1.0 / 3.0) * 0.10, 6)
         assert eval_res.portfolio_forward_returns[5] == expected_portfolio_5d
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(
-        self, mock_gen_rec
-    ) -> None:
+    def test_position_level_aggregation_and_case_c_buy_sell_mixed_oracle(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Verifies position-level aggregation and net return calculation for a mixed BUY and SELL portfolio against a mathematical oracle."""
 
         def side_effect(symbol, **kwargs):
@@ -862,8 +858,8 @@ class TestCostAwarePortfolioConsistency:
         assert oracle_weighted_sum == portfolio_hand_calculated_net
         assert eval_res.portfolio_forward_returns[5] == portfolio_hand_calculated_net
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_multi_horizon_consistency_and_missing_outcomes(self, mock_gen_rec) -> None:
+    def test_multi_horizon_consistency_and_missing_outcomes(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Validate multi-horizon consistency (5D, 10D) and ensure missing outcomes remain None."""
 
         def side_effect(symbol, **kwargs):
@@ -981,8 +977,8 @@ class TestCostAwarePortfolioConsistency:
         with pytest.raises(TypeError):
             PortfolioConfig(slippage_pct=False)  # type: ignore[arg-type]
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_no_double_application_of_costs_and_slippage(self, mock_gen_rec) -> None:
+    def test_no_double_application_of_costs_and_slippage(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Regression test proving costs and slippage are applied exactly once and not compounded at portfolio level."""
 
         def side_effect(symbol, **kwargs):
@@ -1033,8 +1029,8 @@ class TestCostAwarePortfolioConsistency:
         # Verify it is strictly equal to single-application 0.094511.
         assert port_net != 0.089069
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_portfolio_weight_invariants_unaffected_by_costs(self, mock_gen_rec) -> None:
+    def test_portfolio_weight_invariants_unaffected_by_costs(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Validate transaction costs/slippage do not change portfolio allocation weights."""
 
         def side_effect(symbol, **kwargs):
@@ -1103,8 +1099,8 @@ class TestCostAwarePortfolioConsistency:
         assert eval_zero.allocated_weight == eval_cost.allocated_weight
         assert eval_zero.unallocated_weight == eval_cost.unallocated_weight
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_temporal_no_lookahead_consistency(self, mock_gen_rec) -> None:
+    def test_temporal_no_lookahead_consistency(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Regression test: mutating future OHLCV data (> T) does not affect recommendation, entry price, or eligibility at T."""
 
         def side_effect(symbol, **kwargs):

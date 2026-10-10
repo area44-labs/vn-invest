@@ -3,8 +3,6 @@
 Covers Tests A through M without live API dependencies.
 """
 
-from unittest.mock import patch
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -284,32 +282,26 @@ SMALL_TEST_UNIVERSE = [
 class TestHardenedPerSymbolDataValidation:
     """Deterministic offline test suite for per-symbol OHLCV validation (15 required core scenarios)."""
 
-    def setup_method(self):
-        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_p = patch(
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
         )
-        self.sleep_p1.start()
-        self.sleep_p2.start()
-        self.sleep_p3.start()
-        self.univ_p.start()
 
-    def teardown_method(self):
-        patch.stopall()
-
-    def test_valid_ohlcv_returns_real_data(self):
+    def test_valid_ohlcv_returns_real_data(self, mocker):
         """Valid OHLCV DataFrame -> 'REAL_DATA' tag."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, issues = get_historical_data("FPT")
-            assert tag == "REAL_DATA"
-            assert issues == []
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, issues = get_historical_data("FPT")
+        assert tag == "REAL_DATA"
+        assert issues == []
 
     def test_empty_dataframe_fails(self):
         """Empty dataframe -> failure."""
@@ -328,7 +320,7 @@ class TestHardenedPerSymbolDataValidation:
         assert res["status"] == "INSUFFICIENT"
         assert "missing_required_columns" in res["issues"]
 
-    def test_nan_in_close_fails(self):
+    def test_nan_in_close_fails(self, mocker):
         """NaN in close -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -339,12 +331,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "nan_values" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_inf_in_volume_fails(self):
+    def test_inf_in_volume_fails(self, mocker):
         """Inf in volume -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -356,12 +348,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "infinite_values" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_negative_price_fails(self):
+    def test_negative_price_fails(self, mocker):
         """Negative price -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -372,12 +364,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "non_positive_prices" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_negative_volume_fails(self):
+    def test_negative_volume_fails(self, mocker):
         """Negative volume -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -388,12 +380,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "negative_volume" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_invalid_ohlc_relationship_fails(self):
+    def test_invalid_ohlc_relationship_fails(self, mocker):
         """Invalid OHLC relationship -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -405,12 +397,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "invalid_ohlc_relationship" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_duplicate_dates_fail(self):
+    def test_duplicate_dates_fail(self, mocker):
         """Duplicate dates -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -421,12 +413,12 @@ class TestHardenedPerSymbolDataValidation:
         assert "duplicate_dates" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_non_monotonic_dates_fail(self):
+    def test_non_monotonic_dates_fail(self, mocker):
         """Non-monotonic dates -> failure."""
         from scripts.data.acquisition import get_historical_data
 
@@ -439,23 +431,23 @@ class TestHardenedPerSymbolDataValidation:
         assert "non_monotonic_dates" in res["issues"]
         assert res["clean_df"].empty
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-            _df_res, tag, _ = get_historical_data("FPT")
-            assert tag == "EXPLICITLY_INVALID"
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = df
+        _df_res, tag, _ = get_historical_data("FPT")
+        assert tag == "EXPLICITLY_INVALID"
 
-    def test_insufficient_history(self):
+    def test_insufficient_history(self, mocker):
         """Insufficient history -> 'INSUFFICIENT_HISTORICAL_DATA'."""
         from scripts.data.acquisition import get_historical_data
 
         short_df = make_valid_df(5)
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov_cls.return_value.fetch_ohlcv.return_value = short_df
-            _df_res, tag, issues = get_historical_data("FPT")
-            assert tag == "INSUFFICIENT_HISTORICAL_DATA"
-            assert "insufficient_history" in issues
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov_cls.return_value.fetch_ohlcv.return_value = short_df
+        _df_res, tag, issues = get_historical_data("FPT")
+        assert tag == "INSUFFICIENT_HISTORICAL_DATA"
+        assert "insufficient_history" in issues
 
-    def test_invalid_vnindex_fails_closed(self):
+    def test_invalid_vnindex_fails_closed(self, mocker):
         """Invalid VNINDEX -> fail closed."""
         invalid_df = make_valid_df(25)
         invalid_df.loc[10, "close"] = None
@@ -466,16 +458,16 @@ class TestHardenedPerSymbolDataValidation:
                 return invalid_df
             return make_valid_df(25)
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_fetch,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VNINDEX" in str(ctx.value)
+        assert "VNINDEX" in str(ctx.value)
 
-    def test_invalid_vn30_fails_closed(self):
+    def test_invalid_vn30_fails_closed(self, mocker):
         """Invalid VN30 -> fail closed."""
         invalid_df = make_valid_df(25)
         invalid_df.loc[5, "volume"] = -100
@@ -486,16 +478,16 @@ class TestHardenedPerSymbolDataValidation:
                 return invalid_df
             return make_valid_df(25)
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_fetch,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VN30" in str(ctx.value)
+        assert "VN30" in str(ctx.value)
 
-    def test_invalid_stock_data_existing_artifacts_unchanged(self):
+    def test_invalid_stock_data_existing_artifacts_unchanged(self, mocker):
         """Invalid stock data -> existing artifacts unchanged."""
         import json
         import tempfile
@@ -520,27 +512,25 @@ class TestHardenedPerSymbolDataValidation:
             initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "PREVIOUS"}]}
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_fetch,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             assert saved_content == initial_content
 
-    def test_valid_complete_universe_report_generated_successfully(self):
+    def test_valid_complete_universe_report_generated_successfully(self, mocker):
         """Valid complete universe -> report generated successfully."""
         import tempfile
         from pathlib import Path
-        from unittest.mock import MagicMock
 
         from scripts.generate_report import main as generate_report_main
 
@@ -549,7 +539,7 @@ class TestHardenedPerSymbolDataValidation:
         def mock_fetch(symbol=None, **kwargs):
             return valid_df
 
-        mock_mon_res = MagicMock()
+        mock_mon_res = mocker.MagicMock()
         mock_mon_res.overall_status = "PASS"
         mock_mon_res.to_dict.return_value = {"overall_status": "PASS"}
 
@@ -557,20 +547,19 @@ class TestHardenedPerSymbolDataValidation:
             generated_dir = Path(tmpdir) / "generated"
             generated_dir.mkdir(parents=True, exist_ok=True)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_fetch,
-                ),
-                patch("jsonschema.validate", return_value=None),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_fetch,
+            )
+            mocker.patch("jsonschema.validate", return_value=None)
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            generate_report_main()
 
             assert (generated_dir / "recommendations.json").exists()
             assert (generated_dir / "market.json").exists()

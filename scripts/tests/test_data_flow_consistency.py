@@ -11,7 +11,6 @@ Validates:
 import json
 import shutil
 import tempfile
-from unittest.mock import patch
 
 import jsonschema
 import pandas as pd
@@ -59,14 +58,13 @@ def load_schema():
 class TestDataFlowConsistency:
     """Test suite for pipeline data flow consistency and downstream calculations."""
 
-    def setup_method(self):
-        self.sleep_patcher1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_patcher2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_patcher3 = patch("scripts.pipeline.stages.time.sleep")
-        self.sleep_patcher1.start()
-        self.sleep_patcher2.start()
-        self.sleep_patcher3.start()
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
 
+    def setup_method(self):
         self.tmp_dir = tempfile.mkdtemp()
         self.as_of_date = "2025-01-30"  # 30 days from 2025-01-01
         self.schema = load_schema()
@@ -77,10 +75,9 @@ class TestDataFlowConsistency:
         self.df_fpt = create_synthetic_ohlcv("2025-01-01", 30, base_price=130000.0)
 
     def teardown_method(self):
-        patch.stopall()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
-    def test_insufficient_clean_history_symbol_categorization(self):
+    def test_insufficient_clean_history_symbol_categorization(self, mocker):
         """A stock with tag='REAL_DATA' but stock_val['status'] == 'INSUFFICIENT' is added to insufficient_history_symbols."""
         # Clean df has 10 valid rows (non-empty, no corruption, but < 20 rows)
         clean_10_df = create_synthetic_ohlcv("2025-01-21", 10, base_price=50000.0)
@@ -98,34 +95,32 @@ class TestDataFlowConsistency:
                 return clean_10_df
             return pd.DataFrame()
 
-        with (
-            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=mock_fetch_ohlcv,
-            ),
-        ):
-            mock_provider = mock_provider_cls.return_value
-            mock_provider.get_universe.return_value = Universe.from_candidates(
-                candidates,
-                universe_type="TEST",
-                benchmarks=("VNINDEX", "VN30"),
-            )
+        mock_provider_cls = mocker.patch("scripts.pipeline.runner.UniverseProvider")
+        mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_fetch_ohlcv,
+        )
+        mock_provider = mock_provider_cls.return_value
+        mock_provider.get_universe.return_value = Universe.from_candidates(
+            candidates,
+            universe_type="TEST",
+            benchmarks=("VNINDEX", "VN30"),
+        )
 
-            # In update mode, should raise RuntimeError because AAA has insufficient history (< 20 clean rows)
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        # In update mode, should raise RuntimeError because AAA has insufficient history (< 20 clean rows)
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Incomplete universe scan in update mode" in str(ctx.value)
-            assert "Insufficient History: 1" in str(ctx.value)
-            assert "AAA" in str(ctx.value)
+        assert "Incomplete universe scan in update mode" in str(ctx.value)
+        assert "Insufficient History: 1" in str(ctx.value)
+        assert "AAA" in str(ctx.value)
 
-            # In non-update mode, run_pipeline completes, tagging AAA as INSUFFICIENT and AVOID
-            recs_data, _market_data, _ = run_pipeline(update_data=False)
-            assert recs_data["summary"]["total_scanned"] == 1
-            assert recs_data["summary"]["avoid_count"] == 1
-            assert recs_data["recommendations"][0]["data_quality"] == "INSUFFICIENT"
-            assert recs_data["recommendations"][0]["action"] == "AVOID"
+        # In non-update mode, run_pipeline completes, tagging AAA as INSUFFICIENT and AVOID
+        recs_data, _market_data, _ = run_pipeline(update_data=False)
+        assert recs_data["summary"]["total_scanned"] == 1
+        assert recs_data["summary"]["avoid_count"] == 1
+        assert recs_data["recommendations"][0]["data_quality"] == "INSUFFICIENT"
+        assert recs_data["recommendations"][0]["action"] == "AVOID"
 
     def test_pipeline_zero_valid_stock_symbols(self):
         """pipeline behavior when stock universe contains 0 valid symbols (all insufficient)."""
@@ -261,7 +256,7 @@ class TestDataFlowConsistency:
 
         assert "Duplicate candidate stock symbol 'VNM'" in str(ctx.value)
 
-    def test_pipeline_fail_closed_update_mode_does_not_write_files(self):
+    def test_pipeline_fail_closed_update_mode_does_not_write_files(self, mocker):
         """Update mode failure raises RuntimeError without writing files."""
         candidates = [
             {"symbol": "FAILED_SYM", "companyName": "Failed", "sector": "Tech", "exchange": "HOSE"}
@@ -274,19 +269,17 @@ class TestDataFlowConsistency:
                 return self.df_vn30
             return pd.DataFrame()
 
-        with (
-            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=mock_fetch_ohlcv,
-            ),
-        ):
-            mock_provider = mock_provider_cls.return_value
-            mock_provider.get_universe.return_value = Universe.from_candidates(
-                candidates,
-                universe_type="TEST",
-                benchmarks=("VNINDEX", "VN30"),
-            )
+        mock_provider_cls = mocker.patch("scripts.pipeline.runner.UniverseProvider")
+        mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_fetch_ohlcv,
+        )
+        mock_provider = mock_provider_cls.return_value
+        mock_provider.get_universe.return_value = Universe.from_candidates(
+            candidates,
+            universe_type="TEST",
+            benchmarks=("VNINDEX", "VN30"),
+        )
 
-            with pytest.raises(RuntimeError):
-                run_pipeline(update_data=True)
+        with pytest.raises(RuntimeError):
+            run_pipeline(update_data=True)

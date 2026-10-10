@@ -5,8 +5,6 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import MagicMock, patch
-
 import numpy as np
 import pytest
 
@@ -280,7 +278,7 @@ class TestOutputIntegritySuite:
 
         return fake_execute
 
-    def test_artifact_preservation_on_validation_failure(self):
+    def test_artifact_preservation_on_validation_failure(self, mocker):
         """Verify that if validation fails in main(), SystemExit(1) is raised and existing artifacts are preserved."""
         temp_dir = tempfile.mkdtemp()
         try:
@@ -295,17 +293,16 @@ class TestOutputIntegritySuite:
             invalid_payload = copy.deepcopy(self.valid_payload)
             invalid_payload["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_execute(invalid_payload),
-                ),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                with pytest.raises(SystemExit) as cm:
-                    main()
-                assert cm.value.code == 1
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(invalid_payload),
+            )
+            mocker.patch("sys.argv", ["generate_report.py"])
+
+            with pytest.raises(SystemExit) as cm:
+                main()
+            assert cm.value.code == 1
 
             # Ensure existing file was preserved and not overwritten by invalid pipeline output
             with open(recs_file, "r", encoding="utf-8") as f:
@@ -314,7 +311,7 @@ class TestOutputIntegritySuite:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_all_artifacts_preserved_when_monitoring_validation_fails(self):
+    def test_all_artifacts_preserved_when_monitoring_validation_fails(self, mocker):
         """Regression test: Ensure no files are written/modified if monitoring validation fails."""
         temp_dir = tempfile.mkdtemp()
         try:
@@ -343,28 +340,27 @@ class TestOutputIntegritySuite:
             valid_p = copy.deepcopy(self.valid_payload)
 
             # Mock monitoring to return invalid dict containing NaN
-            mock_mon_res = MagicMock()
+            mock_mon_res = mocker.MagicMock()
             mock_mon_res.overall_status = "FAIL"
             mock_mon_res.to_dict.return_value = {
                 "overall_status": "FAIL",
                 "nan_metric": float("nan"),
             }
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_execute(valid_p),
-                ),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                with pytest.raises(SystemExit) as cm:
-                    main()
-                assert cm.value.code == 1
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(valid_p),
+            )
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py"])
+
+            with pytest.raises(SystemExit) as cm:
+                main()
+            assert cm.value.code == 1
 
             # Verify every pre-existing artifact remains byte-for-byte unchanged
             for filepath, expected_content in original_contents.items():
@@ -384,7 +380,7 @@ class TestOutputIntegritySuite:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_atomic_publish_success_publishes_all_artifacts_together(self):
+    def test_atomic_publish_success_publishes_all_artifacts_together(self, mocker):
         """Verify that a successful pipeline run atomically publishes all expected output artifacts together."""
         temp_dir = tempfile.mkdtemp()
         try:
@@ -393,7 +389,7 @@ class TestOutputIntegritySuite:
 
             valid_p = copy.deepcopy(self.valid_payload)
 
-            mock_mon_res = MagicMock()
+            mock_mon_res = mocker.MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
                 "overall_status": "PASS",
@@ -403,19 +399,17 @@ class TestOutputIntegritySuite:
                 "metrics": {},
             }
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_execute(valid_p),
-                ),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(valid_p),
+            )
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py"])
+            main()
 
             # Verify all expected production artifacts exist
             expected_artifacts = [
@@ -435,7 +429,7 @@ class TestOutputIntegritySuite:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_failure_during_publish_preserves_existing_artifacts_and_cleans_up_tmp(self):
+    def test_failure_during_publish_preserves_existing_artifacts_and_cleans_up_tmp(self, mocker):
         """Verify failure during commit phase AFTER at least one artifact replacement succeeds triggers rollback, leaving ALL existing artifacts byte-for-byte unchanged."""
         temp_dir = tempfile.mkdtemp()
         try:
@@ -462,7 +456,7 @@ class TestOutputIntegritySuite:
 
             valid_p = copy.deepcopy(self.valid_payload)
 
-            mock_mon_res = MagicMock()
+            mock_mon_res = mocker.MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
                 "overall_status": "PASS",
@@ -482,20 +476,19 @@ class TestOutputIntegritySuite:
                     raise OSError("Disk failure on second artifact replacement")
                 return real_os_replace(src, dst)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_execute(valid_p),
-                ),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("os.replace", side_effect=failing_os_replace),
-                patch("sys.argv", ["generate_report.py"]),
-                pytest.raises(OSError),
-            ):
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(valid_p),
+            )
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("os.replace", side_effect=failing_os_replace)
+            mocker.patch("sys.argv", ["generate_report.py"])
+
+            with pytest.raises(OSError):
                 main()
 
             # Prove that replace #1 succeeded before replace #2 failed
@@ -516,7 +509,7 @@ class TestOutputIntegritySuite:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_publish_rollback_failure_raises_runtime_error(self):
+    def test_publish_rollback_failure_raises_runtime_error(self, mocker):
         """Verify that if rollback itself fails during atomic publishing, RuntimeError is raised with CRITICAL message."""
         from scripts.generate_report import publish_artifacts_atomically
 
@@ -561,10 +554,8 @@ class TestOutputIntegritySuite:
                     raise OSError("Disk write error during rollback")
                 return real_os_replace(src, dst)
 
-            with (
-                patch("os.replace", side_effect=double_failing_replace),
-                pytest.raises(RuntimeError) as cm,
-            ):
+            mocker.patch("os.replace", side_effect=double_failing_replace)
+            with pytest.raises(RuntimeError) as cm:
                 publish_artifacts_atomically(
                     artifacts, target_dir=temp_dir, strict_provenance=False
                 )
@@ -575,7 +566,7 @@ class TestOutputIntegritySuite:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    def test_successful_retry_after_previous_failure(self):
+    def test_successful_retry_after_previous_failure(self, mocker):
         """Verify that after a failure leaves artifacts unchanged, a subsequent valid run completes and publishes all new artifacts."""
         temp_dir = tempfile.mkdtemp()
         try:
@@ -601,15 +592,13 @@ class TestOutputIntegritySuite:
                     f.write(content)
 
             # Attempt run that fails in pipeline
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.generate_report.run_pipeline",
-                    side_effect=RuntimeError("Pipeline failed"),
-                ),
-                patch("sys.argv", ["generate_report.py"]),
-                pytest.raises(SystemExit) as cm,
-            ):
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=RuntimeError("Pipeline failed"),
+            )
+            mocker.patch("sys.argv", ["generate_report.py"])
+            with pytest.raises(SystemExit) as cm:
                 main()
             assert cm.value.code == 1
 
@@ -618,10 +607,12 @@ class TestOutputIntegritySuite:
                 with open(path, "r", encoding="utf-8") as f:
                     assert f.read() == expected
 
+            mocker.stopall()
+
             # Retry with valid pipeline output
             valid_p = copy.deepcopy(self.valid_payload)
 
-            mock_mon_res = MagicMock()
+            mock_mon_res = mocker.MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {
                 "overall_status": "PASS",
@@ -631,19 +622,17 @@ class TestOutputIntegritySuite:
                 "metrics": {},
             }
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", gen_dir),
-                patch(
-                    "scripts.pipeline.runner.ProductionPipeline.execute",
-                    side_effect=self._make_fake_execute(valid_p),
-                ),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py"]),
-            ):
-                main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", gen_dir)
+            mocker.patch(
+                "scripts.pipeline.runner.ProductionPipeline.execute",
+                side_effect=self._make_fake_execute(valid_p),
+            )
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py"])
+            main()
 
             # Verify all artifacts updated to v2 payload
             with open(recs_file, "r", encoding="utf-8") as f:

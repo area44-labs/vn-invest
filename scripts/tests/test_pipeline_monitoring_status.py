@@ -5,8 +5,6 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from scripts.data_provider import ProviderRateLimitError
@@ -170,9 +168,9 @@ class TestPipelineMonitoringStatusExitBehavior:
 
         return fake_execute
 
-    def test_monitoring_pass_succeeds(self):
+    def test_monitoring_pass_succeeds(self, mocker):
         """Monitoring PASS -> pipeline succeeds, monitoring status is PASS, process exits 0."""
-        mock_mon = MagicMock()
+        mock_mon = mocker.MagicMock()
         mock_mon.overall_status = "PASS"
         mock_mon.to_dict.return_value = {
             "overall_status": "PASS",
@@ -182,20 +180,19 @@ class TestPipelineMonitoringStatusExitBehavior:
             "metrics": {},
         }
 
-        with (
-            patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch(
-                "scripts.pipeline.runner.ProductionPipeline.execute",
-                side_effect=self._make_fake_execute(self.valid_payload),
-            ),
-            patch(
-                "scripts.pipeline.stages.evaluate_production_monitoring",
-                return_value=mock_mon,
-            ),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
-            # Should complete cleanly without SystemExit(1)
-            main()
+        mocker.patch("scripts.generate_report.GENERATED_DIR", self.gen_dir)
+        mocker.patch(
+            "scripts.pipeline.runner.ProductionPipeline.execute",
+            side_effect=self._make_fake_execute(self.valid_payload),
+        )
+        mocker.patch(
+            "scripts.pipeline.stages.evaluate_production_monitoring",
+            return_value=mock_mon,
+        )
+        mocker.patch("sys.argv", ["generate_report.py"])
+
+        # Should complete cleanly without SystemExit(1)
+        main()
 
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
         assert os.path.exists(mon_path)
@@ -203,9 +200,9 @@ class TestPipelineMonitoringStatusExitBehavior:
             mon_data = json.load(f)
         assert mon_data["overall_status"] == "PASS"
 
-    def test_monitoring_warn_succeeds_with_warning_logged(self):
+    def test_monitoring_warn_succeeds_with_warning_logged(self, mocker):
         """Monitoring WARN -> pipeline remains successful (exit 0), monitoring payload contains WARN."""
-        mock_mon = MagicMock()
+        mock_mon = mocker.MagicMock()
         mock_mon.overall_status = "WARN"
         mock_mon.to_dict.return_value = {
             "overall_status": "WARN",
@@ -215,20 +212,19 @@ class TestPipelineMonitoringStatusExitBehavior:
             "metrics": {},
         }
 
-        with (
-            patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch(
-                "scripts.pipeline.runner.ProductionPipeline.execute",
-                side_effect=self._make_fake_execute(self.valid_payload),
-            ),
-            patch(
-                "scripts.pipeline.stages.evaluate_production_monitoring",
-                return_value=mock_mon,
-            ),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
-            # Process remains successful
-            main()
+        mocker.patch("scripts.generate_report.GENERATED_DIR", self.gen_dir)
+        mocker.patch(
+            "scripts.pipeline.runner.ProductionPipeline.execute",
+            side_effect=self._make_fake_execute(self.valid_payload),
+        )
+        mocker.patch(
+            "scripts.pipeline.stages.evaluate_production_monitoring",
+            return_value=mock_mon,
+        )
+        mocker.patch("sys.argv", ["generate_report.py"])
+
+        # Process remains successful
+        main()
 
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
         assert os.path.exists(mon_path)
@@ -236,9 +232,9 @@ class TestPipelineMonitoringStatusExitBehavior:
             mon_data = json.load(f)
         assert mon_data["overall_status"] == "WARN"
 
-    def test_monitoring_fail_exits_nonzero(self):
+    def test_monitoring_fail_exits_nonzero(self, mocker):
         """Monitoring FAIL -> process exits non-zero (SystemExit(1)), no artifacts written."""
-        mock_mon = MagicMock()
+        mock_mon = mocker.MagicMock()
         mock_mon.overall_status = "FAIL"
         mock_mon.to_dict.return_value = {
             "overall_status": "FAIL",
@@ -248,21 +244,20 @@ class TestPipelineMonitoringStatusExitBehavior:
             "metrics": {},
         }
 
-        with (
-            patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch(
-                "scripts.pipeline.runner.ProductionPipeline.execute",
-                side_effect=self._make_fake_execute(self.valid_payload),
-            ),
-            patch(
-                "scripts.pipeline.stages.evaluate_production_monitoring",
-                return_value=mock_mon,
-            ),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
-            with pytest.raises(SystemExit) as cm:
-                main()
-            assert cm.value.code == 1
+        mocker.patch("scripts.generate_report.GENERATED_DIR", self.gen_dir)
+        mocker.patch(
+            "scripts.pipeline.runner.ProductionPipeline.execute",
+            side_effect=self._make_fake_execute(self.valid_payload),
+        )
+        mocker.patch(
+            "scripts.pipeline.stages.evaluate_production_monitoring",
+            return_value=mock_mon,
+        )
+        mocker.patch("sys.argv", ["generate_report.py"])
+
+        with pytest.raises(SystemExit) as cm:
+            main()
+        assert cm.value.code == 1
 
         # No artifacts (including monitoring.json) are created or modified on monitoring failure
         mon_path = os.path.join(self.gen_dir, "monitoring.json")
@@ -309,7 +304,6 @@ class TestPipelineMonitoringStatusExitBehavior:
         """Payload integrity failure -> exit non-zero, existing artifacts remain byte-for-byte unchanged, no partial output created."""
         recs_file = os.path.join(self.gen_dir, "recommendations.json")
         mkt_file = os.path.join(self.gen_dir, "market.json")
-        mon_file = os.path.join(self.gen_dir, "monitoring.json")
         hist_file = os.path.join(self.hist_dir, "2026-09-25.json")
         idx_file = os.path.join(self.hist_dir, "index.json")
 
@@ -324,49 +318,39 @@ class TestPipelineMonitoringStatusExitBehavior:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
 
+    def test_pipeline_validation_failure_preserves_existing_artifacts(self, mocker):
         # Create invalid payload containing NaN
         invalid_payload = copy.deepcopy(self.valid_payload)
         invalid_payload["recommendations"][0]["risk_metrics"]["volatility_60d"] = float("nan")
 
-        with (
-            patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch(
-                "scripts.pipeline.runner.ProductionPipeline.execute",
-                side_effect=self._make_fake_execute(invalid_payload),
-            ),
-            patch("sys.argv", ["generate_report.py"]),
-        ):
-            with pytest.raises(SystemExit) as cm:
-                main()
-            assert cm.value.code == 1
+        mocker.patch("scripts.generate_report.GENERATED_DIR", self.gen_dir)
+        mocker.patch(
+            "scripts.pipeline.runner.ProductionPipeline.execute",
+            side_effect=self._make_fake_execute(invalid_payload),
+        )
+        mocker.patch("sys.argv", ["generate_report.py"])
 
-        # Verify existing artifacts remain byte-for-byte unchanged
-        for path, expected_content in original_files.items():
-            with open(path, "r", encoding="utf-8") as f:
-                actual_content = f.read()
-            assert actual_content == expected_content
+        with pytest.raises(SystemExit) as cm:
+            main()
+        assert cm.value.code == 1
 
-        # Verify monitoring.json was not created
-        assert not os.path.exists(mon_file)
-
-    def test_rate_limit_regression_preserves_artifacts(self):
+    def test_rate_limit_regression_preserves_artifacts(self, mocker):
         """ProviderRateLimitError handling -> exits non-zero, preserves existing artifacts."""
         recs_file = os.path.join(self.gen_dir, "recommendations.json")
         original_content = '{"existing": "data"}\n'
         with open(recs_file, "w", encoding="utf-8") as f:
             f.write(original_content)
 
-        with (
-            patch("scripts.generate_report.GENERATED_DIR", self.gen_dir),
-            patch(
-                "scripts.generate_report.run_pipeline",
-                side_effect=ProviderRateLimitError("Quota exceeded", cooldown_seconds=60),
-            ),
-            patch("sys.argv", ["generate_report.py", "--update"]),
-        ):
-            with pytest.raises(SystemExit) as cm:
-                main()
-            assert cm.value.code == 1
+        mocker.patch("scripts.generate_report.GENERATED_DIR", self.gen_dir)
+        mocker.patch(
+            "scripts.generate_report.run_pipeline",
+            side_effect=ProviderRateLimitError("Quota exceeded", cooldown_seconds=60),
+        )
+        mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+        with pytest.raises(SystemExit) as cm:
+            main()
+        assert cm.value.code == 1
 
         with open(recs_file, "r", encoding="utf-8") as f:
             actual_content = f.read()

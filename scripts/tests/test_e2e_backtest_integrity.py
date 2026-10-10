@@ -18,8 +18,6 @@ This module provides test-only validation proving that when all existing layers 
 all invariants established in previous PRs are strictly preserved.
 """
 
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -405,10 +403,8 @@ class TestE2ECostSlippageSingleApplication:
         }
         self.eval_date = self.dates[49]
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_single_application_cost_slippage_against_independent_math_oracle(
-        self, mock_gen_rec
-    ) -> None:
+    def test_single_application_cost_slippage_against_independent_math_oracle(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Verify gross -> execution -> net -> portfolio return does NOT apply cost/slippage twice using pure independent mathematical oracles."""
 
         def side_effect(symbol, **kwargs):
@@ -699,8 +695,8 @@ class TestE2EPortfolioAllocationInvariants:
             == 0
         )
 
-    @patch("scripts.backtest.portfolio.generate_single_recommendation")
-    def test_unallocated_capital_earns_zero_return(self, mock_gen_rec) -> None:
+    def test_unallocated_capital_earns_zero_return(self, mocker) -> None:
+        mock_gen_rec = mocker.patch("scripts.backtest.portfolio.generate_single_recommendation")
         """Unallocated capital generates strictly zero return contribution."""
         mock_gen_rec.return_value = {
             "action": "BUY",
