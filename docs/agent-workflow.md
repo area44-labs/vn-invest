@@ -23,32 +23,31 @@ This document specifies the operational guidelines, execution rules, and workflo
 2. Locate Affected Canonical Package & Tests (scripts/tests/)
                │
                ▼
-3. Run Smallest Targeted Test First (uv run --frozen pytest ...)
+3. Make Minimal, Focused Code Edits
                │
                ▼
-4. Make Minimal, Focused Code Edits
+4. Verify via Targeted Unit Test & Ruff Format/Lint (Repeat as needed per file edit)
+               │
+               ▼ (Once ALL edits for the task are completed)
+5. Run Full Test Suite (uv run --frozen pytest)
                │
                ▼
-5. Verify via Targeted Unit Test & Ruff Format/Lint
+6. Update Documentation if System Architecture Changed
                │
                ▼
-6. Run Full Test Suite (uv run --frozen pytest)
+7. Execute the verification script (uv run --frozen python scripts/generate_report.py --update)
                │
                ▼
-7. Update Documentation if System Architecture Changed
-               │
-               ▼
-8. Execute the verification script (uv run --frozen python scripts/generate_report.py --update)
-               │
-               ▼
-9. Complete Pre-Commit Validation & Submit
+8. Complete Pre-Commit Validation & Submit
 ```
+
+*Note: Do **not** execute the full test suite (`uv run --frozen pytest`) after every single file modification. Keep development iteration fast by executing targeted unit tests during code edits, and run the full test suite only after all task modifications are completed.*
 
 ---
 
 ## 3. Targeted Test Execution Guide
 
-To keep feedback loops fast during development, run the smallest relevant unit test file before running the full test suite:
+To keep feedback loops fast during development, run the smallest relevant unit test file while editing files, deferring the full test suite until all edits are complete:
 
 - Domain Models & Universe:
   ```bash
