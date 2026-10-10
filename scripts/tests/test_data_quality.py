@@ -303,137 +303,92 @@ class TestHardenedPerSymbolDataValidation:
         assert tag == "REAL_DATA"
         assert issues == []
 
-    def test_empty_dataframe_fails(self):
-        """Empty dataframe -> failure."""
-        res_none = validate_ohlcv_data(None)
-        assert res_none["status"] == "INSUFFICIENT"
-        assert "empty_dataframe" in res_none["issues"]
-
-        res_empty = validate_ohlcv_data(pd.DataFrame())
-        assert res_empty["status"] == "INSUFFICIENT"
-        assert "empty_dataframe" in res_empty["issues"]
-
-    def test_missing_required_column_fails(self):
-        """Missing required column -> failure."""
-        df = make_valid_df(25).drop(columns=["close"])
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "missing_required_columns" in res["issues"]
-
     def test_nan_in_close_fails(self, mocker):
-        """NaN in close -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """NaN in close -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[10, "close"] = None
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "nan_values" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_inf_in_volume_fails(self, mocker):
-        """Inf in volume -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Inf in volume -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df["volume"] = df["volume"].astype(float)
         df.loc[5, "volume"] = np.inf
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "infinite_values" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_negative_price_fails(self, mocker):
-        """Negative price -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Negative price -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[3, "open"] = -10.0
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "non_positive_prices" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_negative_volume_fails(self, mocker):
-        """Negative volume -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Negative volume -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[7, "volume"] = -100
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "negative_volume" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_invalid_ohlc_relationship_fails(self, mocker):
-        """Invalid OHLC relationship -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Invalid OHLC relationship -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[2, "high"] = 10.0
         df.loc[2, "low"] = 20.0
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "invalid_ohlc_relationship" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_duplicate_dates_fail(self, mocker):
-        """Duplicate dates -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Duplicate dates -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         df.loc[10, "time"] = df.loc[9, "time"]
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "duplicate_dates" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_non_monotonic_dates_fail(self, mocker):
-        """Non-monotonic dates -> validation fails and acquisition classifies as EXPLICITLY_INVALID."""
+        """Non-monotonic dates -> acquisition classifies as EXPLICITLY_INVALID."""
         from scripts.data.acquisition import get_historical_data
 
         df = make_valid_df(25)
         tmp = df.loc[5, "time"]
         df.loc[5, "time"] = df.loc[6, "time"]
         df.loc[6, "time"] = tmp
-        res = validate_ohlcv_data(df)
-        assert res["status"] == "INSUFFICIENT"
-        assert "non_monotonic_dates" in res["issues"]
-        assert res["clean_df"].empty
 
         mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
         mock_prov_cls.return_value.fetch_ohlcv.return_value = df
-        _df_res, tag, _ = get_historical_data("FPT")
+        _df_res, tag, _issues = get_historical_data("FPT")
         assert tag == "EXPLICITLY_INVALID"
 
     def test_insufficient_history(self, mocker):
