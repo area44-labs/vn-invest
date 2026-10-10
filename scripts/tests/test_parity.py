@@ -5,7 +5,6 @@ quantitative outputs when given identical point-in-time inputs.
 """
 
 import copy
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -78,6 +77,10 @@ def extract_quantitative_recommendation(rec: dict) -> dict:
 class TestProductionHistoricalParity:
     """Test suite for verifying quantitative parity between run_pipeline and generate_historical_report."""
 
+    @pytest.fixture(autouse=True)
+    def _setup_mocker(self, mocker):
+        self.mocker = mocker
+
     def setup_method(self):
         self.periods = 60
         self.start_date = "2025-01-01"
@@ -147,21 +150,19 @@ class TestProductionHistoricalParity:
 
     def _run_both_pipelines(self, reference_date: str = "2025-03-01T10:00:00Z"):
         """Run production and historical report generation with identical raw PIT data."""
-        with (
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=self._mock_fetch_ohlcv,
-            ),
-            patch("scripts.pipeline.runner.UniverseProvider") as mock_provider_cls,
-        ):
-            mock_provider = mock_provider_cls.return_value
-            mock_provider.get_universe.return_value = Universe.from_candidates(
-                self.candidate_metadata,
-                universe_type="TEST_UNIVERSE",
-                benchmarks=("VNINDEX", "VN30"),
-            )
+        self.mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=self._mock_fetch_ohlcv,
+        )
+        mock_provider_cls = self.mocker.patch("scripts.pipeline.runner.UniverseProvider")
+        mock_provider = mock_provider_cls.return_value
+        mock_provider.get_universe.return_value = Universe.from_candidates(
+            self.candidate_metadata,
+            universe_type="TEST_UNIVERSE",
+            benchmarks=("VNINDEX", "VN30"),
+        )
 
-            prod_res = run_pipeline(update_data=False)
+        prod_res = run_pipeline(update_data=False)
 
         hist_res = generate_historical_report(
             data_as_of=self.target_date,

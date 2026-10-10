@@ -4,7 +4,6 @@ import json
 import os
 import sys
 import tempfile
-from unittest.mock import patch
 
 import pytest
 
@@ -96,17 +95,17 @@ class TestHistoryIndexLoader:
             assert "Invalid history index structure" in str(ctx.value)
             assert self.index_path in str(ctx.value)
 
-    def test_permission_read_failure_raises(self):
+    def test_permission_read_failure_raises(self, mocker):
         """Verifies that permission errors reading the history index file raise OSError without swallowing into an empty index."""
         os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
         with open(self.index_path, "w", encoding="utf-8") as f:
             json.dump({"dates": ["2026-09-14"]}, f)
 
-        with patch("builtins.open", side_effect=PermissionError("Permission denied")):
-            with pytest.raises((PermissionError, OSError)) as ctx:
-                load_history_index(self.index_path)
+        mocker.patch("builtins.open", side_effect=PermissionError("Permission denied"))
+        with pytest.raises((PermissionError, OSError)) as ctx:
+            load_history_index(self.index_path)
 
-            assert "Permission denied" in str(ctx.value)
+        assert "Permission denied" in str(ctx.value)
 
     def test_corrupted_file_is_not_overwritten(self):
         """Verifies that updating a history index when the file is corrupted raises ValueError and leaves the original file untouched."""

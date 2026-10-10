@@ -1,7 +1,5 @@
 """Unit tests for MarketDataProvider boundary interfaces."""
 
-from unittest.mock import MagicMock
-
 import pandas as pd
 import pytest
 
@@ -47,8 +45,8 @@ class TestDataProviderBoundary:
         assert not df.empty
         assert df["close"].iloc[0] == 102.0
 
-    def test_vnstock_market_provider_adapter(self):
-        mock_vnstock = MagicMock()
+    def test_vnstock_market_provider_adapter(self, mocker):
+        mock_vnstock = mocker.MagicMock()
         mock_vnstock.fetch_ohlcv.return_value = pd.DataFrame({"close": [100.0]})
 
         adapter = VnstockMarketProvider(provider_instance=mock_vnstock)

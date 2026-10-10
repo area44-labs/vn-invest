@@ -2,7 +2,6 @@
 
 import json
 import os
-from unittest.mock import patch
 
 import jsonschema
 import pytest
@@ -270,9 +269,9 @@ class TestVersionedSchemaRegistry:
         res = check_schema_validation(valid_payload)
         assert res.status == "FAIL"
 
-    @patch("scripts.schema.load_schema_for_version")
-    def test_registry_routing_integration(self, mock_load_schema):
+    def test_registry_routing_integration(self, mocker):
         """Prove monitoring checks, publisher, and pipeline validation actually invoke the central schema registry."""
+        mock_load_schema = mocker.patch("scripts.schema.load_schema_for_version")
         mock_load_schema.return_value = resolve_schema("recommendations", "2.0")
 
         valid_payload = {
@@ -306,9 +305,9 @@ class TestVersionedSchemaRegistry:
         publisher.validate_artifact("recommendations.json", valid_payload)
         mock_load_schema.assert_called_with("recommendations", "2.0")
 
-    @patch("scripts.pipeline.validation.load_schema_for_version")
-    def test_validate_performance_payload_calls_registry(self, mock_load_perf_schema):
+    def test_validate_performance_payload_calls_registry(self, mocker):
         """Prove validate_performance_payload calls central registry with payload's schema_version."""
+        mock_load_perf_schema = mocker.patch("scripts.pipeline.validation.load_schema_for_version")
         mock_load_perf_schema.return_value = resolve_schema("performance", "2.0")
 
         valid_perf = {
@@ -425,12 +424,12 @@ class TestVersionedSchemaRegistry:
                 "recommendations.json", valid_rec, schema_path="/tmp/fake.json"
             )  # type: ignore[call-arg]
 
-    @patch("scripts.pipeline.validation.load_schema_for_version")
-    @patch("scripts.schema.load_schema_for_version")
-    def test_publisher_always_resolves_via_registry_for_all_schema_governed_artifacts(
-        self, mock_load_schema_registry, mock_load_schema_pipeline
-    ):
+    def test_publisher_always_resolves_via_registry_for_all_schema_governed_artifacts(self, mocker):
         """Prove ArtifactPublisher always resolves schema via central registry using payload's schema_version."""
+        mock_load_schema_pipeline = mocker.patch(
+            "scripts.pipeline.validation.load_schema_for_version"
+        )
+        mock_load_schema_registry = mocker.patch("scripts.schema.load_schema_for_version")
         mock_load_schema_registry.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
         mock_load_schema_pipeline.side_effect = lambda art_type, ver: resolve_schema(art_type, ver)
 

@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import patch
 
 import pytest
 
@@ -299,7 +298,7 @@ class TestArtifactPublisherSuite:
         items = [i for i in os.listdir(self.temp_dir) if not i.endswith(".lock")]
         assert items == ["generated"]
 
-    def test_atomic_transaction_and_rollback_recovery(self):
+    def test_atomic_transaction_and_rollback_recovery(self, mocker):
         """Verify atomic transaction rollback restores original target when transaction fails during execute_publish."""
         initial_file = os.path.join(self.target_dir, "recommendations.json")
         with open(initial_file, "w", encoding="utf-8") as f:
@@ -314,7 +313,8 @@ class TestArtifactPublisherSuite:
                 raise OSError("Simulated replace failure during commit")
             return real_replace(src, dst)
 
-        with patch("os.replace", side_effect=failing_replace), pytest.raises(OSError):
+        mocker.patch("os.replace", side_effect=failing_replace)
+        with pytest.raises(OSError):
             publisher.publish(self.sample_artifacts)
 
         # Verify original target content is preserved

@@ -7,7 +7,6 @@ and provider boundary conversion/validation.
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -169,8 +168,7 @@ class TestCanonicalOHLCVValidator:
 
 @pytest.mark.unit
 class TestVnstockProviderBoundary:
-    @patch("scripts.data_provider.VnQuote")
-    def test_provider_boundary_mock_integration(self, mock_vnquote_cls):
+    def test_provider_boundary_mock_integration(self, mocker):
         """Demonstrate provider output -> canonical conversion -> validation without live network."""
         # Raw provider output from vnstock (prices in thousand_VND/share, e.g. 128.4)
         raw_data = []
@@ -188,7 +186,8 @@ class TestVnstockProviderBoundary:
             )
         raw_df = pd.DataFrame(raw_data)
 
-        mock_quote_inst = MagicMock()
+        mock_vnquote_cls = mocker.patch("scripts.data_provider.VnQuote")
+        mock_quote_inst = mocker.MagicMock()
         mock_quote_inst.history.return_value = raw_df
         mock_vnquote_cls.return_value = mock_quote_inst
 
@@ -208,23 +207,23 @@ class TestVnstockProviderBoundary:
 
 @pytest.mark.unit
 class TestDataProviderExceptionHandling:
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
+        reset_circuit_breaker()
+        reset_rate_limit_recovery_count()
+        mocker.patch("scripts.data_provider.time.sleep")
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def teardown_method(self):
-        reset_circuit_breaker()
-        reset_rate_limit_recovery_count()
-
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_rate_limited_error_class_is_not_retried(self, mock_quote, mock_sleep):
+    def test_rate_limited_error_class_is_not_retried(self, mocker):
         """RateLimitedError exception class is NOT retried, does not switch sources, and trips circuit breaker."""
 
         class RateLimitedError(Exception):
             pass
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = RateLimitedError("API Rate limit exceeded. Chờ 30 giây")
         mock_quote.return_value = mock_inst
 
@@ -237,16 +236,15 @@ class TestDataProviderExceptionHandling:
         assert ctx.value.cooldown_seconds == 32
         assert ctx.value.symbol == "FPT"
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_429_is_not_retried(self, mock_quote, mock_sleep):
+    def test_429_is_not_retried(self, mocker):
         """HTTP 429 status code is NOT retried, does not switch sources, and trips circuit breaker."""
         err = Exception("HTTP 429 Too Many Requests")
-        res_mock = MagicMock()
+        res_mock = mocker.MagicMock()
         res_mock.status_code = 429
         err.response = res_mock
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = err
         mock_quote.return_value = mock_inst
 
@@ -257,15 +255,14 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 1
         assert is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_rate_limit_prevents_subsequent_symbol_requests(self, mock_quote, mock_sleep):
+    def test_rate_limit_prevents_subsequent_symbol_requests(self, mocker):
         """A rate-limit event trips the process-wide circuit breaker and prevents subsequent requests for other symbols."""
 
         class RateLimitedError(Exception):
             pass
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = RateLimitedError("Rate limit exceeded")
         mock_quote.return_value = mock_inst
 
@@ -286,20 +283,19 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 0
         assert "circuit breaker is active" in str(ctx.value)
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_500_502_503_504_have_bounded_retry(self, mock_quote, mock_sleep):
+    def test_500_502_503_504_have_bounded_retry(self, mocker):
         """Server errors 500/502/503/504 have bounded retry behavior across sources and attempts."""
 
         def make_server_err(code: int):
             e = Exception(f"Server Error {code}")
-            r = MagicMock()
+            r = mocker.MagicMock()
             r.status_code = code
             e.response = r
             return e
 
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
         for status_code in [500, 502, 503, 504]:
-            mock_inst = MagicMock()
+            mock_inst = mocker.MagicMock()
             mock_inst.history.side_effect = make_server_err(status_code)
             mock_quote.return_value = mock_inst
 
@@ -312,17 +308,16 @@ class TestDataProviderExceptionHandling:
             assert mock_inst.history.call_count == 4
             assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_401_403_fail_fast(self, mock_quote, mock_sleep):
+    def test_401_403_fail_fast(self, mocker):
         """Client/Auth errors (400, 401, 403, 404) fail fast without retrying or switching sources."""
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
         for status_code in [400, 401, 403, 404]:
             err = Exception(f"HTTP {status_code} Error")
-            res_mock = MagicMock()
+            res_mock = mocker.MagicMock()
             res_mock.status_code = status_code
             err.response = res_mock
 
-            mock_inst = MagicMock()
+            mock_inst = mocker.MagicMock()
             mock_inst.history.side_effect = err
             mock_quote.return_value = mock_inst
 
@@ -335,14 +330,13 @@ class TestDataProviderExceptionHandling:
             assert mock_inst.history.call_count == 1
             assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_generic_request_exception_fails_fast(self, mock_quote, mock_sleep):
+    def test_generic_request_exception_fails_fast(self, mocker):
         """A generic requests.exceptions.RequestException is NOT treated as transient and fails fast."""
         import requests
 
         generic_err = requests.exceptions.RequestException("Generic request error")
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = generic_err
         mock_quote.return_value = mock_inst
 
@@ -353,20 +347,19 @@ class TestDataProviderExceptionHandling:
         # Fails fast immediately on 1st call without retrying or trying 2nd source
         assert mock_inst.history.call_count == 1
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_408_fails_fast(self, mock_quote, mock_sleep):
+    def test_408_fails_fast(self, mocker):
         """HTTP 408 Request Timeout is treated as a client error and fails fast."""
 
         class HTTP408Error(Exception):
             pass
 
         err = HTTP408Error("HTTP 408 Request Timeout")
-        res_mock = MagicMock()
+        res_mock = mocker.MagicMock()
         res_mock.status_code = 408
         err.response = res_mock
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = err
         mock_quote.return_value = mock_inst
 
@@ -376,9 +369,7 @@ class TestDataProviderExceptionHandling:
 
         assert mock_inst.history.call_count == 1
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_parse_wait_seconds_formats(self, mock_quote, mock_sleep):
+    def test_parse_wait_seconds_formats(self):
         """parse_wait_seconds handles 'wait 10 seconds', 'wait 10 sec', 'Chờ 10 giây', 40s/60s, retry_after attr, and fallback."""
         from scripts.data_provider import parse_wait_seconds
 
@@ -419,11 +410,10 @@ class TestDataProviderExceptionHandling:
         )
         assert parse_wait_seconds("Rate limit reached. Chờ 50 giây", exc=exc_none_retry) == 52
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_generic_wait_message_does_not_trip_circuit_breaker(self, mock_quote, mock_sleep):
+    def test_generic_wait_message_does_not_trip_circuit_breaker(self, mocker):
         """A generic exception containing the word 'wait' is NOT classified as a rate limit and does NOT trip the circuit breaker."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = ConnectionError(
             "Please wait while the server processes the request"
         )
@@ -438,13 +428,10 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 4
         assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_retries_transient_network_exception_and_exhausts(
-        self, mock_quote, mock_sleep
-    ):
+    def test_fetch_ohlcv_retries_transient_network_exception_and_exhausts(self, mocker):
         """Transient network exceptions (ConnectionError, TimeoutError) are retried until max_retries exhausted."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = ConnectionError("Connection reset by peer")
         mock_quote.return_value = mock_inst
 
@@ -456,16 +443,15 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 4
         assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_succeeds_after_transient_retry(self, mock_quote, mock_sleep):
+    def test_fetch_ohlcv_succeeds_after_transient_retry(self, mocker):
         """Transient failure on first call succeeds on subsequent retry."""
         valid_df = make_valid_canonical_df(10)
         raw_df = valid_df.copy()
         for col in ["open", "high", "low", "close"]:
             raw_df[col] = raw_df[col] / 1000.0
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = [
             TimeoutError("Request timed out"),
             raw_df,
@@ -480,11 +466,10 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 2
         assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_fails_fast_on_non_retryable_data_error(self, mock_quote, mock_sleep):
+    def test_fetch_ohlcv_fails_fast_on_non_retryable_data_error(self, mocker):
         """Deterministic non-retryable exceptions (CanonicalOHLCVError, ValueError, TypeError, OSError) re-raise immediately."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = CanonicalOHLCVError("Invalid OHLC relationship")
         mock_quote.return_value = mock_inst
 
@@ -501,11 +486,10 @@ class TestDataProviderExceptionHandling:
 
         assert mock_inst.history.call_count == 1
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_preserves_non_rate_limit_system_exit(self, mock_quote, mock_sleep):
+    def test_fetch_ohlcv_preserves_non_rate_limit_system_exit(self, mocker):
         """Non-rate-limit SystemExit is NOT caught and propagates immediately without retrying."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = SystemExit("Generic system exit")
         mock_quote.return_value = mock_inst
 
@@ -516,13 +500,10 @@ class TestDataProviderExceptionHandling:
         assert mock_inst.history.call_count == 1
         assert not is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_catches_rate_limit_system_exit_and_trips_circuit_breaker(
-        self, mock_quote, mock_sleep
-    ):
+    def test_fetch_ohlcv_catches_rate_limit_system_exit_and_trips_circuit_breaker(self, mocker):
         """Rate limit SystemExit trips circuit breaker immediately without retrying."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = SystemExit("Rate limit exceeded. Chờ 10 giây để tiếp tục")
         mock_quote.return_value = mock_inst
 
@@ -534,11 +515,10 @@ class TestDataProviderExceptionHandling:
         assert is_circuit_breaker_active()
         assert ctx.value.cooldown_seconds == 12
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_fetch_ohlcv_preserves_keyboard_interrupt(self, mock_quote, mock_sleep):
+    def test_fetch_ohlcv_preserves_keyboard_interrupt(self, mocker):
         """KeyboardInterrupt is NOT caught by fetch_ohlcv and propagates immediately."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = KeyboardInterrupt("Ctrl+C pressed")
         mock_quote.return_value = mock_inst
 
@@ -559,9 +539,7 @@ class TestVnstockRealRateLimitRegression:
     def teardown_method(self):
         reset_circuit_breaker()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_real_vnai_rate_limit_exceeded_exception_40s_cooldown(self, mock_quote, mock_sleep):
+    def test_real_vnai_rate_limit_exceeded_exception_40s_cooldown(self, mocker):
         """Regression test verifying real Vnai RateLimitExceeded exception format with 40s wait."""
         exc = RateLimitExceeded(
             resource_type="quote.history",
@@ -572,7 +550,8 @@ class TestVnstockRealRateLimitRegression:
             tier="guest",
         )
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = exc
         mock_quote.return_value = mock_inst
 
@@ -602,9 +581,7 @@ class TestVnstockRealRateLimitRegression:
         assert mock_inst.history.call_count == 0
         assert "circuit breaker is active" in str(ctx2.value)
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_real_vnstock_rate_limit_60s_english_message(self, mock_quote, mock_sleep):
+    def test_real_vnstock_rate_limit_60s_english_message(self, mocker):
         """Regression test verifying 60s English rate limit message using real RateLimitExceeded."""
         exc = RateLimitExceeded(
             resource_type="quote.history",
@@ -615,7 +592,8 @@ class TestVnstockRealRateLimitRegression:
             tier="free",
         )
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = exc
         mock_quote.return_value = mock_inst
 
@@ -628,7 +606,7 @@ class TestVnstockRealRateLimitRegression:
         assert ctx.value.cooldown_seconds == 62
         assert is_circuit_breaker_active()
 
-    def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self):
+    def test_pipeline_halts_and_preserves_generated_files_on_rate_limit(self, mocker):
         """Regression test verifying generate_report.py fails cleanly (exit code 1) and preserves generated files."""
         from scripts.generate_report import main as generate_report_main
 
@@ -640,25 +618,24 @@ class TestVnstockRealRateLimitRegression:
             initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.generate_report.run_pipeline",
-                    side_effect=ProviderRateLimitError("Rate limit reached", cooldown_seconds=42),
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=ProviderRateLimitError("Rate limit reached", cooldown_seconds=42),
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                # Pipeline exits with status code 1 for provider rate limits
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            # Pipeline exits with status code 1 for provider rate limits
+            assert ctx.value.code == 1
 
             # Generated output file was NOT modified or overwritten
             saved_content = json.loads(recs_file.read_text(encoding="utf-8"))
             assert saved_content == initial_content
 
-    def test_generate_report_three_exit_code_paths(self):
+    def test_generate_report_three_exit_code_paths(self, mocker):
         """Regression test covering the 3 exit paths of generate_report.py:
 
         Path 1: Success pipeline completes cleanly without raising SystemExit (code 0).
@@ -723,50 +700,51 @@ class TestVnstockRealRateLimitRegression:
                 df_vn30=make_valid_canonical_df(25),
             )
 
-            mock_mon_res = MagicMock()
+            mock_mon_res = mocker.MagicMock()
             mock_mon_res.overall_status = "PASS"
             mock_mon_res.to_dict.return_value = {"overall_status": "PASS"}
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch("scripts.generate_report.run_pipeline", return_value=mock_result),
-                patch("jsonschema.validate", return_value=None),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                # Does NOT raise SystemExit on success
-                generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch("scripts.generate_report.run_pipeline", return_value=mock_result)
+            mocker.patch("jsonschema.validate", return_value=None)
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            # Does NOT raise SystemExit on success
+            generate_report_main()
+
+            mocker.stopall()
 
             # Rate limit error raises SystemExit(1)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.generate_report.run_pipeline",
-                    side_effect=ProviderRateLimitError("Quota exceeded", cooldown_seconds=40),
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx2:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=ProviderRateLimitError("Quota exceeded", cooldown_seconds=40),
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx2.value.code == 1
+            with pytest.raises(SystemExit) as ctx2:
+                generate_report_main()
+
+            assert ctx2.value.code == 1
+
+            mocker.stopall()
 
             # Unexpected error converts to SystemExit(1)
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.generate_report.run_pipeline",
-                    side_effect=RuntimeError("Unexpected pipeline exception"),
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx3:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.generate_report.run_pipeline",
+                side_effect=RuntimeError("Unexpected pipeline exception"),
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx3.value.code == 1
+            with pytest.raises(SystemExit) as ctx3:
+                generate_report_main()
+
+            assert ctx3.value.code == 1
 
 
 SMALL_TEST_UNIVERSE = [
@@ -780,35 +758,31 @@ SMALL_TEST_UNIVERSE = [
 class TestRateLimitRecoveryAndPipelineReliability:
     """Focused tests for rate-limit recovery, universe scan continuity, and fail-closed report generation."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
-        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_p = patch(
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
         )
-        self.sleep_p1.start()
-        self.sleep_p2.start()
-        self.sleep_p3.start()
-        self.univ_p.start()
-
-    def teardown_method(self):
-        patch.stopall()
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    @patch("scripts.pipeline.stages.time.sleep")
-    @patch("scripts.data_provider.VnstockDataProvider.fetch_ohlcv")
-    def test_run_pipeline_rate_limit_recovery_and_report_generation(self, mock_fetch, mock_sleep):
+    def test_run_pipeline_rate_limit_recovery_and_report_generation(self, mocker):
         """Exercises actual run_pipeline(update_data=True) flow:
 
         several symbols succeed -> one hits rate limit -> recovery occurs -> same symbol succeeds ->
         remaining symbols continue -> complete universe processed -> report generated.
         """
         from scripts.generate_report import UniverseProvider, run_pipeline
+
+        mock_sleep = mocker.patch("scripts.pipeline.stages.time.sleep")
+        mock_fetch = mocker.patch("scripts.data_provider.VnstockDataProvider.fetch_ohlcv")
 
         valid_df = make_valid_canonical_df(25)
         candidates = UniverseProvider().candidates
@@ -850,7 +824,7 @@ class TestRateLimitRecoveryAndPipelineReliability:
         assert not is_circuit_breaker_active()
         mock_sleep.assert_any_call(12)
 
-    def test_run_pipeline_incomplete_universe_fails_without_generating_report(self):
+    def test_run_pipeline_incomplete_universe_fails_without_generating_report(self, mocker):
         """Regression test verifying that when one universe symbol remains invalid/empty,
 
         run_pipeline(update_data=True) fails closed and no final report files are generated or overwritten.
@@ -880,25 +854,24 @@ class TestRateLimitRecoveryAndPipelineReliability:
             recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
             market_file.write_text(json.dumps(initial_market), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_historical_data,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_historical_data,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                # Pipeline exits with non-zero exit code 1
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            # Pipeline exits with non-zero exit code 1
+            assert ctx.value.code == 1
 
             # Neither recommendations.json nor market.json was modified or overwritten
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
             assert json.loads(market_file.read_text(encoding="utf-8")) == initial_market
 
-    def test_run_pipeline_invalid_vn30_fails_without_generating_report(self):
+    def test_run_pipeline_invalid_vn30_fails_without_generating_report(self, mocker):
         """Regression test verifying that when VN30 benchmark data is invalid/empty,
 
         run_pipeline(update_data=True) fails closed with RuntimeError and includes VN30 in invalid_symbols.
@@ -912,19 +885,19 @@ class TestRateLimitRecoveryAndPipelineReliability:
                 return pd.DataFrame()
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_historical_data,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VN30" in str(ctx.value)
+        assert "VN30" in str(ctx.value)
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_unrecoverable_rate_limit_exhausts_budget_and_fails(self, mock_quote, mock_sleep):
+    def test_unrecoverable_rate_limit_exhausts_budget_and_fails(self, mocker):
         """Unrecoverable rate limit -> budget exhausted -> raises ProviderRateLimitError loudly."""
+        mocker.patch("scripts.data_provider.time.sleep")
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
         rate_limit_exc = RateLimitExceeded(
             resource_type="quote.history",
             limit_type="min",
@@ -933,7 +906,7 @@ class TestRateLimitRecoveryAndPipelineReliability:
             retry_after=30.0,
             tier="guest",
         )
-        mock_inst = MagicMock()
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = rate_limit_exc
         mock_quote.return_value = mock_inst
 
@@ -950,27 +923,22 @@ class TestRateLimitRecoveryAndPipelineReliability:
 class TestUniverseCompletenessValidation:
     """Offline unit tests verifying complete universe processing and fail-closed validation."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
-        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_p = patch(
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
         )
-        self.sleep_p1.start()
-        self.sleep_p2.start()
-        self.sleep_p3.start()
-        self.univ_p.start()
-
-    def teardown_method(self):
-        patch.stopall()
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def test_complete_universe_proceeds(self):
+    def test_complete_universe_proceeds(self, mocker):
         """Complete universe -> report generation proceeds successfully."""
         from scripts.generate_report import run_pipeline
 
@@ -979,16 +947,16 @@ class TestUniverseCompletenessValidation:
         def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            pipeline_res = run_pipeline(update_data=True)
-            recs_data, market_data, _ = pipeline_res
-            assert "recommendations" in recs_data
-            assert "market" in market_data
+        )
+        pipeline_res = run_pipeline(update_data=True)
+        recs_data, market_data, _ = pipeline_res
+        assert "recommendations" in recs_data
+        assert "market" in market_data
 
-    def test_one_expected_symbol_missing_fails(self):
+    def test_one_expected_symbol_missing_fails(self, mocker):
         """One expected symbol missing -> fails closed with RuntimeError and preserves generated files."""
         from scripts.generate_report import UniverseProvider, run_pipeline
         from scripts.generate_report import main as generate_report_main
@@ -1032,45 +1000,34 @@ class TestUniverseCompletenessValidation:
             initial_recs = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                    return_value=dynamic_candidates,
-                ),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-            ):
-                with pytest.raises(RuntimeError) as ctx:
-                    run_pipeline(update_data=True)
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.pipeline.stages.UniverseProvider._get_candidates",
+                return_value=dynamic_candidates,
+            )
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
 
-                assert "MISSING_SYM" in str(ctx.value)
+            with pytest.raises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
+
+            assert "MISSING_SYM" in str(ctx.value)
 
             # Reset dynamic_candidates iter_count for main() test
             dynamic_candidates._iter_count = 0
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                    return_value=dynamic_candidates,
-                ),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx_exit:
-                    generate_report_main()
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx_exit.value.code == 1
+            with pytest.raises(SystemExit) as ctx_exit:
+                generate_report_main()
+
+            assert ctx_exit.value.code == 1
 
             # Output file was NOT modified
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
-    def test_provider_failure_for_one_symbol_fails(self):
+    def test_provider_failure_for_one_symbol_fails(self, mocker):
         """Provider failure for one symbol -> fails closed with RuntimeError."""
         from scripts.generate_report import UniverseProvider, run_pipeline
         from scripts.generate_report import main as generate_report_main
@@ -1092,29 +1049,28 @@ class TestUniverseCompletenessValidation:
             initial_recs = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-            ):
-                with pytest.raises(RuntimeError) as ctx:
-                    run_pipeline(update_data=True)
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
 
-                assert "Incomplete universe scan in update mode" in str(ctx.value)
-                assert "Failed: 1" in str(ctx.value)
-                assert failed_candidate in str(ctx.value)
+            with pytest.raises(RuntimeError) as ctx:
+                run_pipeline(update_data=True)
 
-                with patch("sys.argv", ["generate_report.py", "--update"]):
-                    with pytest.raises(SystemExit) as ctx_exit:
-                        generate_report_main()
-                    assert ctx_exit.value.code == 1
+            assert "Incomplete universe scan in update mode" in str(ctx.value)
+            assert "Failed: 1" in str(ctx.value)
+            assert failed_candidate in str(ctx.value)
+
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+            with pytest.raises(SystemExit) as ctx_exit:
+                generate_report_main()
+            assert ctx_exit.value.code == 1
 
             # Artifact preserved
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
 
-    def test_one_explicitly_invalid_symbol_allowed(self):
+    def test_one_explicitly_invalid_symbol_allowed(self, mocker):
         """One explicitly invalid symbol -> allowed if expected == processed ∪ invalid."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1128,21 +1084,19 @@ class TestUniverseCompletenessValidation:
                 raise InvalidSymbolError(f"Invalid symbol [{sym}]")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            pipeline_res = run_pipeline(update_data=True)
-            recs_data, _market_data, _ = pipeline_res
-            assert "recommendations" in recs_data
-            # The invalid symbol is present in recommendations with action AVOID
-            invalid_recs = [
-                r for r in recs_data["recommendations"] if r["symbol"] == invalid_candidate
-            ]
-            assert len(invalid_recs) == 1
-            assert invalid_recs[0]["action"] == "AVOID"
+        )
+        pipeline_res = run_pipeline(update_data=True)
+        recs_data, _market_data, _ = pipeline_res
+        assert "recommendations" in recs_data
+        # The invalid symbol is present in recommendations with action AVOID
+        invalid_recs = [r for r in recs_data["recommendations"] if r["symbol"] == invalid_candidate]
+        assert len(invalid_recs) == 1
+        assert invalid_recs[0]["action"] == "AVOID"
 
-    def test_get_historical_data_status_tag_distinctions(self):
+    def test_get_historical_data_status_tag_distinctions(self, mocker):
         """Verify get_historical_data tags status strictly by issue type."""
         valid_df = make_valid_canonical_df(25)
         short_df = make_valid_canonical_df(5)
@@ -1150,40 +1104,40 @@ class TestUniverseCompletenessValidation:
         missing_col_df = valid_df.drop(columns=["close"])
         missing_date_df = valid_df.drop(columns=["time"])
 
-        with patch("scripts.data.acquisition.VnstockDataProvider") as mock_prov_cls:
-            mock_prov = mock_prov_cls.return_value
+        mock_prov_cls = mocker.patch("scripts.data.acquisition.VnstockDataProvider")
+        mock_prov = mock_prov_cls.return_value
 
-            # Valid data -> REAL_DATA
-            mock_prov.fetch_ohlcv.return_value = valid_df
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "REAL_DATA"
+        # Valid data -> REAL_DATA
+        mock_prov.fetch_ohlcv.return_value = valid_df
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "REAL_DATA"
 
-            # Fewer than required valid rows -> INSUFFICIENT_HISTORICAL_DATA
-            mock_prov.fetch_ohlcv.return_value = short_df
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "INSUFFICIENT_HISTORICAL_DATA"
+        # Fewer than required valid rows -> INSUFFICIENT_HISTORICAL_DATA
+        mock_prov.fetch_ohlcv.return_value = short_df
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "INSUFFICIENT_HISTORICAL_DATA"
 
-            # Empty DataFrame -> PROVIDER_FAILURE
-            mock_prov.fetch_ohlcv.return_value = empty_df
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "PROVIDER_FAILURE"
+        # Empty DataFrame -> PROVIDER_FAILURE
+        mock_prov.fetch_ohlcv.return_value = empty_df
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "PROVIDER_FAILURE"
 
-            # Missing required OHLCV column -> PROVIDER_FAILURE
-            mock_prov.fetch_ohlcv.return_value = missing_col_df
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "PROVIDER_FAILURE"
+        # Missing required OHLCV column -> PROVIDER_FAILURE
+        mock_prov.fetch_ohlcv.return_value = missing_col_df
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "PROVIDER_FAILURE"
 
-            # Missing date column -> PROVIDER_FAILURE
-            mock_prov.fetch_ohlcv.return_value = missing_date_df
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "PROVIDER_FAILURE"
+        # Missing date column -> PROVIDER_FAILURE
+        mock_prov.fetch_ohlcv.return_value = missing_date_df
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "PROVIDER_FAILURE"
 
-            # Provider exception -> PROVIDER_FAILURE
-            mock_prov.fetch_ohlcv.side_effect = RuntimeError("API connection timeout")
-            _df, tag, _ = get_historical_data("FPT")
-            assert tag == "PROVIDER_FAILURE"
+        # Provider exception -> PROVIDER_FAILURE
+        mock_prov.fetch_ohlcv.side_effect = RuntimeError("API connection timeout")
+        _df, tag, _ = get_historical_data("FPT")
+        assert tag == "PROVIDER_FAILURE"
 
-    def test_valid_symbol_with_insufficient_history_fails(self):
+    def test_valid_symbol_with_insufficient_history_fails(self, mocker):
         """Valid symbol with insufficient history -> tagged insufficient_history and fails update mode."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1197,18 +1151,18 @@ class TestUniverseCompletenessValidation:
                 return make_valid_canonical_df(5)
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Insufficient History: 1" in err_msg
-            assert insufficient_candidate in err_msg
+        err_msg = str(ctx.value)
+        assert "Insufficient History: 1" in err_msg
+        assert insufficient_candidate in err_msg
 
-    def test_duplicate_symbol_does_not_inflate_processed_count(self):
+    def test_duplicate_symbol_does_not_inflate_processed_count(self, mocker):
         """Duplicate symbols in candidate list -> deduplicated, does not inflate processed count."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1221,19 +1175,17 @@ class TestUniverseCompletenessValidation:
         def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
-        with (
-            patch(
-                "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                return_value=duplicate_candidates,
-            ),
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=mock_get_hist,
-            ),
-        ):
-            pipeline_res = run_pipeline(update_data=True)
-            recs_data, _, _ = pipeline_res
-            assert "recommendations" in recs_data
+        mocker.patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=duplicate_candidates,
+        )
+        mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        )
+        pipeline_res = run_pipeline(update_data=True)
+        recs_data, _, _ = pipeline_res
+        assert "recommendations" in recs_data
 
         # Verify that if another symbol fails, duplicate FPT does NOT compensate for the failed symbol
         failed_sym = candidates[1]["symbol"].upper()
@@ -1244,23 +1196,21 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError("Provider failed")
             return valid_df
 
-        with (
-            patch(
-                "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                return_value=duplicate_candidates,
-            ),
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=mock_get_hist_with_failure,
-            ),
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        mocker.patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=duplicate_candidates,
+        )
+        mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist_with_failure,
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Failed: 1" in str(ctx.value)
-            assert failed_sym in str(ctx.value)
+        assert "Failed: 1" in str(ctx.value)
+        assert failed_sym in str(ctx.value)
 
-    def test_empty_provider_result_fails_unless_explicitly_classified_invalid(self):
+    def test_empty_provider_result_fails_unless_explicitly_classified_invalid(self, mocker):
         """Empty provider result without explicit invalid classification -> treated as failed_symbols and fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1274,17 +1224,17 @@ class TestUniverseCompletenessValidation:
                 return pd.DataFrame()
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Failed: 1" in str(ctx.value)
-            assert empty_candidate in str(ctx.value)
+        assert "Failed: 1" in str(ctx.value)
+        assert empty_candidate in str(ctx.value)
 
-    def test_partial_scan_fails(self):
+    def test_partial_scan_fails(self, mocker):
         """Partial scan (loop terminates early or misses expected symbols) -> fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1299,17 +1249,17 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError(f"Processing error on {sym}")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Failed: 1" in str(ctx.value)
-            assert unprocessed_candidate in str(ctx.value)
+        assert "Failed: 1" in str(ctx.value)
+        assert unprocessed_candidate in str(ctx.value)
 
-    def test_rate_limit_exception_propagates_directly(self):
+    def test_rate_limit_exception_propagates_directly(self, mocker):
         """Rate-limit exception -> propagates ProviderRateLimitError directly without converting to failed_symbols."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1323,16 +1273,16 @@ class TestUniverseCompletenessValidation:
                 raise ProviderRateLimitError("Quota exceeded", cooldown_seconds=30, symbol=sym)
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(ProviderRateLimitError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(ProviderRateLimitError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert ctx.value.symbol == rate_limit_candidate
+        assert ctx.value.symbol == rate_limit_candidate
 
-    def test_mixed_successful_invalid_failed_symbols_fails(self):
+    def test_mixed_successful_invalid_failed_symbols_fails(self, mocker):
         """Mixed successful + invalid + insufficient history + failed symbols -> fails closed."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1352,21 +1302,21 @@ class TestUniverseCompletenessValidation:
                 return make_valid_canonical_df(5)
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Invalid: 1" in err_msg
-            assert "Failed: 1" in err_msg
-            assert "Insufficient History: 1" in err_msg
-            assert failed_candidate in err_msg
-            assert insufficient_candidate in err_msg
+        err_msg = str(ctx.value)
+        assert "Invalid: 1" in err_msg
+        assert "Failed: 1" in err_msg
+        assert "Insufficient History: 1" in err_msg
+        assert failed_candidate in err_msg
+        assert insufficient_candidate in err_msg
 
-    def test_completeness_validation_reports_useful_diagnostics(self):
+    def test_completeness_validation_reports_useful_diagnostics(self, mocker):
         """Completeness validation error message reports all required diagnostic metrics."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1380,24 +1330,24 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError("Failed fetch")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Incomplete universe scan in update mode" in err_msg
-            assert "Expected:" in err_msg
-            assert "Processed:" in err_msg
-            assert "Invalid:" in err_msg
-            assert "Failed:" in err_msg
-            assert "Missing:" in err_msg
-            assert "Failed symbols:" in err_msg
-            assert "Missing symbols:" in err_msg
+        err_msg = str(ctx.value)
+        assert "Incomplete universe scan in update mode" in err_msg
+        assert "Expected:" in err_msg
+        assert "Processed:" in err_msg
+        assert "Invalid:" in err_msg
+        assert "Failed:" in err_msg
+        assert "Missing:" in err_msg
+        assert "Failed symbols:" in err_msg
+        assert "Missing symbols:" in err_msg
 
-    def test_insufficient_history_symbol_cannot_make_scan_appear_complete(self):
+    def test_insufficient_history_symbol_cannot_make_scan_appear_complete(self, mocker):
         """Insufficient-history candidate cannot satisfy processed_symbols ∪ invalid_symbols."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1411,19 +1361,19 @@ class TestUniverseCompletenessValidation:
                 return make_valid_canonical_df(5)
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Incomplete universe scan in update mode" in err_msg
-            assert "Insufficient History: 1" in err_msg
-            assert insufficient_candidate in err_msg
+        err_msg = str(ctx.value)
+        assert "Incomplete universe scan in update mode" in err_msg
+        assert "Insufficient History: 1" in err_msg
+        assert insufficient_candidate in err_msg
 
-    def test_provider_failure_cannot_be_masked_as_invalid_or_insufficient_history(self):
+    def test_provider_failure_cannot_be_masked_as_invalid_or_insufficient_history(self, mocker):
         """Provider failure is tracked strictly as failed_symbols and cannot be masked as invalid or insufficient history."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1437,20 +1387,20 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError("API network error")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Failed: 1" in err_msg
-            assert f"Failed symbols: ['{failed_candidate}']" in err_msg
-            assert "Invalid symbols: []" in err_msg
-            assert "Insufficient history symbols: []" in err_msg
+        err_msg = str(ctx.value)
+        assert "Failed: 1" in err_msg
+        assert f"Failed symbols: ['{failed_candidate}']" in err_msg
+        assert "Invalid symbols: []" in err_msg
+        assert "Insufficient history symbols: []" in err_msg
 
-    def test_vnindex_insufficient_history_fails_closed(self):
+    def test_vnindex_insufficient_history_fails_closed(self, mocker):
         """Required benchmark VNINDEX with insufficient history -> fails closed."""
         from scripts.generate_report import run_pipeline
 
@@ -1463,16 +1413,16 @@ class TestUniverseCompletenessValidation:
                 return short_df
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VNINDEX" in str(ctx.value)
+        assert "VNINDEX" in str(ctx.value)
 
-    def test_vn30_insufficient_history_fails_closed(self):
+    def test_vn30_insufficient_history_fails_closed(self, mocker):
         """Required benchmark VN30 with insufficient history -> fails closed."""
         from scripts.generate_report import run_pipeline
 
@@ -1485,16 +1435,16 @@ class TestUniverseCompletenessValidation:
                 return short_df
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VN30" in str(ctx.value)
+        assert "VN30" in str(ctx.value)
 
-    def test_generated_artifacts_remain_unchanged_when_validation_fails(self):
+    def test_generated_artifacts_remain_unchanged_when_validation_fails(self, mocker):
         """Generated report files remain untouched when update validation fails due to insufficient history or failed symbols."""
         from scripts.generate_report import main as generate_report_main
 
@@ -1518,23 +1468,22 @@ class TestUniverseCompletenessValidation:
             recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
             market_file.write_text(json.dumps(initial_market), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_recs
             assert json.loads(market_file.read_text(encoding="utf-8")) == initial_market
 
-    def test_vnindex_provider_failure_fails(self):
+    def test_vnindex_provider_failure_fails(self, mocker):
         """Required benchmark VNINDEX provider failure -> fails closed."""
         from scripts.generate_report import run_pipeline
 
@@ -1546,16 +1495,16 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError("VNINDEX connection timeout")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VNINDEX" in str(ctx.value)
+        assert "VNINDEX" in str(ctx.value)
 
-    def test_vn30_provider_failure_fails(self):
+    def test_vn30_provider_failure_fails(self, mocker):
         """Required benchmark VN30 provider failure -> fails closed."""
         from scripts.generate_report import run_pipeline
 
@@ -1567,41 +1516,36 @@ class TestUniverseCompletenessValidation:
                 raise RuntimeError("VN30 connection timeout")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "VN30" in str(ctx.value)
+        assert "VN30" in str(ctx.value)
 
 
 @pytest.mark.unit
 class TestReportGenerationValidationAndArtifactPreservation:
     """Deterministic offline unit tests covering universe validation and artifact preservation."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
-        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_p = patch(
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
         )
-        self.sleep_p1.start()
-        self.sleep_p2.start()
-        self.sleep_p3.start()
-        self.univ_p.start()
-
-    def teardown_method(self):
-        patch.stopall()
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
 
-    def test_complete_scan_generates_report(self):
+    def test_complete_scan_generates_report(self, mocker):
         """Complete scan -> report generated and saved to generated/."""
         from scripts.generate_report import main as generate_report_main
 
@@ -1610,7 +1554,7 @@ class TestReportGenerationValidationAndArtifactPreservation:
         def mock_get_hist(symbol=None, **kwargs):
             return valid_df
 
-        mock_mon_res = MagicMock()
+        mock_mon_res = mocker.MagicMock()
         mock_mon_res.overall_status = "PASS"
         mock_mon_res.to_dict.return_value = {"overall_status": "PASS"}
 
@@ -1618,27 +1562,26 @@ class TestReportGenerationValidationAndArtifactPreservation:
             generated_dir = Path(tmpdir) / "generated"
             generated_dir.mkdir(parents=True, exist_ok=True)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("jsonschema.validate", return_value=None),
-                patch(
-                    "scripts.pipeline.stages.evaluate_production_monitoring",
-                    return_value=mock_mon_res,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("jsonschema.validate", return_value=None)
+            mocker.patch(
+                "scripts.pipeline.stages.evaluate_production_monitoring",
+                return_value=mock_mon_res,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
+
+            generate_report_main()
 
             # Verify report files were created
             assert (generated_dir / "recommendations.json").exists()
             assert (generated_dir / "market.json").exists()
             assert (generated_dir / "monitoring.json").exists()
 
-    def test_one_missing_symbol_preserves_artifacts(self):
+    def test_one_missing_symbol_preserves_artifacts(self, mocker):
         """One missing symbol -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
@@ -1677,27 +1620,26 @@ class TestReportGenerationValidationAndArtifactPreservation:
             initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                    return_value=dynamic_candidates,
-                ),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.pipeline.stages.UniverseProvider._get_candidates",
+                return_value=dynamic_candidates,
+            )
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             # File on disk remains untouched
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_one_provider_failure_preserves_artifacts(self):
+    def test_one_provider_failure_preserves_artifacts(self, mocker):
         """One provider failure -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
@@ -1719,22 +1661,21 @@ class TestReportGenerationValidationAndArtifactPreservation:
             initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_one_insufficient_history_symbol_preserves_artifacts(self):
+    def test_one_insufficient_history_symbol_preserves_artifacts(self, mocker):
         """One symbol with insufficient historical data -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
@@ -1757,22 +1698,21 @@ class TestReportGenerationValidationAndArtifactPreservation:
             initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
             recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_benchmark_failure_preserves_artifacts(self):
+    def test_benchmark_failure_preserves_artifacts(self, mocker):
         """Benchmark fetch failure -> validation fails, existing artifacts unchanged."""
         from scripts.generate_report import main as generate_report_main
 
@@ -1797,22 +1737,21 @@ class TestReportGenerationValidationAndArtifactPreservation:
                 initial_content = {"schema_version": "2.0", "recommendations": [{"symbol": "OLD"}]}
                 recs_file.write_text(json.dumps(initial_content), encoding="utf-8")
 
-                with (
-                    patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                    patch(
-                        "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                        side_effect=mock_get_hist,
-                    ),
-                    patch("sys.argv", ["generate_report.py", "--update"]),
-                ):
-                    with pytest.raises(SystemExit) as ctx:
-                        generate_report_main()
+                mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+                mocker.patch(
+                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                    side_effect=mock_get_hist,
+                )
+                mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                    assert ctx.value.code == 1
+                with pytest.raises(SystemExit) as ctx:
+                    generate_report_main()
+
+                assert ctx.value.code == 1
 
                 assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_content
 
-    def test_duplicate_symbol_still_incomplete_when_symbol_fails(self):
+    def test_duplicate_symbol_still_incomplete_when_symbol_fails(self, mocker):
         """Candidate list with duplicates still fails if another symbol fails, existing artifacts unchanged."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1827,24 +1766,22 @@ class TestReportGenerationValidationAndArtifactPreservation:
                 raise RuntimeError(f"[{failing_symbol}] Connection error")
             return valid_df
 
-        with (
-            patch(
-                "scripts.pipeline.stages.UniverseProvider._get_candidates",
-                return_value=duplicate_candidates,
-            ),
-            patch(
-                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                side_effect=mock_get_hist,
-            ),
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        mocker.patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=duplicate_candidates,
+        )
+        mocker.patch(
+            "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+            side_effect=mock_get_hist,
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            err_msg = str(ctx.value)
-            assert "Failed: 1" in err_msg
-            assert failing_symbol in err_msg
+        err_msg = str(ctx.value)
+        assert "Failed: 1" in err_msg
+        assert failing_symbol in err_msg
 
-    def test_partial_in_memory_dataset_blocks_report_generation(self):
+    def test_partial_in_memory_dataset_blocks_report_generation(self, mocker):
         """Incomplete scan results -> report generation blocked, disk files untouched."""
         from scripts.generate_report import UniverseProvider, run_pipeline
 
@@ -1858,17 +1795,17 @@ class TestReportGenerationValidationAndArtifactPreservation:
                 raise RuntimeError("Fetch failed")
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Failed: 1" in str(ctx.value)
-            assert failing_symbol in str(ctx.value)
+        assert "Failed: 1" in str(ctx.value)
+        assert failing_symbol in str(ctx.value)
 
-    def test_validation_failure_after_some_calculations_preserves_artifacts(self):
+    def test_validation_failure_after_some_calculations_preserves_artifacts(self, mocker):
         """Completeness validation fails after partial pipeline calculations -> pre-existing artifacts untouched."""
         from scripts.generate_report import UniverseProvider
         from scripts.generate_report import main as generate_report_main
@@ -1901,18 +1838,17 @@ class TestReportGenerationValidationAndArtifactPreservation:
             recs_file.write_text(json.dumps(initial_recs), encoding="utf-8")
             market_file.write_text(json.dumps(initial_market), encoding="utf-8")
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(generated_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(generated_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             # Verify that partial processing occurred before failure
             assert processed_count > 0
@@ -1925,38 +1861,32 @@ class TestReportGenerationValidationAndArtifactPreservation:
 class TestPR155ProviderReliabilityAndPerformance:
     """Provider Reliability & Performance deterministic offline test suite."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def _setup_patches(self, mocker):
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
-        self.sleep_p1 = patch("scripts.data.acquisition.time.sleep")
-        self.sleep_p2 = patch("scripts.data_provider.time.sleep")
-        self.sleep_p3 = patch("scripts.pipeline.stages.time.sleep")
-        self.univ_p = patch(
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
             "scripts.pipeline.stages.UniverseProvider._get_candidates",
             return_value=SMALL_TEST_UNIVERSE,
         )
-        self.sleep_p1.start()
-        self.sleep_p2.start()
-        self.sleep_p3.start()
-        self.univ_p.start()
-
-    def teardown_method(self):
-        patch.stopall()
+        yield
         reset_circuit_breaker()
         reset_rate_limit_recovery_count()
         VnstockDataProvider.reset_global_call_history()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_successful_provider_call_timing(self, mock_quote, mock_sleep):
+    def test_successful_provider_call_timing(self, mocker):
         """Successful provider call records timing structure."""
         valid_raw = make_valid_canonical_df(10)
         valid_raw_norm = valid_raw.copy()
         for col in ["open", "high", "low", "close"]:
             valid_raw_norm[col] /= 1000.0
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.return_value = valid_raw_norm
         mock_quote.return_value = mock_inst
 
@@ -1975,11 +1905,10 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert timing["error"] is None
         assert timing["elapsed_seconds"] >= 0.0
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_provider_exception_timing_and_diagnostic(self, mock_quote, mock_sleep):
+    def test_provider_exception_timing_and_diagnostic(self, mocker):
         """Provider exception records structured timing and diagnostic error information."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = ConnectionError("Network read timeout")
         mock_quote.return_value = mock_inst
 
@@ -1995,11 +1924,10 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert not last_call["success"]
         assert "Network read timeout" in last_call["error"]
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_bounded_transient_retry(self, mock_quote, mock_sleep):
+    def test_bounded_transient_retry(self, mocker):
         """Transient network/server errors have bounded retries and do not loop infinitely."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = TimeoutError("Server timeout")
         mock_quote.return_value = mock_inst
 
@@ -2012,11 +1940,10 @@ class TestPR155ProviderReliabilityAndPerformance:
         history = provider.get_call_history()
         assert len(history) == 4
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_rate_limit_no_retry_behavior(self, mock_quote, mock_sleep):
+    def test_rate_limit_no_retry_behavior(self, mocker):
         """Rate limit exception is NOT retried across attempts or sources and trips circuit breaker."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = RateLimitExceeded(
             "quote.history", "min", 20, 20, retry_after=30.0, tier="guest"
         )
@@ -2030,13 +1957,12 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert mock_inst.history.call_count == 1
         assert is_circuit_breaker_active()
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_circuit_breaker_behavior(self, mock_quote, mock_sleep):
+    def test_circuit_breaker_behavior(self, mocker):
         """Active circuit breaker blocks subsequent requests immediately without making API calls."""
         trip_circuit_breaker("Pre-tripped in test", cooldown_seconds=60)
 
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_quote.return_value = mock_inst
 
         provider = VnstockDataProvider(is_available=True)
@@ -2046,15 +1972,15 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert mock_inst.history.call_count == 0
         assert "circuit breaker is active" in str(ctx.value)
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_deterministic_source_fallback(self, mock_quote, mock_sleep):
+    def test_deterministic_source_fallback(self, mocker):
         """Source fallback follows deterministic order ['kbs', 'msn']."""
         valid_raw = make_valid_canonical_df(10)
         for col in ["open", "high", "low", "close"]:
             valid_raw[col] /= 1000.0
 
         calls = []
+
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
 
         def side_effect(start=None, end=None):
             args = mock_quote.call_args
@@ -2064,7 +1990,7 @@ class TestPR155ProviderReliabilityAndPerformance:
                 raise ConnectionError("kbs failed")
             return valid_raw
 
-        mock_inst = MagicMock()
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = side_effect
         mock_quote.side_effect = lambda symbol, source: mock_inst
 
@@ -2079,9 +2005,7 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert history[1]["source"] == "msn"
         assert history[1]["success"]
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_stale_source_followed_by_canonical_date_source(self, mock_quote, mock_sleep):
+    def test_stale_source_followed_by_canonical_date_source(self, mocker):
         """Stale source followed by canonical-date source prefers canonical-date source."""
         stale_df = make_valid_canonical_df(10, start_date="2026-09-01")  # max date 2026-09-10
         for col in ["open", "high", "low", "close"]:
@@ -2092,23 +2016,21 @@ class TestPR155ProviderReliabilityAndPerformance:
             canonical_df[col] /= 1000.0
 
         def quote_factory(symbol, source):
-            m = MagicMock()
+            m = mocker.MagicMock()
             if source == "kbs":
                 m.history.return_value = stale_df
             else:
                 m.history.return_value = canonical_df
             return m
 
-        mock_quote.side_effect = quote_factory
+        mocker.patch("scripts.data_provider.VnQuote", side_effect=quote_factory)
 
         provider = VnstockDataProvider(is_available=True)
         res_df = provider.fetch_ohlcv("FPT", target_date="2026-09-15")
 
         assert res_df["time"].max() == "2026-09-15"
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_all_sources_stale_fail_closed(self, mock_quote, mock_sleep):
+    def test_all_sources_stale_fail_closed(self, mocker):
         """When all sources return stale data relative to target_date, update pipeline fails closed."""
         from scripts.generate_report import run_pipeline
 
@@ -2121,32 +2043,32 @@ class TestPR155ProviderReliabilityAndPerformance:
             # Stocks are all stale (2026-08-15 vs VNINDEX 2026-08-25)
             return stale_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            with pytest.raises(RuntimeError) as ctx:
-                run_pipeline(update_data=True)
+        )
+        with pytest.raises(RuntimeError) as ctx:
+            run_pipeline(update_data=True)
 
-            assert "Incomplete universe scan in update mode" in str(ctx.value)
+        assert "Incomplete universe scan in update mode" in str(ctx.value)
 
-    def test_canonical_date_invariant_remains_enforced(self):
+    def test_canonical_date_invariant_remains_enforced(self, mocker):
         """In update mode, every processed stock must match VNINDEX data_as_of exactly."""
         from scripts.generate_report import run_pipeline
 
         valid_df = make_valid_canonical_df(25, start_date="2026-09-01")
         target_date = valid_df["time"].max()
 
-        with patch(
+        mock_get_hist = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
-        ) as mock_get_hist:
-            mock_get_hist.return_value = valid_df
-            recs_data, market_data, _ = run_pipeline(update_data=True)
+        )
+        mock_get_hist.return_value = valid_df
+        recs_data, market_data, _ = run_pipeline(update_data=True)
 
-            assert market_data["data_as_of"] == target_date
-            assert recs_data["data_as_of"] == target_date
-            for rec in recs_data["recommendations"]:
-                assert rec["data_as_of"] == target_date
+        assert market_data["data_as_of"] == target_date
+        assert recs_data["data_as_of"] == target_date
+        for rec in recs_data["recommendations"]:
+            assert rec["data_as_of"] == target_date
 
     def test_provider_diagnostics_use_existing_stage_category_taxonomy(self):
         """Universe audit diagnostics strictly use PIPELINE_STAGES and FAILURE_CATEGORIES."""
@@ -2165,11 +2087,10 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert is_recoverable_category("RATE_LIMIT")
         assert not is_recoverable_category("EXPLICITLY_INVALID")
 
-    @patch("scripts.data_provider.time.sleep")
-    @patch("scripts.data_provider.VnQuote")
-    def test_retry_count_is_deterministic(self, mock_quote, mock_sleep):
+    def test_retry_count_is_deterministic(self, mocker):
         """Retry count in timing logs is 0 for initial attempt and increments deterministically."""
-        mock_inst = MagicMock()
+        mock_quote = mocker.patch("scripts.data_provider.VnQuote")
+        mock_inst = mocker.MagicMock()
         mock_inst.history.side_effect = [
             ConnectionError("Attempt 0 kbs failed"),
             TimeoutError("Attempt 0 msn failed"),
@@ -2197,7 +2118,7 @@ class TestPR155ProviderReliabilityAndPerformance:
         assert history[3]["retry_count"] == 1
         assert history[3]["source"] == "msn"
 
-    def test_provider_failure_preserves_existing_artifact_behavior(self):
+    def test_provider_failure_preserves_existing_artifact_behavior(self, mocker):
         """Provider failure during report update preserves existing generated JSON artifacts on disk."""
         from scripts.generate_report import main as generate_report_main
 
@@ -2214,23 +2135,22 @@ class TestPR155ProviderReliabilityAndPerformance:
                     raise RuntimeError("ACB fetch failed")
                 return make_valid_canonical_df(25)
 
-            with (
-                patch("scripts.generate_report.GENERATED_DIR", str(gen_dir)),
-                patch(
-                    "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
-                    side_effect=mock_get_hist,
-                ),
-                patch("sys.argv", ["generate_report.py", "--update"]),
-            ):
-                with pytest.raises(SystemExit) as ctx:
-                    generate_report_main()
+            mocker.patch("scripts.generate_report.GENERATED_DIR", str(gen_dir))
+            mocker.patch(
+                "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
+                side_effect=mock_get_hist,
+            )
+            mocker.patch("sys.argv", ["generate_report.py", "--update"])
 
-                assert ctx.value.code == 1
+            with pytest.raises(SystemExit) as ctx:
+                generate_report_main()
+
+            assert ctx.value.code == 1
 
             # Artifact on disk remains untouched
             assert json.loads(recs_file.read_text(encoding="utf-8")) == initial_data
 
-    def test_no_duplicate_uncontrolled_provider_calls(self):
+    def test_no_duplicate_uncontrolled_provider_calls(self, mocker):
         """Universe scan deduplicates symbols and does not make duplicate/uncontrolled provider calls."""
         from scripts.generate_report import run_pipeline
 
@@ -2243,41 +2163,64 @@ class TestPR155ProviderReliabilityAndPerformance:
             calls_set.add(symbol)
             return valid_df
 
-        with patch(
+        mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv",
             side_effect=mock_get_hist,
-        ):
-            run_pipeline(update_data=True)
+        )
+        run_pipeline(update_data=True)
 
         # Every unique symbol in universe (plus VNINDEX/VN30) is called exactly once
         for sym, cnt in call_counts.items():
             assert cnt == 1, f"Symbol {sym} was called {cnt} times instead of 1"
 
-    def test_existing_freshness_tests_remain_green(self):
+    def test_existing_freshness_tests_remain_green(self, mocker):
         """Existing freshness test suite passes cleanly."""
+        import inspect
+
         from scripts.tests.test_data_date import (
+            SINGLE_STOCK_UNIVERSE,
             TestProductionDataFreshness,
             TestTemporalIntegrityValidation,
+        )
+
+        mocker.patch("scripts.data.acquisition.time.sleep")
+        mocker.patch("scripts.data_provider.time.sleep")
+        mocker.patch("scripts.pipeline.stages.time.sleep")
+        mocker.patch(
+            "scripts.pipeline.stages.UniverseProvider._get_candidates",
+            return_value=SINGLE_STOCK_UNIVERSE,
         )
 
         inst1 = TestProductionDataFreshness()
         for m in sorted(dir(inst1)):
             if m.startswith("test_"):
-                if hasattr(inst1, "setup_method"):
-                    inst1.setup_method()
-                try:
-                    getattr(inst1, m)()
-                finally:
-                    if hasattr(inst1, "teardown_method"):
-                        inst1.teardown_method()
+                mocker.stopall()
+                mocker.patch("scripts.data.acquisition.time.sleep")
+                mocker.patch("scripts.data_provider.time.sleep")
+                mocker.patch("scripts.pipeline.stages.time.sleep")
+                mocker.patch(
+                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
+                    return_value=SINGLE_STOCK_UNIVERSE,
+                )
+                fn = getattr(inst1, m)
+                if "mocker" in inspect.signature(fn).parameters:
+                    fn(mocker)
+                else:
+                    fn()
 
         inst2 = TestTemporalIntegrityValidation()
         for m in sorted(dir(inst2)):
             if m.startswith("test_"):
-                if hasattr(inst2, "setup_method"):
-                    inst2.setup_method()
-                try:
-                    getattr(inst2, m)()
-                finally:
-                    if hasattr(inst2, "teardown_method"):
-                        inst2.teardown_method()
+                mocker.stopall()
+                mocker.patch("scripts.data.acquisition.time.sleep")
+                mocker.patch("scripts.data_provider.time.sleep")
+                mocker.patch("scripts.pipeline.stages.time.sleep")
+                mocker.patch(
+                    "scripts.pipeline.stages.UniverseProvider._get_candidates",
+                    return_value=SINGLE_STOCK_UNIVERSE,
+                )
+                fn = getattr(inst2, m)
+                if "mocker" in inspect.signature(fn).parameters:
+                    fn(mocker)
+                else:
+                    fn()

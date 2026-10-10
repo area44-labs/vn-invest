@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import tempfile
-from unittest.mock import patch
 
 import pytest
 
@@ -204,7 +203,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "valid_target"}\n'
         assert not os.path.exists(staging_dir)
 
-    def test_commit_publish_failure_rollback(self):
+    def test_commit_publish_failure_rollback(self, mocker):
         """Verifies that a failure during the COMMIT phase triggers automatic rollback, restoring previous valid artifacts."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -217,10 +216,8 @@ class TestArtifactTransactionSuite:
                 raise OSError("Simulated disk replacement failure during commit")
             return real_replace(src, dst)
 
-        with (
-            patch("os.replace", side_effect=failing_replace),
-            pytest.raises(OSError),
-        ):
+        mocker.patch("os.replace", side_effect=failing_replace)
+        with pytest.raises(OSError):
             publish_artifacts_atomically(
                 self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
             )
@@ -229,7 +226,7 @@ class TestArtifactTransactionSuite:
         with open(target_file, "r", encoding="utf-8") as f:
             assert f.read() == '{"v": "pre_commit_val"}\n'
 
-    def test_rollback_failure_preserves_journal_and_backup(self):
+    def test_rollback_failure_preserves_journal_and_backup(self, mocker):
         """Verifies that when publish fails and rollback fails to restore the target, the journal and backup are preserved for subsequent recovery."""
         target_file = os.path.join(self.target_dir, "recommendations.json")
         with open(target_file, "w", encoding="utf-8") as f:
@@ -246,13 +243,12 @@ class TestArtifactTransactionSuite:
                 raise OSError("Simulated commit swap and rollback failure")
             return real_replace(src, dst)
 
-        with (
-            patch("os.replace", side_effect=failing_replace_during_commit_and_rollback),
-            pytest.raises(RuntimeError) as cm,
-        ):
+        mocker.patch("os.replace", side_effect=failing_replace_during_commit_and_rollback)
+        with pytest.raises(RuntimeError) as cm:
             publish_artifacts_atomically(
                 self.sample_artifacts, target_dir=self.target_dir, strict_provenance=False
             )
+        mocker.stopall()
 
         assert "Directory-level atomic artifact publish rollback failed" in str(cm.value)
         # State file and backup directory must be preserved for future recovery
@@ -440,7 +436,7 @@ class TestArtifactTransactionSuite:
             assert f.read() == '{"v": "restore_me"}\n'
         assert not os.path.exists(state_file)
 
-    def test_cleanup_boundary_scenarios(self):
+    def test_cleanup_boundary_scenarios(self, mocker):
         """Verifies transaction recovery behavior across CLEANUP stage boundary conditions."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
         bak_dir = f"{self.target_dir}_bak"
@@ -511,11 +507,10 @@ class TestArtifactTransactionSuite:
                 f,
             )
 
-        with (
-            patch("os.replace", side_effect=PermissionError("Permission denied")),
-            pytest.raises(ArtifactTransactionError),
-        ):
+        mocker.patch("os.replace", side_effect=PermissionError("Permission denied"))
+        with pytest.raises(ArtifactTransactionError):
             recover_interrupted_publish(self.target_dir)
+        mocker.stopall()
 
         assert os.path.exists(state_file)
         assert os.path.exists(bak_dir)
@@ -529,7 +524,7 @@ class TestArtifactTransactionSuite:
 
         assert os.path.exists(state_file)
 
-    def test_required_vs_optional_cleanup_failures(self):
+    def test_required_vs_optional_cleanup_failures(self, mocker):
         """Verifies that required cleanup failure raises an error while optional cleanup failure logs a warning and preserves overall transaction success."""
         state_file = os.path.join(self.temp_dir, ".generated_txn.json")
         staging_dir = f"{self.target_dir}_staging_req_test"
@@ -553,11 +548,10 @@ class TestArtifactTransactionSuite:
             )
 
         # Required cleanup failure (shutil.rmtree failing on required staging dir removal)
-        with (
-            patch("shutil.rmtree", side_effect=PermissionError("Permission denied")),
-            pytest.raises(ArtifactTransactionError),
-        ):
+        mocker.patch("shutil.rmtree", side_effect=PermissionError("Permission denied"))
+        with pytest.raises(ArtifactTransactionError):
             recover_interrupted_publish(self.target_dir)
+        mocker.stopall()
 
         # Journal remains for retry when required cleanup fails
         assert os.path.exists(state_file)
@@ -583,9 +577,9 @@ class TestArtifactTransactionSuite:
                 raise PermissionError("Optional cleanup permission error")
             return real_rmtree(path, *args, **kwargs)
 
-        with patch("shutil.rmtree", side_effect=failing_rmtree_for_bak):
-            # Should NOT raise error because bak_dir removal in CLEANUP is optional
-            recover_interrupted_publish(self.target_dir)
+        mocker.patch("shutil.rmtree", side_effect=failing_rmtree_for_bak)
+        # Should NOT raise error because bak_dir removal in CLEANUP is optional
+        recover_interrupted_publish(self.target_dir)
 
         # Journal is removed because recovery completed successfully
         assert not os.path.exists(state_file)
@@ -600,7 +594,7 @@ class TestArtifactTransactionSuite:
         # Unrelated staging dir must NOT be blindly deleted
         assert os.path.exists(unrelated_staging)
 
-    def test_real_cleanup_interruption_and_recovery(self):
+    def test_real_cleanup_interruption_and_recovery(self, mocker):
         """Verifies end-to-end real transaction interruption recovery at CLEANUP boundary across multiple system recovery states.
 
         - Executes a real transaction advancing through STAGING -> BACKUP -> COMMIT -> CLEANUP.
@@ -632,10 +626,8 @@ class TestArtifactTransactionSuite:
                 if stage == "CLEANUP":
                     raise RuntimeError("Simulated process crash/interruption at CLEANUP boundary")
 
-            with (
-                patch.object(txn, "update_state", side_effect=interrupting_update_state),
-                pytest.raises(RuntimeError),
-            ):
+            mocker.patch.object(txn, "update_state", side_effect=interrupting_update_state)
+            with pytest.raises(RuntimeError):
                 txn.execute_publish(self.sample_artifacts)
 
         # CLEANUP interrupt + Target valid -> keep target, cleanup backup & journal
@@ -683,11 +675,10 @@ class TestArtifactTransactionSuite:
         execute_interrupted_publish_at_cleanup()
         shutil.rmtree(self.target_dir, ignore_errors=True)
 
-        with (
-            patch("os.replace", side_effect=PermissionError("Permission denied")),
-            pytest.raises(ArtifactTransactionError),
-        ):
+        mocker.patch("os.replace", side_effect=PermissionError("Permission denied"))
+        with pytest.raises(ArtifactTransactionError):
             recover_interrupted_publish(self.target_dir)
+        mocker.stopall()
 
         assert os.path.exists(state_file)
         assert os.path.exists(bak_dir)
