@@ -1011,9 +1011,9 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/3b/388cb20aa54ebcc5dd9296538b7ef874ddbfcefb71f65313a48e7ee93781/pytest-mock-3.16.0.tar.gz", hash = "sha256:d82dc1c05d0e2e5050f24a0d922a00c6d2524a87c1f887f8f90eb0a726715f21", size = 30999, upload-time = "2025-02-12T08:58:34.922Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/7f/6ed29931d5c8cd396e7c0a55412e6cc88020373365c8685985dea53d26d7/pytest_mock-3.16.0.tar.gz", hash = "sha256:5a8395528b8f498205f3718f575228d0edaed7425fff638f87d1a6c3e0383636", size = 35362, upload-time = "2026-09-27T14:57:55.460Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/b5/07f0f631bd282b0f491c12d591146c8eb5ca278f244ee1d6edbfcbcf179e/pytest_mock-3.16.0-py3-none-any.whl", hash = "sha256:d021c60a927a4e69b2d87e0767ed505be1b8a51bc97bd3652a9f733dbec5db4e", size = 10103, upload-time = "2025-02-12T08:58:33.722Z" },
+    { url = "https://files.pythonhosted.org/packages/db/5b/b83a9bf1a3b4ec222f9fa083147ff6816245223da0ab92370e7e056f113f/pytest_mock-3.16.0-py3-none-any.whl", hash = "sha256:007cfeb257801d88d9c0b2a7b5a15a15e73b71968dfd72e7bf8c4a2f8393aec8", size = 10016, upload-time = "2026-09-27T14:57:54.283Z" },
 ]
 
 [[package]]
