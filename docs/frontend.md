@@ -81,10 +81,10 @@ Data resolution operates differently depending on the execution context:
 
 ### 2.3 SSG vs. Browser Runtime Error Handling
 
-- **SSG Prerender Build Failures**: Missing or invalid artifacts during SSG prerendering trigger an explicit error in `src/data/loader.ts`, failing the SSG build immediately (`[SSG Build Error] Required static artifact ... is missing or invalid`). This prevents broken or incomplete static sites from being generated or published.
-- **Browser Runtime Fetch Failures**: If an HTTP `fetch` fails in the browser runtime (e.g. network error or missing route), `loadArtifact` logs the error and returns `null`. Visual components evaluate data state and render graceful fallback UI or empty state banners without crashing the application.
-- **Empty / Incomplete Data**: When an artifact is successfully loaded but contains empty recommendation lists or missing summary sections, components present informative empty state banners (e.g. "No recommendations found for this date").
-- **Data Quality & Operational Warnings**: Warning indicators or data freshness metadata in backend payloads (such as `market.json` or `monitoring.json`) are rendered as visual status badges without interrupting page navigation.
+- **SSG Prerender Build Failures**: Missing or invalid artifacts during SSG prerendering cause `src/data/loader.ts` to log a `[SSG Fatal Error]` and throw an explicit exception (`[SSG Build Error] Required static artifact ... is missing or invalid`), halting the build process immediately.
+- **Browser Runtime Fetch Behavior**: In browser runtime, if an HTTP `fetch` fails or returns a non-200 status, `src/data/loader.ts` logs an error and returns `null`.
+- **Component Data State Handling**: Page components (`Dashboard`, `History`, `StockDetail`) evaluate returned state and render explicit empty-state messages when data is missing or `null` (e.g. "Không tìm thấy dữ liệu khuyến nghị" or "Không tìm thấy báo cáo lịch sử").
+- **Warning Banners**: Freshness warnings or status flags present in valid backend payloads (such as `source_date` age checks in `Dashboard`) render inline warning banners without blocking page rendering.
 
 ---
 
