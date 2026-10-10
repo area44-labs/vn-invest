@@ -20,7 +20,7 @@ jobs:
 
       - name: Check for relevant file changes
         id: filter
-        uses: dorny/paths-filter@de00ea5c329b35b0b13e9a7e30d1d36e268a735c # v3.0.0
+        uses: dorny/paths-filter@v3
         with:
           filters: |
             python:
