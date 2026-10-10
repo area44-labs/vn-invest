@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+
 import pytest
 
 from scripts.generate_report import GENERATED_DIR, load_history_index, update_history_index

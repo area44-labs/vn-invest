@@ -5,6 +5,7 @@ quantitative outputs when given identical point-in-time inputs.
 """
 
 import copy
+
 import pandas as pd
 import pytest
 

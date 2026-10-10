@@ -1,6 +1,7 @@
 """Unit tests for VN Invest Signal Engine in scripts/quant/recommendation.py."""
 
 import math
+
 import numpy as np
 import pandas as pd
 import pytest
