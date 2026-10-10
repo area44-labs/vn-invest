@@ -26,14 +26,14 @@ VN Invest operates as an automated quantitative analysis and static report gener
                        ▼
 ┌───────────────────────────────────────────────┐
 │       React SSG Frontend (TanStack Start)     │
-│             (shadcn/ui Primitives)            │
+│                 Published site                │
 └───────────────────────────────────────────────┘
 ```
 
 The system is split into two primary environments:
 
 1. **Python Quantitative Backend (`scripts/`)**: Handles market data collection, canonical validation, technical indicators, signal generation, risk modeling (T+2.5 VaR/ES), portfolio backtesting, operational monitoring, schema compliance validation against `schemas/v2/`, and atomic artifact publishing.
-2. **React SSG Frontend (`src/`)**: A read-only static web application that consumes pre-rendered JSON payloads from `generated/` using shadcn/ui component primitives. **Zero financial or quantitative calculations occur in the frontend.**
+2. **React SSG Frontend (`src/`)**: A read-only static web application that consumes pre-rendered JSON payloads from `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
 
 ---
 
@@ -120,7 +120,7 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 
 ### 3.9 Frontend SSG & Visualization (`src/`)
 
-- **Primary Responsibility**: Read-only static presentation of generated JSON artifacts using shadcn/ui component primitives, Tailwind CSS, and TanStack Start SSG prerendering.
+- **Primary Responsibility**: Read-only static presentation of generated JSON artifacts using React SSG, TanStack Start, and shadcn/ui component primitives.
 - **Boundary Contract**: Consumes static JSON payloads from `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/*.json`). Performs zero quantitative math or status re-evaluation.
 - **See**: [docs/frontend.md](frontend.md).
 
