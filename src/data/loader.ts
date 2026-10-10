@@ -1,10 +1,14 @@
 import type {
+  ActionType,
+  ExchangeType,
   HistoryIndexPayload,
   MarketInfo,
   MarketMetrics,
   MarketPayload,
+  MarketRegime,
   Recommendation,
   RecommendationsPayload,
+  RiskLevel,
   SummaryInfo,
   TradePlan,
 } from "@/types/recommendation";
@@ -14,72 +18,76 @@ export type LoadResult<T> =
   | { status: "NOT_FOUND" }
   | { status: "ERROR"; error: string };
 
+const VALID_MARKET_REGIMES: Set<string> = new Set<MarketRegime>([
+  "STRONG_BULL",
+  "BULL",
+  "DEFENSIVE",
+  "BEAR",
+  "PANIC",
+]);
+
+const VALID_ACTIONS: Set<string> = new Set<ActionType>(["BUY", "WATCH", "HOLD", "SELL", "AVOID"]);
+
+const VALID_EXCHANGES: Set<string> = new Set<ExchangeType>(["HOSE", "HNX", "UPCOM"]);
+
+const VALID_RISK_LEVELS: Set<string | null> = new Set<RiskLevel>(["LOW", "MEDIUM", "HIGH", null]);
+
+function isNullableNumber(val: any): boolean {
+  return val === null || val === undefined || typeof val === "number";
+}
+
+function isStringArray(arr: any): boolean {
+  return Array.isArray(arr) && arr.every((x) => typeof x === "string");
+}
+
 function isMarketMetrics(obj: any): obj is MarketMetrics {
   if (!obj || typeof obj !== "object") return false;
-  if (
-    obj.vnindex_value !== undefined &&
-    obj.vnindex_value !== null &&
-    typeof obj.vnindex_value !== "number"
-  )
-    return false;
-  if (
-    obj.vnindex_change_pct !== undefined &&
-    obj.vnindex_change_pct !== null &&
-    typeof obj.vnindex_change_pct !== "number"
-  )
-    return false;
+  if (!isNullableNumber(obj.vnindex_value)) return false;
+  if (!isNullableNumber(obj.vnindex_change_pct)) return false;
+  if (!isNullableNumber(obj.vn30_change_pct)) return false;
+  if (!isNullableNumber(obj.market_breadth_ratio)) return false;
+  if (!isNullableNumber(obj.volatility)) return false;
   if (
     obj.volume_20d_ratio !== undefined &&
     obj.volume_20d_ratio !== null &&
     typeof obj.volume_20d_ratio !== "number" &&
     typeof obj.volume_20d_ratio !== "string"
-  )
+  ) {
     return false;
+  }
   return true;
 }
 
 function isMarketInfo(obj: any): obj is MarketInfo {
   if (!obj || typeof obj !== "object") return false;
-  if (typeof obj.regime !== "string") return false;
-  if (obj.confidence !== undefined && obj.confidence !== null && typeof obj.confidence !== "number")
-    return false;
-  if (
-    obj.regime_score !== undefined &&
-    obj.regime_score !== null &&
-    typeof obj.regime_score !== "number"
-  )
-    return false;
+  if (typeof obj.regime !== "string" || !VALID_MARKET_REGIMES.has(obj.regime)) return false;
+  if (!isNullableNumber(obj.confidence)) return false;
+  if (!isNullableNumber(obj.regime_score)) return false;
   if (!isMarketMetrics(obj.metrics)) return false;
   return true;
 }
 
 function isSummaryInfo(obj: any): obj is SummaryInfo {
   if (!obj || typeof obj !== "object") return false;
-  if (obj.total_scanned !== undefined && typeof obj.total_scanned !== "number") return false;
-  if (obj.buy_count !== undefined && typeof obj.buy_count !== "number") return false;
-  if (obj.watch_count !== undefined && typeof obj.watch_count !== "number") return false;
-  if (obj.hold_count !== undefined && typeof obj.hold_count !== "number") return false;
-  if (obj.sell_count !== undefined && typeof obj.sell_count !== "number") return false;
-  if (obj.avoid_count !== undefined && typeof obj.avoid_count !== "number") return false;
+  if (typeof obj.total_scanned !== "number") return false;
+  if (typeof obj.buy_count !== "number") return false;
+  if (typeof obj.watch_count !== "number") return false;
+  if (typeof obj.hold_count !== "number") return false;
+  if (typeof obj.sell_count !== "number") return false;
+  if (typeof obj.avoid_count !== "number") return false;
   return true;
 }
 
 function isTradePlan(obj: any): obj is TradePlan {
   if (!obj || typeof obj !== "object") return false;
-  if (
-    obj.current_price !== undefined &&
-    obj.current_price !== null &&
-    typeof obj.current_price !== "number"
-  )
-    return false;
-  if (obj.entry_low !== undefined && obj.entry_low !== null && typeof obj.entry_low !== "number")
-    return false;
-  if (obj.entry_high !== undefined && obj.entry_high !== null && typeof obj.entry_high !== "number")
-    return false;
-  if (obj.stop_loss !== undefined && obj.stop_loss !== null && typeof obj.stop_loss !== "number")
-    return false;
-  if (obj.tp1 !== undefined && obj.tp1 !== null && typeof obj.tp1 !== "number") return false;
-  if (obj.tp2 !== undefined && obj.tp2 !== null && typeof obj.tp2 !== "number") return false;
+  if (!isNullableNumber(obj.current_price)) return false;
+  if (!isNullableNumber(obj.entry_low)) return false;
+  if (!isNullableNumber(obj.entry_high)) return false;
+  if (!isNullableNumber(obj.stop_loss)) return false;
+  if (!isNullableNumber(obj.tp1)) return false;
+  if (!isNullableNumber(obj.tp2)) return false;
+  if (!isNullableNumber(obj.risk_reward)) return false;
+  if (!isNullableNumber(obj.position_percent)) return false;
   return true;
 }
 
@@ -87,27 +95,17 @@ function isRecommendation(obj: any): obj is Recommendation {
   if (!obj || typeof obj !== "object") return false;
   if (typeof obj.symbol !== "string" || obj.symbol.trim().length === 0) return false;
   if (typeof obj.company_name !== "string") return false;
-  if (typeof obj.exchange !== "string") return false;
+  if (typeof obj.exchange !== "string" || !VALID_EXCHANGES.has(obj.exchange)) return false;
   if (typeof obj.sector !== "string") return false;
-  if (typeof obj.action !== "string") return false;
-  if (
-    obj.signal_score !== undefined &&
-    obj.signal_score !== null &&
-    typeof obj.signal_score !== "number"
-  )
-    return false;
-  if (
-    obj.risk_adjusted_score !== undefined &&
-    obj.risk_adjusted_score !== null &&
-    typeof obj.risk_adjusted_score !== "number"
-  )
-    return false;
-  if (obj.confidence !== undefined && obj.confidence !== null && typeof obj.confidence !== "number")
-    return false;
+  if (typeof obj.action !== "string" || !VALID_ACTIONS.has(obj.action)) return false;
+  if (!isNullableNumber(obj.signal_score)) return false;
+  if (!isNullableNumber(obj.risk_adjusted_score)) return false;
+  if (!isNullableNumber(obj.confidence)) return false;
+  if (obj.risk_level !== undefined && !VALID_RISK_LEVELS.has(obj.risk_level)) return false;
   if (obj.trade_plan !== undefined && !isTradePlan(obj.trade_plan)) return false;
-  if (obj.reasons !== undefined && !Array.isArray(obj.reasons)) return false;
-  if (obj.warnings !== undefined && !Array.isArray(obj.warnings)) return false;
-  if (obj.invalidation !== undefined && !Array.isArray(obj.invalidation)) return false;
+  if (obj.reasons !== undefined && !isStringArray(obj.reasons)) return false;
+  if (obj.warnings !== undefined && !isStringArray(obj.warnings)) return false;
+  if (obj.invalidation !== undefined && !isStringArray(obj.invalidation)) return false;
   return true;
 }
 

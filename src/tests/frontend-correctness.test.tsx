@@ -3,7 +3,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { MarketSummary } from "@/components/market-summary";
-import { loadHistoryIndexResult, loadHistoryReportResult, loadMarketResult } from "@/data/loader";
+import {
+  isRecommendationsPayload,
+  loadHistoryIndexResult,
+  loadHistoryReportResult,
+  loadMarketResult,
+  loadRecommendationsResult,
+} from "@/data/loader";
 import { formatDate } from "@/lib/format";
 import { Dashboard } from "@/pages/dashboard";
 import { History } from "@/pages/history";
@@ -295,7 +301,9 @@ describe("Frontend Data Correctness & Market Metrics", () => {
   describe("Typed Loader Schema Validation", () => {
     it("rejects malformed market payload schema with ERROR", async () => {
       vi.spyOn(window, "fetch").mockImplementation(() =>
-        Promise.resolve(new Response(JSON.stringify({ market: { regime: 123 } }), { status: 200 })),
+        Promise.resolve(
+          new Response(JSON.stringify({ market: { regime: "INVALID_REGIME" } }), { status: 200 }),
+        ),
       );
 
       const res = await loadMarketResult();
@@ -303,6 +311,94 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         status: "ERROR",
         error: "Malformed payload: invalid market schema",
       });
+    });
+
+    it("rejects malformed recommendation action enum with ERROR", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              schema_version: "2.0",
+              generated_at: "2026-10-09T16:00:00Z",
+              market: { regime: "BULL", metrics: {} },
+              summary: {
+                total_scanned: 1,
+                buy_count: 0,
+                watch_count: 0,
+                hold_count: 0,
+                sell_count: 0,
+                avoid_count: 0,
+              },
+              recommendations: [
+                {
+                  symbol: "FPT",
+                  company_name: "FPT Corp",
+                  exchange: "HOSE",
+                  sector: "Tech",
+                  action: "STRONG_BUY_INVALID",
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        ),
+      );
+
+      const res = await loadRecommendationsResult();
+      expect(res).toEqual({
+        status: "ERROR",
+        error: "Malformed payload: invalid recommendations schema",
+      });
+    });
+
+    it("accepts valid payloads containing legitimate null and optional fields", () => {
+      const validPayload = {
+        schema_version: "2.0",
+        generated_at: "2026-10-09T16:00:00Z",
+        source_date: "2026-10-09",
+        market: {
+          regime: "PANIC",
+          confidence: null,
+          regime_score: null,
+          metrics: { vnindex_value: null, vnindex_change_pct: null },
+        },
+        summary: {
+          total_scanned: 1,
+          buy_count: 0,
+          watch_count: 0,
+          hold_count: 1,
+          sell_count: 0,
+          avoid_count: 0,
+        },
+        recommendations: [
+          {
+            symbol: "AAA",
+            company_name: "An Phat",
+            exchange: "HOSE",
+            sector: "Plastics",
+            action: "HOLD",
+            signal_score: null,
+            risk_adjusted_score: null,
+            confidence: null,
+            risk_level: null,
+            trade_plan: {
+              current_price: null,
+              entry_low: null,
+              entry_high: null,
+              stop_loss: null,
+              tp1: null,
+              tp2: null,
+              risk_reward: null,
+              position_percent: null,
+            },
+            reasons: [],
+            warnings: [],
+            invalidation: [],
+          },
+        ],
+      };
+
+      expect(isRecommendationsPayload(validPayload)).toBe(true);
     });
 
     it("rejects malformed history index schema with ERROR", async () => {

@@ -9,7 +9,7 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Recommendation } from "@/types/recommendation";
 
@@ -30,13 +30,18 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const reqIdRef = useRef(0);
+
   async function fetchStock() {
+    const currentId = ++reqIdRef.current;
     setLoading(true);
     setStockStatus("IDLE");
     setErrorMessage(null);
     setStock(null);
 
     const res = await loadStockResult(activeSymbol);
+    if (reqIdRef.current !== currentId) return;
+
     if (res.status === "SUCCESS") {
       setStock(res.data);
       setStockStatus("IDLE");
@@ -54,11 +59,11 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   }
 
   useEffect(() => {
-    let isCancelled = false;
+    const currentId = ++reqIdRef.current;
 
     async function loadStockData() {
       if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
-        if (!isCancelled) {
+        if (reqIdRef.current === currentId) {
           setStock(initialStock);
           setLoading(false);
           setStockStatus("IDLE");
@@ -67,7 +72,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         return;
       }
 
-      if (!isCancelled) {
+      if (reqIdRef.current === currentId) {
         setLoading(true);
         setStockStatus("IDLE");
         setErrorMessage(null);
@@ -75,7 +80,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
       }
 
       const res = await loadStockResult(activeSymbol);
-      if (!isCancelled) {
+      if (reqIdRef.current === currentId) {
         if (res.status === "SUCCESS") {
           setStock(res.data);
           setStockStatus("IDLE");
@@ -94,10 +99,6 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     }
 
     loadStockData();
-
-    return () => {
-      isCancelled = true;
-    };
   }, [activeSymbol, initialStock]);
 
   if (loading) {

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Calendar, History as HistoryIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { HistoryIndexPayload, RecommendationsPayload } from "@/types/recommendation";
 
@@ -25,12 +25,18 @@ export function History() {
   );
   const [reportErrorMsg, setReportErrorMsg] = useState<string | null>(null);
 
+  const indexReqIdRef = useRef(0);
+  const reportReqIdRef = useRef(0);
+
   async function fetchHistoryIndex() {
+    const currentId = ++indexReqIdRef.current;
     setLoadingIndex(true);
     setIndexStatus("IDLE");
     setIndexErrorMsg(null);
 
     const res = await loadHistoryIndexResult();
+    if (indexReqIdRef.current !== currentId) return;
+
     if (res.status === "SUCCESS" && res.data.dates && res.data.dates.length > 0) {
       setIndexData(res.data);
       setSelectedDate(res.data.dates[0]);
@@ -52,7 +58,7 @@ export function History() {
   }
 
   useEffect(() => {
-    let isCancelled = false;
+    const currentId = ++indexReqIdRef.current;
 
     async function initHistoryIndex() {
       setLoadingIndex(true);
@@ -60,7 +66,7 @@ export function History() {
       setIndexErrorMsg(null);
 
       const res = await loadHistoryIndexResult();
-      if (!isCancelled) {
+      if (indexReqIdRef.current === currentId) {
         if (res.status === "SUCCESS" && res.data.dates && res.data.dates.length > 0) {
           setIndexData(res.data);
           setSelectedDate(res.data.dates[0]);
@@ -83,13 +89,10 @@ export function History() {
     }
 
     initHistoryIndex();
-
-    return () => {
-      isCancelled = true;
-    };
   }, []);
 
   async function fetchDateReport(date: string) {
+    const currentId = ++reportReqIdRef.current;
     if (!date) {
       setReportData(null);
       setLoadingReport(false);
@@ -104,6 +107,8 @@ export function History() {
     setReportData(null);
 
     const res = await loadHistoryReportResult(date);
+    if (reportReqIdRef.current !== currentId) return;
+
     if (res.status === "SUCCESS") {
       setReportData(res.data);
       setReportStatus("SUCCESS");
@@ -121,11 +126,11 @@ export function History() {
   }
 
   useEffect(() => {
-    let isCancelled = false;
+    const currentId = ++reportReqIdRef.current;
 
     async function loadDateReport() {
       if (!selectedDate) {
-        if (!isCancelled) {
+        if (reportReqIdRef.current === currentId) {
           setReportData(null);
           setLoadingReport(false);
           setReportStatus("IDLE");
@@ -134,7 +139,7 @@ export function History() {
         return;
       }
 
-      if (!isCancelled) {
+      if (reportReqIdRef.current === currentId) {
         setLoadingReport(true);
         setReportStatus("IDLE");
         setReportErrorMsg(null);
@@ -142,7 +147,7 @@ export function History() {
       }
 
       const res = await loadHistoryReportResult(selectedDate);
-      if (!isCancelled) {
+      if (reportReqIdRef.current === currentId) {
         if (res.status === "SUCCESS") {
           setReportData(res.data);
           setReportStatus("SUCCESS");
@@ -161,10 +166,6 @@ export function History() {
     }
 
     loadDateReport();
-
-    return () => {
-      isCancelled = true;
-    };
   }, [selectedDate]);
 
   if (loadingIndex) {
