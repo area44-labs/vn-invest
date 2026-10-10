@@ -1,80 +1,176 @@
-# Frontend Architecture, SSG Build & Deployment
+# Frontend Architecture, SSG Build & UI Standards
 
-This document specifies the React static site generation (SSG) frontend architecture, data consumption boundaries, build toolchain, and GitHub Pages deployment in **VN Invest** (`area44-labs/vn-invest`).
-
----
-
-## 1. Frontend Technology Stack & Toolchain
-
-- **Framework**: React 19 + TanStack Start (SSG Prerendering).
-- **Styling**: Tailwind CSS.
-- **Build & Lint Standard**: Vite+ (`vp`). All frontend commands use `vp` (`vp install`, `vp check`, `vp build`, `vp dev`).
-- **Configuration**: Merged into `vite.config.ts` and `package.json`.
+This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, build toolchain, deployment, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
-## 2. Directory Structure
+## 1. System Responsibilities & Layer Separation
 
-Frontend source code resides under `src/`.
+VN Invest strictly separates quantitative report generation (backend) from presentation and visualization (frontend).
 
 ```text
-src/
-├── components/      # React UI components (charts, tables, cards, navigation)
-├── data/            # Static JSON data loaders and adapters (loader.ts)
-├── hooks/           # Custom React hooks for state management and logic
-├── lib/             # Utility functions (utils.ts re-exporting cn)
-├── pages/           # Page-level components
-├── routes/          # TanStack Start file-based routing
-├── types/           # TypeScript interface definitions (recommendation.ts, etc.)
-└── styles/          # Global Tailwind CSS definitions
+┌─────────────────────────────────────────────────────────────┐
+│                 Python Quantitative Backend                 │
+│                         (scripts/)                          │
+│ Market Data -> Canonical Validation -> Indicators & Signals │
+│     -> T+2.5 Risk Models -> Monitoring -> Schema Check      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Schema-Validated JSON Artifacts
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Static Artifact Contract                    │
+│                        (generated/)                         │
+│ recommendations.json / market.json / history/*.json / ...   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ SSG Build (Vite+ Prerender)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      React SSG Frontend                     │
+│                           (src/)                            │
+│     TanStack Start -> Data Loaders -> Presentation UI       │
+│            -> Interactive Visualizer & Routing              │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Static Site Artifacts
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│               GitHub Pages Deployment (dist/client)         │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+### 1.1 Backend Responsibilities (`scripts/`)
+
+- **Market Data Acquisition & Validation**: Fetching OHLCV market data (`VnstockMarketProvider`), price/volume normalization, and temporal consistency checks (`data_as_of`).
+- **Quantitative Calculations**: Computing technical indicators (RSI, MACD, MA, Divergence), market regimes, signal recommendation scores, and T+2.5 VaR/ES risk plans.
+- **Monitoring & Quality Assurance**: Performing drift detection, symbol accounting, schema compliance checks against `schemas/v2/`, and publishing artifacts atomically.
+- **Artifact Generation**: Persisting static JSON payloads in `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/index.json`, `history/{YYYY-MM-DD}.json`).
+
+### 1.2 Frontend Responsibilities (`src/`)
+
+- **Static Page Prerendering**: Building static HTML pages via React 19 and TanStack Start SSG prerendering.
+- **Routing & Navigation**: Managing client and static file-based routing (`src/routes/` and `src/pages/`).
+- **Data Loading**: Reading pre-rendered JSON artifacts during SSG build or fetching them in browser runtime (`src/data/loader.ts`).
+- **Presentation & Visualization**: Rendering stock tables, metric summary cards, modal overlays, and historical report selectors using existing component primitives.
+- **User Interactions**: Handling theme switching (light/dark mode), client-side search/filtering, and interactive dialogs.
+
+### 1.3 Non-Negotiable Boundary Rules
+
+- **Zero Financial Calculations**: The frontend must never calculate technical indicators, signal confidence scores, trade plan targets (stop-loss, cut-loss, entry range), or risk metrics.
+- **Zero Data Fabrication**: The frontend must never invent missing market data, synthesize missing recommendations, or guess placeholder prices/volumes when artifacts are incomplete.
+- **Zero Status Reinterpretation**: The frontend must display backend status codes (`BULLISH`, `BEARISH`, `SIDEWAYS`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as provided by the schema-validated artifacts without changing business classification logic.
 
 ---
 
-## 3. Frontend / Backend Boundary & Data Consumption
+## 2. Integration Contract & Data Flow
 
-### 3.1 Strict Separation of Concerns
+### 2.1 Interface & Data Ownership
 
-- **Zero Financial Calculations in Frontend**: All quantitative indicators, signal scores, risk metrics, market regimes, and trade plans are pre-computed by the Python Quantitative Engine (`scripts/`) and saved as static JSON payloads in `generated/`.
-- **Pure Visualizer**: The frontend acts exclusively as a read-only visualizer displaying pre-calculated data from `generated/`.
+The `generated/` directory is the single, canonical contract interface between backend and frontend.
 
-### 3.2 Data Loading Mechanics (`src/data/loader.ts`)
+- **Data Ownership**: The backend exclusively owns data content, structure, and schema validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
+- **Schema Compatibility**: All backend JSON artifacts strictly validate against Draft 2020-12 schemas in `schemas/v2/`. TypeScript type definitions in `src/types/` mirror these JSON schemas.
 
-- The frontend loads JSON artifacts directly from `generated/` during development or static build prerendering (`dist/client/generated/` in production builds).
-- Adapter loader `loader.ts` reads `recommendations.json`, `market.json`, `monitoring.json`, and `history/index.json`.
+### 2.2 Data Loading Mechanics (`src/data/loader.ts`)
+
+Data resolution operates differently depending on the execution context:
+
+1. **SSG Prerender Mode (Node.js)**: Reads static files directly from disk (`generated/*.json`) via `node:fs/promises`.
+2. **Browser Runtime Mode**: Fetches JSON assets via HTTP `fetch` using paths resolved relative to `import.meta.env.BASE_URL` (`${baseUrl}generated/*.json`).
+
+### 2.3 SSG vs. Browser Runtime Error Handling
+
+- **SSG Prerender Build Failures**: Missing or invalid artifacts during SSG prerendering cause `src/data/loader.ts` to log a `[SSG Fatal Error]` and throw an explicit exception (`[SSG Build Error] Required static artifact ... is missing or invalid`), halting the build process immediately.
+- **Browser Runtime Fetch Behavior**: In browser runtime, if an HTTP `fetch` fails or returns a non-200 status, `src/data/loader.ts` logs an error and returns `null`.
+- **Component Data State Handling**: Page components (`Dashboard`, `History`, `StockDetail`) evaluate returned state and render explicit empty-state messages when data is missing or `null` (e.g. "Không tìm thấy dữ liệu khuyến nghị" or "Không tìm thấy báo cáo lịch sử").
+- **Warning Banners**: Freshness warnings or status flags present in valid backend payloads (such as `source_date` age checks in `Dashboard`) render inline warning banners without blocking page rendering.
 
 ---
 
-## 4. Build & Deployment Architecture
+## 3. Technology Stack & Project Configuration
 
-### 4.1 Development Server
+The project configuration and dependencies in `package.json` and `components.json` serve as the source of truth for the frontend setup.
 
-Start local Vite+ development server:
+### 3.1 Technology Stack
+
+- **Framework**: React 19 (`react`, `react-dom`) + TanStack Start (`@tanstack/react-start`, `@tanstack/react-router`).
+- **UI Components**: Primitives built using shadcn/ui standards over `@base-ui/react` and `class-variance-authority` (`cva`).
+- **Styling & CSS Engine**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`).
+- **Icons**: Lucide React (`lucide-react`).
+- **Typography**: Geist Sans and Geist Mono variable fonts (`@fontsource-variable/geist`, `@fontsource-variable/geist-mono`).
+- **Build Toolchain**: Vite+ (`vite-plus`, `vp`).
+
+### 3.2 Key Configuration Files
+
+- **`components.json`**: shadcn CLI configuration (`style: "base-nova"`, `tailwind.css: "src/styles/index.css"`, aliases for `@/components`, `@/components/ui`, `@/lib`, `@/hooks`).
+- **`package.json`**: Package dependencies and scripts (`vp dev`, `vp build`, `vp check`, `vp fmt`).
+- **`vite.config.ts`**: Merged build configuration integrating TanStack Start and `@tailwindcss/vite`.
+- **`src/styles/index.css`**: Design tokens, CSS variables, theme definitions, and `@theme inline` mappings.
+
+---
+
+## 4. UI Design Standards & Component Hierarchy
+
+### 4.1 Component Architecture
+
+To maintain consistency and avoid unnecessary complexity:
+
+1. **Primitive Components (`src/components/ui/`)**: Lightweight, reusable UI primitives (`button.tsx`, `badge.tsx`, `card.tsx`, `dialog.tsx`, `table.tsx`, `tabs.tsx`, `tooltip.tsx`, `select.tsx`, `input.tsx`, `dropdown-menu.tsx`).
+2. **Domain UI Components (`src/components/`)**: Composite financial components built from primitives (`market-summary.tsx`, `stock-table.tsx`, `recommendation-card.tsx`, `stock-detail-modal.tsx`, `header.tsx`).
+3. **Page Views (`src/pages/` & `src/routes/`)**: Top-level page composition and routing.
+
+**Guidelines**:
+
+- Reuse existing primitives in `src/components/ui/` before adding new custom UI components.
+- Keep UI components simple and avoid adding redundant dependencies or duplicate component systems.
+
+### 4.2 Styling & Tokens
+
+- **Semantic CSS Variables**: Use theme variables defined in `src/styles/index.css` (e.g., `bg-background`, `text-foreground`, `border-border`, `bg-card`, `bg-muted`).
+- **Financial Trend Tokens (OKLCH)**:
+  - Bullish / Up Trend: `bg-[var(--trend-up-bg)]`, `text-[var(--trend-up-text)]`, `border-[var(--trend-up-border)]` (or `Badge` variant `success`).
+  - Bearish / Down Trend: `bg-[var(--trend-down-bg)]`, `text-[var(--trend-down-text)]`, `border-[var(--trend-down-border)]` (or `Badge` variant `destructive`).
+  - Warning / Caution: `bg-[var(--warning-bg)]`, `text-[var(--warning-text)]`, `border-[var(--warning-border)]` (or `Badge` variant `warning`).
+- **Typography**:
+  - General text & headings: `font-sans` (Geist Variable).
+  - Tickers, prices, & financial numbers: `font-mono` (Geist Mono Variable).
+- **Class Merging**: Use `cn()` from `@/lib/utils` to merge Tailwind classes cleanly.
+
+### 4.3 Accessibility & Responsiveness
+
+- All interactive controls should remain accessible, responsive across viewports, and support dark mode contrast natively through theme variables in `src/styles/index.css`.
+
+---
+
+## 5. Development Commands & CI/CD Deployment
+
+### 5.1 Local Frontend Commands
+
+Use Vite+ (`vp`) for frontend commands:
 
 ```bash
-vp dev
-```
+# Install dependencies
+vp install
 
-### 4.2 Linting & Formatting
+# Check linter, TypeScript types, and code formatting
+vp check
 
-Check and autofix frontend code formatting and TypeScript check:
-
-```bash
+# Automatically fix linting and formatting issues
 vp check --fix
-```
 
-### 4.3 Production Static Site Generation (SSG) Build
+# Start local development server
+vp dev
 
-Build static production prerender:
-
-```bash
+# Build static production prerender (SSG)
 vp build
 ```
 
-- Outputs prerendered static HTML, JS, CSS, and copied `generated/*.json` artifacts into `dist/client/`.
+### 5.2 GitHub Pages Deployment Architecture
 
-### 4.4 Deployment to GitHub Pages
+The frontend static site is automatically built and deployed via GitHub Actions:
 
-- **GitHub Actions Workflow**: `.github/workflows/pages.yml`.
-- Runs `area44/workflows/vite-plus` to compile SSG prerender into `dist/client`.
-- Uses `actions/deploy-pages` to deploy `dist/client` to GitHub Pages.
+- **Workflow File**: `.github/workflows/pages.yml`.
+- **Triggers**: Automated build and deployment on push to `main`, pull request checks, or manual `workflow_dispatch`.
+- **Build Execution**: Uses action `area44/workflows/vite-plus` to execute `vp build`, outputting prerendered static assets and copied JSON data into `dist/client`.
+- **Deployment**: Uses `actions/deploy-pages` to publish the static contents of `dist/client` to GitHub Pages.
