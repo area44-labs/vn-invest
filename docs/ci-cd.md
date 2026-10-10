@@ -8,12 +8,12 @@ This document specifies the GitHub Actions workflows, automated scheduled pipeli
 
 The repository includes four primary GitHub Actions workflows:
 
-| Workflow File         | Trigger Events                                                                      | Primary Responsibilities                                                        |
-| :-------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| **`tests.yml`**       | `push` / `pull_request` on `main` (matching `**/*.py`, `pyproject.toml`, `uv.lock`) | Python backend test suite execution (`uv run --frozen pytest`) on Python 3.14.  |
-| **`lint-format.yml`** | `push` / `pull_request` on `main`                                                   | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check. |
-| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                           | Scheduled EOD market data update and daily report regeneration.                 |
-| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`                             | SSG prerender build via Vite+ and deployment to GitHub Pages.                   |
+| Workflow File         | Trigger Events                                            | Primary Responsibilities                                                                        |
+| :-------------------- | :-------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| **`tests.yml`**       | `push` / `pull_request` on `main`                         | Python backend test suite execution (`uv run --frozen pytest`) with conditional path detection. |
+| **`lint-format.yml`** | `push` / `pull_request` on `main`                         | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check.                 |
+| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch` | Scheduled EOD market data update and daily report regeneration.                                 |
+| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`   | SSG prerender build via Vite+ and deployment to GitHub Pages.                                   |
 
 ---
 
@@ -22,13 +22,11 @@ The repository includes four primary GitHub Actions workflows:
 ### 2.1 Python Test Suite Workflow (`tests.yml`)
 
 - **Environment**: `ubuntu-latest`, Python 3.14, managed via `astral-sh/setup-uv@v10`.
-- **Timeout**: `timeout-minutes: 10`.
-- **Steps**:
-  ```bash
-  uv sync --frozen
-  uv run --frozen pytest
-  ```
-- **Paths Filter**: Ignores frontend-only modifications (`src/**`, `public/**`, `vite.config.ts`, `package.json`, etc.) so Python tests run only when backend or workflow files change.
+- **Timeout**: `timeout-minutes: 10` for test job.
+- **Conditional Job Execution**:
+  - Uses `dorny/paths-filter@v4` in a `changes` job to inspect modified files against `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`.
+  - Executes the `test` job (`uv sync --frozen` & `uv run --frozen pytest`) conditionally when Python code, dependencies, or test configurations change.
+  - Skips the `test` job cleanly for documentation-only changes.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
 
