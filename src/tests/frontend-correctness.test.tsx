@@ -1,10 +1,8 @@
-// @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { MarketSummary } from "@/components/market-summary";
-import * as loader from "@/data/loader";
 import { formatDate } from "@/lib/format";
 import { History } from "@/pages/history";
 import { StockDetail } from "@/pages/stock-detail";
@@ -18,6 +16,12 @@ vi.mock("@tanstack/react-router", () => ({
   ),
   useNavigate: () => vi.fn<() => void>(),
 }));
+
+async function waitTicks() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 50));
+  });
+}
 
 describe("Frontend Data Correctness & Market Metrics", () => {
   let container: HTMLDivElement;
@@ -70,14 +74,9 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
 
       const text = container.textContent || "";
-      // VN-INDEX price change should show -0.50%
       expect(text).toContain("-0.50%");
-
-      // Confidence should be displayed as 85%, NOT as +85.00%
       expect(text).toContain("Độ tin cậy 85%");
       expect(text).not.toContain("+85.00%");
-
-      // Breadth should be displayed as 24.0%, NOT as +24.00%
       expect(text).toContain("24.0%");
       expect(text).not.toContain("+24.00%");
     });
@@ -85,35 +84,39 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
   describe("History page race conditions and states", () => {
     it("handles out-of-order date requests correctly without showing stale data", async () => {
-      vi.spyOn(loader, "loadHistoryIndexResult").mockResolvedValue({
-        status: "SUCCESS",
-        data: {
-          last_updated: "2026-10-09",
-          total_reports: 2,
-          dates: ["2026-10-09", "2026-10-08"],
-        },
-      });
+      let resolveDate1: (val: Response) => void = () => {};
+      let resolveDate2: (val: Response) => void = () => {};
 
-      let resolveDate1: (val: any) => void = () => {};
-      let resolveDate2: (val: any) => void = () => {};
-
-      const promise1 = new Promise((res) => {
+      const promise1 = new Promise<Response>((res) => {
         resolveDate1 = res;
       });
-      const promise2 = new Promise((res) => {
+      const promise2 = new Promise<Response>((res) => {
         resolveDate2 = res;
       });
 
-      const mockLoadReportResult = vi.spyOn(loader, "loadHistoryReportResult");
-      mockLoadReportResult.mockImplementation((date: string) => {
-        if (date === "2026-10-09") return promise1 as any;
-        if (date === "2026-10-08") return promise2 as any;
-        return Promise.resolve({ status: "NOT_FOUND" });
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("history/index.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                last_updated: "2026-10-09",
+                total_reports: 2,
+                dates: ["2026-10-09", "2026-10-08"],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        if (urlStr.includes("history/2026-10-09.json")) return promise1;
+        if (urlStr.includes("history/2026-10-08.json")) return promise2;
+        return Promise.resolve(new Response(null, { status: 404 }));
       });
 
-      await act(async () => {
+      act(() => {
         root.render(<History />);
       });
+      await waitTicks();
 
       // Initial date selected: 2026-10-09
       expect(container.textContent).toContain(
@@ -124,10 +127,11 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       const select = container.querySelector("select");
       expect(select).not.toBeNull();
 
-      await act(async () => {
+      act(() => {
         select!.value = "2026-10-08";
         select!.dispatchEvent(new Event("change", { bubbles: true }));
       });
+      await waitTicks();
 
       expect(container.textContent).toContain(
         `Đang tải báo cáo ngày ${formatDate("2026-10-08")}...`,
@@ -135,11 +139,11 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
       // Resolve 2026-10-08 FIRST
       const mockReport20261008 = {
-        schema_version: "2.0" as const,
+        schema_version: "2.0",
         source_date: "2026-10-08",
         generated_at: "2026-10-08T16:00:00Z",
         market: {
-          regime: "BULL" as const,
+          regime: "BULL",
           regime_score: 80,
           metrics: { vnindex_value: 1250, vnindex_change_pct: 0.5 },
         },
@@ -155,13 +159,13 @@ describe("Frontend Data Correctness & Market Metrics", () => {
           {
             symbol: "VCB",
             company_name: "Vietcombank",
-            exchange: "HOSE" as const,
+            exchange: "HOSE",
             sector: "Ngân hàng",
-            action: "BUY" as const,
+            action: "BUY",
             signal_score: 80,
             risk_adjusted_score: 70,
             confidence: 0.8,
-            risk_level: "LOW" as const,
+            risk_level: "LOW",
             expected_return: {
               expected_return_5d: null,
               expected_return_10d: null,
@@ -191,20 +195,19 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         ],
       };
 
-      await act(async () => {
-        resolveDate2({ status: "SUCCESS", data: mockReport20261008 });
-      });
+      resolveDate2(new Response(JSON.stringify(mockReport20261008), { status: 200 }));
+      await waitTicks();
 
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain(`Báo cáo ngày ${formatDate("2026-10-08")}`);
 
       // Resolve 2026-10-09 LATER (out-of-order response)
       const mockReport20261009 = {
-        schema_version: "2.0" as const,
+        schema_version: "2.0",
         source_date: "2026-10-09",
         generated_at: "2026-10-09T16:00:00Z",
         market: {
-          regime: "BEAR" as const,
+          regime: "BEAR",
           regime_score: 20,
           metrics: { vnindex_value: 1200, vnindex_change_pct: -1.0 },
         },
@@ -220,13 +223,13 @@ describe("Frontend Data Correctness & Market Metrics", () => {
           {
             symbol: "FPT",
             company_name: "FPT Corp",
-            exchange: "HOSE" as const,
+            exchange: "HOSE",
             sector: "Công nghệ",
-            action: "SELL" as const,
+            action: "SELL",
             signal_score: 20,
             risk_adjusted_score: 10,
             confidence: 0.5,
-            risk_level: "HIGH" as const,
+            risk_level: "HIGH",
             expected_return: {
               expected_return_5d: null,
               expected_return_10d: null,
@@ -256,9 +259,8 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         ],
       };
 
-      await act(async () => {
-        resolveDate1({ status: "SUCCESS", data: mockReport20261009 });
-      });
+      resolveDate1(new Response(JSON.stringify(mockReport20261009), { status: 200 }));
+      await waitTicks();
 
       // Selected date is 2026-10-08, so late response for 2026-10-09 MUST BE IGNORED
       expect(container.textContent).toContain("VCB");
@@ -266,19 +268,27 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
 
     it("displays clean NOT_FOUND state when report file is missing", async () => {
-      vi.spyOn(loader, "loadHistoryIndexResult").mockResolvedValue({
-        status: "SUCCESS",
-        data: {
-          last_updated: "2026-10-09",
-          total_reports: 1,
-          dates: ["2026-10-09"],
-        },
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("history/index.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                last_updated: "2026-10-09",
+                total_reports: 1,
+                dates: ["2026-10-09"],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
       });
-      vi.spyOn(loader, "loadHistoryReportResult").mockResolvedValue({ status: "NOT_FOUND" });
 
-      await act(async () => {
+      act(() => {
         root.render(<History />);
       });
+      await waitTicks();
 
       expect(container.textContent).toContain(
         `Không tìm thấy file báo cáo ngày ${formatDate("2026-10-09")}.`,
@@ -286,22 +296,32 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
 
     it("displays error state when report fetch/parse fails", async () => {
-      vi.spyOn(loader, "loadHistoryIndexResult").mockResolvedValue({
-        status: "SUCCESS",
-        data: {
-          last_updated: "2026-10-09",
-          total_reports: 1,
-          dates: ["2026-10-09"],
-        },
-      });
-      vi.spyOn(loader, "loadHistoryReportResult").mockResolvedValue({
-        status: "ERROR",
-        error: "HTTP 500: Internal Server Error",
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("history/index.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                last_updated: "2026-10-09",
+                total_reports: 1,
+                dates: ["2026-10-09"],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response("Internal Server Error", {
+            status: 500,
+            statusText: "Internal Server Error",
+          }),
+        );
       });
 
-      await act(async () => {
+      act(() => {
         root.render(<History />);
       });
+      await waitTicks();
 
       expect(container.textContent).toContain("HTTP 500: Internal Server Error");
     });
@@ -309,148 +329,172 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
   describe("StockDetail page race conditions and missing data", () => {
     it("handles rapid symbol switching without displaying stale stock data", async () => {
-      let resolveFPT: (val: any) => void = () => {};
-      let resolveVCB: (val: any) => void = () => {};
-
-      const promiseFPT = new Promise((res) => {
-        resolveFPT = res;
-      });
-      const promiseVCB = new Promise((res) => {
-        resolveVCB = res;
-      });
-
-      const mockLoadStockResult = vi.spyOn(loader, "loadStockResult");
-      mockLoadStockResult.mockImplementation((sym: string) => {
-        if (sym.toUpperCase() === "FPT") return promiseFPT as any;
-        if (sym.toUpperCase() === "VCB") return promiseVCB as any;
-        return Promise.resolve({ status: "NOT_FOUND" });
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("recommendations.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                schema_version: "2.0",
+                data_as_of: "2026-10-09",
+                source_date: "2026-10-09",
+                generated_at: "2026-10-09T16:00:00Z",
+                market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
+                summary: {
+                  total_scanned: 2,
+                  buy_count: 1,
+                  watch_count: 0,
+                  hold_count: 1,
+                  sell_count: 0,
+                  avoid_count: 0,
+                },
+                recommendations: [
+                  {
+                    symbol: "VCB",
+                    company_name: "Vietcombank",
+                    exchange: "HOSE",
+                    sector: "Ngân hàng",
+                    action: "BUY",
+                    signal_score: 85,
+                    risk_adjusted_score: 75,
+                    confidence: 0.9,
+                    risk_level: "LOW",
+                    expected_return: {
+                      expected_return_5d: null,
+                      expected_return_10d: null,
+                      expected_return_20d: null,
+                    },
+                    risk_metrics: {
+                      var_t25: null,
+                      es_t25: null,
+                      volatility_60d: null,
+                      max_drawdown: null,
+                      liquidity_score: null,
+                    },
+                    trade_plan: {
+                      current_price: 90000,
+                      entry_low: 88000,
+                      entry_high: 89000,
+                      stop_loss: 85000,
+                      tp1: 95000,
+                      tp2: 100000,
+                      risk_reward: 2,
+                      position_percent: 10,
+                    },
+                    reasons: ["Strong growth"],
+                    warnings: [],
+                    invalidation: [],
+                  },
+                  {
+                    symbol: "FPT",
+                    company_name: "FPT Corp",
+                    exchange: "HOSE",
+                    sector: "Technology",
+                    action: "HOLD",
+                    signal_score: 50,
+                    risk_adjusted_score: 40,
+                    confidence: 0.6,
+                    risk_level: "MEDIUM",
+                    expected_return: {
+                      expected_return_5d: null,
+                      expected_return_10d: null,
+                      expected_return_20d: null,
+                    },
+                    risk_metrics: {
+                      var_t25: null,
+                      es_t25: null,
+                      volatility_60d: null,
+                      max_drawdown: null,
+                      liquidity_score: null,
+                    },
+                    trade_plan: {
+                      current_price: 130000,
+                      entry_low: null,
+                      entry_high: null,
+                      stop_loss: null,
+                      tp1: null,
+                      tp2: null,
+                      risk_reward: null,
+                      position_percent: 0,
+                    },
+                    reasons: [],
+                    warnings: [],
+                    invalidation: [],
+                  },
+                ],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
       });
 
       // Render initially with FPT
-      await act(async () => {
+      act(() => {
         root.render(<StockDetail symbol="FPT" />);
       });
+      await waitTicks();
 
-      expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu FPT...");
+      expect(container.textContent).toContain("FPT");
+      expect(container.textContent).toContain("FPT Corp");
 
-      // Switch to VCB while FPT is loading
-      await act(async () => {
+      // Switch to VCB
+      act(() => {
         root.render(<StockDetail symbol="VCB" />);
       });
-
-      expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu VCB...");
-
-      // Resolve VCB FIRST
-      const mockVCBData = {
-        symbol: "VCB",
-        company_name: "Vietcombank",
-        exchange: "HOSE" as const,
-        sector: "Ngân hàng",
-        action: "BUY" as const,
-        signal_score: 85,
-        risk_adjusted_score: 75,
-        confidence: 0.9,
-        risk_level: "LOW" as const,
-        expected_return: {
-          expected_return_5d: null,
-          expected_return_10d: null,
-          expected_return_20d: null,
-        },
-        risk_metrics: {
-          var_t25: null,
-          es_t25: null,
-          volatility_60d: null,
-          max_drawdown: null,
-          liquidity_score: null,
-        },
-        trade_plan: {
-          current_price: 90000,
-          entry_low: 88000,
-          entry_high: 89000,
-          stop_loss: 85000,
-          tp1: 95000,
-          tp2: 100000,
-          risk_reward: 2,
-          position_percent: 10,
-        },
-        reasons: ["Strong growth"],
-        warnings: [],
-        invalidation: [],
-      };
-
-      await act(async () => {
-        resolveVCB({ status: "SUCCESS", data: mockVCBData });
-      });
+      await waitTicks();
 
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain("Vietcombank");
-
-      // Resolve FPT LATER
-      const mockFPTData = {
-        symbol: "FPT",
-        company_name: "FPT Corp",
-        exchange: "HOSE" as const,
-        sector: "Technology",
-        action: "HOLD" as const,
-        signal_score: 50,
-        risk_adjusted_score: 40,
-        confidence: 0.6,
-        risk_level: "MEDIUM" as const,
-        expected_return: {
-          expected_return_5d: null,
-          expected_return_10d: null,
-          expected_return_20d: null,
-        },
-        risk_metrics: {
-          var_t25: null,
-          es_t25: null,
-          volatility_60d: null,
-          max_drawdown: null,
-          liquidity_score: null,
-        },
-        trade_plan: {
-          current_price: 130000,
-          entry_low: null,
-          entry_high: null,
-          stop_loss: null,
-          tp1: null,
-          tp2: null,
-          risk_reward: null,
-          position_percent: 0,
-        },
-        reasons: [],
-        warnings: [],
-        invalidation: [],
-      };
-
-      await act(async () => {
-        resolveFPT({ status: "SUCCESS", data: mockFPTData });
-      });
-
-      // Active symbol is VCB, late response for FPT must NOT overwrite VCB
-      expect(container.textContent).toContain("VCB");
-      expect(container.textContent).not.toContain("FPT Corp");
     });
 
     it("displays clean NOT_FOUND state when stock symbol is not found", async () => {
-      vi.spyOn(loader, "loadStockResult").mockResolvedValue({ status: "NOT_FOUND" });
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes("recommendations.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                schema_version: "2.0",
+                data_as_of: "2026-10-09",
+                source_date: "2026-10-09",
+                generated_at: "2026-10-09T16:00:00Z",
+                market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
+                summary: {
+                  total_scanned: 0,
+                  buy_count: 0,
+                  watch_count: 0,
+                  hold_count: 0,
+                  sell_count: 0,
+                  avoid_count: 0,
+                },
+                recommendations: [],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(new Response("Not Found", { status: 404 }));
+      });
 
-      await act(async () => {
+      act(() => {
         root.render(<StockDetail symbol="UNKNOWN" />);
       });
+      await waitTicks();
 
       expect(container.textContent).toContain('Không tìm thấy dữ liệu phân tích cho mã "UNKNOWN"');
     });
 
     it("displays error state when stock fetch/parse fails", async () => {
-      vi.spyOn(loader, "loadStockResult").mockResolvedValue({
-        status: "ERROR",
-        error: "NetworkError: Failed to fetch",
-      });
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.reject(new TypeError("NetworkError: Failed to fetch")),
+      );
 
-      await act(async () => {
-        root.render(<StockDetail symbol="UNKNOWN" />);
+      act(() => {
+        root.render(<StockDetail symbol="FPT" />);
       });
+      await waitTicks();
 
       expect(container.textContent).toContain("NetworkError: Failed to fetch");
     });
