@@ -211,6 +211,24 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(container.textContent).toContain("FPT Corp");
     });
 
+    it("displays error state when recommendations payload is malformed schema", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ invalid_key: true }), {
+            status: 200,
+          }),
+        ),
+      );
+
+      act(() => {
+        root.render(<Dashboard />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain("Lỗi tải dữ liệu khuyến nghị");
+      expect(container.textContent).toContain("Malformed payload: invalid recommendations schema");
+    });
+
     it("displays clean NOT_FOUND state when recommendation file is 404", async () => {
       vi.spyOn(window, "fetch").mockImplementation(() =>
         Promise.resolve(new Response("Not Found", { status: 404 })),

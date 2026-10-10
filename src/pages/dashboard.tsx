@@ -61,6 +61,8 @@ export function Dashboard({
       setData(recsRes.data);
       if (mktRes.status === "SUCCESS") {
         setMarketPayload(mktRes.data);
+      } else {
+        setMarketPayload(null);
       }
       setDashboardStatus("SUCCESS");
       setErrorMessage(null);
@@ -103,6 +105,8 @@ export function Dashboard({
           setData(recsRes.data);
           if (mktRes.status === "SUCCESS") {
             setMarketPayload(mktRes.data);
+          } else {
+            setMarketPayload(null);
           }
           setDashboardStatus("SUCCESS");
           setErrorMessage(null);
@@ -186,6 +190,7 @@ export function Dashboard({
   const topBuys = sortedBuys.slice(0, 4);
   const topSells = sortedSells.slice(0, 4);
 
+  // Explicit market summary metrics resolution: prefer standalone market.json, fall back to recommendations.data.market
   const mktMetrics = marketPayload?.market?.metrics || data.market?.metrics;
   const vnVal = mktMetrics?.vnindex_value ?? null;
   const vnChgPct = mktMetrics?.vnindex_change_pct ?? null;

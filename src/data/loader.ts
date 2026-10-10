@@ -10,6 +10,36 @@ export type LoadResult<T> =
   | { status: "NOT_FOUND" }
   | { status: "ERROR"; error: string };
 
+export function isRecommendationsPayload(obj: any): obj is RecommendationsPayload {
+  if (!obj || typeof obj !== "object") return false;
+  if (!Array.isArray(obj.recommendations)) return false;
+  if (!obj.market || typeof obj.market !== "object") return false;
+  if (!obj.summary || typeof obj.summary !== "object") return false;
+  for (const rec of obj.recommendations) {
+    if (!rec || typeof rec !== "object") return false;
+    if (typeof rec.symbol !== "string") return false;
+    if (typeof rec.action !== "string") return false;
+    if (!rec.trade_plan || typeof rec.trade_plan !== "object") return false;
+  }
+  return true;
+}
+
+export function isMarketPayload(obj: any): obj is MarketPayload {
+  if (!obj || typeof obj !== "object") return false;
+  if (!obj.market || typeof obj.market !== "object") return false;
+  if (!obj.market.metrics || typeof obj.market.metrics !== "object") return false;
+  return true;
+}
+
+export function isHistoryIndexPayload(obj: any): obj is HistoryIndexPayload {
+  if (!obj || typeof obj !== "object") return false;
+  if (!Array.isArray(obj.dates)) return false;
+  for (const d of obj.dates) {
+    if (typeof d !== "string") return false;
+  }
+  return true;
+}
+
 function getBaseUrl(): string {
   const base = import.meta.env.BASE_URL || "/";
   return base.endsWith("/") ? base : `${base}/`;
@@ -84,33 +114,36 @@ async function loadArtifactResult<T>(relativePath: string): Promise<LoadResult<T
  * Fetches canonical recommendations JSON artifact as LoadResult.
  */
 export async function loadRecommendationsResult(): Promise<LoadResult<RecommendationsPayload>> {
-  const result = await loadArtifactResult<RecommendationsPayload>("generated/recommendations.json");
-  if (result.status === "SUCCESS" && (!result.data || !result.data.recommendations)) {
-    return { status: "ERROR", error: "Malformed recommendations payload" };
+  const result = await loadArtifactResult<unknown>("generated/recommendations.json");
+  if (result.status !== "SUCCESS") return result;
+  if (!isRecommendationsPayload(result.data)) {
+    return { status: "ERROR", error: "Malformed payload: invalid recommendations schema" };
   }
-  return result;
+  return { status: "SUCCESS", data: result.data };
 }
 
 /**
  * Fetches canonical market summary JSON artifact as LoadResult.
  */
 export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
-  const result = await loadArtifactResult<MarketPayload>("generated/market.json");
-  if (result.status === "SUCCESS" && (!result.data || !result.data.market)) {
-    return { status: "ERROR", error: "Malformed market payload" };
+  const result = await loadArtifactResult<unknown>("generated/market.json");
+  if (result.status !== "SUCCESS") return result;
+  if (!isMarketPayload(result.data)) {
+    return { status: "ERROR", error: "Malformed payload: invalid market schema" };
   }
-  return result;
+  return { status: "SUCCESS", data: result.data };
 }
 
 /**
  * Fetches history index JSON artifact as LoadResult.
  */
 export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexPayload>> {
-  const result = await loadArtifactResult<HistoryIndexPayload>("generated/history/index.json");
-  if (result.status === "SUCCESS" && (!result.data || !result.data.dates)) {
-    return { status: "ERROR", error: "Malformed history index payload" };
+  const result = await loadArtifactResult<unknown>("generated/history/index.json");
+  if (result.status !== "SUCCESS") return result;
+  if (!isHistoryIndexPayload(result.data)) {
+    return { status: "ERROR", error: "Malformed payload: invalid history index schema" };
   }
-  return result;
+  return { status: "SUCCESS", data: result.data };
 }
 
 /**
@@ -122,11 +155,12 @@ export async function loadHistoryReportResult(
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { status: "NOT_FOUND" };
   }
-  const result = await loadArtifactResult<RecommendationsPayload>(`generated/history/${date}.json`);
-  if (result.status === "SUCCESS" && (!result.data || !result.data.recommendations)) {
-    return { status: "ERROR", error: "Malformed history report payload" };
+  const result = await loadArtifactResult<unknown>(`generated/history/${date}.json`);
+  if (result.status !== "SUCCESS") return result;
+  if (!isRecommendationsPayload(result.data)) {
+    return { status: "ERROR", error: "Malformed payload: invalid history report schema" };
   }
-  return result;
+  return { status: "SUCCESS", data: result.data };
 }
 
 /**
