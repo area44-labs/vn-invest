@@ -41,7 +41,7 @@ This document specifies the operational guidelines, execution rules, and workflo
 8. Complete Pre-Commit Validation & Submit
 ```
 
-_Note: Do **not** execute the full test suite (`uv run --frozen pytest`) after every single file modification. Keep development iteration fast by executing targeted unit tests during code edits, and run the full test suite only after all task modifications are completed._
+_Note: Run pytest tests only when necessary (e.g. when modifying Python backend code or tests). Do **not** execute the full test suite (`uv run --frozen pytest`) after every single file modification. Keep development iteration fast by executing targeted unit tests during code edits, and run the full test suite specifically after all task modifications are completed._
 
 ---
 
