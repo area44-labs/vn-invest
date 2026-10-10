@@ -53,7 +53,7 @@ VN Invest strictly separates quantitative report generation (backend) from prese
 - **Routing & Navigation**: Managing client and static file-based routing (`src/routes/` and `src/pages/`).
 - **Data Loading**: Reading pre-rendered JSON artifacts during SSG build or fetching them in browser runtime (`src/data/loader.ts`).
 - **Presentation & Visualization**: Rendering stock tables, metric summary cards, modal overlays, and historical report selectors using existing component primitives.
-- **User Interactions**: Handling theme switching (light/dark mode), client-side search/filtering, and interactive dialogs.
+- **User Interactions**: Handling theme switching (light/dark mode), client-side search/filtering, interactive dialogs, and request retry actions.
 
 ### 1.3 Non-Negotiable Boundary Rules
 
@@ -94,14 +94,15 @@ Data resolution mechanics:
    - Non-200 HTTP status or invalid JSON: Returns `{ status: "ERROR", error: "..." }`.
    - Network failure or TypeError: Returns `{ status: "ERROR", error: "..." }`.
 
-### 2.3 Race Condition Protection & Component States
+### 2.3 Race Condition Protection, Component States & Retry Paths
 
 - **Asynchronous Race Protection**: Page components (`src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (`isCancelled` flag in `useEffect`) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
-- **State Separation**:
+- **State Disambiguation & Recovery**:
   - **Loading State**: Displayed while `LoadResult` is pending when user changes selected date or symbol. State is cleared immediately on selection change to prevent stale views.
   - **Successful Data State**: Rendered when `status === "SUCCESS"`.
-  - **Genuinely Missing Data State**: Rendered when `status === "NOT_FOUND"` (e.g., "Không tìm thấy file báo cáo ngày YYYY-MM-DD").
-  - **Request / Parsing Error State**: Rendered when `status === "ERROR"` (e.g., "Lỗi tải báo cáo: HTTP 500"). **Network or parsing errors must never be presented as "not found".**
+  - **Genuinely Missing Data State**: Rendered when `status === "NOT_FOUND"` (e.g., "Không tìm thấy file báo cáo ngày YYYY-MM-DD" or "Không tìm thấy dữ liệu phân tích cho mã 'XYZ'").
+  - **Request / Parsing Error State**: Rendered when `status === "ERROR"` (e.g., "Lỗi tải báo cáo: HTTP 500"). **Network or parsing errors must never be presented as "not found".** An interactive **"Thử lại"** button allows users to retry and recover cleanly.
+- **Dashboard Synchronization**: Dashboard re-fetches both `loadRecommendationsResult()` and `loadMarketResult()` on retry to ensure complete data recovery.
 - **Warning Banners**: Freshness warnings or status flags present in valid backend payloads (such as `source_date` age checks in `src/pages/dashboard.tsx`) render inline warning banners without blocking page rendering.
 
 ---
@@ -117,13 +118,13 @@ The project configuration and dependencies in `package.json` and `components.jso
 - **Styling & CSS Engine**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`).
 - **Icons**: Lucide React (`lucide-react`).
 - **Typography**: Geist Sans and Geist Mono variable fonts (`@fontsource-variable/geist`, `@fontsource-variable/geist-mono`).
-- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`) and built-in testing (`vite-plus/test`).
+- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright` with Playwright Chromium.
 
 ### 3.2 Key Configuration Files
 
 - **`components.json`**: shadcn CLI configuration (`style: "base-nova"`, `tailwind.css: "src/styles/index.css"`, aliases for `@/components`, `@/components/ui`, `@/lib`, `@/hooks`).
-- **`package.json`**: Package dependencies and scripts (`vp dev`, `vp build`, `vp check`, `vp fmt`).
-- **`vite.config.ts`**: Merged build configuration integrating TanStack Start, `@tailwindcss/vite`, and Vite+ plugins.
+- **`package.json`**: Package dependencies and scripts (`vp dev`, `vp build`, `vp check`, `vp fmt`, `vp test`).
+- **`vite.config.ts`**: Merged build and test configuration integrating TanStack Start, `@tailwindcss/vite`, and `@vitest/browser-playwright`.
 - **`src/styles/index.css`**: Design tokens, CSS variables, theme definitions, and `@theme inline` mappings.
 
 ---
@@ -164,13 +165,13 @@ To maintain consistency and avoid unnecessary complexity:
 
 ### 5.1 Authoritative Vite+ Commands
 
-Use Vite+ (`vp`) for all frontend operations. Test APIs are imported strictly from `vite-plus/test`:
+Use Vite+ (`vp`) for all frontend operations. Component tests run in real browser mode (Playwright Headless Chromium) via `vite-plus/test`:
 
 ```bash
-# Install dependencies
-vp install
+# Install dependencies & Playwright browser binaries
+vp install && pnpm exec playwright install chromium
 
-# Execute frontend unit and regression test suite
+# Execute frontend unit and regression test suite in real browser mode
 vp test
 
 # Check linter, TypeScript types, and code formatting

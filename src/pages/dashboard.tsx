@@ -1,53 +1,128 @@
-import { ArrowDownRight, Sparkles, AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowDownRight, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import type { LoadResult } from "@/data/loader";
 import type { MarketPayload, RecommendationsPayload } from "@/types/recommendation";
 
 import { MarketSummary } from "@/components/market-summary";
 import { RecommendationCard } from "@/components/recommendation-card";
 import { StockTable } from "@/components/stock-table";
-import { loadMarket, loadRecommendations } from "@/data/loader";
+import { loadMarketResult, loadRecommendationsResult } from "@/data/loader";
 import { formatDate } from "@/lib/format";
 
 interface DashboardProps {
-  initialData?: RecommendationsPayload | null;
-  initialMarketPayload?: MarketPayload | null;
+  initialRecsResult?: LoadResult<RecommendationsPayload> | null;
+  initialMarketResult?: LoadResult<MarketPayload> | null;
 }
 
-export function Dashboard({ initialData = null, initialMarketPayload = null }: DashboardProps) {
-  const [data, setData] = useState<RecommendationsPayload | null>(initialData);
-  const [marketPayload, setMarketPayload] = useState<MarketPayload | null>(initialMarketPayload);
+export function Dashboard({
+  initialRecsResult = null,
+  initialMarketResult = null,
+}: DashboardProps) {
+  const [data, setData] = useState<RecommendationsPayload | null>(
+    initialRecsResult?.status === "SUCCESS" ? initialRecsResult.data : null,
+  );
+  const [marketPayload, setMarketPayload] = useState<MarketPayload | null>(
+    initialMarketResult?.status === "SUCCESS" ? initialMarketResult.data : null,
+  );
   const [activeTab, setActiveTab] = useState<string>("BUY");
-  const [loading, setLoading] = useState(!initialData);
+  const [loading, setLoading] = useState(!initialRecsResult);
+  const [dashboardStatus, setDashboardStatus] = useState<
+    "IDLE" | "SUCCESS" | "NOT_FOUND" | "ERROR"
+  >(initialRecsResult ? initialRecsResult.status : "IDLE");
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    initialRecsResult?.status === "ERROR" ? initialRecsResult.error : null,
+  );
   const [isStale, setIsStale] = useState(() => {
-    if (!initialData?.source_date) return false;
-    const dataDate = new Date(initialData.source_date).getTime();
+    const srcDate =
+      initialRecsResult?.status === "SUCCESS" ? initialRecsResult.data.source_date : null;
+    if (!srcDate) return false;
+    const dataDate = new Date(srcDate).getTime();
     if (Number.isNaN(dataDate)) return false;
     return Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3;
   });
 
-  useEffect(() => {
-    if (initialData) {
-      return;
-    }
+  async function fetchDashboardData() {
+    setLoading(true);
+    setDashboardStatus("IDLE");
+    setErrorMessage(null);
 
-    async function initDashboardData() {
-      setLoading(true);
-      const [recs, mkt] = await Promise.all([loadRecommendations(), loadMarket()]);
-      if (recs) {
-        setData(recs);
-        if (recs.source_date) {
-          const dataDate = new Date(recs.source_date).getTime();
-          if (!Number.isNaN(dataDate)) {
-            setIsStale(Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3);
-          }
+    const [recsRes, mktRes] = await Promise.all([loadRecommendationsResult(), loadMarketResult()]);
+
+    if (recsRes.status === "ERROR") {
+      setDashboardStatus("ERROR");
+      setErrorMessage(recsRes.error);
+      setData(null);
+    } else if (recsRes.status === "NOT_FOUND") {
+      setDashboardStatus("NOT_FOUND");
+      setErrorMessage(null);
+      setData(null);
+    } else {
+      setData(recsRes.data);
+      if (mktRes.status === "SUCCESS") {
+        setMarketPayload(mktRes.data);
+      }
+      setDashboardStatus("SUCCESS");
+      setErrorMessage(null);
+      if (recsRes.data.source_date) {
+        const dataDate = new Date(recsRes.data.source_date).getTime();
+        if (!Number.isNaN(dataDate)) {
+          setIsStale(Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3);
         }
       }
-      if (mkt) setMarketPayload(mkt);
-      setLoading(false);
     }
-    initDashboardData();
-  }, [initialData]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (initialRecsResult) {
+      return;
+    }
+    let isCancelled = false;
+
+    async function loadData() {
+      setLoading(true);
+      setDashboardStatus("IDLE");
+      setErrorMessage(null);
+
+      const [recsRes, mktRes] = await Promise.all([
+        loadRecommendationsResult(),
+        loadMarketResult(),
+      ]);
+
+      if (!isCancelled) {
+        if (recsRes.status === "ERROR") {
+          setDashboardStatus("ERROR");
+          setErrorMessage(recsRes.error);
+          setData(null);
+        } else if (recsRes.status === "NOT_FOUND") {
+          setDashboardStatus("NOT_FOUND");
+          setErrorMessage(null);
+          setData(null);
+        } else {
+          setData(recsRes.data);
+          if (mktRes.status === "SUCCESS") {
+            setMarketPayload(mktRes.data);
+          }
+          setDashboardStatus("SUCCESS");
+          setErrorMessage(null);
+          if (recsRes.data.source_date) {
+            const dataDate = new Date(recsRes.data.source_date).getTime();
+            if (!Number.isNaN(dataDate)) {
+              setIsStale(Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3);
+            }
+          }
+        }
+        setLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [initialRecsResult]);
 
   if (loading && !data) {
     return (
@@ -57,13 +132,35 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
     );
   }
 
-  if (!data) {
+  if (dashboardStatus === "ERROR") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-2 font-mono text-xs">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
+        <p className="font-bold text-trend-down-text">
+          Lỗi tải dữ liệu khuyến nghị: {errorMessage || "Không thể kết nối máy chủ"}
+        </p>
+        <button
+          onClick={fetchDashboardData}
+          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+        >
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  if (!data || dashboardStatus === "NOT_FOUND") {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center space-y-2 text-center font-mono text-xs">
         <p className="font-bold text-foreground">Không tìm thấy dữ liệu khuyến nghị</p>
         <p className="text-muted-foreground">
           Vui lòng chạy pipeline định lượng Python để tạo dữ liệu ban đầu.
         </p>
+        <button
+          onClick={fetchDashboardData}
+          className="mt-2 cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+        >
+          Thử lại
+        </button>
       </div>
     );
   }

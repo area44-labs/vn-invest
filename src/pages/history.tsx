@@ -12,23 +12,71 @@ export function History() {
   const [indexData, setIndexData] = useState<HistoryIndexPayload | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [reportData, setReportData] = useState<RecommendationsPayload | null>(null);
+
   const [loadingIndex, setLoadingIndex] = useState(true);
+  const [indexStatus, setIndexStatus] = useState<"IDLE" | "SUCCESS" | "NOT_FOUND" | "ERROR">(
+    "IDLE",
+  );
+  const [indexErrorMsg, setIndexErrorMsg] = useState<string | null>(null);
+
   const [loadingReport, setLoadingReport] = useState(false);
-  const [reportStatus, setReportStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reportStatus, setReportStatus] = useState<"IDLE" | "SUCCESS" | "NOT_FOUND" | "ERROR">(
+    "IDLE",
+  );
+  const [reportErrorMsg, setReportErrorMsg] = useState<string | null>(null);
+
+  async function fetchHistoryIndex() {
+    setLoadingIndex(true);
+    setIndexStatus("IDLE");
+    setIndexErrorMsg(null);
+
+    const res = await loadHistoryIndexResult();
+    if (res.status === "SUCCESS" && res.data.dates && res.data.dates.length > 0) {
+      setIndexData(res.data);
+      setSelectedDate(res.data.dates[0]);
+      setIndexStatus("SUCCESS");
+      setIndexErrorMsg(null);
+    } else if (
+      res.status === "NOT_FOUND" ||
+      (res.status === "SUCCESS" && (!res.data.dates || res.data.dates.length === 0))
+    ) {
+      setIndexData(null);
+      setIndexStatus("NOT_FOUND");
+      setIndexErrorMsg(null);
+    } else {
+      setIndexData(null);
+      setIndexStatus("ERROR");
+      setIndexErrorMsg(res.status === "ERROR" ? res.error : "Không thể tải chỉ mục lịch sử.");
+    }
+    setLoadingIndex(false);
+  }
 
   useEffect(() => {
     let isCancelled = false;
 
     async function initHistoryIndex() {
       setLoadingIndex(true);
+      setIndexStatus("IDLE");
+      setIndexErrorMsg(null);
+
       const res = await loadHistoryIndexResult();
       if (!isCancelled) {
         if (res.status === "SUCCESS" && res.data.dates && res.data.dates.length > 0) {
           setIndexData(res.data);
           setSelectedDate(res.data.dates[0]);
+          setIndexStatus("SUCCESS");
+          setIndexErrorMsg(null);
+        } else if (
+          res.status === "NOT_FOUND" ||
+          (res.status === "SUCCESS" && (!res.data.dates || res.data.dates.length === 0))
+        ) {
+          setIndexData(null);
+          setIndexStatus("NOT_FOUND");
+          setIndexErrorMsg(null);
         } else {
           setIndexData(null);
+          setIndexStatus("ERROR");
+          setIndexErrorMsg(res.status === "ERROR" ? res.error : "Không thể tải chỉ mục lịch sử.");
         }
         setLoadingIndex(false);
       }
@@ -41,6 +89,37 @@ export function History() {
     };
   }, []);
 
+  async function fetchDateReport(date: string) {
+    if (!date) {
+      setReportData(null);
+      setLoadingReport(false);
+      setReportStatus("IDLE");
+      setReportErrorMsg(null);
+      return;
+    }
+
+    setLoadingReport(true);
+    setReportStatus("IDLE");
+    setReportErrorMsg(null);
+    setReportData(null);
+
+    const res = await loadHistoryReportResult(date);
+    if (res.status === "SUCCESS") {
+      setReportData(res.data);
+      setReportStatus("SUCCESS");
+      setReportErrorMsg(null);
+    } else if (res.status === "NOT_FOUND") {
+      setReportData(null);
+      setReportStatus("NOT_FOUND");
+      setReportErrorMsg(null);
+    } else {
+      setReportData(null);
+      setReportStatus("ERROR");
+      setReportErrorMsg(res.error);
+    }
+    setLoadingReport(false);
+  }
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -50,7 +129,7 @@ export function History() {
           setReportData(null);
           setLoadingReport(false);
           setReportStatus("IDLE");
-          setErrorMessage(null);
+          setReportErrorMsg(null);
         }
         return;
       }
@@ -58,7 +137,7 @@ export function History() {
       if (!isCancelled) {
         setLoadingReport(true);
         setReportStatus("IDLE");
-        setErrorMessage(null);
+        setReportErrorMsg(null);
         setReportData(null);
       }
 
@@ -66,16 +145,16 @@ export function History() {
       if (!isCancelled) {
         if (res.status === "SUCCESS") {
           setReportData(res.data);
-          setReportStatus("IDLE");
-          setErrorMessage(null);
+          setReportStatus("SUCCESS");
+          setReportErrorMsg(null);
         } else if (res.status === "NOT_FOUND") {
           setReportData(null);
           setReportStatus("NOT_FOUND");
-          setErrorMessage(null);
+          setReportErrorMsg(null);
         } else {
           setReportData(null);
           setReportStatus("ERROR");
-          setErrorMessage(res.error);
+          setReportErrorMsg(res.error);
         }
         setLoadingReport(false);
       }
@@ -96,11 +175,27 @@ export function History() {
     );
   }
 
-  if (!indexData || indexData.dates.length === 0) {
+  if (indexStatus === "ERROR") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-2 text-center font-mono">
-        <p className="text-sm font-bold text-foreground">Không tìm thấy báo cáo lịch sử</p>
-        <p className="text-xs text-muted-foreground">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
+        <p className="font-bold text-trend-down-text">
+          Lỗi tải chỉ mục lịch sử báo cáo: {indexErrorMsg || "Không thể kết nối máy chủ."}
+        </p>
+        <button
+          onClick={fetchHistoryIndex}
+          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+        >
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  if (!indexData || indexData.dates.length === 0 || indexStatus === "NOT_FOUND") {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center space-y-2 text-center font-mono text-xs">
+        <p className="font-bold text-foreground">Không tìm thấy báo cáo lịch sử</p>
+        <p className="text-muted-foreground">
           Vui lòng tạo báo cáo đầu tiên bằng command pipeline Python.
         </p>
       </div>
@@ -142,9 +237,17 @@ export function History() {
           Đang tải báo cáo ngày {formatDate(selectedDate)}...
         </div>
       ) : reportStatus === "ERROR" ? (
-        <div className="p-8 text-center font-mono text-xs text-trend-down-text">
-          Lỗi tải báo cáo ngày {formatDate(selectedDate)}:{" "}
-          {errorMessage || "Không thể kết nối máy chủ."}
+        <div className="flex flex-col items-center justify-center space-y-3 p-8 text-center font-mono text-xs">
+          <p className="font-bold text-trend-down-text">
+            Lỗi tải báo cáo ngày {formatDate(selectedDate)}:{" "}
+            {reportErrorMsg || "Không thể kết nối máy chủ."}
+          </p>
+          <button
+            onClick={() => fetchDateReport(selectedDate)}
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          >
+            Thử lại
+          </button>
         </div>
       ) : reportStatus === "NOT_FOUND" || !reportData ? (
         <div className="p-8 text-center font-mono text-xs text-muted-foreground">

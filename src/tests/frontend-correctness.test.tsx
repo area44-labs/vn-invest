@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { MarketSummary } from "@/components/market-summary";
 import { formatDate } from "@/lib/format";
+import { Dashboard } from "@/pages/dashboard";
 import { History } from "@/pages/history";
 import { StockDetail } from "@/pages/stock-detail";
 
@@ -82,7 +83,149 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("History page race conditions and states", () => {
+  describe("Dashboard error, missing data, and retry behavior", () => {
+    it("displays distinct NOT_FOUND vs ERROR states and recovers on retry", async () => {
+      let callCount = 0;
+      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        callCount++;
+        const urlStr = String(url);
+        if (callCount === 1) {
+          // First attempt: return 500 error for recommendations
+          return Promise.resolve(
+            new Response("Internal Error", { status: 500, statusText: "Internal Error" }),
+          );
+        }
+        // Second attempt (retry): return valid recommendations and market payloads
+        if (urlStr.includes("recommendations.json")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                schema_version: "2.0",
+                data_as_of: "2026-10-09",
+                source_date: "2026-10-09",
+                generated_at: "2026-10-09T16:00:00Z",
+                market: {
+                  regime: "PANIC",
+                  regime_score: 7,
+                  confidence: 0.85,
+                  metrics: { vnindex_value: 1250, vnindex_change_pct: -0.5 },
+                },
+                summary: {
+                  total_scanned: 1,
+                  buy_count: 1,
+                  watch_count: 0,
+                  hold_count: 0,
+                  sell_count: 0,
+                  avoid_count: 0,
+                },
+                recommendations: [
+                  {
+                    symbol: "FPT",
+                    company_name: "FPT Corp",
+                    exchange: "HOSE",
+                    sector: "Technology",
+                    action: "BUY",
+                    signal_score: 90,
+                    risk_adjusted_score: 80,
+                    confidence: 0.9,
+                    risk_level: "LOW",
+                    expected_return: {
+                      expected_return_5d: null,
+                      expected_return_10d: null,
+                      expected_return_20d: null,
+                    },
+                    risk_metrics: {
+                      var_t25: null,
+                      es_t25: null,
+                      volatility_60d: null,
+                      max_drawdown: null,
+                      liquidity_score: null,
+                    },
+                    trade_plan: {
+                      current_price: 130000,
+                      entry_low: 125000,
+                      entry_high: 128000,
+                      stop_loss: 120000,
+                      tp1: 140000,
+                      tp2: 150000,
+                      risk_reward: 2,
+                      position_percent: 10,
+                    },
+                    reasons: ["Strong growth"],
+                    warnings: [],
+                    invalidation: [],
+                  },
+                ],
+              }),
+              { status: 200 },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              schema_version: "2.0",
+              data_as_of: "2026-10-09",
+              source_date: "2026-10-09",
+              generated_at: "2026-10-09T16:00:00Z",
+              market: {
+                regime: "PANIC",
+                regime_score: 7,
+                confidence: 0.85,
+                metrics: { vnindex_value: 1250, vnindex_change_pct: -0.5 },
+              },
+              summary: {
+                total_scanned: 1,
+                buy_count: 1,
+                watch_count: 0,
+                hold_count: 0,
+                sell_count: 0,
+                avoid_count: 0,
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      });
+
+      // Render initially without initialRecsResult to trigger fetch
+      act(() => {
+        root.render(<Dashboard />);
+      });
+      await waitTicks();
+
+      // Should display ERROR state with retry button
+      expect(container.textContent).toContain("Lỗi tải dữ liệu khuyến nghị");
+      const retryBtn = container.querySelector("button");
+      expect(retryBtn).not.toBeNull();
+      expect(retryBtn!.textContent).toContain("Thử lại");
+
+      // Click retry
+      act(() => {
+        retryBtn!.click();
+      });
+      await waitTicks();
+
+      // Should recover and display FPT recommendation
+      expect(container.textContent).toContain("FPT");
+      expect(container.textContent).toContain("FPT Corp");
+    });
+
+    it("displays clean NOT_FOUND state when recommendation file is 404", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response("Not Found", { status: 404 })),
+      );
+
+      act(() => {
+        root.render(<Dashboard />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain("Không tìm thấy dữ liệu khuyến nghị");
+    });
+  });
+
+  describe("History page race conditions, missing index vs error, and retry behavior", () => {
     it("handles out-of-order date requests correctly without showing stale data", async () => {
       let resolveDate1: (val: Response) => void = () => {};
       let resolveDate2: (val: Response) => void = () => {};
@@ -118,12 +261,10 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
       await waitTicks();
 
-      // Initial date selected: 2026-10-09
       expect(container.textContent).toContain(
         `Đang tải báo cáo ngày ${formatDate("2026-10-09")}...`,
       );
 
-      // Simulate date selector change to 2026-10-08 while 2026-10-09 is still pending
       const select = container.querySelector("select");
       expect(select).not.toBeNull();
 
@@ -137,7 +278,6 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         `Đang tải báo cáo ngày ${formatDate("2026-10-08")}...`,
       );
 
-      // Resolve 2026-10-08 FIRST
       const mockReport20261008 = {
         schema_version: "2.0",
         source_date: "2026-10-08",
@@ -201,7 +341,6 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain(`Báo cáo ngày ${formatDate("2026-10-08")}`);
 
-      // Resolve 2026-10-09 LATER (out-of-order response)
       const mockReport20261009 = {
         schema_version: "2.0",
         source_date: "2026-10-09",
@@ -262,14 +401,20 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       resolveDate1(new Response(JSON.stringify(mockReport20261009), { status: 200 }));
       await waitTicks();
 
-      // Selected date is 2026-10-08, so late response for 2026-10-09 MUST BE IGNORED
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).not.toContain("FPT");
     });
 
-    it("displays clean NOT_FOUND state when report file is missing", async () => {
+    it("displays distinct history index NOT_FOUND vs ERROR and recovers on retry", async () => {
+      let callCount = 0;
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        callCount++;
         const urlStr = String(url);
+        if (callCount === 1) {
+          return Promise.resolve(
+            new Response("500 Internal Error", { status: 500, statusText: "Internal Error" }),
+          );
+        }
         if (urlStr.includes("history/index.json")) {
           return Promise.resolve(
             new Response(
@@ -290,206 +435,253 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
       await waitTicks();
 
-      expect(container.textContent).toContain(
-        `Không tìm thấy file báo cáo ngày ${formatDate("2026-10-09")}.`,
-      );
-    });
-
-    it("displays error state when report fetch/parse fails", async () => {
-      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
-        const urlStr = String(url);
-        if (urlStr.includes("history/index.json")) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                last_updated: "2026-10-09",
-                total_reports: 1,
-                dates: ["2026-10-09"],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(
-          new Response("Internal Server Error", {
-            status: 500,
-            statusText: "Internal Server Error",
-          }),
-        );
-      });
+      expect(container.textContent).toContain("Lỗi tải chỉ mục lịch sử báo cáo");
+      const retryBtn = container.querySelector("button");
+      expect(retryBtn).not.toBeNull();
 
       act(() => {
-        root.render(<History />);
+        retryBtn!.click();
       });
       await waitTicks();
 
-      expect(container.textContent).toContain("HTTP 500: Internal Server Error");
+      expect(container.textContent).toContain("Lịch Sử Khuyến Nghị VN Invest");
+      expect(container.textContent).toContain("Phiên ngày 2026-10-09");
     });
   });
 
-  describe("StockDetail page race conditions and missing data", () => {
-    it("handles rapid symbol switching without displaying stale stock data", async () => {
+  describe("StockDetail page race conditions, error states, and retry behavior", () => {
+    it("handles controlled out-of-order symbol requests correctly without showing stale stock data", async () => {
+      let resolveFPT: (val: Response) => void = () => {};
+      let resolveVCB: (val: Response) => void = () => {};
+
+      const promiseFPT = new Promise<Response>((res) => {
+        resolveFPT = res;
+      });
+      const promiseVCB = new Promise<Response>((res) => {
+        resolveVCB = res;
+      });
+
+      let fptFetchCount = 0;
+      let vcbFetchCount = 0;
+
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
         const urlStr = String(url);
         if (urlStr.includes("recommendations.json")) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                schema_version: "2.0",
-                data_as_of: "2026-10-09",
-                source_date: "2026-10-09",
-                generated_at: "2026-10-09T16:00:00Z",
-                market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
-                summary: {
-                  total_scanned: 2,
-                  buy_count: 1,
-                  watch_count: 0,
-                  hold_count: 1,
-                  sell_count: 0,
-                  avoid_count: 0,
-                },
-                recommendations: [
-                  {
-                    symbol: "VCB",
-                    company_name: "Vietcombank",
-                    exchange: "HOSE",
-                    sector: "Ngân hàng",
-                    action: "BUY",
-                    signal_score: 85,
-                    risk_adjusted_score: 75,
-                    confidence: 0.9,
-                    risk_level: "LOW",
-                    expected_return: {
-                      expected_return_5d: null,
-                      expected_return_10d: null,
-                      expected_return_20d: null,
-                    },
-                    risk_metrics: {
-                      var_t25: null,
-                      es_t25: null,
-                      volatility_60d: null,
-                      max_drawdown: null,
-                      liquidity_score: null,
-                    },
-                    trade_plan: {
-                      current_price: 90000,
-                      entry_low: 88000,
-                      entry_high: 89000,
-                      stop_loss: 85000,
-                      tp1: 95000,
-                      tp2: 100000,
-                      risk_reward: 2,
-                      position_percent: 10,
-                    },
-                    reasons: ["Strong growth"],
-                    warnings: [],
-                    invalidation: [],
-                  },
-                  {
-                    symbol: "FPT",
-                    company_name: "FPT Corp",
-                    exchange: "HOSE",
-                    sector: "Technology",
-                    action: "HOLD",
-                    signal_score: 50,
-                    risk_adjusted_score: 40,
-                    confidence: 0.6,
-                    risk_level: "MEDIUM",
-                    expected_return: {
-                      expected_return_5d: null,
-                      expected_return_10d: null,
-                      expected_return_20d: null,
-                    },
-                    risk_metrics: {
-                      var_t25: null,
-                      es_t25: null,
-                      volatility_60d: null,
-                      max_drawdown: null,
-                      liquidity_score: null,
-                    },
-                    trade_plan: {
-                      current_price: 130000,
-                      entry_low: null,
-                      entry_high: null,
-                      stop_loss: null,
-                      tp1: null,
-                      tp2: null,
-                      risk_reward: null,
-                      position_percent: 0,
-                    },
-                    reasons: [],
-                    warnings: [],
-                    invalidation: [],
-                  },
-                ],
-              }),
-              { status: 200 },
-            ),
-          );
+          if (fptFetchCount > 0 && vcbFetchCount === 0) {
+            return promiseFPT;
+          }
+          return promiseVCB;
         }
         return Promise.resolve(new Response("Not Found", { status: 404 }));
       });
 
-      // Render initially with FPT
+      // Render FPT
+      fptFetchCount++;
       act(() => {
         root.render(<StockDetail symbol="FPT" />);
       });
       await waitTicks();
 
-      expect(container.textContent).toContain("FPT");
-      expect(container.textContent).toContain("FPT Corp");
+      expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu FPT...");
 
-      // Switch to VCB
+      // Render VCB before FPT finishes
+      vcbFetchCount++;
       act(() => {
         root.render(<StockDetail symbol="VCB" />);
       });
       await waitTicks();
 
-      expect(container.textContent).toContain("VCB");
-      expect(container.textContent).toContain("Vietcombank");
-    });
+      expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu VCB...");
 
-    it("displays clean NOT_FOUND state when stock symbol is not found", async () => {
-      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
-        const urlStr = String(url);
-        if (urlStr.includes("recommendations.json")) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                schema_version: "2.0",
-                data_as_of: "2026-10-09",
-                source_date: "2026-10-09",
-                generated_at: "2026-10-09T16:00:00Z",
-                market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
-                summary: {
-                  total_scanned: 0,
-                  buy_count: 0,
-                  watch_count: 0,
-                  hold_count: 0,
-                  sell_count: 0,
-                  avoid_count: 0,
-                },
-                recommendations: [],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(new Response("Not Found", { status: 404 }));
-      });
+      // Resolve VCB FIRST
+      const mockVCBData = {
+        schema_version: "2.0",
+        data_as_of: "2026-10-09",
+        source_date: "2026-10-09",
+        generated_at: "2026-10-09T16:00:00Z",
+        market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
+        summary: {
+          total_scanned: 1,
+          buy_count: 1,
+          watch_count: 0,
+          hold_count: 0,
+          sell_count: 0,
+          avoid_count: 0,
+        },
+        recommendations: [
+          {
+            symbol: "VCB",
+            company_name: "Vietcombank",
+            exchange: "HOSE",
+            sector: "Ngân hàng",
+            action: "BUY",
+            signal_score: 85,
+            risk_adjusted_score: 75,
+            confidence: 0.9,
+            risk_level: "LOW",
+            expected_return: {
+              expected_return_5d: null,
+              expected_return_10d: null,
+              expected_return_20d: null,
+            },
+            risk_metrics: {
+              var_t25: null,
+              es_t25: null,
+              volatility_60d: null,
+              max_drawdown: null,
+              liquidity_score: null,
+            },
+            trade_plan: {
+              current_price: 90000,
+              entry_low: 88000,
+              entry_high: 89000,
+              stop_loss: 85000,
+              tp1: 95000,
+              tp2: 100000,
+              risk_reward: 2,
+              position_percent: 10,
+            },
+            reasons: ["Strong growth"],
+            warnings: [],
+            invalidation: [],
+          },
+        ],
+      };
 
-      act(() => {
-        root.render(<StockDetail symbol="UNKNOWN" />);
-      });
+      resolveVCB(new Response(JSON.stringify(mockVCBData), { status: 200 }));
       await waitTicks();
 
-      expect(container.textContent).toContain('Không tìm thấy dữ liệu phân tích cho mã "UNKNOWN"');
+      expect(container.textContent).toContain("VCB");
+      expect(container.textContent).toContain("Vietcombank");
+
+      // Resolve FPT LATER (out-of-order)
+      const mockFPTData = {
+        schema_version: "2.0",
+        data_as_of: "2026-10-09",
+        source_date: "2026-10-09",
+        generated_at: "2026-10-09T16:00:00Z",
+        market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
+        summary: {
+          total_scanned: 1,
+          buy_count: 0,
+          watch_count: 0,
+          hold_count: 1,
+          sell_count: 0,
+          avoid_count: 0,
+        },
+        recommendations: [
+          {
+            symbol: "FPT",
+            company_name: "FPT Corp",
+            exchange: "HOSE",
+            sector: "Technology",
+            action: "HOLD",
+            signal_score: 50,
+            risk_adjusted_score: 40,
+            confidence: 0.6,
+            risk_level: "MEDIUM",
+            expected_return: {
+              expected_return_5d: null,
+              expected_return_10d: null,
+              expected_return_20d: null,
+            },
+            risk_metrics: {
+              var_t25: null,
+              es_t25: null,
+              volatility_60d: null,
+              max_drawdown: null,
+              liquidity_score: null,
+            },
+            trade_plan: {
+              current_price: 130000,
+              entry_low: null,
+              entry_high: null,
+              stop_loss: null,
+              tp1: null,
+              tp2: null,
+              risk_reward: null,
+              position_percent: 0,
+            },
+            reasons: [],
+            warnings: [],
+            invalidation: [],
+          },
+        ],
+      };
+
+      resolveFPT(new Response(JSON.stringify(mockFPTData), { status: 200 }));
+      await waitTicks();
+
+      expect(container.textContent).toContain("VCB");
+      expect(container.textContent).not.toContain("FPT Corp");
     });
 
-    it("displays error state when stock fetch/parse fails", async () => {
-      vi.spyOn(window, "fetch").mockImplementation(() =>
-        Promise.reject(new TypeError("NetworkError: Failed to fetch")),
-      );
+    it("displays error state when fetch fails and recovers on retry", async () => {
+      let callCount = 0;
+      vi.spyOn(window, "fetch").mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.reject(new TypeError("NetworkError: Failed to fetch"));
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              schema_version: "2.0",
+              data_as_of: "2026-10-09",
+              source_date: "2026-10-09",
+              generated_at: "2026-10-09T16:00:00Z",
+              market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
+              summary: {
+                total_scanned: 1,
+                buy_count: 1,
+                watch_count: 0,
+                hold_count: 0,
+                sell_count: 0,
+                avoid_count: 0,
+              },
+              recommendations: [
+                {
+                  symbol: "FPT",
+                  company_name: "FPT Corp",
+                  exchange: "HOSE",
+                  sector: "Technology",
+                  action: "BUY",
+                  signal_score: 90,
+                  risk_adjusted_score: 80,
+                  confidence: 0.9,
+                  risk_level: "LOW",
+                  expected_return: {
+                    expected_return_5d: null,
+                    expected_return_10d: null,
+                    expected_return_20d: null,
+                  },
+                  risk_metrics: {
+                    var_t25: null,
+                    es_t25: null,
+                    volatility_60d: null,
+                    max_drawdown: null,
+                    liquidity_score: null,
+                  },
+                  trade_plan: {
+                    current_price: 130000,
+                    entry_low: 125000,
+                    entry_high: 128000,
+                    stop_loss: 120000,
+                    tp1: 140000,
+                    tp2: 150000,
+                    risk_reward: 2,
+                    position_percent: 10,
+                  },
+                  reasons: [],
+                  warnings: [],
+                  invalidation: [],
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+        );
+      });
 
       act(() => {
         root.render(<StockDetail symbol="FPT" />);
@@ -497,6 +689,16 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       await waitTicks();
 
       expect(container.textContent).toContain("NetworkError: Failed to fetch");
+      const retryBtn = container.querySelector("button");
+      expect(retryBtn).not.toBeNull();
+
+      act(() => {
+        retryBtn!.click();
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain("FPT");
+      expect(container.textContent).toContain("FPT Corp");
     });
   });
 });

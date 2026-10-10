@@ -30,10 +30,33 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  async function fetchStock() {
+    setLoading(true);
+    setStockStatus("IDLE");
+    setErrorMessage(null);
+    setStock(null);
+
+    const res = await loadStockResult(activeSymbol);
+    if (res.status === "SUCCESS") {
+      setStock(res.data);
+      setStockStatus("IDLE");
+      setErrorMessage(null);
+    } else if (res.status === "NOT_FOUND") {
+      setStock(null);
+      setStockStatus("NOT_FOUND");
+      setErrorMessage(null);
+    } else {
+      setStock(null);
+      setStockStatus("ERROR");
+      setErrorMessage(res.error);
+    }
+    setLoading(false);
+  }
+
   useEffect(() => {
     let isCancelled = false;
 
-    async function fetchStock() {
+    async function loadStockData() {
       if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
         if (!isCancelled) {
           setStock(initialStock);
@@ -70,7 +93,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
       }
     }
 
-    fetchStock();
+    loadStockData();
 
     return () => {
       isCancelled = true;
@@ -87,24 +110,32 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
 
   if (stockStatus === "ERROR") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
         <p className="text-sm font-bold text-trend-down-text">
           Lỗi tải phân tích định lượng cho mã "{activeSymbol}":{" "}
           {errorMessage || "Không thể kết nối máy chủ"}
         </p>
-        <Link
-          to="/"
-          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
-        </Link>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={fetchStock}
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          >
+            Thử lại
+          </button>
+          <Link
+            to="/"
+            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (!stock || stockStatus === "NOT_FOUND") {
     return (
-      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono">
+      <div className="flex h-64 flex-col items-center justify-center space-y-3 text-center font-mono text-xs">
         <p className="text-sm font-bold text-foreground">
           Không tìm thấy dữ liệu phân tích cho mã "{activeSymbol}"
         </p>
