@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "vn-invest"
 version = "0.1.0"
 description = "VN Invest - Quantitative Stock Recommendation System"
-requires-python = ">=3.14.0"
+requires-python = ">=3.14.8"
 dependencies = [
   "vnstock>=4.0.8",
   "requests>=2.34.2",
@@ -14,7 +14,7 @@ dependencies = [
   "numpy>=2.5.3",
   "openpyxl>=3.1.5",
   "jsonschema>=4.26.0",
-  "pytest>=9.0.0",
+  "pytest>=9.1.1",
 ]
 
 [tool.uv]
