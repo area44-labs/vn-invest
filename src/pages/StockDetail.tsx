@@ -29,19 +29,43 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
   const [loading, setLoading] = useState(!initialStock);
 
   useEffect(() => {
-    if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
-      return;
-    }
+    let isCancelled = false;
 
     async function fetchStock() {
-      setLoading(true);
-      const rec = await loadStock(activeSymbol);
-      if (rec) {
-        setStock(rec);
+      if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
+        if (!isCancelled) {
+          setStock(initialStock);
+          setLoading(false);
+        }
+        return;
       }
-      setLoading(false);
+
+      if (!isCancelled) {
+        setLoading(true);
+        setStock(null);
+      }
+
+      try {
+        const rec = await loadStock(activeSymbol);
+        if (!isCancelled) {
+          setStock(rec);
+        }
+      } catch {
+        if (!isCancelled) {
+          setStock(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+
     fetchStock();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [activeSymbol, initialStock]);
 
   if (loading) {

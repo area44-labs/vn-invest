@@ -19,6 +19,12 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
   const [marketPayload, setMarketPayload] = useState<MarketPayload | null>(initialMarketPayload);
   const [activeTab, setActiveTab] = useState<string>("BUY");
   const [loading, setLoading] = useState(!initialData);
+  const [isStale, setIsStale] = useState(() => {
+    if (!initialData?.source_date) return false;
+    const dataDate = new Date(initialData.source_date).getTime();
+    if (Number.isNaN(dataDate)) return false;
+    return Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3;
+  });
 
   useEffect(() => {
     if (initialData) {
@@ -28,7 +34,15 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
     async function initDashboardData() {
       setLoading(true);
       const [recs, mkt] = await Promise.all([loadRecommendations(), loadMarket()]);
-      if (recs) setData(recs);
+      if (recs) {
+        setData(recs);
+        if (recs.source_date) {
+          const dataDate = new Date(recs.source_date).getTime();
+          if (!Number.isNaN(dataDate)) {
+            setIsStale(Math.floor((Date.now() - dataDate) / (1000 * 3600 * 24)) > 3);
+          }
+        }
+      }
       if (mkt) setMarketPayload(mkt);
       setLoading(false);
     }
@@ -78,46 +92,30 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
   const mktMetrics = marketPayload?.market?.metrics || data.market?.metrics;
   const vnVal = mktMetrics?.vnindex_value ?? null;
   const vnChgPct = mktMetrics?.vnindex_change_pct ?? null;
-  const vnChgAbs = vnVal != null && vnChgPct != null ? (vnVal * vnChgPct) / 100 : null;
-
-  const isStale = () => {
-    if (!data.source_date) return false;
-    const dataDate = new Date(data.source_date);
-    const today = new Date();
-    const diffDays = Math.floor((today.getTime() - dataDate.getTime()) / (1000 * 3600 * 24));
-    return diffDays > 3;
-  };
 
   const marketSummaryData = {
     vnIndex: {
       name: "VN-INDEX",
       value: vnVal,
-      change: vnChgAbs,
       changePercent: vnChgPct,
-      volume: mktMetrics?.volume_20d_ratio != null ? `${mktMetrics.volume_20d_ratio}x MA20` : "N/A",
+      volumeRatio:
+        mktMetrics?.volume_20d_ratio != null ? `${mktMetrics.volume_20d_ratio}x MA20` : "N/A",
     },
     regimeStatus: {
       name: "TRẠNG THÁI THỊ TRƯỜNG",
-      value: data.market?.regime_score ?? null,
-      change: null,
-      changePercent: data.market?.confidence != null ? data.market.confidence * 100 : null,
-      volume: data.market?.regime ?? "N/A",
+      regime: data.market?.regime ?? "N/A",
+      regimeScore: data.market?.regime_score ?? null,
+      confidence: data.market?.confidence ?? null,
     },
     breadth: {
       name: "BREADTH (>MA20)",
-      value:
-        mktMetrics?.market_breadth_ratio != null ? mktMetrics.market_breadth_ratio * 100 : null,
-      change: null,
-      changePercent:
-        mktMetrics?.market_breadth_ratio != null ? mktMetrics.market_breadth_ratio * 100 : null,
-      volume: "Tỉ lệ mã CP > MA20",
+      breadthRatio: mktMetrics?.market_breadth_ratio ?? null,
+      description: "Tỉ lệ mã CP > MA20",
     },
     totalStocks: {
       name: "TỔNG SỐ MÃ SCANNED",
-      value: data.summary?.total_scanned ?? recommendations.length,
-      change: null,
-      changePercent: null,
-      volume: `${data.summary?.buy_count ?? buyList.length} MUA / ${data.summary?.sell_count ?? sellList.length} BÁN`,
+      totalScanned: data.summary?.total_scanned ?? recommendations.length,
+      summaryText: `${data.summary?.buy_count ?? buyList.length} MUA / ${data.summary?.sell_count ?? sellList.length} BÁN`,
     },
   };
 
@@ -130,7 +128,7 @@ export function Dashboard({ initialData = null, initialMarketPayload = null }: D
           <span className="text-muted-foreground">{formatDate(data.source_date)}</span>
           <span className="text-subtle-foreground">({data.generated_at})</span>
         </div>
-        {isStale() && (
+        {isStale && (
           <div className="flex items-center space-x-1 font-bold text-trend-down-text">
             <AlertCircle className="h-4 w-4" />
             <span>⚠ Dữ liệu có thể đã cũ (batch generated)</span>

@@ -14,34 +14,88 @@ export function History() {
   const [reportData, setReportData] = useState<RecommendationsPayload | null>(null);
   const [loadingIndex, setLoadingIndex] = useState(true);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [reportError, setReportError] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+
     async function initHistoryIndex() {
       setLoadingIndex(true);
-      const data = await loadHistoryIndex();
-      if (data && data.dates && data.dates.length > 0) {
-        setIndexData(data);
-        setSelectedDate(data.dates[0]);
+      try {
+        const data = await loadHistoryIndex();
+        if (!isCancelled) {
+          if (data && data.dates && data.dates.length > 0) {
+            setIndexData(data);
+            setSelectedDate(data.dates[0]);
+          } else {
+            setIndexData(null);
+          }
+        }
+      } catch {
+        if (!isCancelled) {
+          setIndexData(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingIndex(false);
+        }
       }
-      setLoadingIndex(false);
     }
 
     initHistoryIndex();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!selectedDate) return;
+    let isCancelled = false;
 
     async function loadDateReport() {
-      setLoadingReport(true);
-      const report = await loadHistoryReport(selectedDate);
-      if (report) {
-        setReportData(report);
+      if (!selectedDate) {
+        if (!isCancelled) {
+          setReportData(null);
+          setLoadingReport(false);
+          setReportError(false);
+        }
+        return;
       }
-      setLoadingReport(false);
+
+      if (!isCancelled) {
+        setLoadingReport(true);
+        setReportError(false);
+        setReportData(null);
+      }
+
+      try {
+        const report = await loadHistoryReport(selectedDate);
+        if (!isCancelled) {
+          if (report) {
+            setReportData(report);
+            setReportError(false);
+          } else {
+            setReportData(null);
+            setReportError(true);
+          }
+        }
+      } catch {
+        if (!isCancelled) {
+          setReportData(null);
+          setReportError(true);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingReport(false);
+        }
+      }
     }
 
     loadDateReport();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [selectedDate]);
 
   if (loadingIndex) {
@@ -97,7 +151,7 @@ export function History() {
         <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">
           Đang tải báo cáo ngày {formatDate(selectedDate)}...
         </div>
-      ) : !reportData ? (
+      ) : reportError || !reportData ? (
         <div className="p-8 text-center font-mono text-xs text-muted-foreground">
           Không tìm thấy file báo cáo ngày {formatDate(selectedDate)}.
         </div>
