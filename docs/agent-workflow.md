@@ -20,7 +20,7 @@ This document specifies the operational guidelines, execution rules, and workflo
 1. Inspect Scope & Relevant Docs (docs/*)
                │
                ▼
-2. Locate Affected Canonical Package & Tests (scripts/tests/)
+2. Locate Affected Canonical Package & Tests (scripts/)
                │
                ▼
 3. Make Minimal, Focused Edits & Update Documentation (docs/*)
