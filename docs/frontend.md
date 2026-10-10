@@ -1,6 +1,6 @@
 # Frontend Architecture, SSG Build & UI Standards
 
-This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, build toolchain, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, build toolchain, deployment, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
@@ -31,6 +31,12 @@ VN Invest strictly separates quantitative report generation (backend) from prese
 │                           (src/)                            │
 │     TanStack Start -> Data Loaders -> Presentation UI       │
 │            -> Interactive Visualizer & Routing              │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Static Site Artifacts
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│               GitHub Pages Deployment (dist/client)         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -68,17 +74,17 @@ The `generated/` directory is the single, canonical contract interface between b
 
 ### 2.2 Data Loading Mechanics (`src/data/loader.ts`)
 
-Data is loaded using dual-mode resolution:
+Data resolution operates differently depending on the execution context:
 
-1. **SSG Prerender Mode (Node.js)**: Uses `node:fs/promises` to directly read static files from disk (`generated/*.json`). If a required artifact is missing or invalid during build, the SSG build fails fast with an explicit error.
-2. **Browser Runtime Mode**: Uses HTTP `fetch` to load relative JSON assets relative to `import.meta.env.BASE_URL` (`dist/client/generated/*.json`).
+1. **SSG Prerender Mode (Node.js)**: Reads static files directly from disk (`generated/*.json`) via `node:fs/promises`.
+2. **Browser Runtime Mode**: Fetches JSON assets via HTTP `fetch` using paths resolved relative to `import.meta.env.BASE_URL` (`${baseUrl}generated/*.json`).
 
-### 2.3 Handling Error, Empty, and Warning States
+### 2.3 SSG vs. Browser Runtime Error Handling
 
-- **Loading States**: Display simple skeleton loaders or spinner indicators during asynchronous data resolution.
-- **Empty / Incomplete Data**: When recommendations or market summaries contain empty lists, display explicit, user-friendly empty state banners (e.g., "No stock recommendations available for this market session").
-- **Data Freshness & Warning Banners**: If backend operational monitoring outputs `WARNING` status or data lag in `market.json` / `monitoring.json`, display a non-blocking warning notification to notify users without failing UI rendering.
-- **Missing / Fatal Artifact Failure**: If an artifact fails to load, present a structured fallback error UI instead of breaking client navigation or throwing uncaught React errors.
+- **SSG Prerender Build Failures**: Missing or invalid artifacts during SSG prerendering trigger an explicit error in `src/data/loader.ts`, failing the SSG build immediately (`[SSG Build Error] Required static artifact ... is missing or invalid`). This prevents broken or incomplete static sites from being generated or published.
+- **Browser Runtime Fetch Failures**: If an HTTP `fetch` fails in the browser runtime (e.g. network error or missing route), `loadArtifact` logs the error and returns `null`. Visual components evaluate data state and render graceful fallback UI or empty state banners without crashing the application.
+- **Empty / Incomplete Data**: When an artifact is successfully loaded but contains empty recommendation lists or missing summary sections, components present informative empty state banners (e.g. "No recommendations found for this date").
+- **Data Quality & Operational Warnings**: Warning indicators or data freshness metadata in backend payloads (such as `market.json` or `monitoring.json`) are rendered as visual status badges without interrupting page navigation.
 
 ---
 
@@ -137,7 +143,9 @@ To maintain consistency and avoid unnecessary complexity:
 
 ---
 
-## 5. Development Commands
+## 5. Development Commands & CI/CD Deployment
+
+### 5.1 Local Frontend Commands
 
 Use Vite+ (`vp`) for frontend commands:
 
@@ -157,3 +165,12 @@ vp dev
 # Build static production prerender (SSG)
 vp build
 ```
+
+### 5.2 GitHub Pages Deployment Architecture
+
+The frontend static site is automatically built and deployed via GitHub Actions:
+
+- **Workflow File**: `.github/workflows/pages.yml`.
+- **Triggers**: Automated build and deployment on push to `main`, pull request checks, or manual `workflow_dispatch`.
+- **Build Execution**: Uses action `area44/workflows/vite-plus` to execute `vp build`, outputting prerendered static assets and copied JSON data into `dist/client`.
+- **Deployment**: Uses `actions/deploy-pages` to publish the static contents of `dist/client` to GitHub Pages.
