@@ -23,25 +23,22 @@ This document specifies the operational guidelines, execution rules, and workflo
 2. Locate Affected Canonical Package & Tests (scripts/tests/)
                │
                ▼
-3. Make Minimal, Focused Code Edits
+3. Make Minimal, Focused Edits & Update Documentation (docs/*)
                │
                ▼
-4. Verify via Targeted Unit Test & Ruff Format/Lint (Repeat as needed per file edit)
+4. Verify via Targeted Unit Test & Ruff Format/Lint (When modifying Python code; repeat as needed)
                │
-               ▼ (Once ALL edits for the task are completed)
-5. Run Full Test Suite (uv run --frozen pytest)
-               │
-               ▼
-6. Update Documentation if System Architecture Changed
+               ▼ (Once ALL relevant code and documentation changes are completed)
+5. Run Full Test Suite (uv run --frozen pytest; skipped for doc-only changes)
                │
                ▼
-7. Execute the verification script (uv run --frozen python scripts/generate_report.py --update)
+6. Execute Verification Script (uv run --frozen python scripts/generate_report.py --update)
                │
                ▼
-8. Complete Pre-Commit Validation & Submit
+7. Complete Pre-Commit Validation & Submit
 ```
 
-_Note: Run pytest tests only when necessary (e.g. when modifying Python backend code or tests). Do **not** execute the full test suite (`uv run --frozen pytest`) after every single file modification. Keep development iteration fast by executing targeted unit tests during code edits, and run the full test suite specifically after all task modifications are completed._
+_Note: Run pytest tests only when necessary (e.g. when modifying Python backend code or tests). Do **not** execute the full test suite (`uv run --frozen pytest`) after every single file modification. Keep development iteration fast by executing targeted unit tests during code edits, and run the full test suite specifically after all task modifications are completed. Pytest execution may be skipped entirely for documentation-only changes that do not alter executable behavior._
 
 ---
 
