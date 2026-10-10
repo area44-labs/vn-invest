@@ -1,6 +1,7 @@
 import type {
   ActionType,
   ExchangeType,
+  ExpectedReturn,
   HistoryIndexPayload,
   MarketInfo,
   MarketMetrics,
@@ -9,6 +10,7 @@ import type {
   Recommendation,
   RecommendationsPayload,
   RiskLevel,
+  RiskMetrics,
   SummaryInfo,
   TradePlan,
 } from "@/types/recommendation";
@@ -32,8 +34,16 @@ const VALID_EXCHANGES: Set<string> = new Set<ExchangeType>(["HOSE", "HNX", "UPCO
 
 const VALID_RISK_LEVELS: Set<string | null> = new Set<RiskLevel>(["LOW", "MEDIUM", "HIGH", null]);
 
-function isNullableNumber(val: any): boolean {
-  return val === null || val === undefined || typeof val === "number";
+function isRequiredNullableNumber(val: any): boolean {
+  return val === null || typeof val === "number";
+}
+
+function isOptionalNullableNumber(val: any): boolean {
+  return val === undefined || val === null || typeof val === "number";
+}
+
+function isRequiredNullableString(val: any): boolean {
+  return val === null || typeof val === "string";
 }
 
 function isStringArray(arr: any): boolean {
@@ -42,27 +52,20 @@ function isStringArray(arr: any): boolean {
 
 function isMarketMetrics(obj: any): obj is MarketMetrics {
   if (!obj || typeof obj !== "object") return false;
-  if (!isNullableNumber(obj.vnindex_value)) return false;
-  if (!isNullableNumber(obj.vnindex_change_pct)) return false;
-  if (!isNullableNumber(obj.vn30_change_pct)) return false;
-  if (!isNullableNumber(obj.market_breadth_ratio)) return false;
-  if (!isNullableNumber(obj.volatility)) return false;
-  if (
-    obj.volume_20d_ratio !== undefined &&
-    obj.volume_20d_ratio !== null &&
-    typeof obj.volume_20d_ratio !== "number" &&
-    typeof obj.volume_20d_ratio !== "string"
-  ) {
-    return false;
-  }
+  if (!isRequiredNullableNumber(obj.vnindex_value)) return false;
+  if (!isRequiredNullableNumber(obj.vnindex_change_pct)) return false;
+  if (!isOptionalNullableNumber(obj.vn30_change_pct)) return false;
+  if (!isOptionalNullableNumber(obj.market_breadth_ratio)) return false;
+  if (!isOptionalNullableNumber(obj.volatility)) return false;
+  if (!isOptionalNullableNumber(obj.volume_20d_ratio)) return false;
   return true;
 }
 
 function isMarketInfo(obj: any): obj is MarketInfo {
   if (!obj || typeof obj !== "object") return false;
   if (typeof obj.regime !== "string" || !VALID_MARKET_REGIMES.has(obj.regime)) return false;
-  if (!isNullableNumber(obj.confidence)) return false;
-  if (!isNullableNumber(obj.regime_score)) return false;
+  if (!isRequiredNullableNumber(obj.confidence)) return false;
+  if (!isOptionalNullableNumber(obj.regime_score)) return false;
   if (!isMarketMetrics(obj.metrics)) return false;
   return true;
 }
@@ -78,16 +81,35 @@ function isSummaryInfo(obj: any): obj is SummaryInfo {
   return true;
 }
 
+function isExpectedReturn(obj: any): obj is ExpectedReturn {
+  if (!obj || typeof obj !== "object") return false;
+  if (!isRequiredNullableNumber(obj.expected_return_5d)) return false;
+  if (!isRequiredNullableNumber(obj.expected_return_10d)) return false;
+  if (!isRequiredNullableNumber(obj.expected_return_20d)) return false;
+  return true;
+}
+
+function isRiskMetrics(obj: any): obj is RiskMetrics {
+  if (!obj || typeof obj !== "object") return false;
+  if (!isRequiredNullableNumber(obj.var_t25)) return false;
+  if (!isRequiredNullableNumber(obj.es_t25)) return false;
+  if (!isRequiredNullableNumber(obj.volatility_60d)) return false;
+  if (!isRequiredNullableNumber(obj.max_drawdown)) return false;
+  if (!isRequiredNullableNumber(obj.liquidity_score)) return false;
+  if (!isOptionalNullableNumber(obj.avg_value_20d)) return false;
+  return true;
+}
+
 function isTradePlan(obj: any): obj is TradePlan {
   if (!obj || typeof obj !== "object") return false;
-  if (!isNullableNumber(obj.current_price)) return false;
-  if (!isNullableNumber(obj.entry_low)) return false;
-  if (!isNullableNumber(obj.entry_high)) return false;
-  if (!isNullableNumber(obj.stop_loss)) return false;
-  if (!isNullableNumber(obj.tp1)) return false;
-  if (!isNullableNumber(obj.tp2)) return false;
-  if (!isNullableNumber(obj.risk_reward)) return false;
-  if (!isNullableNumber(obj.position_percent)) return false;
+  if (!isRequiredNullableNumber(obj.current_price)) return false;
+  if (!isRequiredNullableNumber(obj.entry_low)) return false;
+  if (!isRequiredNullableNumber(obj.entry_high)) return false;
+  if (!isRequiredNullableNumber(obj.stop_loss)) return false;
+  if (!isRequiredNullableNumber(obj.tp1)) return false;
+  if (!isRequiredNullableNumber(obj.tp2)) return false;
+  if (!isRequiredNullableNumber(obj.risk_reward)) return false;
+  if (!isRequiredNullableNumber(obj.position_percent)) return false;
   return true;
 }
 
@@ -98,29 +120,32 @@ function isRecommendation(obj: any): obj is Recommendation {
   if (typeof obj.exchange !== "string" || !VALID_EXCHANGES.has(obj.exchange)) return false;
   if (typeof obj.sector !== "string") return false;
   if (typeof obj.action !== "string" || !VALID_ACTIONS.has(obj.action)) return false;
-  if (!isNullableNumber(obj.signal_score)) return false;
-  if (!isNullableNumber(obj.risk_adjusted_score)) return false;
-  if (!isNullableNumber(obj.confidence)) return false;
-  if (obj.risk_level !== undefined && !VALID_RISK_LEVELS.has(obj.risk_level)) return false;
-  if (obj.trade_plan !== undefined && !isTradePlan(obj.trade_plan)) return false;
-  if (obj.reasons !== undefined && !isStringArray(obj.reasons)) return false;
-  if (obj.warnings !== undefined && !isStringArray(obj.warnings)) return false;
-  if (obj.invalidation !== undefined && !isStringArray(obj.invalidation)) return false;
+  if (!isRequiredNullableNumber(obj.signal_score)) return false;
+  if (!isRequiredNullableNumber(obj.risk_adjusted_score)) return false;
+  if (!isRequiredNullableNumber(obj.confidence)) return false;
+  if (
+    obj.risk_level === undefined ||
+    (!VALID_RISK_LEVELS.has(obj.risk_level) && typeof obj.risk_level !== "string")
+  ) {
+    if (!VALID_RISK_LEVELS.has(obj.risk_level ?? null)) return false;
+  }
+  if (!isExpectedReturn(obj.expected_return)) return false;
+  if (!isRiskMetrics(obj.risk_metrics)) return false;
+  if (!isTradePlan(obj.trade_plan)) return false;
+  if (!isStringArray(obj.reasons)) return false;
+  if (!isStringArray(obj.warnings)) return false;
+  if (!isStringArray(obj.invalidation)) return false;
   return true;
 }
 
 export function isRecommendationsPayload(obj: any): obj is RecommendationsPayload {
   if (!obj || typeof obj !== "object") return false;
-  if (obj.schema_version !== undefined && typeof obj.schema_version !== "string") return false;
-  if (obj.generated_at !== undefined && typeof obj.generated_at !== "string") return false;
-  if (
-    obj.source_date !== undefined &&
-    obj.source_date !== null &&
-    typeof obj.source_date !== "string"
-  )
-    return false;
+  if (typeof obj.schema_version !== "string" || obj.schema_version !== "2.0") return false;
+  if (typeof obj.generated_at !== "string") return false;
+  if (!isRequiredNullableString(obj.data_as_of)) return false;
+  if (!isRequiredNullableString(obj.source_date)) return false;
   if (!isMarketInfo(obj.market)) return false;
-  if (obj.summary !== undefined && !isSummaryInfo(obj.summary)) return false;
+  if (!isSummaryInfo(obj.summary)) return false;
   if (!Array.isArray(obj.recommendations)) return false;
   for (const rec of obj.recommendations) {
     if (!isRecommendation(rec)) return false;
@@ -130,22 +155,17 @@ export function isRecommendationsPayload(obj: any): obj is RecommendationsPayloa
 
 export function isMarketPayload(obj: any): obj is MarketPayload {
   if (!obj || typeof obj !== "object") return false;
-  if (obj.generated_at !== undefined && typeof obj.generated_at !== "string") return false;
-  if (
-    obj.source_date !== undefined &&
-    obj.source_date !== null &&
-    typeof obj.source_date !== "string"
-  )
-    return false;
+  if (typeof obj.generated_at !== "string") return false;
+  if (!isRequiredNullableString(obj.source_date)) return false;
   if (!isMarketInfo(obj.market)) return false;
-  if (obj.summary !== undefined && !isSummaryInfo(obj.summary)) return false;
+  if (!isSummaryInfo(obj.summary)) return false;
   return true;
 }
 
 export function isHistoryIndexPayload(obj: any): obj is HistoryIndexPayload {
   if (!obj || typeof obj !== "object") return false;
-  if (obj.last_updated !== undefined && typeof obj.last_updated !== "string") return false;
-  if (obj.total_reports !== undefined && typeof obj.total_reports !== "number") return false;
+  if (typeof obj.last_updated !== "string") return false;
+  if (typeof obj.total_reports !== "number") return false;
   if (!Array.isArray(obj.dates)) return false;
   for (const d of obj.dates) {
     if (typeof d !== "string" || d.trim().length === 0) return false;

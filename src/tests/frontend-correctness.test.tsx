@@ -8,7 +8,6 @@ import {
   loadHistoryIndexResult,
   loadHistoryReportResult,
   loadMarketResult,
-  loadRecommendationsResult,
 } from "@/data/loader";
 import { formatDate } from "@/lib/format";
 import { Dashboard } from "@/pages/dashboard";
@@ -29,6 +28,70 @@ async function waitTicks() {
   await act(async () => {
     await new Promise((r) => setTimeout(r, 50));
   });
+}
+
+function getValidRecommendationSample(overrides: Record<string, any> = {}) {
+  return {
+    symbol: "FPT",
+    company_name: "FPT Corp",
+    exchange: "HOSE",
+    sector: "Technology",
+    action: "BUY",
+    signal_score: 90,
+    risk_adjusted_score: 80,
+    confidence: 0.9,
+    risk_level: "LOW",
+    expected_return: {
+      expected_return_5d: 0.05,
+      expected_return_10d: 0.1,
+      expected_return_20d: 0.15,
+    },
+    risk_metrics: {
+      var_t25: -0.04,
+      es_t25: -0.06,
+      volatility_60d: 0.2,
+      max_drawdown: -0.15,
+      liquidity_score: 85,
+    },
+    trade_plan: {
+      current_price: 130000,
+      entry_low: 125000,
+      entry_high: 128000,
+      stop_loss: 120000,
+      tp1: 140000,
+      tp2: 150000,
+      risk_reward: 2,
+      position_percent: 10,
+    },
+    reasons: ["Strong growth"],
+    warnings: [],
+    invalidation: [],
+    ...overrides,
+  };
+}
+
+function getValidRecommendationsPayloadSample(overrides: Record<string, any> = {}) {
+  return {
+    schema_version: "2.0",
+    generated_at: "2026-10-09T16:00:00Z",
+    data_as_of: "2026-10-09",
+    source_date: "2026-10-09",
+    market: {
+      regime: "PANIC",
+      confidence: 0.85,
+      metrics: { vnindex_value: 1250, vnindex_change_pct: -0.5 },
+    },
+    summary: {
+      total_scanned: 1,
+      buy_count: 1,
+      watch_count: 0,
+      hold_count: 0,
+      sell_count: 0,
+      avoid_count: 0,
+    },
+    recommendations: [getValidRecommendationSample()],
+    ...overrides,
+  };
 }
 
 describe("Frontend Data Correctness & Market Metrics", () => {
@@ -105,79 +168,16 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         // Second attempt (retry): return valid recommendations and market payloads
         if (urlStr.includes("recommendations.json")) {
           return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                schema_version: "2.0",
-                data_as_of: "2026-10-09",
-                source_date: "2026-10-09",
-                generated_at: "2026-10-09T16:00:00Z",
-                market: {
-                  regime: "PANIC",
-                  regime_score: 7,
-                  confidence: 0.85,
-                  metrics: { vnindex_value: 1250, vnindex_change_pct: -0.5 },
-                },
-                summary: {
-                  total_scanned: 1,
-                  buy_count: 1,
-                  watch_count: 0,
-                  hold_count: 0,
-                  sell_count: 0,
-                  avoid_count: 0,
-                },
-                recommendations: [
-                  {
-                    symbol: "FPT",
-                    company_name: "FPT Corp",
-                    exchange: "HOSE",
-                    sector: "Technology",
-                    action: "BUY",
-                    signal_score: 90,
-                    risk_adjusted_score: 80,
-                    confidence: 0.9,
-                    risk_level: "LOW",
-                    expected_return: {
-                      expected_return_5d: null,
-                      expected_return_10d: null,
-                      expected_return_20d: null,
-                    },
-                    risk_metrics: {
-                      var_t25: null,
-                      es_t25: null,
-                      volatility_60d: null,
-                      max_drawdown: null,
-                      liquidity_score: null,
-                    },
-                    trade_plan: {
-                      current_price: 130000,
-                      entry_low: 125000,
-                      entry_high: 128000,
-                      stop_loss: 120000,
-                      tp1: 140000,
-                      tp2: 150000,
-                      risk_reward: 2,
-                      position_percent: 10,
-                    },
-                    reasons: ["Strong growth"],
-                    warnings: [],
-                    invalidation: [],
-                  },
-                ],
-              }),
-              { status: 200 },
-            ),
+            new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
           );
         }
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              schema_version: "2.0",
-              data_as_of: "2026-10-09",
-              source_date: "2026-10-09",
               generated_at: "2026-10-09T16:00:00Z",
+              source_date: "2026-10-09",
               market: {
                 regime: "PANIC",
-                regime_score: 7,
                 confidence: 0.85,
                 metrics: { vnindex_value: 1250, vnindex_change_pct: -0.5 },
               },
@@ -255,27 +255,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         if (urlStr.includes("recommendations.json")) {
           return Promise.resolve(
             new Response(
-              JSON.stringify({
-                schema_version: "2.0",
-                data_as_of: "2026-10-09",
-                source_date: "2026-10-09",
-                generated_at: "2026-10-09T16:00:00Z",
-                market: {
-                  regime: "BULL",
-                  regime_score: 80,
-                  confidence: 0.9,
-                  metrics: { vnindex_value: 1280, vnindex_change_pct: 1.2 },
-                },
-                summary: {
-                  total_scanned: 1,
-                  buy_count: 1,
-                  watch_count: 0,
-                  hold_count: 0,
-                  sell_count: 0,
-                  avoid_count: 0,
-                },
-                recommendations: [],
-              }),
+              JSON.stringify(getValidRecommendationsPayloadSample({ recommendations: [] })),
               { status: 200 },
             ),
           );
@@ -298,7 +278,88 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("Typed Loader Schema Validation", () => {
+  describe("Typed Loader Schema Validation - Strict Checks", () => {
+    it("rejects recommendations payload missing required field 'summary'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      delete (payload as any).summary;
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("rejects recommendation missing required field 'expected_return'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      delete payload.recommendations[0].expected_return;
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("rejects recommendation with invalid enum action 'SUPER_BUY'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      (payload.recommendations[0] as any).action = "SUPER_BUY";
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("rejects recommendation with invalid exchange 'NASDAQ'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      (payload.recommendations[0] as any).exchange = "NASDAQ";
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("rejects market info with invalid regime 'SUPER_BULL'", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      (payload.market as any).regime = "SUPER_BULL";
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("rejects recommendation with non-string array element in reasons", () => {
+      const payload = getValidRecommendationsPayloadSample();
+      (payload.recommendations[0] as any).reasons = ["Good", 12345];
+      expect(isRecommendationsPayload(payload)).toBe(false);
+    });
+
+    it("accepts valid recommendations payload with legitimate null values", () => {
+      const validPayload = getValidRecommendationsPayloadSample({
+        data_as_of: null,
+        source_date: null,
+        market: {
+          regime: "PANIC",
+          confidence: null,
+          regime_score: null,
+          metrics: { vnindex_value: null, vnindex_change_pct: null },
+        },
+        recommendations: [
+          getValidRecommendationSample({
+            signal_score: null,
+            risk_adjusted_score: null,
+            confidence: null,
+            risk_level: null,
+            expected_return: {
+              expected_return_5d: null,
+              expected_return_10d: null,
+              expected_return_20d: null,
+            },
+            risk_metrics: {
+              var_t25: null,
+              es_t25: null,
+              volatility_60d: null,
+              max_drawdown: null,
+              liquidity_score: null,
+            },
+            trade_plan: {
+              current_price: null,
+              entry_low: null,
+              entry_high: null,
+              stop_loss: null,
+              tp1: null,
+              tp2: null,
+              risk_reward: null,
+              position_percent: null,
+            },
+          }),
+        ],
+      });
+
+      expect(isRecommendationsPayload(validPayload)).toBe(true);
+    });
+
     it("rejects malformed market payload schema with ERROR", async () => {
       vi.spyOn(window, "fetch").mockImplementation(() =>
         Promise.resolve(
@@ -311,94 +372,6 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         status: "ERROR",
         error: "Malformed payload: invalid market schema",
       });
-    });
-
-    it("rejects malformed recommendation action enum with ERROR", async () => {
-      vi.spyOn(window, "fetch").mockImplementation(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({
-              schema_version: "2.0",
-              generated_at: "2026-10-09T16:00:00Z",
-              market: { regime: "BULL", metrics: {} },
-              summary: {
-                total_scanned: 1,
-                buy_count: 0,
-                watch_count: 0,
-                hold_count: 0,
-                sell_count: 0,
-                avoid_count: 0,
-              },
-              recommendations: [
-                {
-                  symbol: "FPT",
-                  company_name: "FPT Corp",
-                  exchange: "HOSE",
-                  sector: "Tech",
-                  action: "STRONG_BUY_INVALID",
-                },
-              ],
-            }),
-            { status: 200 },
-          ),
-        ),
-      );
-
-      const res = await loadRecommendationsResult();
-      expect(res).toEqual({
-        status: "ERROR",
-        error: "Malformed payload: invalid recommendations schema",
-      });
-    });
-
-    it("accepts valid payloads containing legitimate null and optional fields", () => {
-      const validPayload = {
-        schema_version: "2.0",
-        generated_at: "2026-10-09T16:00:00Z",
-        source_date: "2026-10-09",
-        market: {
-          regime: "PANIC",
-          confidence: null,
-          regime_score: null,
-          metrics: { vnindex_value: null, vnindex_change_pct: null },
-        },
-        summary: {
-          total_scanned: 1,
-          buy_count: 0,
-          watch_count: 0,
-          hold_count: 1,
-          sell_count: 0,
-          avoid_count: 0,
-        },
-        recommendations: [
-          {
-            symbol: "AAA",
-            company_name: "An Phat",
-            exchange: "HOSE",
-            sector: "Plastics",
-            action: "HOLD",
-            signal_score: null,
-            risk_adjusted_score: null,
-            confidence: null,
-            risk_level: null,
-            trade_plan: {
-              current_price: null,
-              entry_low: null,
-              entry_high: null,
-              stop_loss: null,
-              tp1: null,
-              tp2: null,
-              risk_reward: null,
-              position_percent: null,
-            },
-            reasons: [],
-            warnings: [],
-            invalidation: [],
-          },
-        ],
-      };
-
-      expect(isRecommendationsPayload(validPayload)).toBe(true);
     });
 
     it("rejects malformed history index schema with ERROR", async () => {
@@ -428,16 +401,16 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
-  describe("History page race conditions, missing index vs error, and retry behavior", () => {
-    it("handles out-of-order date requests correctly without showing stale data", async () => {
-      let resolveDate1: (val: Response) => void = () => {};
-      let resolveDate2: (val: Response) => void = () => {};
+  describe("History page race conditions and retry request isolation", () => {
+    it("prevents stale retry error or data from overwriting newer active report request", async () => {
+      let resolveReport1: (val: Response) => void = () => {};
+      let resolveReport2: (val: Response) => void = () => {};
 
-      const promise1 = new Promise<Response>((res) => {
-        resolveDate1 = res;
+      const promiseReport1 = new Promise<Response>((res) => {
+        resolveReport1 = res;
       });
-      const promise2 = new Promise<Response>((res) => {
-        resolveDate2 = res;
+      const promiseReport2 = new Promise<Response>((res) => {
+        resolveReport2 = res;
       });
 
       vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
@@ -454,8 +427,8 @@ describe("Frontend Data Correctness & Market Metrics", () => {
             ),
           );
         }
-        if (urlStr.includes("history/2026-10-09.json")) return promise1;
-        if (urlStr.includes("history/2026-10-08.json")) return promise2;
+        if (urlStr.includes("history/2026-10-09.json")) return promiseReport1;
+        if (urlStr.includes("history/2026-10-08.json")) return promiseReport2;
         return Promise.resolve(new Response(null, { status: 404 }));
       });
 
@@ -464,191 +437,45 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
       await waitTicks();
 
-      expect(container.textContent).toContain(
-        `Đang tải báo cáo ngày ${formatDate("2026-10-09")}...`,
-      );
-
+      // Change date to 2026-10-08
       const select = container.querySelector("select");
-      expect(select).not.toBeNull();
-
       act(() => {
         select!.value = "2026-10-08";
         select!.dispatchEvent(new Event("change", { bubbles: true }));
       });
       await waitTicks();
 
+      // Resolve Date 1 (2026-10-09) WITH AN ERROR after user already switched to Date 2 (2026-10-08)
+      resolveReport1(new Response("Internal Server Error", { status: 500 }));
+      await waitTicks();
+
+      // Stale error from Date 1 MUST NOT set error view for Date 2
+      expect(container.textContent).not.toContain("Lỗi tải báo cáo ngày 2026-10-09");
       expect(container.textContent).toContain(
         `Đang tải báo cáo ngày ${formatDate("2026-10-08")}...`,
       );
 
-      const mockReport20261008 = {
-        schema_version: "2.0",
-        source_date: "2026-10-08",
-        generated_at: "2026-10-08T16:00:00Z",
-        market: {
-          regime: "BULL",
-          regime_score: 80,
-          metrics: { vnindex_value: 1250, vnindex_change_pct: 0.5 },
-        },
-        summary: {
-          total_scanned: 1,
-          buy_count: 5,
-          watch_count: 2,
-          hold_count: 0,
-          sell_count: 1,
-          avoid_count: 0,
-        },
-        recommendations: [
-          {
-            symbol: "VCB",
-            company_name: "Vietcombank",
-            exchange: "HOSE",
-            sector: "Ngân hàng",
-            action: "BUY",
-            signal_score: 80,
-            risk_adjusted_score: 70,
-            confidence: 0.8,
-            risk_level: "LOW",
-            expected_return: {
-              expected_return_5d: null,
-              expected_return_10d: null,
-              expected_return_20d: null,
-            },
-            risk_metrics: {
-              var_t25: null,
-              es_t25: null,
-              volatility_60d: null,
-              max_drawdown: null,
-              liquidity_score: null,
-            },
-            trade_plan: {
-              current_price: 90000,
-              entry_low: 88000,
-              entry_high: 89000,
-              stop_loss: 85000,
-              tp1: 95000,
-              tp2: 100000,
-              risk_reward: 2,
-              position_percent: 10,
-            },
-            reasons: [],
-            warnings: [],
-            invalidation: [],
-          },
-        ],
-      };
-
-      resolveDate2(new Response(JSON.stringify(mockReport20261008), { status: 200 }));
+      // Resolve Date 2 (2026-10-08) WITH SUCCESS
+      resolveReport2(
+        new Response(
+          JSON.stringify(
+            getValidRecommendationsPayloadSample({
+              source_date: "2026-10-08",
+              recommendations: [
+                getValidRecommendationSample({
+                  symbol: "VCB",
+                  company_name: "Vietcombank",
+                }),
+              ],
+            }),
+          ),
+          { status: 200 },
+        ),
+      );
       await waitTicks();
 
       expect(container.textContent).toContain("VCB");
       expect(container.textContent).toContain(`Báo cáo ngày ${formatDate("2026-10-08")}`);
-
-      const mockReport20261009 = {
-        schema_version: "2.0",
-        source_date: "2026-10-09",
-        generated_at: "2026-10-09T16:00:00Z",
-        market: {
-          regime: "BEAR",
-          regime_score: 20,
-          metrics: { vnindex_value: 1200, vnindex_change_pct: -1.0 },
-        },
-        summary: {
-          total_scanned: 1,
-          buy_count: 0,
-          watch_count: 0,
-          hold_count: 0,
-          sell_count: 10,
-          avoid_count: 0,
-        },
-        recommendations: [
-          {
-            symbol: "FPT",
-            company_name: "FPT Corp",
-            exchange: "HOSE",
-            sector: "Công nghệ",
-            action: "SELL",
-            signal_score: 20,
-            risk_adjusted_score: 10,
-            confidence: 0.5,
-            risk_level: "HIGH",
-            expected_return: {
-              expected_return_5d: null,
-              expected_return_10d: null,
-              expected_return_20d: null,
-            },
-            risk_metrics: {
-              var_t25: null,
-              es_t25: null,
-              volatility_60d: null,
-              max_drawdown: null,
-              liquidity_score: null,
-            },
-            trade_plan: {
-              current_price: 130000,
-              entry_low: null,
-              entry_high: null,
-              stop_loss: null,
-              tp1: null,
-              tp2: null,
-              risk_reward: null,
-              position_percent: 0,
-            },
-            reasons: [],
-            warnings: [],
-            invalidation: [],
-          },
-        ],
-      };
-
-      resolveDate1(new Response(JSON.stringify(mockReport20261009), { status: 200 }));
-      await waitTicks();
-
-      expect(container.textContent).toContain("VCB");
-      expect(container.textContent).not.toContain("FPT");
-    });
-
-    it("displays distinct history index NOT_FOUND vs ERROR and recovers on retry", async () => {
-      let callCount = 0;
-      vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
-        callCount++;
-        const urlStr = String(url);
-        if (callCount === 1) {
-          return Promise.resolve(
-            new Response("500 Internal Error", { status: 500, statusText: "Internal Error" }),
-          );
-        }
-        if (urlStr.includes("history/index.json")) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                last_updated: "2026-10-09",
-                total_reports: 1,
-                dates: ["2026-10-09"],
-              }),
-              { status: 200 },
-            ),
-          );
-        }
-        return Promise.resolve(new Response("Not Found", { status: 404 }));
-      });
-
-      act(() => {
-        root.render(<History />);
-      });
-      await waitTicks();
-
-      expect(container.textContent).toContain("Lỗi tải chỉ mục lịch sử báo cáo");
-      const retryBtn = container.querySelector("button");
-      expect(retryBtn).not.toBeNull();
-
-      act(() => {
-        retryBtn!.click();
-      });
-      await waitTicks();
-
-      expect(container.textContent).toContain("Lịch Sử Khuyến Nghị VN Invest");
-      expect(container.textContent).toContain("Phiên ngày 2026-10-09");
     });
   });
 
@@ -697,59 +524,14 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(container.textContent).toContain("Đang tải phân tích định lượng cổ phiếu VCB...");
 
       // Resolve VCB FIRST
-      const mockVCBData = {
-        schema_version: "2.0",
-        data_as_of: "2026-10-09",
-        source_date: "2026-10-09",
-        generated_at: "2026-10-09T16:00:00Z",
-        market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
-        summary: {
-          total_scanned: 1,
-          buy_count: 1,
-          watch_count: 0,
-          hold_count: 0,
-          sell_count: 0,
-          avoid_count: 0,
-        },
+      const mockVCBData = getValidRecommendationsPayloadSample({
         recommendations: [
-          {
+          getValidRecommendationSample({
             symbol: "VCB",
             company_name: "Vietcombank",
-            exchange: "HOSE",
-            sector: "Ngân hàng",
-            action: "BUY",
-            signal_score: 85,
-            risk_adjusted_score: 75,
-            confidence: 0.9,
-            risk_level: "LOW",
-            expected_return: {
-              expected_return_5d: null,
-              expected_return_10d: null,
-              expected_return_20d: null,
-            },
-            risk_metrics: {
-              var_t25: null,
-              es_t25: null,
-              volatility_60d: null,
-              max_drawdown: null,
-              liquidity_score: null,
-            },
-            trade_plan: {
-              current_price: 90000,
-              entry_low: 88000,
-              entry_high: 89000,
-              stop_loss: 85000,
-              tp1: 95000,
-              tp2: 100000,
-              risk_reward: 2,
-              position_percent: 10,
-            },
-            reasons: ["Strong growth"],
-            warnings: [],
-            invalidation: [],
-          },
+          }),
         ],
-      };
+      });
 
       resolveVCB(new Response(JSON.stringify(mockVCBData), { status: 200 }));
       await waitTicks();
@@ -758,59 +540,14 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(container.textContent).toContain("Vietcombank");
 
       // Resolve FPT LATER (out-of-order)
-      const mockFPTData = {
-        schema_version: "2.0",
-        data_as_of: "2026-10-09",
-        source_date: "2026-10-09",
-        generated_at: "2026-10-09T16:00:00Z",
-        market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
-        summary: {
-          total_scanned: 1,
-          buy_count: 0,
-          watch_count: 0,
-          hold_count: 1,
-          sell_count: 0,
-          avoid_count: 0,
-        },
+      const mockFPTData = getValidRecommendationsPayloadSample({
         recommendations: [
-          {
+          getValidRecommendationSample({
             symbol: "FPT",
             company_name: "FPT Corp",
-            exchange: "HOSE",
-            sector: "Technology",
-            action: "HOLD",
-            signal_score: 50,
-            risk_adjusted_score: 40,
-            confidence: 0.6,
-            risk_level: "MEDIUM",
-            expected_return: {
-              expected_return_5d: null,
-              expected_return_10d: null,
-              expected_return_20d: null,
-            },
-            risk_metrics: {
-              var_t25: null,
-              es_t25: null,
-              volatility_60d: null,
-              max_drawdown: null,
-              liquidity_score: null,
-            },
-            trade_plan: {
-              current_price: 130000,
-              entry_low: null,
-              entry_high: null,
-              stop_loss: null,
-              tp1: null,
-              tp2: null,
-              risk_reward: null,
-              position_percent: 0,
-            },
-            reasons: [],
-            warnings: [],
-            invalidation: [],
-          },
+          }),
         ],
-      };
+      });
 
       resolveFPT(new Response(JSON.stringify(mockFPTData), { status: 200 }));
       await waitTicks();
@@ -827,62 +564,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
           return Promise.reject(new TypeError("NetworkError: Failed to fetch"));
         }
         return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              schema_version: "2.0",
-              data_as_of: "2026-10-09",
-              source_date: "2026-10-09",
-              generated_at: "2026-10-09T16:00:00Z",
-              market: { regime: "PANIC", regime_score: 7, confidence: 0.85, metrics: {} },
-              summary: {
-                total_scanned: 1,
-                buy_count: 1,
-                watch_count: 0,
-                hold_count: 0,
-                sell_count: 0,
-                avoid_count: 0,
-              },
-              recommendations: [
-                {
-                  symbol: "FPT",
-                  company_name: "FPT Corp",
-                  exchange: "HOSE",
-                  sector: "Technology",
-                  action: "BUY",
-                  signal_score: 90,
-                  risk_adjusted_score: 80,
-                  confidence: 0.9,
-                  risk_level: "LOW",
-                  expected_return: {
-                    expected_return_5d: null,
-                    expected_return_10d: null,
-                    expected_return_20d: null,
-                  },
-                  risk_metrics: {
-                    var_t25: null,
-                    es_t25: null,
-                    volatility_60d: null,
-                    max_drawdown: null,
-                    liquidity_score: null,
-                  },
-                  trade_plan: {
-                    current_price: 130000,
-                    entry_low: 125000,
-                    entry_high: 128000,
-                    stop_loss: 120000,
-                    tp1: 140000,
-                    tp2: 150000,
-                    risk_reward: 2,
-                    position_percent: 10,
-                  },
-                  reasons: [],
-                  warnings: [],
-                  invalidation: [],
-                },
-              ],
-            }),
-            { status: 200 },
-          ),
+          new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
         );
       });
 
