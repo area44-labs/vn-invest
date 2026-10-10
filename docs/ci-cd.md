@@ -23,10 +23,9 @@ The repository includes four primary GitHub Actions workflows:
 
 - **Environment**: `ubuntu-latest`, Python 3.14, managed via `astral-sh/setup-uv@v10`.
 - **Timeout**: `timeout-minutes: 10` for test job.
-- **Conditional Job Execution (`dorny/paths-filter`)**:
-  - Permissions: `contents: read`, `pull-requests: read`.
-  - Uses `dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d` (# v4.0.3) in a `changes` job to inspect modified files against `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`.
-  - Executes the `test` job (`actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1` # v7.0.1, `uv sync --frozen` & `uv run --frozen pytest`) conditionally when Python code, dependencies, or test configurations change.
+- **Conditional Job Execution**:
+  - Uses `dorny/paths-filter@v4` in a `changes` job to inspect modified files against `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, and `.github/workflows/tests.yml`.
+  - Executes the `test` job (`uv sync --frozen` & `uv run --frozen pytest`) conditionally when Python code, dependencies, or test configurations change.
   - Skips the `test` job cleanly for documentation-only changes.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
