@@ -123,4 +123,4 @@ uv run --frozen pytest scripts/tests/test_portfolio_backtest.py -k "test_portfol
 
 ## 6. CI Integration
 
-Both frontend and backend test suites run automatically in GitHub Actions (`.github/workflows/tests.yml`). Path filters conditionally trigger `frontend-test` (when `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, or `components.json` change) and `test` (when Python backend files change).
+Both frontend and backend test suites run automatically in GitHub Actions (`.github/workflows/tests.yml`). Path filters conditionally trigger `frontend-test` (when `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, or `components.json` change) and `backend-test` (when Python backend files change).

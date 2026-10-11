@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { ArrowDownRight, FileText, HelpCircle, Sparkles } from "lucide-react";
 
 import type { Recommendation } from "@/types/recommendation";
@@ -24,8 +24,6 @@ interface StockTableProps {
 }
 
 export function StockTable({ recommendations, activeTab, setActiveTab }: StockTableProps) {
-  const navigate = useNavigate();
-
   const buyStocks = recommendations.filter((r) => r.action === "BUY" || r.action === "WATCH");
   const sellStocks = recommendations.filter(
     (r) => r.action === "SELL" || r.action === "HOLD" || r.action === "AVOID",
@@ -155,26 +153,20 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
               return (
                 <TableRow
                   key={r.symbol}
-                  // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Xem chi tiết cổ phiếu ${r.symbol}`}
-                  onClick={() => navigate({ to: "/stock/$symbol", params: { symbol: r.symbol } })}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate({ to: "/stock/$symbol", params: { symbol: r.symbol } });
-                    }
-                  }}
-                  className="cursor-pointer border-b border-border transition-colors duration-150 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none"
+                  className="border-b border-border transition-colors duration-150 hover:bg-muted/40"
                 >
                   {/* Symbol & Company & Sector */}
                   <TableCell className="px-4 py-3">
                     <div className="flex flex-col">
                       <span className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-foreground group-hover:underline">
+                        <Link
+                          to="/stock/$symbol"
+                          params={{ symbol: r.symbol }}
+                          className="text-sm font-bold text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          aria-label={`Xem chi tiết cổ phiếu ${r.symbol}`}
+                        >
                           {r.symbol}
-                        </span>
+                        </Link>
                         <Badge variant="secondary" className="font-mono text-[9px]">
                           {r.sector}
                         </Badge>
@@ -270,7 +262,7 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
           </TabsList>
 
           <div className="hidden font-mono text-[11px] tracking-tight text-subtle-foreground uppercase sm:block">
-            Nhấp vào dòng hoặc dùng phím Enter/Space để xem chi tiết
+            Nhấp vào mã cổ phiếu để xem chi tiết
           </div>
         </div>
 

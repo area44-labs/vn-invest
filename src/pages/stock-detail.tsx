@@ -24,22 +24,31 @@ interface StockDetailProps {
 }
 
 export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockDetailProps) {
-  const sanitizeSymbol = (sym?: string) => {
-    if (!sym || typeof sym !== "string") return "FPT";
-    const cleaned = sym.trim().toUpperCase();
-    return /^[A-Z0-9]{3,10}$/.test(cleaned) ? cleaned : "FPT";
-  };
+  const isAbsentSymbol = !propsSymbol || !propsSymbol.trim();
+  const rawSymbol = isAbsentSymbol ? "FPT" : propsSymbol.trim().toUpperCase();
+  const isValidFormat = /^[A-Z0-9]{2,10}$/.test(rawSymbol);
+  const activeSymbol = isValidFormat ? rawSymbol : propsSymbol!.trim();
 
-  const activeSymbol = sanitizeSymbol(propsSymbol);
   const [stock, setStock] = useState<Recommendation | null>(initialStock);
-  const [loading, setLoading] = useState(!initialStock);
-  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
+  const [loading, setLoading] = useState(!initialStock && isValidFormat);
+  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">(
+    isValidFormat ? "IDLE" : "NOT_FOUND",
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const reqIdRef = useRef(0);
 
   async function fetchStock() {
     const currentId = ++reqIdRef.current;
+
+    if (!isValidFormat) {
+      setStock(null);
+      setStockStatus("NOT_FOUND");
+      setErrorMessage(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setStockStatus("IDLE");
     setErrorMessage(null);
@@ -68,6 +77,16 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     const currentId = ++reqIdRef.current;
 
     async function loadStockData() {
+      if (!isValidFormat) {
+        if (reqIdRef.current === currentId) {
+          setStock(null);
+          setStockStatus("NOT_FOUND");
+          setErrorMessage(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
         if (reqIdRef.current === currentId) {
           setStock(initialStock);
@@ -105,7 +124,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     }
 
     loadStockData();
-  }, [activeSymbol, initialStock]);
+  }, [activeSymbol, initialStock, isValidFormat]);
 
   if (loading) {
     return (

@@ -4,7 +4,7 @@ import { Moon, Sun } from "lucide-react";
 import "@/styles/index.css";
 import { useTheme } from "@/hooks/use-theme";
 
-const CURRENT_YEAR = 2026;
+const CURRENT_YEAR = new Date().getFullYear();
 
 export const Route = createRootRoute({
   head: () => ({

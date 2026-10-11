@@ -23,11 +23,14 @@ import { History } from "@/pages/history";
 import { Methodology } from "@/pages/methodology";
 import { StockDetail } from "@/pages/stock-detail";
 
-// Mock TanStack Router
-const mockNavigate = vi.fn<() => void>();
+// Mock TanStack Router safely using vi.hoisted()
+const { mockNavigate } = vi.hoisted(() => ({
+  mockNavigate: vi.fn<() => void>(),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, params, className }: any) => (
-    <a href={to} data-params={JSON.stringify(params)} className={className}>
+  Link: ({ children, to, params, className, "aria-label": ariaLabel }: any) => (
+    <a href={to} data-params={JSON.stringify(params)} className={className} aria-label={ariaLabel}>
       {children}
     </a>
   ),
@@ -297,7 +300,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       expect(container.textContent).toContain("Kế Hoạch Giao Dịch & Quản Trị Vốn");
     });
 
-    it("sanitizes empty or invalid symbol parameter gracefully", async () => {
+    it("handles absent symbol parameter cleanly by rendering default stock", async () => {
       vi.spyOn(window, "fetch").mockImplementation(() =>
         Promise.resolve(
           new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
@@ -305,7 +308,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       );
 
       act(() => {
-        root.render(<StockDetail symbol="   " />);
+        root.render(<StockDetail symbol={undefined} />);
       });
       await waitTicks();
 
@@ -332,11 +335,33 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       await waitTicks();
 
       expect(container.textContent).toContain('Không tìm thấy dữ liệu phân tích cho mã "XYZ"');
+      expect(container.textContent).not.toContain("FPT Corp");
+    });
+
+    it("rejects malformed/invalid symbol with NOT_FOUND state without silently rendering FPT", async () => {
+      const fetchSpy = vi
+        .spyOn(window, "fetch")
+        .mockImplementation(() =>
+          Promise.resolve(
+            new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
+          ),
+        );
+
+      act(() => {
+        root.render(<StockDetail symbol="INVALID!@#" />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain(
+        'Không tìm thấy dữ liệu phân tích cho mã "INVALID!@#"',
+      );
+      expect(container.textContent).not.toContain("FPT Corp");
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 
-  describe("StockTable Keyboard Navigation & Accessibility", () => {
-    it("navigates to stock detail via Enter and Space keypresses on accessible table rows", () => {
+  describe("StockTable Semantic Links & Accessibility", () => {
+    it("renders stock symbols as semantic, accessible links pointing to stock detail route", () => {
       const recs = [
         getValidRecommendationSample({ symbol: "FPT", action: "BUY" }),
         getValidRecommendationSample({ symbol: "VCB", action: "SELL" }),
@@ -353,30 +378,12 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         );
       });
 
-      const rows = container.querySelectorAll('tr[role="button"]');
-      expect(rows.length).toBeGreaterThan(0);
-      const row = rows[0] as HTMLElement;
-
-      expect(row.getAttribute("tabindex")).toBe("0");
-      expect(row.getAttribute("aria-label")).toContain("FPT");
-
-      // Press Enter key
-      act(() => {
-        row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      });
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to: "/stock/$symbol",
-        params: { symbol: "FPT" },
-      });
-
-      // Press Space key
-      act(() => {
-        row.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
-      });
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to: "/stock/$symbol",
-        params: { symbol: "FPT" },
-      });
+      const links = container.querySelectorAll("a");
+      expect(links.length).toBeGreaterThan(0);
+      const fptLink = Array.from(links).find((el) => el.textContent?.includes("FPT"));
+      expect(fptLink).not.toBeUndefined();
+      expect(fptLink!.getAttribute("href")).toBe("/stock/$symbol");
+      expect(fptLink!.getAttribute("aria-label")).toContain("FPT");
     });
   });
 
