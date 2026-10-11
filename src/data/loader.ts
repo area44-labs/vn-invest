@@ -195,12 +195,48 @@ function isOptionalNullableFiniteNumber(val: any, min?: number, max?: number): b
   return true;
 }
 
-function isRequiredNullableString(val: any): boolean {
-  return val !== undefined && (val === null || typeof val === "string");
-}
-
 function isOptionalNullableString(val: any): boolean {
   return val === undefined || val === null || typeof val === "string";
+}
+
+export function isValidDateString(val: any): boolean {
+  if (typeof val !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val);
+  if (!match) return false;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+export function isValidIsoTimestampString(val: any): boolean {
+  if (typeof val !== "string") return false;
+  const isoRegex = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
+  const match = isoRegex.exec(val);
+  if (!match) return false;
+  const datePart = match[1];
+  if (!isValidDateString(datePart)) return false;
+  const hour = parseInt(match[2], 10);
+  const min = parseInt(match[3], 10);
+  const sec = parseInt(match[4], 10);
+  if (hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) return false;
+  const timeNum = Date.parse(val);
+  return !Number.isNaN(timeNum);
+}
+
+function isRequiredNullableDateString(val: any): boolean {
+  if (val === undefined) return false;
+  if (val === null) return true;
+  return isValidDateString(val);
+}
+
+function isOptionalNullableDateString(val: any): boolean {
+  if (val === undefined || val === null) return true;
+  return isValidDateString(val);
 }
 
 function isStringArray(arr: any): boolean {
@@ -335,7 +371,7 @@ function isRecommendation(obj: any): obj is Recommendation {
     return false;
   }
 
-  if (!isOptionalNullableString(obj.data_as_of)) return false;
+  if (!isOptionalNullableDateString(obj.data_as_of)) return false;
   if (!isOptionalNullableString(obj.data_source)) return false;
 
   if (!isRequiredNullableFiniteNumber(obj.signal_score, 0.0, 100.0)) return false;
@@ -366,9 +402,9 @@ export function isRecommendationsPayload(obj: any): obj is RecommendationsPayloa
   if (obj.quant_version !== undefined && typeof obj.quant_version !== "string") return false;
   if (obj.config_hash !== undefined && typeof obj.config_hash !== "string") return false;
 
-  if (typeof obj.generated_at !== "string") return false;
-  if (!isRequiredNullableString(obj.data_as_of)) return false;
-  if (!isRequiredNullableString(obj.source_date)) return false;
+  if (!isValidIsoTimestampString(obj.generated_at)) return false;
+  if (!isRequiredNullableDateString(obj.data_as_of)) return false;
+  if (!isRequiredNullableDateString(obj.source_date)) return false;
   if (!isOptionalNullableString(obj.data_source)) return false;
 
   if (!isUniverseInfo(obj.universe_info)) return false;
@@ -386,9 +422,9 @@ export function isMarketPayload(obj: any): obj is MarketPayload {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
   if (!hasOnlyAllowedKeys(obj, ALLOWED_MARKET_PAYLOAD_KEYS)) return false;
 
-  if (!isOptionalNullableString(obj.data_as_of)) return false;
-  if (!isRequiredNullableString(obj.source_date)) return false;
-  if (typeof obj.generated_at !== "string") return false;
+  if (!isOptionalNullableDateString(obj.data_as_of)) return false;
+  if (!isRequiredNullableDateString(obj.source_date)) return false;
+  if (!isValidIsoTimestampString(obj.generated_at)) return false;
   if (!isOptionalNullableString(obj.data_source)) return false;
 
   if (!isUniverseInfo(obj.universe_info)) return false;
@@ -402,11 +438,16 @@ export function isHistoryIndexPayload(obj: any): obj is HistoryIndexPayload {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
   if (!hasOnlyAllowedKeys(obj, ALLOWED_HISTORY_INDEX_KEYS)) return false;
 
-  if (typeof obj.last_updated !== "string") return false;
+  if (
+    typeof obj.last_updated !== "string" ||
+    (!isValidIsoTimestampString(obj.last_updated) && !isValidDateString(obj.last_updated))
+  ) {
+    return false;
+  }
   if (!isNonNegativeInteger(obj.total_reports)) return false;
   if (!Array.isArray(obj.dates)) return false;
   for (const d of obj.dates) {
-    if (typeof d !== "string" || d.trim().length === 0) return false;
+    if (!isValidDateString(d)) return false;
   }
   return true;
 }
@@ -416,37 +457,61 @@ function getBaseUrl(): string {
   return base.endsWith("/") ? base : `${base}/`;
 }
 
+export interface LoadArtifactOptions {
+  optional?: boolean;
+  /**
+   * Optional custom artifact reader for SSG build / unit test simulation.
+   */
+  readSsgArtifact?: (path: string) => Promise<string>;
+}
+
+export function isSsgMode(options?: LoadArtifactOptions): boolean {
+  return Boolean(
+    options?.readSsgArtifact ||
+    (typeof process !== "undefined" && process.versions?.node && import.meta.env.SSR),
+  );
+}
+
 /**
  * Reads local static JSON artifact from disk during SSG build,
  * or fetches via HTTP in browser runtime, returning a typed LoadResult.
  */
-async function loadArtifactResult<T>(relativePath: string): Promise<LoadResult<T>> {
-  if (import.meta.env.SSR) {
+export async function loadArtifactResult<T>(
+  relativePath: string,
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<T>> {
+  if (isSsgMode(options)) {
     try {
-      const fsModule = "node:fs/promises";
-      const pathModule = "node:path";
-      const fs = await import(/* @vite-ignore */ fsModule);
-      const path = await import(/* @vite-ignore */ pathModule);
-
-      const filePath = path.join(process.cwd(), relativePath);
-      try {
-        const content = await fs.readFile(filePath, "utf-8");
-        const data = JSON.parse(content) as T;
-        return { status: "SUCCESS", data };
-      } catch (err: any) {
-        if (err?.code === "ENOENT") {
-          return { status: "NOT_FOUND" };
-        }
-        console.error(`[SSG Fatal Error] Failed to read static artifact ${relativePath}:`, err);
-        throw new Error(
-          `[SSG Build Error] Required static artifact ${relativePath} is invalid: ${(err as Error).message}`,
-        );
+      let content: string;
+      if (options.readSsgArtifact) {
+        content = await options.readSsgArtifact(relativePath);
+      } else {
+        const fsModule = "node:fs/promises";
+        const pathModule = "node:path";
+        const fs = await import(/* @vite-ignore */ fsModule);
+        const path = await import(/* @vite-ignore */ pathModule);
+        const filePath = path.join(process.cwd(), relativePath);
+        content = await fs.readFile(filePath, "utf-8");
       }
+      const data = JSON.parse(content) as T;
+      return { status: "SUCCESS", data };
     } catch (err: any) {
-      if (err.message?.startsWith("[SSG Build Error]")) {
+      if (err?.code === "ENOENT" || err?.message?.includes("ENOENT")) {
+        if (!options.optional) {
+          console.error(`[SSG Fatal Error] Missing required static artifact ${relativePath}:`, err);
+          throw new Error(
+            `[SSG Build Error] Required static artifact ${relativePath} is missing or unreadable`,
+          );
+        }
+        return { status: "NOT_FOUND" };
+      }
+      if (err?.message?.startsWith("[SSG Build Error]")) {
         throw err;
       }
-      return { status: "ERROR", error: (err as Error).message || "SSG artifact read error" };
+      console.error(`[SSG Fatal Error] Failed to read static artifact ${relativePath}:`, err);
+      throw new Error(
+        `[SSG Build Error] Static artifact ${relativePath} is invalid: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -483,11 +548,22 @@ async function loadArtifactResult<T>(relativePath: string): Promise<LoadResult<T
 
 /**
  * Fetches canonical recommendations JSON artifact as LoadResult.
+ * This artifact is required for SSG builds.
  */
-export async function loadRecommendationsResult(): Promise<LoadResult<RecommendationsPayload>> {
-  const result = await loadArtifactResult<unknown>("generated/recommendations.json");
+export async function loadRecommendationsResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<RecommendationsPayload>> {
+  const result = await loadArtifactResult<unknown>("generated/recommendations.json", {
+    optional: false,
+    ...options,
+  });
   if (result.status !== "SUCCESS") return result;
   if (!isRecommendationsPayload(result.data)) {
+    if (isSsgMode(options)) {
+      throw new Error(
+        "[SSG Build Error] Required static artifact generated/recommendations.json is invalid: malformed recommendations schema",
+      );
+    }
     return { status: "ERROR", error: "Malformed payload: invalid recommendations schema" };
   }
   return { status: "SUCCESS", data: result.data };
@@ -495,9 +571,15 @@ export async function loadRecommendationsResult(): Promise<LoadResult<Recommenda
 
 /**
  * Fetches canonical market summary JSON artifact as LoadResult.
+ * This artifact is optional (fallback data exists in recommendations.json).
  */
-export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
-  const result = await loadArtifactResult<unknown>("generated/market.json");
+export async function loadMarketResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<MarketPayload>> {
+  const result = await loadArtifactResult<unknown>("generated/market.json", {
+    optional: true,
+    ...options,
+  });
   if (result.status !== "SUCCESS") return result;
   if (!isMarketPayload(result.data)) {
     return { status: "ERROR", error: "Malformed payload: invalid market schema" };
@@ -507,9 +589,15 @@ export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
 
 /**
  * Fetches history index JSON artifact as LoadResult.
+ * This artifact is optional during SSG.
  */
-export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexPayload>> {
-  const result = await loadArtifactResult<unknown>("generated/history/index.json");
+export async function loadHistoryIndexResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<HistoryIndexPayload>> {
+  const result = await loadArtifactResult<unknown>("generated/history/index.json", {
+    optional: true,
+    ...options,
+  });
   if (result.status !== "SUCCESS") return result;
   if (!isHistoryIndexPayload(result.data)) {
     return { status: "ERROR", error: "Malformed payload: invalid history index schema" };
@@ -519,14 +607,19 @@ export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexP
 
 /**
  * Fetches historical recommendation report JSON artifact for a given date (YYYY-MM-DD) as LoadResult.
+ * Historical reports are optional during SSG.
  */
 export async function loadHistoryReportResult(
   date: string,
+  options: LoadArtifactOptions = {},
 ): Promise<LoadResult<RecommendationsPayload>> {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isValidDateString(date)) {
     return { status: "NOT_FOUND" };
   }
-  const result = await loadArtifactResult<unknown>(`generated/history/${date}.json`);
+  const result = await loadArtifactResult<unknown>(`generated/history/${date}.json`, {
+    optional: true,
+    ...options,
+  });
   if (result.status !== "SUCCESS") return result;
   if (!isRecommendationsPayload(result.data)) {
     return { status: "ERROR", error: "Malformed payload: invalid history report schema" };

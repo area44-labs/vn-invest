@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { MarketSummary } from "@/components/market-summary";
 import {
   isHistoryIndexPayload,
-  isMarketPayload,
   isRecommendationsPayload,
+  isValidDateString,
+  isValidIsoTimestampString,
+  loadArtifactResult,
   loadHistoryIndexResult,
   loadHistoryReportResult,
   loadMarketResult,
@@ -273,6 +275,189 @@ describe("Frontend Data Correctness & Market Metrics", () => {
         "Dữ liệu tổng quan thị trường đang hiển thị từ báo cáo đợt ngày",
       );
       expect(container.textContent).toContain("market.json không khả dụng");
+    });
+  });
+
+  describe("Typed Loader Schema Validation - Strict Date & Timestamp Checks", () => {
+    it("validates strict YYYY-MM-DD date format and rejects impossible calendar dates", () => {
+      expect(isValidDateString("2026-10-09")).toBe(true);
+      expect(isValidDateString("2024-02-29")).toBe(true); // leap year
+
+      // Invalid calendar dates
+      expect(isValidDateString("2026-02-31")).toBe(false);
+      expect(isValidDateString("2026-13-01")).toBe(false);
+      expect(isValidDateString("2026-00-10")).toBe(false);
+      expect(isValidDateString("2026-04-31")).toBe(false); // April has 30 days
+      expect(isValidDateString("2025-02-29")).toBe(false); // non-leap year
+
+      // Malformed formats
+      expect(isValidDateString("2026/10/09")).toBe(false);
+      expect(isValidDateString("09-10-2026")).toBe(false);
+      expect(isValidDateString("2026-10-9")).toBe(false);
+      expect(isValidDateString("2026-10-09T00:00:00Z")).toBe(false);
+      expect(isValidDateString("invalid")).toBe(false);
+      expect(isValidDateString(null)).toBe(false);
+      expect(isValidDateString(12345)).toBe(false);
+    });
+
+    it("validates strict ISO 8601 timestamp format and rejects malformed components", () => {
+      expect(isValidIsoTimestampString("2026-10-09T16:00:00Z")).toBe(true);
+      expect(isValidIsoTimestampString("2026-10-09T16:00:00.123Z")).toBe(true);
+      expect(isValidIsoTimestampString("2026-10-09T16:00:00+07:00")).toBe(true);
+      expect(isValidIsoTimestampString("2026-10-09T16:00:00-0500")).toBe(true);
+
+      // Malformed timestamps or impossible components
+      expect(isValidIsoTimestampString("2026-10-09T25:00:00Z")).toBe(false); // hour 25
+      expect(isValidIsoTimestampString("2026-10-09T16:60:00Z")).toBe(false); // min 60
+      expect(isValidIsoTimestampString("2026-02-31T16:00:00Z")).toBe(false); // invalid date part
+      expect(isValidIsoTimestampString("2026-10-09 16:00:00")).toBe(false);
+      expect(isValidIsoTimestampString("2026-10-09")).toBe(false);
+      expect(isValidIsoTimestampString("invalid")).toBe(false);
+      expect(isValidIsoTimestampString(null)).toBe(false);
+    });
+
+    it("rejects recommendations payload with invalid dates or timestamps", () => {
+      const badGeneratedAt = getValidRecommendationsPayloadSample({
+        generated_at: "2026-10-09T25:00:00Z",
+      });
+      expect(isRecommendationsPayload(badGeneratedAt)).toBe(false);
+
+      const badSourceDate = getValidRecommendationsPayloadSample({
+        source_date: "2026-02-31",
+      });
+      expect(isRecommendationsPayload(badSourceDate)).toBe(false);
+
+      const badDataAsOf = getValidRecommendationsPayloadSample({
+        data_as_of: "2026-13-01",
+      });
+      expect(isRecommendationsPayload(badDataAsOf)).toBe(false);
+    });
+
+    it("rejects history index payload with malformed dates or last_updated", () => {
+      const badIndexDate = {
+        last_updated: "2026-10-09T16:00:00Z",
+        total_reports: 1,
+        dates: ["2026-02-31"],
+      };
+      expect(isHistoryIndexPayload(badIndexDate)).toBe(false);
+
+      const badIndexLastUpdated = {
+        last_updated: "invalid-timestamp",
+        total_reports: 1,
+        dates: ["2026-10-09"],
+      };
+      expect(isHistoryIndexPayload(badIndexLastUpdated)).toBe(false);
+    });
+  });
+
+  describe("loadHistoryReportResult date validation regression tests", () => {
+    it("returns NOT_FOUND for impossible dates without calling fetch", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch");
+
+      const res1 = await loadHistoryReportResult("2026-02-31");
+      expect(res1).toEqual({ status: "NOT_FOUND" });
+
+      const res2 = await loadHistoryReportResult("2026-13-01");
+      expect(res2).toEqual({ status: "NOT_FOUND" });
+
+      const res3 = await loadHistoryReportResult("2025-02-29");
+      expect(res3).toEqual({ status: "NOT_FOUND" });
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("fetches report for valid dates including leap-day date 2024-02-29", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              getValidRecommendationsPayloadSample({
+                source_date: "2024-02-29",
+                data_as_of: "2024-02-29",
+              }),
+            ),
+            { status: 200 },
+          ),
+        );
+      });
+
+      const res = await loadHistoryReportResult("2024-02-29");
+      expect(res.status).toBe("SUCCESS");
+      if (res.status === "SUCCESS") {
+        expect(res.data.source_date).toBe("2024-02-29");
+      }
+      expect(fetchSpy).toHaveBeenCalledWith("/generated/history/2024-02-29.json");
+    });
+  });
+
+  describe("Typed Loader SSG vs Browser Artifact Resolution", () => {
+    it("fails SSG build with clear error when required static artifact is missing (ENOENT)", async () => {
+      const enoentErr = new Error("ENOENT: no such file or directory");
+      (enoentErr as any).code = "ENOENT";
+
+      const readSsgArtifact = () => Promise.reject(enoentErr);
+
+      await expect(
+        loadArtifactResult("generated/recommendations.json", {
+          optional: false,
+          readSsgArtifact,
+        }),
+      ).rejects.toThrow(
+        "[SSG Build Error] Required static artifact generated/recommendations.json is missing or unreadable",
+      );
+    });
+
+    it("fails SSG build with clear error when required static artifact contains schema-invalid JSON", async () => {
+      const invalidPayloadJson = JSON.stringify({ schema_version: "2.0", bad_field: true });
+      const readSsgArtifact = () => Promise.resolve(invalidPayloadJson);
+
+      await expect(loadRecommendationsResult({ readSsgArtifact })).rejects.toThrow(
+        "[SSG Build Error] Required static artifact generated/recommendations.json is invalid: malformed recommendations schema",
+      );
+    });
+
+    it("returns NOT_FOUND status during SSG when optional static artifact is missing (ENOENT)", async () => {
+      const enoentErr = new Error("ENOENT: no such file or directory");
+      (enoentErr as any).code = "ENOENT";
+
+      const readSsgArtifact = () => Promise.reject(enoentErr);
+
+      const result = await loadArtifactResult("generated/market.json", {
+        optional: true,
+        readSsgArtifact,
+      });
+      expect(result).toEqual({ status: "NOT_FOUND" });
+    });
+
+    it("returns NOT_FOUND status in browser runtime on HTTP 404 response", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response("Not Found", { status: 404 })),
+      );
+
+      const res = await loadRecommendationsResult();
+      expect(res).toEqual({ status: "NOT_FOUND" });
+    });
+
+    it("returns ERROR status on invalid JSON or unexpected read/fetch error", async () => {
+      // Fetch error / network error
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.reject(new Error("Network disconnect")),
+      );
+      const netRes = await loadRecommendationsResult();
+      expect(netRes).toEqual({
+        status: "ERROR",
+        error: "Network or fetch error: Network disconnect",
+      });
+
+      // Invalid JSON
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response("{ invalid json", { status: 200 })),
+      );
+      const jsonRes = await loadRecommendationsResult();
+      expect(jsonRes).toEqual({
+        status: "ERROR",
+        error: expect.stringContaining("Failed to parse JSON response:"),
+      });
     });
   });
 
