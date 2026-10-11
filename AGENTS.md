@@ -25,8 +25,8 @@ For comprehensive details on specific system components, refer directly to the a
 
 ## 2. Core Architectural Rules & Non-Negotiable Constraints
 
-1. **Subsystem Isolation**: Backend logic resides natively under `scripts/` (`domain`, `data`, `quant`, `pipeline`, `backtest`, `performance`, `monitoring`, `artifacts`, `schema`).
-2. **Frontend Responsibility Boundary**: `src/` is a read-only React SSG visualizer for static JSON in `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
+1. **Subsystem Isolation**: Backend logic resides natively under `scripts/`.
+2. **Frontend Responsibility Boundary & File Naming**: `src/` is a read-only React SSG visualizer for static JSON in `generated/`. **Zero financial or quantitative calculations occur in the frontend.** All frontend files under `src/`.
 3. **Fail-Closed & Anti-Lookahead Principles**: Market data and calculations timestamped $\le T$ must never access future data ($> T$). Invalid or missing market data must result in explicit errors or `INSUFFICIENT` / `None` values without fabricating synthetic defaults.
 4. **Schema Compliance**: Payload artifacts published to `generated/` must validate against version-aware JSON Schemas in `schemas/v2/` resolved strictly via `scripts/schema/registry.py`.
 
@@ -59,6 +59,7 @@ Requirements: [Vite+](https://viteplus.dev).
 
 ```bash
 vp install               # Install dependencies
+vp test                  # Frontend unit & regression test runner (vite-plus/test)
 vp check --fix           # Frontend lint/format check
 vp dev                   # Local dev server
 vp build                 # SSG prerender build
@@ -69,7 +70,7 @@ vp build                 # SSG prerender build
 ## 4. Required Agent Workflow
 
 1. **Read Documentation First**: Read the relevant documentation in `docs/` before modifying code to understand canonical architecture, contracts, and expectations.
-2. **Follow Canonical Architecture**: Respect documented subsystem boundaries (`scripts/domain`, `scripts/data`, `scripts/quant`, `scripts/pipeline`, `scripts/backtest`, `scripts/monitoring`, `scripts/artifacts`, `scripts/schema`).
+2. **Follow Canonical Architecture**: Respect documented subsystem boundaries.
 3. **Make Focused Changes**: Implement minimal, targeted edits satisfying existing domain contracts. Do not mix unrelated refactorings or formatting changes into a single change.
 4. **Keep Documentation Synchronized Alongside Changes**: Update relevant documentation in `docs/` alongside code changes before final validation whenever system architecture, contracts, or behavior change.
 5. **Run Validation & Tests**: Run pytest tests only when necessary (e.g. when modifying Python code or tests). During development iterations, run targeted unit tests for affected Python files as needed, and do **not** run the full test suite (`uv run --frozen pytest`) after every single file edit. For documentation-only changes that do not affect executable behavior, pytest execution may be skipped. Run the full Python test suite (`uv run --frozen pytest`), formatting checks (`vp check` / `uv run --frozen ruff check --fix scripts`), and verification script (`uv run --frozen python scripts/generate_report.py --update`) specifically when all relevant task modifications are completed. If successful, do not generate any artifact files; if it fails, report the error.

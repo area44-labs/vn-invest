@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite-plus";
@@ -169,5 +170,13 @@ export default defineConfig({
   ],
   resolve: {
     tsconfigPaths: true,
+  },
+  test: {
+    browser: {
+      enabled: true,
+      provider: playwright(),
+      headless: true,
+      instances: [{ browser: "chromium" }],
+    },
   },
 });
