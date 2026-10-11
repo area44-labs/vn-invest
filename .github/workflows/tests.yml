@@ -87,7 +87,7 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Run frontend tests
-        run: vp test
+        run: pnpm test
 
       - name: Run frontend check
-        run: vp check
+        run: pnpm check
