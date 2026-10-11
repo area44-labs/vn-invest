@@ -118,7 +118,7 @@ The project configuration and dependencies in `package.json` and `components.jso
 - **Styling & CSS Engine**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`).
 - **Icons**: Lucide React (`lucide-react`).
 - **Typography**: Geist Sans and Geist Mono variable fonts (`@fontsource-variable/geist`, `@fontsource-variable/geist-mono`).
-- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright` with Playwright Chromium. Redundant packages (such as `@vitest/browser`) are omitted in favor of the single `@vitest/browser-playwright` provider required by `vite.config.ts`.
+- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright` with Playwright Chromium.
 
 ### 3.2 Key Configuration Files
 
@@ -177,7 +177,7 @@ Use Vite+ (`vp`) for all frontend operations. Component tests run in real browse
 
 ```bash
 # Install dependencies & Playwright browser binaries
-vp install && pnpm exec playwright install chromium
+vp install && pnpm exec playwright install --with-deps chromium
 
 # Execute frontend unit and regression test suite in real browser mode
 vp test
