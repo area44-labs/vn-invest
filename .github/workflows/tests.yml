@@ -73,21 +73,5 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: true
-
-      - name: Install Playwright Chromium browser
-        run: pnpm exec playwright install chromium
-
-      - name: Run frontend tests
-        run: pnpm test
-
-      - name: Run frontend check
-        run: pnpm check
+      - name: Run Vite+ frontend checks and tests
+        uses: area44/workflows/vite-plus@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
