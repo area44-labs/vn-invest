@@ -506,7 +506,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       });
       await waitTicks();
 
-      // Initial Date 1 load fails -> displays error message & Thử lại button
+      // Step 1: Initial Date 1 load fails -> displays error message & Thử lại button
       expect(container.textContent).toContain("Lỗi tải báo cáo ngày 2026-10-09");
       const retryBtn = container.querySelector("button");
       expect(retryBtn).not.toBeNull();
