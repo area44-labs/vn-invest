@@ -24,16 +24,31 @@ interface StockDetailProps {
 }
 
 export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockDetailProps) {
-  const activeSymbol = propsSymbol || "FPT";
+  const isAbsentSymbol = !propsSymbol || !propsSymbol.trim();
+  const rawSymbol = isAbsentSymbol ? "FPT" : propsSymbol.trim().toUpperCase();
+  const isValidFormat = /^[A-Z0-9]{2,10}$/.test(rawSymbol);
+  const activeSymbol = isValidFormat ? rawSymbol : propsSymbol!.trim();
+
   const [stock, setStock] = useState<Recommendation | null>(initialStock);
-  const [loading, setLoading] = useState(!initialStock);
-  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
+  const [loading, setLoading] = useState(!initialStock && isValidFormat);
+  const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">(
+    isValidFormat ? "IDLE" : "NOT_FOUND",
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const reqIdRef = useRef(0);
 
   async function fetchStock() {
     const currentId = ++reqIdRef.current;
+
+    if (!isValidFormat) {
+      setStock(null);
+      setStockStatus("NOT_FOUND");
+      setErrorMessage(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setStockStatus("IDLE");
     setErrorMessage(null);
@@ -62,6 +77,16 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     const currentId = ++reqIdRef.current;
 
     async function loadStockData() {
+      if (!isValidFormat) {
+        if (reqIdRef.current === currentId) {
+          setStock(null);
+          setStockStatus("NOT_FOUND");
+          setErrorMessage(null);
+          setLoading(false);
+        }
+        return;
+      }
+
       if (initialStock && initialStock.symbol.toUpperCase() === activeSymbol.toUpperCase()) {
         if (reqIdRef.current === currentId) {
           setStock(initialStock);
@@ -99,7 +124,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
     }
 
     loadStockData();
-  }, [activeSymbol, initialStock]);
+  }, [activeSymbol, initialStock, isValidFormat]);
 
   if (loading) {
     return (
@@ -119,13 +144,13 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         <div className="flex items-center space-x-3">
           <button
             onClick={fetchStock}
-            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             Thử lại
           </button>
           <Link
             to="/"
-            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
           </Link>
@@ -142,7 +167,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         </p>
         <Link
           to="/"
-          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
         </Link>
@@ -177,8 +202,9 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         <div className="flex items-center space-x-3">
           <Link
             to="/"
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             title="Quay lại Dashboard"
+            aria-label="Quay lại Dashboard"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

@@ -4,6 +4,8 @@ import { Moon, Sun } from "lucide-react";
 import "@/styles/index.css";
 import { useTheme } from "@/hooks/use-theme";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -20,16 +22,19 @@ function HeaderNav() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/90 backdrop-blur-md transition-colors">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center space-x-6">
+      <div className="mx-auto flex min-h-14 max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
           <Link
             to="/"
-            className="cursor-pointer font-mono text-sm font-bold tracking-tight text-foreground uppercase hover:opacity-80"
+            className="cursor-pointer font-mono text-sm font-bold tracking-tight text-foreground uppercase hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             VN Invest
           </Link>
 
-          <nav className="flex items-center space-x-2 font-mono text-xs">
+          <nav
+            aria-label="Chuyển hướng chính"
+            className="flex flex-wrap items-center gap-1 font-mono text-xs sm:gap-2"
+          >
             <Link
               to="/"
               activeProps={{
@@ -38,7 +43,7 @@ function HeaderNav() {
               inactiveProps={{
                 className: "text-muted-foreground hover:text-foreground",
               }}
-              className="cursor-pointer rounded-sm px-2.5 py-1 transition-colors"
+              className="cursor-pointer rounded-sm px-2 py-1 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:px-2.5"
             >
               Dashboard
             </Link>
@@ -50,7 +55,7 @@ function HeaderNav() {
               inactiveProps={{
                 className: "text-muted-foreground hover:text-foreground",
               }}
-              className="cursor-pointer rounded-sm px-2.5 py-1 transition-colors"
+              className="cursor-pointer rounded-sm px-2 py-1 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:px-2.5"
             >
               Lịch Sử
             </Link>
@@ -62,41 +67,39 @@ function HeaderNav() {
               inactiveProps={{
                 className: "text-muted-foreground hover:text-foreground",
               }}
-              className="cursor-pointer rounded-sm px-2.5 py-1 transition-colors"
+              className="cursor-pointer rounded-sm px-2 py-1 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:px-2.5"
             >
               Phương Pháp Luận
             </Link>
           </nav>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={toggleTheme}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus:outline-none"
-              title={theme === "light" ? "Chuyển sang chế độ tối" : "Chuyển sang chế độ sáng"}
-              aria-label="Toggle theme"
-            >
-              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            </button>
+        <div className="flex items-center space-x-2 sm:space-x-4">
+          <button
+            onClick={toggleTheme}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            title={theme === "light" ? "Chuyển sang chế độ tối" : "Chuyển sang chế độ sáng"}
+            aria-label="Chuyển đổi giao diện sáng/tối"
+          >
+            {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          </button>
 
-            <a
-              href="https://github.com/area44-labs/vn-invest"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus:outline-none"
-              title="GitHub Repository"
-              aria-label="GitHub Repository"
-            >
-              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                />
-              </svg>
-            </a>
-          </div>
+          <a
+            href="https://github.com/area44-labs/vn-invest"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            title="Mã nguồn GitHub Repository"
+            aria-label="GitHub Repository"
+          >
+            <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              />
+            </svg>
+          </a>
         </div>
       </div>
     </header>
@@ -115,7 +118,7 @@ function RootComponent() {
         <footer className="mt-16 border-t border-border bg-background py-6">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center font-mono text-[11px] tracking-tight text-subtle-foreground">
-              © {new Date().getFullYear()} AREA44. All rights reserved.
+              © {CURRENT_YEAR} AREA44. All rights reserved.
             </div>
           </div>
         </footer>

@@ -32,7 +32,7 @@ export function RecommendationCard({ recommendation: r, rank }: RecommendationCa
   const isBuy = r.action === "BUY" || r.action === "WATCH";
 
   return (
-    <div className="flex flex-col justify-between space-y-4 rounded-sm border border-border bg-card p-4 transition-all hover:border-foreground/30">
+    <article className="flex flex-col justify-between space-y-4 rounded-sm border border-border bg-card p-4 transition-all hover:border-foreground/30">
       {/* Header */}
       <div className="flex items-start justify-between border-b border-border pb-3">
         <div className="space-y-1">
@@ -135,11 +135,11 @@ export function RecommendationCard({ recommendation: r, rank }: RecommendationCa
         <Link
           to="/stock/$symbol"
           params={{ symbol: r.symbol }}
-          className="inline-flex items-center font-mono text-xs font-bold text-foreground hover:underline"
+          className="inline-flex items-center font-mono text-xs font-bold text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Xem Phân Tích <ArrowRight className="ml-1 h-3.5 w-3.5" />
         </Link>
       </div>
-    </div>
+    </article>
   );
 }

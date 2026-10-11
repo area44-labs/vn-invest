@@ -49,6 +49,9 @@ uv run --frozen python scripts/generate_report.py --update
 # Cài đặt phụ thuộc frontend
 vp install
 
+# Chạy bộ kiểm thử unit & component frontend
+vp test
+
 # Kiểm tra linter, định dạng và typecheck frontend
 vp check
 

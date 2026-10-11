@@ -144,7 +144,7 @@ export function Dashboard({
         </p>
         <button
           onClick={fetchDashboardData}
-          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Thử lại
         </button>
@@ -161,7 +161,7 @@ export function Dashboard({
         </p>
         <button
           onClick={fetchDashboardData}
-          className="mt-2 cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          className="mt-2 cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Thử lại
         </button>
