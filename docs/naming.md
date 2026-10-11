@@ -15,7 +15,7 @@ This document specifies the current canonical terminology, module/class/function
 | **Variable / Attribute**       | `snake_case`             | `data_as_of`, `processed_symbols`, `liquidity_score`               |
 | **Constant**                   | `UPPER_SNAKE_CASE`       | `PIPELINE_VERSION`, `DEFAULT_QUANT_CONFIG`, `SCHEMA_VERSION`       |
 | **JSON Schema File**           | `snake_case.schema.json` | `recommendations.schema.json`, `performance.schema.json`           |
-| **Frontend File**     | `kebab-case.tsx` / `.ts` | `dashboard.tsx`, `stock-detail.tsx`, `market-summary.tsx`          |
+| **Frontend File**              | `kebab-case.tsx` / `.ts` | `dashboard.tsx`, `stock-detail.tsx`, `market-summary.tsx`          |
 | **React Component Identifier** | `PascalCase`             | `export function StockDetail()`, `export function MarketSummary()` |
 
 ### 1.1 Frontend File Naming Rules (`src/`)
