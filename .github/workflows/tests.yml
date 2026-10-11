@@ -84,6 +84,3 @@ jobs:
 
       - name: Run frontend tests
         run: vp test
-
-      - name: Run frontend check
-        run: vp check
