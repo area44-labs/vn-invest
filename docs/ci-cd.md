@@ -30,7 +30,7 @@ The repository includes four primary GitHub Actions workflows:
 - **Frontend Test Job (`frontend-test`)**:
   - Environment: `ubuntu-latest`.
   - Setup Action: Uses `voidzero-dev/setup-vp@v1` to set up the Vite+ environment.
-  - Commands: `vp install`, `pnpm exec playwright install chromium`, and `vp test`.
+  - Commands: `vp install`, `pnpm exec playwright install --with-deps chromium`, and `vp test`.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
 
