@@ -79,8 +79,8 @@ jobs:
       - name: Install dependencies
         run: vp install
 
-      - name: Install Playwright Chromium browser
-        run: pnpm exec playwright install chromium
+      - name: Install Playwright Chromium browser with system dependencies
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run frontend tests
         run: vp test

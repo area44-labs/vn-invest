@@ -361,7 +361,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
   });
 
   describe("StockTable Semantic Links & Accessibility", () => {
-    it("renders stock symbols as semantic, accessible links pointing to stock detail route", () => {
+    it("renders stock symbols as semantic, accessible links passing correct route parameters", () => {
       const recs = [
         getValidRecommendationSample({ symbol: "FPT", action: "BUY" }),
         getValidRecommendationSample({ symbol: "VCB", action: "SELL" }),
@@ -380,10 +380,14 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
       const links = container.querySelectorAll("a");
       expect(links.length).toBeGreaterThan(0);
-      const fptLink = Array.from(links).find((el) => el.textContent?.includes("FPT"));
+      const fptLink = Array.from(links).find((el) => el.textContent?.trim() === "FPT");
       expect(fptLink).not.toBeUndefined();
       expect(fptLink!.getAttribute("href")).toBe("/stock/$symbol");
-      expect(fptLink!.getAttribute("aria-label")).toContain("FPT");
+      expect(fptLink!.getAttribute("aria-label")).toBe("Xem chi tiết cổ phiếu FPT");
+
+      // Verify exact route params object passed to TanStack Router Link
+      const dataParams = JSON.parse(fptLink!.getAttribute("data-params") || "{}");
+      expect(dataParams).toEqual({ symbol: "FPT" });
     });
   });
 
