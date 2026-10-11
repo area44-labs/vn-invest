@@ -8,13 +8,10 @@ This document specifies the test suite architecture, execution standards, fixtur
 
 The project utilizes standardized test runners for both backend Python and frontend React components:
 
-- **Frontend Test Runner**: Vite+ (`pnpm test` / `vp test` via `vite-plus/test`).
-  - **Browser Mode**: Component and regression tests execute in real Playwright Headless Chromium browser mode configured via `test.browser.provider` in `vite.config.ts`.
-  - **Browser Provider**: Uses `@vitest/browser-playwright` with Playwright Chromium (`pnpm exec playwright install chromium`). Redundant packages (such as `@vitest/browser`) are safely omitted in favor of the required provider package.
+- **Frontend Test Runner**: Vite+ test (`vp test` / `pnpm test` via `vite-plus/test`).
 - **Backend Test Runner**: Native `pytest` (`uv run --frozen pytest`).
-  - **Python Version**: Python 3.14 managed via `uv`.
-- **Test Naming Convention**: All test functions and methods must use descriptive behavior-driven names following `test_<behavior>()` (Python) or descriptive `it("<behavior>")` / `describe("<behavior>")` blocks (TypeScript). Avoid numeric index prefixes (`test_1_...`) or vague case names (`test_case_a_...`).
-- **Behavior-Driven Docstrings & Descriptions**: Test descriptions and inline comments must state the behavior or condition tested directly. Generic or uninformative numbered labels (`Test 1:`, `Scenario 1:`, `Case A`) are strictly prohibited.
+- **Test Naming Convention**: All test functions and methods must use descriptive behavior-driven names following `test_<behavior>()` (Python) or descriptive `it("<behavior>")` / `describe("<behavior>")` blocks (TypeScript).
+- **Behavior-Driven Docstrings & Descriptions**: Test descriptions and inline comments must state the behavior or condition tested directly.
 
 ---
 
@@ -123,4 +120,4 @@ uv run --frozen pytest scripts/tests/test_portfolio_backtest.py -k "test_portfol
 
 ## 6. CI Integration
 
-Both frontend and backend test suites run automatically in GitHub Actions (`.github/workflows/tests.yml`). Path filters conditionally trigger `frontend-test` (when `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, or `components.json` change) and `backend-test` (when Python backend files change).
+Both frontend and backend test suites run automatically in GitHub Actions (`.github/workflows/tests.yml`). Path filters conditionally trigger `frontend-test` (when frontend files change) and `backend-test` (when backend files change).
