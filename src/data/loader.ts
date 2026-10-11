@@ -465,6 +465,13 @@ export interface LoadArtifactOptions {
   readSsgArtifact?: (path: string) => Promise<string>;
 }
 
+export function isSsgMode(options?: LoadArtifactOptions): boolean {
+  return Boolean(
+    options?.readSsgArtifact ||
+    (typeof process !== "undefined" && process.versions?.node && import.meta.env.SSR),
+  );
+}
+
 /**
  * Reads local static JSON artifact from disk during SSG build,
  * or fetches via HTTP in browser runtime, returning a typed LoadResult.
@@ -473,10 +480,7 @@ export async function loadArtifactResult<T>(
   relativePath: string,
   options: LoadArtifactOptions = {},
 ): Promise<LoadResult<T>> {
-  if (
-    options.readSsgArtifact ||
-    (typeof process !== "undefined" && process.versions?.node && import.meta.env.SSR)
-  ) {
+  if (isSsgMode(options)) {
     try {
       let content: string;
       if (options.readSsgArtifact) {
@@ -546,12 +550,20 @@ export async function loadArtifactResult<T>(
  * Fetches canonical recommendations JSON artifact as LoadResult.
  * This artifact is required for SSG builds.
  */
-export async function loadRecommendationsResult(): Promise<LoadResult<RecommendationsPayload>> {
+export async function loadRecommendationsResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<RecommendationsPayload>> {
   const result = await loadArtifactResult<unknown>("generated/recommendations.json", {
     optional: false,
+    ...options,
   });
   if (result.status !== "SUCCESS") return result;
   if (!isRecommendationsPayload(result.data)) {
+    if (isSsgMode(options)) {
+      throw new Error(
+        "[SSG Build Error] Required static artifact generated/recommendations.json is invalid: malformed recommendations schema",
+      );
+    }
     return { status: "ERROR", error: "Malformed payload: invalid recommendations schema" };
   }
   return { status: "SUCCESS", data: result.data };
@@ -561,8 +573,13 @@ export async function loadRecommendationsResult(): Promise<LoadResult<Recommenda
  * Fetches canonical market summary JSON artifact as LoadResult.
  * This artifact is optional (fallback data exists in recommendations.json).
  */
-export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
-  const result = await loadArtifactResult<unknown>("generated/market.json", { optional: true });
+export async function loadMarketResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<MarketPayload>> {
+  const result = await loadArtifactResult<unknown>("generated/market.json", {
+    optional: true,
+    ...options,
+  });
   if (result.status !== "SUCCESS") return result;
   if (!isMarketPayload(result.data)) {
     return { status: "ERROR", error: "Malformed payload: invalid market schema" };
@@ -574,9 +591,12 @@ export async function loadMarketResult(): Promise<LoadResult<MarketPayload>> {
  * Fetches history index JSON artifact as LoadResult.
  * This artifact is optional during SSG.
  */
-export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexPayload>> {
+export async function loadHistoryIndexResult(
+  options: LoadArtifactOptions = {},
+): Promise<LoadResult<HistoryIndexPayload>> {
   const result = await loadArtifactResult<unknown>("generated/history/index.json", {
     optional: true,
+    ...options,
   });
   if (result.status !== "SUCCESS") return result;
   if (!isHistoryIndexPayload(result.data)) {
@@ -591,12 +611,14 @@ export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexP
  */
 export async function loadHistoryReportResult(
   date: string,
+  options: LoadArtifactOptions = {},
 ): Promise<LoadResult<RecommendationsPayload>> {
   if (!isValidDateString(date)) {
     return { status: "NOT_FOUND" };
   }
   const result = await loadArtifactResult<unknown>(`generated/history/${date}.json`, {
     optional: true,
+    ...options,
   });
   if (result.status !== "SUCCESS") return result;
   if (!isRecommendationsPayload(result.data)) {

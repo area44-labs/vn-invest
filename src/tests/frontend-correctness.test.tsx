@@ -407,6 +407,15 @@ describe("Frontend Data Correctness & Market Metrics", () => {
       );
     });
 
+    it("fails SSG build with clear error when required static artifact contains schema-invalid JSON", async () => {
+      const invalidPayloadJson = JSON.stringify({ schema_version: "2.0", bad_field: true });
+      const readSsgArtifact = () => Promise.resolve(invalidPayloadJson);
+
+      await expect(loadRecommendationsResult({ readSsgArtifact })).rejects.toThrow(
+        "[SSG Build Error] Required static artifact generated/recommendations.json is invalid: malformed recommendations schema",
+      );
+    });
+
     it("returns NOT_FOUND status during SSG when optional static artifact is missing (ENOENT)", async () => {
       const enoentErr = new Error("ENOENT: no such file or directory");
       (enoentErr as any).code = "ENOENT";
