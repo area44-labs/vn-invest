@@ -76,6 +76,9 @@ jobs:
       - name: Set up Vite+ environment
         uses: area44/workflows/vite-plus@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
 
+      - name: Install Playwright Chromium browser
+        run: pnpm exec playwright install chromium
+
       - name: Run Vite+ frontend tests
         run: pnpm exec vp test
 
