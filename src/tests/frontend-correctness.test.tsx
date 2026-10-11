@@ -2,7 +2,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import type { RecommendationsPayload } from "@/types/recommendation";
+
 import { MarketSummary } from "@/components/market-summary";
+import { StockTable } from "@/components/stock-table";
 import {
   isHistoryIndexPayload,
   isRecommendationsPayload,
@@ -17,16 +20,18 @@ import {
 import { formatDate } from "@/lib/format";
 import { Dashboard } from "@/pages/dashboard";
 import { History } from "@/pages/history";
+import { Methodology } from "@/pages/methodology";
 import { StockDetail } from "@/pages/stock-detail";
 
 // Mock TanStack Router
+const mockNavigate = vi.fn<() => void>();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, params, className }: any) => (
     <a href={to} data-params={JSON.stringify(params)} className={className}>
       {children}
     </a>
   ),
-  useNavigate: () => vi.fn<() => void>(),
+  useNavigate: () => mockNavigate,
 }));
 
 async function waitTicks() {
@@ -110,6 +115,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     vi.restoreAllMocks();
+    mockNavigate.mockReset();
   });
 
   afterEach(() => {
@@ -278,6 +284,115 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
+  describe("StockDetail Component & Invalid Parameter Resilience", () => {
+    it("renders stock details cleanly when given valid initialStock data", async () => {
+      const stock = getValidRecommendationSample({ symbol: "VCB", company_name: "Vietcombank" });
+      act(() => {
+        root.render(<StockDetail symbol="VCB" initialStock={stock} />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain("VCB");
+      expect(container.textContent).toContain("Vietcombank");
+      expect(container.textContent).toContain("Kế Hoạch Giao Dịch & Quản Trị Vốn");
+    });
+
+    it("sanitizes empty or invalid symbol parameter gracefully", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(getValidRecommendationsPayloadSample()), { status: 200 }),
+        ),
+      );
+
+      act(() => {
+        root.render(<StockDetail symbol="   " />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain("FPT");
+    });
+
+    it("displays clean NOT_FOUND state when stock symbol does not exist in recommendations", async () => {
+      vi.spyOn(window, "fetch").mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              getValidRecommendationsPayloadSample({
+                recommendations: [getValidRecommendationSample({ symbol: "FPT" })],
+              }),
+            ),
+            { status: 200 },
+          ),
+        ),
+      );
+
+      act(() => {
+        root.render(<StockDetail symbol="XYZ" />);
+      });
+      await waitTicks();
+
+      expect(container.textContent).toContain('Không tìm thấy dữ liệu phân tích cho mã "XYZ"');
+    });
+  });
+
+  describe("StockTable Keyboard Navigation & Accessibility", () => {
+    it("navigates to stock detail via Enter and Space keypresses on accessible table rows", () => {
+      const recs = [
+        getValidRecommendationSample({ symbol: "FPT", action: "BUY" }),
+        getValidRecommendationSample({ symbol: "VCB", action: "SELL" }),
+      ];
+
+      let activeTab = "BUY";
+      const setActiveTab = (tab: string) => {
+        activeTab = tab;
+      };
+
+      act(() => {
+        root.render(
+          <StockTable recommendations={recs} activeTab={activeTab} setActiveTab={setActiveTab} />,
+        );
+      });
+
+      const rows = container.querySelectorAll('tr[role="button"]');
+      expect(rows.length).toBeGreaterThan(0);
+      const row = rows[0] as HTMLElement;
+
+      expect(row.getAttribute("tabindex")).toBe("0");
+      expect(row.getAttribute("aria-label")).toContain("FPT");
+
+      // Press Enter key
+      act(() => {
+        row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/stock/$symbol",
+        params: { symbol: "FPT" },
+      });
+
+      // Press Space key
+      act(() => {
+        row.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+      });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/stock/$symbol",
+        params: { symbol: "FPT" },
+      });
+    });
+  });
+
+  describe("Methodology Page Rendering", () => {
+    it("renders methodology pipeline and explanatory sections correctly", () => {
+      act(() => {
+        root.render(<Methodology />);
+      });
+
+      const text = container.textContent || "";
+      expect(text).toContain("Phương Pháp Luận Định Lượng");
+      expect(text).toContain("Chế Độ Thị Trường (Market Regime)");
+      expect(text).toContain("Mô Hình Rủi Ro T+2.5");
+    });
+  });
+
   describe("Typed Loader Schema Validation - Strict Date & Timestamp Checks", () => {
     it("validates strict YYYY-MM-DD date format and rejects impossible calendar dates", () => {
       expect(isValidDateString("2026-10-09")).toBe(true);
@@ -367,7 +482,7 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
 
     it("fetches report for valid dates including leap-day date 2024-02-29", async () => {
-      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_url: RequestInfo | URL) => {
         return Promise.resolve(
           new Response(
             JSON.stringify(
@@ -383,9 +498,8 @@ describe("Frontend Data Correctness & Market Metrics", () => {
 
       const res = await loadHistoryReportResult("2024-02-29");
       expect(res.status).toBe("SUCCESS");
-      if (res.status === "SUCCESS") {
-        expect(res.data.source_date).toBe("2024-02-29");
-      }
+      const data = (res as { status: "SUCCESS"; data: RecommendationsPayload }).data;
+      expect(data.source_date).toBe("2024-02-29");
       expect(fetchSpy).toHaveBeenCalledWith("/generated/history/2024-02-29.json");
     });
   });

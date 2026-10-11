@@ -24,7 +24,13 @@ interface StockDetailProps {
 }
 
 export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockDetailProps) {
-  const activeSymbol = propsSymbol || "FPT";
+  const sanitizeSymbol = (sym?: string) => {
+    if (!sym || typeof sym !== "string") return "FPT";
+    const cleaned = sym.trim().toUpperCase();
+    return /^[A-Z0-9]{3,10}$/.test(cleaned) ? cleaned : "FPT";
+  };
+
+  const activeSymbol = sanitizeSymbol(propsSymbol);
   const [stock, setStock] = useState<Recommendation | null>(initialStock);
   const [loading, setLoading] = useState(!initialStock);
   const [stockStatus, setStockStatus] = useState<"IDLE" | "NOT_FOUND" | "ERROR">("IDLE");
@@ -119,13 +125,13 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         <div className="flex items-center space-x-3">
           <button
             onClick={fetchStock}
-            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             Thử lại
           </button>
           <Link
             to="/"
-            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+            className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
           </Link>
@@ -142,7 +148,7 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         </p>
         <Link
           to="/"
-          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground"
+          className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Quay lại Dashboard
         </Link>
@@ -177,8 +183,9 @@ export function StockDetail({ symbol: propsSymbol, initialStock = null }: StockD
         <div className="flex items-center space-x-3">
           <Link
             to="/"
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             title="Quay lại Dashboard"
+            aria-label="Quay lại Dashboard"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>

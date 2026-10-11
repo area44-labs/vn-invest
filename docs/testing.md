@@ -4,18 +4,25 @@ This document specifies the test suite architecture, execution standards, fixtur
 
 ---
 
-## 1. Authoritative Test Runner & Execution Standard
+## 1. Authoritative Test Runners & Execution Standards
 
-- **Test Runner**: Native `pytest` (`uv run --frozen pytest`).
-- **Python Version**: Python 3.14 via `uv`.
-- **Test Naming Convention**: All test functions and methods must use descriptive behavior-driven names following `test_<behavior>()` (e.g. `test_valid_dataset_returns_sufficient_status`). Avoid numeric index prefixes (`test_1_...`) or vague case names (`test_case_a_...`).
-- **Behavior-Driven Docstrings & Descriptions**: Test docstrings and inline comments must state the behavior or condition tested directly (e.g. "Verifies that an invalid symbol is recorded in audit exclusions and passes audit set invariants"). Generic or uninformative numbered labels (`Test 1:`, `Scenario 1:`, `Case A`, `1. ...`) are strictly prohibited.
+The project utilizes standardized test runners for both backend Python and frontend React components:
+
+- **Frontend Test Runner**: Vite+ (`pnpm test` / `vp test` via `vite-plus/test`).
+  - **Browser Mode**: Component and regression tests execute in real Playwright Headless Chromium browser mode configured via `test.browser.provider` in `vite.config.ts`.
+  - **Browser Provider**: Uses `@vitest/browser-playwright` with Playwright Chromium (`pnpm exec playwright install chromium`). Redundant packages (such as `@vitest/browser`) are safely omitted in favor of the required provider package.
+- **Backend Test Runner**: Native `pytest` (`uv run --frozen pytest`).
+  - **Python Version**: Python 3.14 managed via `uv`.
+- **Test Naming Convention**: All test functions and methods must use descriptive behavior-driven names following `test_<behavior>()` (Python) or descriptive `it("<behavior>")` / `describe("<behavior>")` blocks (TypeScript). Avoid numeric index prefixes (`test_1_...`) or vague case names (`test_case_a_...`).
+- **Behavior-Driven Docstrings & Descriptions**: Test descriptions and inline comments must state the behavior or condition tested directly. Generic or uninformative numbered labels (`Test 1:`, `Scenario 1:`, `Case A`) are strictly prohibited.
 
 ---
 
 ## 2. Test Suite Layout
 
-All Python backend tests reside under `scripts/tests/`.
+### 2.1 Backend Test Layout (`scripts/tests/`)
+
+All Python backend tests reside under `scripts/tests/`:
 
 ```text
 scripts/tests/
@@ -46,6 +53,15 @@ scripts/tests/
 └── test_unit_normalization.py    # Stock unit conversions and market tick price rounding
 ```
 
+### 2.2 Frontend Test Layout (`src/tests/`)
+
+Frontend unit, component, and regression tests reside under `src/tests/`:
+
+```text
+src/tests/
+└── frontend-correctness.test.tsx # Component rendering, typed loader validation, keyboard nav & retry tests
+```
+
 ---
 
 ## 3. Network Isolation Mechanics
@@ -62,7 +78,7 @@ All backend unit and integration tests execute **strictly offline**.
 
 ## 4. Test Categories & Pytest Markers
 
-Tests are categorized using pytest markers defined in `pyproject.toml` under `[tool.pytest.ini_options]`:
+Backend tests are categorized using pytest markers defined in `pyproject.toml` under `[tool.pytest.ini_options]`:
 
 | Marker                     | Purpose                                                                                       |
 | :------------------------- | :-------------------------------------------------------------------------------------------- |
@@ -76,36 +92,35 @@ Tests are categorized using pytest markers defined in `pyproject.toml` under `[t
 
 ## 5. Authoritative Testing Commands
 
-### 5.1 Run Full Test Suite (CI Command)
+### 5.1 Frontend Testing Commands
 
 ```bash
+# Execute full frontend test suite in real browser mode
+pnpm test
+# OR via Vite+ CLI
+vp test
+
+# Run frontend check (linting, type checking, formatting)
+pnpm check
+# OR via Vite+ CLI
+vp check
+```
+
+### 5.2 Backend Testing Commands
+
+```bash
+# Execute full Python test suite
 uv run --frozen pytest
-```
 
-### 5.2 Run Specific Test File or Class
-
-```bash
+# Run specific backend test file
 uv run --frozen pytest scripts/tests/test_domain.py
-uv run --frozen pytest scripts/tests/test_engines.py::TestQuantSignalEngine
-```
 
-### 5.3 Run Tests Matching a Marker
-
-```bash
-uv run --frozen pytest -m unit
-uv run --frozen pytest -m integration
-```
-
-### 5.4 Run Targeted Test Function
-
-```bash
+# Run targeted test function
 uv run --frozen pytest scripts/tests/test_portfolio_backtest.py -k "test_portfolio_allocation"
 ```
 
 ---
 
-## 6. Fixtures & Test Data Helpers
+## 6. CI Integration
 
-- **`FakeMarketDataProvider`** (`scripts/tests/fixtures.py`): In-memory mock data provider returning deterministic OHLCV DataFrames without network requests.
-- **`make_valid_canonical_df`** (`scripts/tests/fixtures.py`): Generates canonical OHLCV DataFrames with valid price relationships (`high >= low`, `open`/`close` within `high`/`low`, non-negative volume, sorted trading dates).
-- **`conftest.py` Hooks**: Logs `SLOW TEST: <test_name> — <elapsed>s` warnings for any test taking $\ge 5.0$ seconds.
+Both frontend and backend test suites run automatically in GitHub Actions (`.github/workflows/tests.yml`). Path filters conditionally trigger `frontend-test` (when `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, or `components.json` change) and `test` (when Python backend files change).

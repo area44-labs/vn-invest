@@ -184,7 +184,7 @@ export function History() {
         </p>
         <button
           onClick={fetchHistoryIndex}
-          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+          className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Thử lại
         </button>
@@ -221,7 +221,8 @@ export function History() {
           <select
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-mono text-xs text-foreground focus:outline-none"
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-mono text-xs text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            aria-label="Chọn ngày phiên báo cáo lịch sử"
           >
             {indexData.dates.map((d) => (
               <option key={d} value={d}>
@@ -245,7 +246,7 @@ export function History() {
           </p>
           <button
             onClick={() => fetchDateReport(selectedDate)}
-            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent"
+            className="cursor-pointer rounded-sm border border-border bg-card px-3 py-1.5 font-bold text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             Thử lại
           </button>
@@ -293,7 +294,7 @@ export function History() {
                       <Link
                         to="/stock/$symbol"
                         params={{ symbol: rec.symbol }}
-                        className="hover:underline"
+                        className="hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                       >
                         {rec.symbol}
                       </Link>{" "}

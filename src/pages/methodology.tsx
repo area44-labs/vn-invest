@@ -1,23 +1,24 @@
 import { Link } from "@tanstack/react-router";
 import {
+  Activity,
   ArrowLeft,
+  BarChart3,
   BookOpen,
   ShieldAlert,
   Sparkles,
   Target,
-  Activity,
-  BarChart3,
 } from "lucide-react";
 
 export function Methodology() {
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <article className="mx-auto max-w-4xl space-y-8">
       {/* Header Navigation */}
-      <div className="flex items-center space-x-3 border-b border-border pb-4">
+      <header className="flex items-center space-x-3 border-b border-border pb-4">
         <Link
           to="/"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent"
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-card text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           title="Quay lại Dashboard"
+          aria-label="Quay lại Dashboard"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -31,13 +32,13 @@ export function Methodology() {
             quy tắc giao dịch.
           </p>
         </div>
-      </div>
+      </header>
 
       {/* Visual Pipeline Banner */}
-      <div className="space-y-3 rounded-sm border border-border bg-card p-4 font-mono text-xs">
-        <span className="block font-bold tracking-wider text-foreground uppercase">
+      <section className="space-y-3 rounded-sm border border-border bg-card p-4 font-mono text-xs">
+        <h2 className="block font-bold tracking-wider text-foreground uppercase">
           Sơ Đồ Pipeline Xử Lý Định Lượng VN Invest
-        </span>
+        </h2>
         <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
           <div className="rounded border border-border bg-background p-2">
             <span className="block font-bold text-foreground">1. Market Regime</span>
@@ -60,10 +61,10 @@ export function Methodology() {
             <span className="text-[10px] text-muted-foreground">BUY / WATCH / HOLD / SELL</span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Section 1: Market Regime */}
-      <div className="space-y-3 rounded-sm border border-border bg-card p-5">
+      <section className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
           <Activity className="h-5 w-5 text-trend-up-text" /> 1. Chế Độ Thị Trường (Market Regime)
         </h2>
@@ -93,10 +94,10 @@ export function Methodology() {
             bị ép về trạng thái AVOID để bảo vệ vốn.
           </li>
         </ul>
-      </div>
+      </section>
 
       {/* Section 2: Signal Score & Technical Signals */}
-      <div className="space-y-3 rounded-sm border border-border bg-card p-5">
+      <section className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
           <Sparkles className="h-5 w-5 text-trend-up-text" /> 2. Điểm Số Signal Score & Chỉ Báo Kỹ
           Thuật
@@ -132,10 +133,10 @@ export function Methodology() {
             </span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Section 3: Risk Horizon T+2.5 & Risk-Adjusted Score */}
-      <div className="space-y-3 rounded-sm border border-border bg-card p-5">
+      <section className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
           <BarChart3 className="h-5 w-5 text-trend-down-text" /> 3. Mô Hình Rủi Ro T+2.5 &
           Risk-Adjusted Score
@@ -162,10 +163,10 @@ export function Methodology() {
             trên biến động 60 ngày, Max Drawdown và hệ số Market Regime.
           </li>
         </ul>
-      </div>
+      </section>
 
       {/* Section 4: Trade Plan & Invalidation */}
-      <div className="space-y-3 rounded-sm border border-border bg-card p-5">
+      <section className="space-y-3 rounded-sm border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
           <Target className="h-5 w-5 text-trend-up-text" /> 4. Kế Hoạch Giao Dịch & Điều Kiện Vô
           Hiệu Hóa
@@ -197,10 +198,10 @@ export function Methodology() {
             </span>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Disclaimer */}
-      <div className="space-y-2 rounded-sm border border-border bg-muted/40 p-4 font-mono text-xs">
+      <section className="space-y-2 rounded-sm border border-border bg-muted/40 p-4 font-mono text-xs">
         <span className="flex items-center font-bold text-foreground">
           <ShieldAlert className="mr-1.5 h-4 w-4 text-subtle-foreground" /> Tuyên Bố Miễn Trừ Trách
           Nhiệm
@@ -211,7 +212,7 @@ export function Methodology() {
           khuyên đầu tư tài chính cá nhân. Nhà đầu tư tự chịu trách nhiệm hoàn toàn đối với quyết
           định giao dịch trên thị trường.
         </p>
-      </div>
-    </div>
+      </section>
+    </article>
   );
 }

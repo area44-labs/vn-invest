@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       python: ${{ steps.filter.outputs.python }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,6 +30,14 @@ jobs:
               - "pyproject.toml"
               - "uv.lock"
               - "pytest.ini"
+              - ".github/workflows/tests.yml"
+            frontend:
+              - "src/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "vite.config.ts"
+              - "tsconfig.json"
+              - "components.json"
               - ".github/workflows/tests.yml"
 
   test:
@@ -53,3 +62,27 @@ jobs:
 
       - name: Run Python tests
         run: uv run --frozen pytest
+
+  frontend-test:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm and Node
+        uses: pnpm/action-setup@a7487c7e89a18d4991f9d222e3914a275f11ef42 # v4.1.0
+        with:
+          run_install: true
+
+      - name: Install Playwright Chromium browser
+        run: pnpm exec playwright install chromium
+
+      - name: Run frontend tests
+        run: pnpm test
+
+      - name: Run frontend check
+        run: pnpm check

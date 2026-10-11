@@ -1,4 +1,4 @@
-import { Sun, Moon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
@@ -14,21 +14,24 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/90 backdrop-blur-md transition-colors">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-14 max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 sm:px-6 lg:px-8">
         {/* Report Identity & Navigation */}
-        <div className="flex items-center space-x-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
           <button
             onClick={() => onNavigate("dashboard")}
-            className="cursor-pointer font-mono text-sm font-bold tracking-tight text-foreground uppercase hover:opacity-80"
+            className="cursor-pointer font-mono text-sm font-bold tracking-tight text-foreground uppercase hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             VN Invest
           </button>
 
-          <nav className="flex items-center space-x-2 font-mono text-xs">
+          <nav
+            aria-label="Chuyển hướng xem báo cáo"
+            className="flex flex-wrap items-center gap-1 font-mono text-xs sm:gap-2"
+          >
             <button
               onClick={() => onNavigate("dashboard")}
               className={cn(
-                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors",
+                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                 currentView === "dashboard"
                   ? "bg-primary font-bold text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -39,7 +42,7 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
             <button
               onClick={() => onNavigate("history")}
               className={cn(
-                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors",
+                "cursor-pointer rounded-sm px-2.5 py-1 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                 currentView === "history"
                   ? "bg-primary font-bold text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -51,7 +54,7 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
         </div>
 
         {/* Right navigation items */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           {lastUpdated && (
             <div className="hidden items-center font-mono text-[11px] tracking-tight text-muted-foreground md:flex">
               <span className="mr-2 h-1.5 w-1.5 rounded-full bg-trend-up-text" />
@@ -62,9 +65,9 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
           <div className="flex items-center space-x-2">
             <button
               onClick={toggleTheme}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus:outline-none"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               title={theme === "light" ? "Chuyển sang chế độ tối" : "Chuyển sang chế độ sáng"}
-              aria-label="Toggle theme"
+              aria-label="Chuyển đổi giao diện sáng/tối"
             >
               {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             </button>
@@ -73,8 +76,8 @@ export function Header({ currentView, onNavigate, lastUpdated }: HeaderProps) {
               href="https://github.com/area44-labs/vn-invest"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus:outline-none"
-              title="GitHub Repository"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              title="Mã nguồn GitHub Repository"
               aria-label="GitHub Repository"
             >
               <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">

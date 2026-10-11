@@ -1,18 +1,18 @@
 import { useNavigate } from "@tanstack/react-router";
-import { HelpCircle, FileText, Sparkles, ArrowDownRight } from "lucide-react";
+import { ArrowDownRight, FileText, HelpCircle, Sparkles } from "lucide-react";
 
 import type { Recommendation } from "@/types/recommendation";
 
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
-  TableHeader,
   TableBody,
-  TableHead,
-  TableRow,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip } from "@/components/ui/tooltip";
 import { formatRisk, formatVnd } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -155,8 +155,18 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
               return (
                 <TableRow
                   key={r.symbol}
+                  // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Xem chi tiết cổ phiếu ${r.symbol}`}
                   onClick={() => navigate({ to: "/stock/$symbol", params: { symbol: r.symbol } })}
-                  className="cursor-pointer border-b border-border transition-colors duration-150 hover:bg-muted/40"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate({ to: "/stock/$symbol", params: { symbol: r.symbol } });
+                    }
+                  }}
+                  className="cursor-pointer border-b border-border transition-colors duration-150 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none"
                 >
                   {/* Symbol & Company & Sector */}
                   <TableCell className="px-4 py-3">
@@ -247,7 +257,7 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between border-b border-border pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
           <TabsList>
             <TabsTrigger value="BUY" className="flex cursor-pointer items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-trend-up-text" />
@@ -260,7 +270,7 @@ export function StockTable({ recommendations, activeTab, setActiveTab }: StockTa
           </TabsList>
 
           <div className="hidden font-mono text-[11px] tracking-tight text-subtle-foreground uppercase sm:block">
-            Nhấp vào dòng để xem chi tiết cổ phiếu
+            Nhấp vào dòng hoặc dùng phím Enter/Space để xem chi tiết
           </div>
         </div>
 

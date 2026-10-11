@@ -1,6 +1,6 @@
 # Frontend Architecture, SSG Build & UI Standards
 
-This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, data loading result contract, build toolchain, deployment, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, data loading result contract, build toolchain, deployment, accessibility, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
@@ -96,7 +96,7 @@ Data resolution mechanics:
 
 ### 2.3 Race Condition Protection, Component States & Retry Paths
 
-- **Asynchronous Race Protection**: Page components (e.g `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (e.g `isCancelled` flag in `useEffect`) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
+- **Asynchronous Race Protection**: Page components (e.g `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (e.g `isCancelled` flag in `useEffect` or `useRef` request tokens) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
 - **State Disambiguation & Recovery**:
   - **Loading State**: Displayed while `LoadResult` is pending when user changes selected date or symbol. State is cleared immediately on selection change to prevent stale views.
   - **Successful Data State**: Rendered when `status === "SUCCESS"`.
@@ -118,7 +118,7 @@ The project configuration and dependencies in `package.json` and `components.jso
 - **Styling & CSS Engine**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`, `tw-animate-css`).
 - **Icons**: Lucide React (`lucide-react`).
 - **Typography**: Geist Sans and Geist Mono variable fonts (`@fontsource-variable/geist`, `@fontsource-variable/geist-mono`).
-- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright` with Playwright Chromium.
+- **Build & Test Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright` with Playwright Chromium. Redundant packages (such as `@vitest/browser`) are omitted in favor of the single `@vitest/browser-playwright` provider required by `vite.config.ts`.
 
 ### 3.2 Key Configuration Files
 
@@ -129,7 +129,7 @@ The project configuration and dependencies in `package.json` and `components.jso
 
 ---
 
-## 4. UI Design Standards & Component Hierarchy
+## 4. UI Design Standards, Accessibility & Component Hierarchy
 
 ### 4.1 File Naming & Component Architecture
 
@@ -141,7 +141,15 @@ To maintain consistency and avoid unnecessary complexity:
 2. **Domain UI Components (`src/components/`)**: Composite financial components built from primitives (`market-summary.tsx`, `stock-table.tsx`, `recommendation-card.tsx`, `stock-detail-modal.tsx`, `header.tsx`).
 3. **Page Views (`src/pages/` & `src/routes/`)**: Top-level page composition and routing.
 
-### 4.2 Styling & Tokens
+### 4.2 Accessibility & Responsive Behavior
+
+- **Semantic HTML**: Structural layout uses semantic tags (`<header>`, `<nav>`, `<main>`, `<section>`, `<article>`, `<footer>`).
+- **Keyboard Navigation**: Interactive elements (such as stock table rows) support keyboard navigation (`Enter` and `Space` keypress events, `role="button"`, and `tabIndex={0}`).
+- **Focus Rings**: All interactive controls feature visible focus indicators (`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`).
+- **ARIA Attributes**: Elements include appropriate labels (`aria-label`, `aria-describedby`, `aria-selected`) for accessibility.
+- **Responsive Layouts**: Content scales cleanly across mobile, tablet, and desktop viewports using flex wrapping and scrollable table wrappers (`overflow-x-auto`).
+
+### 4.3 Styling & Tokens
 
 - **Semantic CSS Variables**: Use theme variables defined in `src/styles/index.css` (e.g., `bg-background`, `text-foreground`, `border-border`, `bg-card`, `bg-muted`).
 - **Financial Trend Tokens (OKLCH)**:
@@ -153,7 +161,7 @@ To maintain consistency and avoid unnecessary complexity:
   - Tickers, prices, & financial numbers: `font-mono` (Geist Mono Variable).
 - **Class Merging**: Use `cn()` from `@/lib/utils` to merge Tailwind classes cleanly.
 
-### 4.3 Market Metric Formatting Rules
+### 4.4 Market Metric Formatting Rules
 
 - **VN-INDEX Card**: Displays index value, `vnindex_change_pct` percentage change with trend arrows/colors, and volume ratio.
 - **Market Regime & Confidence Card**: Displays regime status string/score, and confidence percentage (`Độ tin cậy 85%`) formatted with neutral secondary badge styling. **Confidence is never presented as a price change.**

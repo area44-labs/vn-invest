@@ -17,6 +17,8 @@ This document specifies the current canonical terminology, module/class/function
 | **JSON Schema File**           | `snake_case.schema.json` | `recommendations.schema.json`, `performance.schema.json`           |
 | **Frontend File**              | `kebab-case.tsx` / `.ts` | `dashboard.tsx`, `stock-detail.tsx`, `market-summary.tsx`          |
 | **React Component Identifier** | `PascalCase`             | `export function StockDetail()`, `export function MarketSummary()` |
+| **TypeScript Function / Var**  | `camelCase`              | `loadRecommendationsResult`, `activeSymbol`, `isMarketFallback`    |
+| **React Hook**                 | `use` + `camelCase`      | `useTheme`, `useNavigate`                                          |
 
 ### 1.1 Frontend File Naming Rules (`src/`)
 
@@ -27,7 +29,13 @@ This document specifies the current canonical terminology, module/class/function
   - Utilities: `src/lib/format.ts`, `src/data/loader.ts`
 - **PascalCase Export Identifiers**: React component functions, TypeScript types, and interfaces maintain standard `PascalCase` exported names (e.g., `export function StockDetail()`, `export interface MarketSummaryProps`). The kebab-case convention applies strictly to filenames, not exported code identifiers.
 
-### 1.2 Expressive Domain Naming Guidelines
+### 1.2 Python Naming Rules (`scripts/`)
+
+- **Modules & Functions**: Use `snake_case` for module filenames (e.g., `data_provider.py`, `generate_report.py`) and function/method names.
+- **Classes & Dataclasses**: Use `PascalCase` for class definitions (e.g., `VnstockDataProvider`, `PerformanceTracker`).
+- **Constants**: Use `UPPER_SNAKE_CASE` for immutable constants (e.g., `DEFAULT_UPDATE_THROTTLE_DELAY`, `PIPELINE_STAGES`).
+
+### 1.3 Expressive Domain Naming Guidelines
 
 - **Behavior & Intent**: Names must clearly communicate domain responsibility and behavior. Prefer descriptive names like `calculate_risk_adjusted_score`, `validate_temporal_integrity`, `evaluate_execution_eligibility` over vague catch-alls like `process_data`, `handle_result`, `helper`, or `manager`.
 - **Variable Clarity**: Avoid placeholder or uninformative variable/parameter names (such as `obj`, `val`, `temp`, `data`) when precise domain identifiers exist (e.g., `score_value`, `field_value`, `payload_node`, `instance`).
@@ -40,7 +48,7 @@ This document specifies the current canonical terminology, module/class/function
 ### 2.1 System Concepts
 
 - **`data_as_of`**: The canonical trading session date string (`YYYY-MM-DD`) derived strictly from clean, validated `VNINDEX` market data. It represents the point-in-time reference date for all calculations.
-- **`PipelineContext`**: The state object created during pipeline execution that holds configuration, canonical market data DataFrames, processing statistics, and generated results across all 9 execution stages.
+- **`PipelineContext`**: The state object created during pipeline execution that holds configuration, canonical market data DataFrames, processing statistics, and generated results across all execution stages.
 - **`QuantConfig`**: Immutable frozen dataclass holding all quantitative signal weights, indicator parameters, risk parameters, and regime factors.
 - **`config_hash`**: The deterministic SHA-256 hash string generated from `QuantConfig.get_config_hash()`, used to track quantitative parameter lineage across recommendations and artifacts.
 - **`ExecutionEligibility`**: Dataclass representing point-in-time liquidity and execution constraints for a stock symbol during backtesting (`executable`, `not_executable`, `insufficient_liquidity_history`, `invalid_market_data`).
