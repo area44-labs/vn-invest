@@ -1,152 +1,89 @@
 # Subsystem Architecture & Canonical Boundaries
 
-This document is the authoritative architectural specification for **VN Invest** (`area44-labs/vn-invest`). It defines system package/module boundaries, data flow hierarchy, entry points, and architectural rules.
+This document specifies the system package boundaries, package hierarchy, end-to-end data flow, entry points, and architectural rules for **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
-## 1. High-Level Architecture Overview
+## 1. Purpose & When to Consult
 
-VN Invest operates as an automated quantitative analysis and static report generation system for Vietnamese stock markets (HOSE, HNX, UPCoM).
+Consult this document when adding new packages, designing cross-layer features, tracing data flow, or checking architectural boundaries and responsibilities.
+
+---
+
+## 2. Shared End-to-End System Flow
+
+The end-to-end flow connects backend market acquisition to frontend visualization:
+
+$$\text{Market Data} \longrightarrow \text{Backend Validation \& Quant} \longrightarrow \text{JSON Artifacts (`generated/`)} \longrightarrow \text{Frontend Loaders (`loader.ts`)} \longrightarrow \text{UI}$$
 
 ```text
-[ Market Data Provider (Vnstock) ]
-               │
-               ▼
-┌───────────────────────────────────────────────┐
-│           Python Quantitative Engine          │
-│       (Data -> Quant -> Pipeline)             │
-└──────────────────────┬────────────────────────┘
-                       │ Validated Static JSON Artifacts
-                       ▼
-┌───────────────────────────────────────────────┐
-│        Generated Artifacts (generated/)       │
-│  recommendations.json / market.json / ...     │
-└──────────────────────┬────────────────────────┘
-                       │ SSG Build (Vite+)
-                       ▼
-┌───────────────────────────────────────────────┐
-│       React SSG Frontend (TanStack Start)     │
-│                 Published site                │
-└───────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                 Python Quantitative Backend                 │
+│                         (scripts/)                          │
+│ Market Data -> Canonical Validation -> Indicators & Signals │
+│     -> T+2.5 Risk Models -> Monitoring -> Schema Check      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ Schema-Validated Static Artifacts
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Artifact Contract                      │
+│                        (generated/)                         │
+│ recommendations.json / market.json / monitoring.json / ...  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               │ SSG Build (Vite+ Prerender)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      React SSG Frontend                     │
+│                           (src/)                            │
+│     TanStack Start -> Typed Loaders -> Visual UI            │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-The system is split into two primary environments:
-
-1. **Python Quantitative Backend (`scripts/`)**: Handles market data collection, canonical validation, technical indicators, signal generation, risk modeling (T+2.5 VaR/ES), portfolio backtesting, operational monitoring, schema compliance validation against `schemas/v2/`, and atomic artifact publishing.
-2. **React SSG Frontend (`src/`)**: A read-only static web application that consumes pre-rendered JSON payloads from `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
 
 ---
 
-## 2. Canonical Subsystem Hierarchy & Boundaries
+## 3. Package Structure & Hierarchy (`scripts/`)
 
-The backend architecture consists of 9 canonical Python packages under `scripts/`. Each package has a single, strictly bounded responsibility.
+Backend logic is organized into 9 specialized Python packages under `scripts/`:
 
 ```text
 scripts/
-├── domain/          # Canonical domain contracts, models, and universe definitions
-├── data/            # Market data acquisition, normalization, provider adapters, and validation
-├── quant/           # Pure quantitative engines, indicator calculation, signals, and risk
-├── pipeline/        # Stage-based orchestration runner and execution context
-├── backtest/        # Walk-forward backtesting, cost models, and portfolio evaluation
-├── performance/     # Pipeline runtime timing, provider metrics, and budget checks
-├── monitoring/      # Operational monitoring checks, data quality, and drift evaluation
-├── artifacts/       # Atomic publishing, POSIX locking, transactions, and provenance
+├── domain/          # Immutable frozen domain contracts, models, and universe definitions
+├── data/            # Market data acquisition, normalization, and canonical validation
+├── quant/           # Pure quantitative engines, indicator features, signals, and T+2.5 risk
+├── pipeline/        # Stage-based orchestration runner and context
+├── backtest/        # PIT backtesting, cost models, and portfolio evaluation
+├── performance/     # Runtime timing, provider metrics, and budget checks
+├── monitoring/      # Operational quality checks, schema validation, and drift evaluation
+├── artifacts/       # Atomic publishing, POSIX locks, transactions, and provenance
 └── schema/          # Centralized version-aware schema registry (resolving schemas/v2/)
 ```
 
-### Dependency Direction Rules
-
-The system enforces strict top-down dependency flow:
+### Dependency Flow Constraint
 
 $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text{pipeline} / \text{backtest} \longrightarrow \text{performance} / \text{monitoring} / \text{artifacts}$$
 
-- **`scripts/domain`**: Zero external dependencies within `scripts/`. Imports only standard library and typing.
-- **`scripts/data` & `scripts/quant`**: Depend on `scripts/domain`. Contain pure functions and isolated calculation engines without pipeline I/O.
-- **`scripts/pipeline`**: Coordinates execution across `data`, `quant`, `performance`, `monitoring`, and `artifacts`.
-- **`scripts/artifacts`**: Manages file transactions and locking. Has **zero top-level import dependencies on `scripts.pipeline`** to prevent circular dependencies.
+- **`scripts/domain`**: Zero internal dependencies. Contains immutable domain models (`UniverseCandidate`, `Recommendation`, `OHLCVData`).
+- **`scripts/data` & `scripts/quant`**: Depend on `domain`. Contain pure data adapters and calculation engines without file I/O.
+- **`scripts/pipeline`**: Orchestrates stages across `data`, `quant`, `performance`, `monitoring`, and `artifacts`.
+- **`scripts/artifacts`**: Manages POSIX locking and file transaction rollbacks. Zero top-level import dependency on `pipeline`.
 
 ---
 
-## 3. Subsystem Breakdown
+## 4. Subsystem Responsibilities & Cross-Layer Rules
 
-### 3.1 Domain (`scripts/domain/`)
+### 4.1 Subsystem Boundaries
 
-- **Primary Responsibility**: Defines immutable frozen dataclasses for domain entities.
-- **Core Models**: `Universe`, `UniverseCandidate`, `UniverseScanResult`, `OHLCVData`, `DataQuality`, `TradePlan`, `RiskAssessment`, `Recommendation`, `PipelineResult`.
-- **Universe Source**: `UniverseProvider` and `CANDIDATE_STOCKS` serve as the single source of candidate symbol universe metadata.
-- **See**: [docs/naming.md](naming.md) and [docs/data-contracts.md](data-contracts.md).
+- **Backend (`scripts/`)**: Owns market acquisition, financial calculations, technical indicators, T+2.5 risk modeling, backtesting, monitoring checks, and schema validation.
+- **Artifact Interface (`generated/`)**: Single canonical interface between backend and frontend.
+- **Frontend (`src/`)**: Read-only static visualizer. Renders pages using pre-rendered JSON payloads. **Zero financial or quantitative calculations occur in the frontend.**
 
-### 3.2 Data Layer (`scripts/data/`)
+### 4.2 Cross-Layer Changes & Backward Compatibility
 
-- **Primary Responsibility**: Encapsulates external provider access (`VnstockMarketProvider`), unit normalization, and strict canonical OHLCV validation.
-- **Core Modules**: `acquisition.py`, `normalization.py`, `validation.py`, `providers/`.
-- **Validation**: Enforces non-empty datasets, positive prices, non-negative volumes, monotonic trading dates, and temporal consistency (`data_as_of`).
-- **See**: [docs/pipeline.md](pipeline.md) and [docs/data-contracts.md](data-contracts.md).
+When modifying payload structures or introducing new fields:
 
-### 3.3 Quantitative Engine (`scripts/quant/`)
-
-- **Primary Responsibility**: Computes technical indicators, market regime, signal scores, T+2.5 risk assessments, and stock trade plans.
-- **Core Modules**: `config.py` (`QuantConfig`), `contracts.py`, `features.py`, `regime.py`, `signal.py`, `risk.py`, `recommendation.py`.
-- **Engines**: `MarketAnalysisEngine`, `SignalRecommendationEngine`, `RiskTradePlanEngine`.
-- **See**: [docs/quantitative.md](quantitative.md).
-
-### 3.4 Production Pipeline Orchestration (`scripts/pipeline/`)
-
-- **Primary Responsibility**: Orchestrates the 9 explicit execution stages via `PipelineContext` and `ProductionPipeline`.
-- **Core Modules**: `runner.py`, `context.py`, `stages.py`, `constants.py`, `validation.py`, `publishing.py`.
-- **See**: [docs/pipeline.md](pipeline.md).
-
-### 3.5 Backtesting Framework (`scripts/backtest/`)
-
-- **Primary Responsibility**: Point-in-time signal testing, forward outcome calculations, execution eligibility evaluation, and portfolio allocation backtests.
-- **Core Modules**: `engine.py`, `portfolio.py`.
-- **See**: [docs/quantitative.md](quantitative.md).
-
-### 3.6 Performance Instrumentation (`scripts/performance/`)
-
-- **Primary Responsibility**: Stage timing collection, provider call timing aggregation, budget evaluation, and regression checks.
-- **Core Modules**: `tracker.py`, `provider_metrics.py`, `stage_metrics.py`, `budget.py`, `regression.py`.
-
-### 3.7 Operational Monitoring (`scripts/monitoring/`)
-
-- **Primary Responsibility**: Post-execution quality assurance, schema compliance, freshness checks, symbol accounting, and data/model drift detection against qualified baseline lookbacks.
-- **Core Modules**: `checks.py`, `drift.py`, `evaluator.py`, `metrics.py`, `models.py`.
-- **See**: [docs/monitoring.md](monitoring.md).
-
-### 3.8 Artifact Publishing & Provenance (`scripts/artifacts/` & `scripts/schema/`)
-
-- **Primary Responsibility**: Safe, atomic persistence of generated JSON artifacts using POSIX single-writer locks (`ArtifactLock`), transaction rollback (`ArtifactTransaction`), provenance manifests, and schema registry resolution (`scripts/schema/registry.py`).
-- **See**: [docs/artifacts.md](artifacts.md).
-
-### 3.9 Frontend SSG & Visualization (`src/`)
-
-- **Primary Responsibility**: Read-only static presentation of generated JSON artifacts using React SSG, TanStack Start, and shadcn/ui component primitives.
-- **Boundary Contract**: Consumes static JSON payloads from `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/*.json`). Performs zero quantitative math or status re-evaluation.
-- **See**: [docs/frontend.md](frontend.md).
-
----
-
-## 4. Production Entry Points
-
-| Entry Point                        | Location                            | Purpose                                                                                  |
-| :--------------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------- |
-| **CLI Runner**                     | `scripts/generate_report.py`        | Command-line interface for running report pipelines (`--update` or offline cached mode). |
-| **Pipeline Runner**                | `scripts/pipeline/runner.py`        | Orchestrates stage-by-stage execution via `ProductionPipeline.run()`.                    |
-| **Scheduled Data Update Workflow** | `.github/workflows/update-data.yml` | GitHub Actions workflow executing daily EOD updates after market close.                  |
-| **CI Test Workflow**               | `.github/workflows/tests.yml`       | GitHub Actions workflow running `uv run --frozen pytest`.                                |
-| **Static Build Workflow**          | `.github/workflows/pages.yml`       | GitHub Actions workflow building React SSG frontend.                                     |
-
----
-
-## 5. Architectural Invariants & Rules for New Code
-
-1. **Where New Code Belongs**:
-   - New domain entities -> `scripts/domain/`
-   - New data providers or cleaning logic -> `scripts/data/`
-   - New financial models or signals -> `scripts/quant/`
-   - New pipeline steps -> `scripts/pipeline/stages.py`
-   - New backtesting metrics -> `scripts/backtest/`
-   - New monitoring metrics or drift checks -> `scripts/monitoring/`
-   - New UI components or visual controls -> `src/components/ui/` (primitives) or `src/components/` (composite UI)
-2. **No Financial Math in Frontend**: The frontend is exclusively a static visualizer for schema-validated artifacts in `generated/`.
-3. **Fail-Closed Principle**: Missing, corrupted, or insufficient data must result in explicit error raising or `None`/`INSUFFICIENT` statuses. Never fabricate synthetic default values to bypass errors.
+1. Trace the change from backend producer (`scripts/pipeline/stages.py` / `scripts/quant/`) to schema validator (`schemas/v2/*.schema.json`).
+2. Update frontend TypeScript interfaces (`src/types/`) and typed data loader guards (`src/data/loader.ts`).
+3. Update UI presentation components (`src/components/`).
+4. Ensure relevant backend pytest tests (`scripts/tests/`) and frontend Vitest tests (`src/tests/`) pass before publishing.

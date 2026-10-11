@@ -1,66 +1,60 @@
 # Coding Agent Workflow Guidelines
 
-This document specifies the operational guidelines, execution rules, and workflow expectations for coding agents working on **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the operational decision rules, execution sequence, and safety directives for AI coding agents working on **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
-## 1. Core Directives & Guiding Principles
+## 1. Purpose & When to Consult
 
-1. **Read & Inspect Before Modifying Code**: Always inspect existing canonical subsystem code and tests in `scripts/` or `src/` before altering functionality. Do not guess internal interfaces.
-2. **Preserve Canonical Boundaries**: Respect package responsibilities (`scripts/`) and frontend layer separation (`src/`).
-3. **Focused Changes**: Work in small, focused increments addressing a single task or feature scope. Do not mix unrelated refactorings or formatting changes into a single PR.
-4. **No Financial Math in Frontend**: Do not add quantitative calculations to `src/`. The frontend is strictly a read-only viewer for pre-rendered artifacts in `generated/`.
-5. **Fail-Closed & Anti-Lookahead Safety**: Maintain point-in-time isolation ($\le T$) for all historical data and signal logic. Do not fabricate missing values or create silent fallbacks.
+Consult this document before starting code edits, planning tests, or finalizing a pull request to ensure changes comply with repository safety invariants, testing protocols, and documentation requirements.
 
 ---
 
-## 2. Standard Iterative Execution Workflow
+## 2. Decision Tree & Execution Sequence
 
 ```text
-1. Inspect Scope & Relevant Docs (docs/*)
-               │
-               ▼
-2. Locate Affected Canonical Package & Tests (scripts/ or src/)
-               │
-               ▼
-3. Make Minimal, Focused Edits & Update Documentation (docs/*)
-               │
-               ▼
-4. Verify via Targeted Unit Tests & Formatting (pytest / vp check; repeat as needed)
-               │
-               ▼ (Once ALL relevant code and documentation changes are completed)
-5. Run Backend & Frontend Test Suites (uv run --frozen pytest && vp test)
-               │
-               ▼
-6. Execute Verification Commands (python scripts/generate_report.py --update && vp check && vp build)
-               │
-               ▼
-7. Complete Pre-Commit Validation & Submit
+1. Inspect Requested Scope & Repository Status
+              │
+              ▼
+2. Consult Authoritative Documentation (docs/index.md -> relevant guide)
+              │
+              ▼
+3. Determine Affected Layer(s):
+   ├── Backend Only (scripts/): Python quantitative logic, data, pipeline
+   ├── Frontend Only (src/): React SSG UI, routes, loaders
+   └── Shared / Cross-Layer (schemas/v2/ + scripts/ + src/): Payloads, models, contracts
+              │
+              ▼
+4. Implement Minimal, Focused Change
+              │
+              ▼
+5. Synchronize Authoritative Docs in docs/ (if contracts/behavior changed)
+              │
+              ▼
+6. Run Proportional Validation:
+   ├── Docs-only: Verify internal Markdown links & formatting (pnpm check)
+   ├── Backend: Targeted unit test -> full pytest suite (uv run --frozen pytest)
+   └── Frontend: Component test -> vp check & vp test
+              │
+              ▼
+7. Submit Change with Descriptive Summary
 ```
 
-_Note: Run tests only when necessary (e.g. when modifying backend or frontend code). Do **not** execute full test suites after every single file modification. Keep development iteration fast by executing targeted tests during code edits, and run full test suites specifically after all task modifications are completed. Pytest execution may be skipped entirely for documentation-only changes that do not alter executable behavior._
+---
+
+## 3. Mandatory Safety Rules & Invariants
+
+1. **No Routine Live Market Updates**: Never run `python scripts/generate_report.py --update` as routine validation. Running `--update` fetches external live market data and modifies generated report artifacts in `generated/`. Only execute `--update` when explicitly requested and authorized by the user.
+2. **Read-Only Frontend visualizer**: Do not add financial or quantitative business logic to `src/`. All calculations belong in `scripts/`.
+3. **Fail-Closed Principle**: Never synthesize fake prices, fallback metrics, or artificial defaults to bypass missing data errors.
+4. **Proportional Testing**: Skip unnecessary test executions for documentation-only changes. For code changes, run targeted tests during development and execute full test suites prior to submission.
 
 ---
 
-## 3. Targeted Test Execution Guide
+## 4. Targeted Development Commands
 
-To keep feedback loops fast during development, run the smallest relevant test file while editing files:
+Run targeted commands during development to maintain fast feedback loops:
 
-- Frontend Tests:
-  ```bash
-  vp test
-  ```
-- Backend Tests:
-  ```bash
-  uv run --frozen pytest scripts/tests/test_*.py
-  ```
-
----
-
-## 4. Documentation Maintenance Rule
-
-Whenever a code change alters subsystem boundaries, data contracts, pipeline stages, CLI parameters, file naming rules, or testing mechanics:
-
-- Update the single authoritative document in `docs/` governing that topic.
-- Verify that internal Markdown links across `docs/` and `AGENTS.md` remain valid.
-- Ensure relevant documentation files under `docs/` are updated in the same change whenever system architecture, contracts, or behavior change.
+- **Python Scripts**: `uv run --frozen pytest scripts/tests/test_domain.py`
+- **Frontend Components**: `vp test` or `vp check --fix`
+- **Link & Syntax Check**: `pnpm check`
