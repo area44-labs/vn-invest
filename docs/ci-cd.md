@@ -22,13 +22,13 @@ The repository includes four primary GitHub Actions workflows:
 ### 2.1 Test Suite Workflow (`tests.yml`)
 
 - **Job Filter (`changes`)**: Uses `dorny/paths-filter@v4` to inspect modified files against two separate target filters:
-  - `python`: `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, `.github/workflows/tests.yml`.
+  - `backend`: `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, `.github/workflows/tests.yml`.
   - `frontend`: `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, `components.json`, `.github/workflows/tests.yml`.
 - **Python Test Job (`test`)**:
   - Environment: `ubuntu-latest`, Python 3.14, managed via `astral-sh/setup-uv@v10`.
   - Commands: `uv sync --frozen` & `uv run --frozen pytest`.
 - **Frontend Test Job (`frontend-test`)**:
-  - Environment: `ubuntu-latest`, Node.js, managed via `pnpm/action-setup@v4`.
+  - Environment: `ubuntu-latest`, Node.js 22 (`actions/setup-node@v4`), `pnpm/action-setup@v4`.
   - Commands: `pnpm install --frozen-lockfile`, `pnpm exec playwright install chromium`, `pnpm test` (`vp test`), and `pnpm check` (`vp check`).
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
