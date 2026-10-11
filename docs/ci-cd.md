@@ -29,7 +29,8 @@ The repository includes four primary GitHub Actions workflows:
   - Commands: `uv sync --frozen` & `uv run --frozen pytest`.
 - **Frontend Test Job (`frontend-test`)**:
   - Environment: `ubuntu-latest`.
-  - Workflow Action: Uses `area44/workflows/vite-plus` to manage Vite+ toolchain execution (`vp test` and `vp check`).
+  - Setup: Uses `area44/workflows/vite-plus` to manage Vite+ toolchain setup.
+  - Commands: `pnpm exec vp test` and `pnpm exec vp check`.
 
 ### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
 

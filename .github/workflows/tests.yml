@@ -73,5 +73,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Run Vite+ frontend checks and tests
+      - name: Set up Vite+ environment
         uses: area44/workflows/vite-plus@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
+
+      - name: Run Vite+ frontend tests
+        run: pnpm exec vp test
+
+      - name: Run Vite+ frontend check
+        run: pnpm exec vp check
