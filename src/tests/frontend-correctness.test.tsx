@@ -350,6 +350,46 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     });
   });
 
+  describe("loadHistoryReportResult date validation regression tests", () => {
+    it("returns NOT_FOUND for impossible dates without calling fetch", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch");
+
+      const res1 = await loadHistoryReportResult("2026-02-31");
+      expect(res1).toEqual({ status: "NOT_FOUND" });
+
+      const res2 = await loadHistoryReportResult("2026-13-01");
+      expect(res2).toEqual({ status: "NOT_FOUND" });
+
+      const res3 = await loadHistoryReportResult("2025-02-29");
+      expect(res3).toEqual({ status: "NOT_FOUND" });
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("fetches report for valid dates including leap-day date 2024-02-29", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((url: RequestInfo | URL) => {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify(
+              getValidRecommendationsPayloadSample({
+                source_date: "2024-02-29",
+                data_as_of: "2024-02-29",
+              }),
+            ),
+            { status: 200 },
+          ),
+        );
+      });
+
+      const res = await loadHistoryReportResult("2024-02-29");
+      expect(res.status).toBe("SUCCESS");
+      if (res.status === "SUCCESS") {
+        expect(res.data.source_date).toBe("2024-02-29");
+      }
+      expect(fetchSpy).toHaveBeenCalledWith("/generated/history/2024-02-29.json");
+    });
+  });
+
   describe("Typed Loader SSG vs Browser Artifact Resolution", () => {
     it("fails SSG build with clear error when required static artifact is missing (ENOENT)", async () => {
       const enoentErr = new Error("ENOENT: no such file or directory");

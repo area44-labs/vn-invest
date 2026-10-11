@@ -592,7 +592,7 @@ export async function loadHistoryIndexResult(): Promise<LoadResult<HistoryIndexP
 export async function loadHistoryReportResult(
   date: string,
 ): Promise<LoadResult<RecommendationsPayload>> {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isValidDateString(date)) {
     return { status: "NOT_FOUND" };
   }
   const result = await loadArtifactResult<unknown>(`generated/history/${date}.json`, {
