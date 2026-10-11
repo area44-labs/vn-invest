@@ -96,7 +96,7 @@ Data resolution mechanics:
 
 ### 2.3 Race Condition Protection, Component States & Retry Paths
 
-- **Asynchronous Race Protection**: Page components (`src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (`isCancelled` flag in `useEffect`) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
+- **Asynchronous Race Protection**: Page components (e.g `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (e.g `isCancelled` flag in `useEffect`) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
 - **State Disambiguation & Recovery**:
   - **Loading State**: Displayed while `LoadResult` is pending when user changes selected date or symbol. State is cleared immediately on selection change to prevent stale views.
   - **Successful Data State**: Rendered when `status === "SUCCESS"`.
@@ -133,13 +133,13 @@ The project configuration and dependencies in `package.json` and `components.jso
 
 ### 4.1 File Naming & Component Architecture
 
-**File Naming Rule**: All frontend source files under `src/` (pages, components, hooks, utilities, tests, styles) MUST use `kebab-case` filenames (`ten-file.tsx`), e.g., `src/pages/dashboard.tsx`, `src/pages/history.tsx`, `src/pages/stock-detail.tsx`, `src/components/market-summary.tsx`. React component exported identifiers remain `PascalCase` (`export function StockDetail()`).
+**File Naming Rule**: All frontend source files under `src/` (pages, components, hooks, utilities, tests, styles) MUST use `kebab-case` filenames (e.g., `src/pages/dashboard.tsx`). React component exported identifiers remain `PascalCase` (e.g `export function StockDetail()`).
 
 To maintain consistency and avoid unnecessary complexity:
 
 1. **Primitive Components (`src/components/ui/`)**: Lightweight, reusable UI primitives (`button.tsx`, `badge.tsx`, `card.tsx`, `dialog.tsx`, `table.tsx`, `tabs.tsx`, `tooltip.tsx`, `select.tsx`, `input.tsx`, `dropdown-menu.tsx`).
 2. **Domain UI Components (`src/components/`)**: Composite financial components built from primitives (`market-summary.tsx`, `stock-table.tsx`, `recommendation-card.tsx`, `stock-detail-modal.tsx`, `header.tsx`).
-3. **Page Views (`src/pages/` & `src/routes/`)**: Top-level page composition and routing (`dashboard.tsx`, `history.tsx`, `methodology.tsx`, `stock-detail.tsx`).
+3. **Page Views (`src/pages/` & `src/routes/`)**: Top-level page composition and routing.
 
 ### 4.2 Styling & Tokens
 
