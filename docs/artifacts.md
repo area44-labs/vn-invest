@@ -105,5 +105,5 @@ scripts/artifacts/
 ## 5. Artifact Validation Invariants
 
 1. **Schema Requirement**: Schema-governed artifacts (`recommendations.json`, `performance.json`, and point-in-time historical recommendation snapshots `history/YYYY-MM-DD.json`) MUST declare a non-empty `schema_version` string matching a registered schema version in `scripts/schema/registry.py`. In contrast, manifest index files (`history/index.json`), provenance manifests (`provenance.json`), and internal market summaries (`market.json`) validate against their respective internal dictionary payload contracts rather than requiring a JSON Schema `schema_version`.
-2. **Date Alignment**: All output artifacts generated in a single run MUST have identical `data_as_of` trading dates. Divergent dates cause publishing to fail closed before any file modifications occur.
+2. **Date Alignment**: All output artifacts published in a single run that declare a `data_as_of` field MUST agree on the canonical trading date. Divergent dates across date-bearing artifacts cause publication to fail closed before any file modifications occur. Index manifests (`history/index.json`) that do not declare `data_as_of` are exempt from date matching.
 3. **Point-In-Time Historical State**: Historical recommendation report snapshots (`history/YYYY-MM-DD.json`) represent point-in-time recommendation state for date `YYYY-MM-DD`.
