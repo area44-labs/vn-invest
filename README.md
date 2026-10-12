@@ -64,6 +64,12 @@ vp build
 
 ---
 
+## Tài liệu kỹ thuật
+
+Tham khảo **[Danh mục Tài liệu (Documentation Index)](docs/index.md)** để tra cứu đầy đủ các tài liệu kiến trúc, quy trình phát triển, hợp đồng dữ liệu và vận hành hệ thống.
+
+---
+
 ## Bản quyền
 
 Dự án được phát hành dưới các điều khoản của [Giấy phép MIT](LICENSE) và thuộc quyền sở hữu của **AREA44**.

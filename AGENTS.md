@@ -2,6 +2,8 @@
 
 This document is the authoritative entry point for AI coding agents working on **VN Invest** (`area44-labs/vn-invest`).
 
+For the full documentation index and task-to-document mapping, see [`docs/index.md`](docs/index.md).
+
 ---
 
 ## 1. Mandatory Guardrails & Non-Negotiable Constraints
