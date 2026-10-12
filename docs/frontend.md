@@ -4,22 +4,16 @@ This document specifies the React static site generation (SSG) frontend architec
 
 ---
 
-## 1. Purpose & When to Consult
-
-Consult this document before modifying React components in `src/`, adding new page routes, modifying data loaders in `src/data/loader.ts`, or tuning SSG prerender configuration in `vite.config.ts`. Refer to [`docs/testing.md`](testing.md) for full testing guidelines.
-
----
-
-## 2. Frontend Responsibilities & Non-Negotiable Boundaries
+## 1. Frontend Responsibilities & Non-Negotiable Boundaries
 
 - **Static Page Prerendering**: HTML pages are prerendered at build time using React 19 and TanStack Start SSG (`@tanstack/react-start`).
 - **Read-Only Visualizer**: Frontend code under `src/` consumes pre-rendered static JSON artifacts from `generated/`.
 - **Zero Financial Calculations**: The frontend must never compute technical indicators, signal confidence scores, trade plan targets, or risk metrics.
-- **Verbatim Status Codes**: Display backend status strings (`BULLISH`, `BEARISH`, `SIDEWAYS`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
+- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
 
 ---
 
-## 3. Typed Data Loader Contract (`src/data/loader.ts`)
+## 2. Typed Data Loader Contract (`src/data/loader.ts`)
 
 Data fetching functions return a typed `LoadResult<T>` sum type to cleanly separate success from missing resources and errors:
 
@@ -36,23 +30,16 @@ export type LoadResult<T> =
 
 ---
 
-## 4. Technology Stack & File Naming Conventions
-
-### Tech Stack
+## 3. Technology Stack
 
 - **Framework**: React 19 + TanStack Start (`@tanstack/react-start`, `@tanstack/react-router`).
 - **UI Component Primitives**: Primitives in `src/components/ui/` built using shadcn/ui standards over `@base-ui/react` and `class-variance-authority` (`cva`).
 - **Styling**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`).
-- **Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright`.
-
-### File Naming Standard
-
-- **Kebab-Case Filenames**: All files under `src/` must use `kebab-case` filenames (e.g., `src/pages/dashboard.tsx`, `src/components/stock-table.tsx`, `src/data/loader.ts`).
-- **PascalCase Component Names**: React component functions, TypeScript interfaces, and types maintain standard `PascalCase` exported names (e.g., `export function StockDetail()`).
+- **Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright`. See [`naming.md`](naming.md) for canonical file and identifier naming rules.
 
 ---
 
-## 5. UI Accessibility & Design Standards
+## 4. UI Accessibility & Design Standards
 
 - **Semantic HTML**: Use structural layout tags (`<header>`, `<nav>`, `<main>`, `<section>`, `<footer>`).
 - **Keyboard Navigation**: Interactive controls and stock table rows support keyboard events (`Enter`, `Space`, `role="button"`, `tabIndex={0}`).
@@ -62,9 +49,9 @@ export type LoadResult<T> =
 
 ---
 
-## 6. Authoritative Development Commands
+## 5. Authoritative Development Commands
 
-See [`docs/testing.md`](testing.md) for complete details on frontend testing and checks.
+See [`testing.md`](testing.md) for complete details on frontend testing and checks.
 
 ```bash
 # Install dependencies
@@ -76,9 +63,8 @@ pnpm exec playwright install --with-deps chromium
 # Run frontend test suite (in Playwright Chromium)
 vp test
 
-# Run linter, type check, and format check
-vp check          # Standard read-only check
-vp check --fix    # Standard check with automatic fixes (modifies source files)
+# Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+vp check --fix
 
 # Local dev server
 vp dev

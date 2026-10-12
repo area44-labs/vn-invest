@@ -1,16 +1,10 @@
 # Coding Agent Workflow Guidelines
 
-This document specifies the operational decision rules, execution sequence, and safety directives for AI coding agents working on **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the operational decision rules, execution sequence, and safety directives for AI coding agents working on **VN Invest** (`area44-labs/vn-invest`). Refer to [`testing.md`](testing.md) for full testing reference commands.
 
 ---
 
-## 1. Purpose & When to Consult
-
-Consult this document before starting code edits, planning tests, or finalizing a pull request to ensure changes comply with repository safety invariants, testing protocols, and documentation requirements. Refer to [`docs/testing.md`](testing.md) for testing commands and guidelines.
-
----
-
-## 2. Decision Tree & Execution Sequence
+## 1. Decision Tree & Execution Sequence
 
 ```text
 1. Inspect Requested Scope & Repository Status
@@ -34,7 +28,7 @@ Consult this document before starting code edits, planning tests, or finalizing 
 6. Run Proportional Validation:
    ├── Docs-only: Verify relative Markdown links point to existing files & inspect diff
    ├── Backend: Targeted unit test -> full pytest suite (uv run --frozen pytest)
-   └── Frontend: Component test -> vp check & vp test
+   └── Frontend: Component test -> vp check --fix & vp test
               │
               ▼
 7. Submit Change with Descriptive Summary
@@ -42,7 +36,7 @@ Consult this document before starting code edits, planning tests, or finalizing 
 
 ---
 
-## 3. Mandatory Safety Rules & Invariants
+## 2. Mandatory Safety Rules & Invariants
 
 1. **No Routine Live Market Updates**: Never run `python scripts/generate_report.py --update` as routine validation. Running `--update` fetches external live market data and modifies generated report artifacts in `generated/`. Only execute `--update` when explicitly requested and authorized by the user.
 2. **Read-Only Frontend Visualizer**: Do not add financial or quantitative business logic to `src/`. All calculations belong in `scripts/`.
@@ -51,11 +45,11 @@ Consult this document before starting code edits, planning tests, or finalizing 
 
 ---
 
-## 4. Documentation & Code Validation
+## 3. Documentation & Code Validation
 
 - **Documentation Validation**:
   - Verify all relative Markdown links in modified documents resolve to existing files or valid anchors.
   - Inspect git diffs to ensure no stale paths or broken references were introduced.
-  - Note: Frontend code check commands (`vp check` / `vp check --fix`) validate TypeScript, ESLint rules, and formatting in `src/`. They do not validate Markdown links and `vp check --fix` may modify source files.
+  - Note: Frontend check command (`vp check --fix`) validates TypeScript, ESLint rules, and formatting in `src/`. It does not validate Markdown links, and `vp check --fix` modifies source files.
 - **Backend Code Validation**: `uv run --frozen ruff check --fix scripts` & `uv run --frozen pytest`
-- **Frontend Code Validation**: `vp check` & `vp test`
+- **Frontend Code Validation**: `vp check --fix` & `vp test`

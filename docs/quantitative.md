@@ -4,34 +4,37 @@ This document specifies the quantitative models, technical signal scoring, T+2.5
 
 ---
 
-## 1. Purpose & When to Consult
+## 1. Quantitative Engine Architecture (`scripts/quant/`)
 
-Consult this document when updating financial indicator calculations, adjusting quantitative signal weights in `scripts/quant/config.py`, modifying T+2.5 risk models, or tuning backtest execution logic.
-
----
-
-## 2. Quantitative Engine Architecture (`scripts/quant/`)
-
-Calculations are deterministic functions or engine classes operating on typed contracts without global state or file I/O.
+Calculations are pure, deterministic functions or engine classes operating on typed contracts (`contracts.py`) without global state or file I/O.
 
 - **`config.py` (`QuantConfig`)**: Immutable frozen dataclass holding signal weights, indicator thresholds, and trade plan parameters. Provides `get_config_hash()` (SHA-256) for parameter lineage tracking.
-- **`features.py`**: Computes technical indicators (MA10/20/50/200, RSI 14D, MACD 12/26/9, Bullish/Bearish Divergence, Volume ratios).
-- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend and volume ratio to classify market regime (`BULLISH`, `BEARISH`, `SIDEWAYS`, `NEUTRAL`).
-- **`signal.py` (`compute_signal`)**: Computes composite technical signal scores ($0 - 100$) and maps them to recommendation actions (`BUY`, `SELL`, `WATCH`, `HOLD`, `AVOID`).
-- **`risk.py` (`RiskTradePlanEngine`)**: Evaluates T+2.5 settlement cycle Value-at-Risk (VaR 95%), Expected Shortfall (ES 95%), 60D volatility, max drawdown, liquidity scores, and trade plans (Entry, Stop Loss, Take Profit T1/T2, Position Size).
+- **`features.py`**: Computes technical indicators:
+  - Moving Averages: MA10, MA20, MA50, MA200.
+  - Momentum: Relative Strength Index (RSI 14D), Moving Average Convergence Divergence (MACD 12/26/9).
+  - Divergence: Bullish and bearish price-RSI and price-MACD divergence pattern detection.
+  - Volume: Volume ratios relative to 20D simple moving average of volume.
+- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend (relative to MA20/MA50) and 20D volume ratio to classify market regime (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`).
+- **`signal.py` (`compute_signal`)**: Combines weighted technical signal components (trend, momentum, volume, divergence) into a composite signal score in the range 0 to 100, mapped to recommendation actions (`BUY`, `SELL`, `WATCH`, `HOLD`, `AVOID`). When regime is `PANIC`, action is forced to `AVOID`.
+- **`risk.py` (`RiskTradePlanEngine`)**: Evaluates T+2.5 settlement cycle risk metrics and trade plans:
+  - Value-at-Risk (VaR 95%): Parametric and historical simulation VaR over T+2.5 settlement horizon.
+  - Expected Shortfall (ES 95%): Conditional VaR measuring average loss beyond the 95% VaR threshold.
+  - Volatility: 60D annualized return volatility.
+  - Max Drawdown: Peak-to-trough decline over historical lookback window.
+  - Trade Plan: Entry Price/Range, Stop Loss Price, Take Profit Targets (T1/T2 with risk-reward ratio >= 2.0), and Position Size percentage.
 - **`recommendation.py`**: Synthesizes features, regime, signal scores, and risk plans into single `Recommendation` domain objects.
 
 ---
 
-## 3. Backtesting Framework (`scripts/backtest/`)
+## 2. Backtesting Framework (`scripts/backtest/`)
 
-- **Point-In-Time (PIT) Anti-Lookahead Isolation**: Slices market data strictly $\le T$ via `get_as_of_dataset()` to guarantee zero future data leakage. Forward returns ($T+5, T+10, T+20$) preserve `None` when unavailable.
+- **Point-In-Time (PIT) Anti-Lookahead Isolation**: Slices market data strictly <= T via `get_as_of_dataset()` to guarantee zero future data leakage. Forward returns (T+5, T+10, T+20 trading days) preserve `None` when unavailable.
 - **Execution Eligibility & Cost Modeling**: Evaluates point-in-time liquidity eligibility (`evaluate_execution_eligibility`) and deducts transaction costs and slippage (`slippage_pct`, `transaction_cost_pct`).
-- **Portfolio Aggregation (`portfolio.py`)**: Computes position weights, net returns, hit rate, benchmark excess returns, and enforces invariant $\sum w_i + \text{unallocated\_weight} = 1.0$.
+- **Portfolio Aggregation (`portfolio.py`)**: Computes position weights w_i, net returns, hit rate, benchmark excess returns, and enforces invariant sum(w_i) + unallocated_weight = 1.0.
 
 ---
 
-## 4. Performance Instrumentation (`scripts/performance/`)
+## 3. Performance Instrumentation (`scripts/performance/`)
 
 - Measures pipeline stage execution runtimes (`StageMetricsCollector`) and provider API timing.
 - Evaluates provider call budgets (`evaluate_provider_budget`) and performance regressions (`evaluate_performance_regression`). Uses mode-aware baselines (`PERFORMANCE_STAGE_BASELINES` for offline/test vs dynamic request workload baselines with `DEFAULT_UPDATE_THROTTLE_DELAY = 3.5s` for live `--update` mode).

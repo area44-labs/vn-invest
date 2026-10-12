@@ -1,49 +1,43 @@
 # Subsystem Architecture & Canonical Boundaries
 
-This document specifies the system package boundaries, package hierarchy, end-to-end data flow, entry points, and architectural rules for **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the system package boundaries, package hierarchy, end-to-end data flow, entry points, and architectural rules for **VN Invest** (`area44-labs/vn-invest`). See [`naming.md`](naming.md) for canonical file and identifier naming conventions.
 
 ---
 
-## 1. Purpose & When to Consult
-
-Consult this document when adding new packages, designing cross-layer features, tracing data flow, or checking architectural boundaries and responsibilities.
-
----
-
-## 2. Shared End-to-End System Flow
+## 1. Shared End-to-End System Flow
 
 The end-to-end flow connects backend market acquisition to frontend visualization:
 
-$$\text{Market Data} \longrightarrow \text{Backend Validation \& Quant} \longrightarrow \text{JSON Artifacts (`generated/`)} \longrightarrow \text{Frontend Loaders (`loader.ts`)} \longrightarrow \text{UI}$$
+Market Data -> Backend Validation & Quant -> JSON Artifacts (generated/) -> Frontend Loaders (loader.ts) -> Visual UI
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                 Python Quantitative Backend                 │
-│                         (scripts/)                          │
-│ Market Data -> Canonical Validation -> Indicators & Signals │
-│     -> T+2.5 Risk Models -> Monitoring -> Schema Check      │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ Schema-Validated Static Artifacts
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      Artifact Contract                      │
-│                        (generated/)                         │
-│ recommendations.json / market.json / monitoring.json / ...  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ SSG Build (Vite+ Prerender)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      React SSG Frontend                     │
-│                           (src/)                            │
-│     TanStack Start -> Typed Loaders -> Visual UI            │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                 Python Quantitative Backend                 |
+|                         (scripts/)                          |
+| Market Data -> Canonical Validation -> Indicators & Signals |
+|     -> T+2.5 Risk Models -> Monitoring -> Schema Check      |
++------------------------------+------------------------------+
+                               |
+                               | Schema-Validated Static Artifacts
+                               v
++-------------------------------------------------------------+
+|                      Artifact Contract                      |
+|                        (generated/)                         |
+| recommendations.json / market.json / monitoring.json / ...  |
++------------------------------+------------------------------+
+                               |
+                               | SSG Build (Vite+ Prerender)
+                               v
++-------------------------------------------------------------+
+|                      React SSG Frontend                     |
+|                           (src/)                            |
+|     TanStack Start -> Typed Loaders -> Visual UI            |
++-------------------------------------------------------------+
 ```
 
 ---
 
-## 3. Package Structure & Hierarchy (`scripts/`)
+## 2. Package Structure & Hierarchy (`scripts/`)
 
 Backend logic is organized into 9 specialized Python packages under `scripts/`:
 
@@ -62,7 +56,7 @@ scripts/
 
 ### Dependency Flow Constraint
 
-$$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text{pipeline} / \text{backtest} \longrightarrow \text{performance} / \text{monitoring} / \text{artifacts}$$
+domain -> data / quant -> pipeline / backtest -> performance / monitoring / artifacts
 
 - **`scripts/domain`**: Zero internal dependencies. Contains immutable domain models (`UniverseCandidate`, `Recommendation`, `OHLCVData`).
 - **`scripts/data` & `scripts/quant`**: Depend on `domain`. Contain pure data adapters and calculation engines without file I/O.
@@ -71,15 +65,15 @@ $$\text{domain} \longrightarrow \text{data} / \text{quant} \longrightarrow \text
 
 ---
 
-## 4. Subsystem Responsibilities & Cross-Layer Rules
+## 3. Subsystem Responsibilities & Cross-Layer Rules
 
-### 4.1 Subsystem Boundaries
+### 3.1 Subsystem Boundaries
 
 - **Backend (`scripts/`)**: Owns market acquisition, financial calculations, technical indicators, T+2.5 risk modeling, backtesting, monitoring checks, and schema validation.
 - **Artifact Interface (`generated/`)**: Single canonical interface between backend and frontend.
 - **Frontend (`src/`)**: Read-only static visualizer. Renders pages using pre-rendered JSON payloads. **Zero financial or quantitative calculations occur in the frontend.**
 
-### 4.2 Cross-Layer Changes & Backward Compatibility
+### 3.2 Cross-Layer Changes & Backward Compatibility
 
 When modifying payload structures or introducing new fields:
 

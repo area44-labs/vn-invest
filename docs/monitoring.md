@@ -4,13 +4,7 @@ This document specifies the operational monitoring subsystem, data quality check
 
 ---
 
-## 1. Purpose & When to Consult
-
-Consult this document when modifying operational data checks in `scripts/monitoring/checks.py`, tuning data/model drift evaluation in `scripts/monitoring/drift.py`, or adjusting monitoring result structures in `evaluator.py`.
-
----
-
-## 2. Operational Monitoring Architecture (`scripts/monitoring/`)
+## 1. Operational Monitoring Architecture (`scripts/monitoring/`)
 
 Operational monitoring provides deterministic, fail-closed quality checks and data/model drift tracking across current and historical report payloads.
 
@@ -19,7 +13,7 @@ Operational monitoring provides deterministic, fail-closed quality checks and da
 
 ---
 
-## 3. Core Operational Checks (`scripts/monitoring/checks.py`)
+## 2. Core Operational Checks (`scripts/monitoring/checks.py`)
 
 Primary quality checks evaluated by `evaluate_production_monitoring()`:
 
@@ -28,7 +22,7 @@ Primary quality checks evaluated by `evaluate_production_monitoring()`:
 | `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`. |
 | `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                           |
 | `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                           |
-| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is valid (`BULLISH`, `BEARISH`, `SIDEWAYS`, `NEUTRAL`).                                                  |
+| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of `VALID_MARKET_REGIMES` (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`).       |
 | `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                            |
 | `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                   |
 | `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                               |
@@ -36,16 +30,25 @@ Primary quality checks evaluated by `evaluate_production_monitoring()`:
 
 ---
 
-## 4. Data & Model Drift Architecture (`scripts/monitoring/drift.py`)
+## 3. Data & Model Drift Architecture (`scripts/monitoring/drift.py`)
 
 Tracks changes in candidate recommendation distributions, signal scores, and regime shifts over time relative to historical baselines.
 
-### 4.1 Baseline Qualification & Filtering Rules
+### 3.1 Baseline Qualification & Filtering Rules
 
 1. **Processed Ratio Threshold**: Historical reports must satisfy `processed_ratio >= DRIFT_MIN_PROCESSED_RATIO` (0.80). Sparse runs are excluded.
 2. **Reverse Chronological Scan**: Scans up to 20 qualified historical reports strictly prior to execution date ($< T$).
 3. **Minimum Baseline Sufficiency**: Requires at least 5 qualified reports. If fewer than 5 exist, monitoring returns `baseline_status = "INSUFFICIENT"` and emits check result `drift_baseline_sufficiency` with `WARNING` status. Baseline insufficiency is distinguished from model drift and does NOT produce false `FAIL` alerts.
 
-### 4.2 PANIC Regime Handling
+### 3.2 Market Regimes & PANIC Regime Drift Exception
 
-When market regime is detected as `PANIC`, the signal engine enforces action `AVOID` across all candidates. Drift evaluation explicitly checks if `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the shift as `PASS` with diagnostic logging. Unjustified 100% AVOID shifts in non-PANIC regimes continue to fail closed (`FAIL`).
+The system classifies market state into six canonical regimes:
+
+- **`STRONG_BULL`**: Strong upward momentum and positive trend across indicators.
+- **`BULL`**: Moderate upward market trend.
+- **`NEUTRAL`**: Balanced or non-directional market.
+- **`DEFENSIVE`**: Cautionary market trend with elevated drawdown risk.
+- **`BEAR`**: Strong downward market trend.
+- **`PANIC`**: Extreme market crash / sharp downturn.
+
+**PANIC Regime Rule**: When the market regime is detected as `PANIC`, quantitative signal classification (`scripts/quant/signal.py`) forces action `AVOID` across 100% of candidate stock recommendations. Drift monitoring (`scripts/monitoring/drift.py`) explicitly detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS` with diagnostic logging. Unjustified 100% AVOID shifts in non-PANIC regimes continue to fail closed (`FAIL`).

@@ -4,13 +4,7 @@ This document specifies the testing strategy, test locations, network isolation 
 
 ---
 
-## 1. Purpose & When to Consult
-
-Consult this document when writing new tests, investigating test failures, or setting up test fixtures across backend Python or frontend React modules.
-
----
-
-## 2. Test Locations & Architecture
+## 1. Test Locations & Architecture
 
 ```text
 scripts/tests/                   # Backend Python Pytest Suite
@@ -30,7 +24,7 @@ src/tests/                       # Frontend React Vitest Browser Suite
 
 ---
 
-## 3. Network Isolation & Test Fixtures
+## 2. Network Isolation & Test Fixtures
 
 - **Backend Socket Isolation**: `conftest.py` executes `enforce_network_isolation()` during pytest initialization, blocking unmocked network sockets.
 - **Provider Mocking**: Backend tests use `FakeMarketDataProvider` from `scripts/tests/fixtures.py` or `pytest-mock` (`mocker`) to mock provider API calls.
@@ -38,17 +32,17 @@ src/tests/                       # Frontend React Vitest Browser Suite
 
 ---
 
-## 4. Pytest Markers (`pyproject.toml`)
+## 3. Pytest Markers (`pyproject.toml`)
 
 - `@pytest.mark.unit`: Fast unit tests for pure functions, models, and math calculations.
 - `@pytest.mark.integration`: Multi-component pipeline, backtest, and publisher tests.
 - `@pytest.mark.e2e`: End-to-end integration tests.
-- `@pytest.mark.live`: Tests requiring live network access (skipped in CI).
-- `@pytest.mark.slow`: Tests taking $\ge 5.0$ seconds.
+- `@pytest.mark.live`: Tests requiring live network access.
+- `@pytest.mark.slow`: Tests taking >= 5.0 seconds.
 
 ---
 
-## 5. Authoritative Testing & Validation Commands
+## 4. Authoritative Testing & Validation Commands
 
 ### Backend Commands (Python >= 3.14 via `uv`)
 
@@ -63,9 +57,9 @@ uv run --frozen pytest scripts/tests/test_domain.py
 uv run --frozen pytest scripts/tests/test_pipeline.py -k "test_sequential_stage_execution_order"
 
 # Backend linting & formatting checks
-uv run --frozen ruff check scripts          # Check only
-uv run --frozen ruff check --fix scripts    # Check & auto-fix (modifies source files)
-uv run --frozen ruff format scripts         # Format scripts (modifies source files)
+uv run --frozen ruff check scripts          # Read-only check
+uv run --frozen ruff check --fix scripts    # Auto-fix check (modifies source files)
+uv run --frozen ruff format scripts         # Formatting check (modifies source files)
 ```
 
 ### Frontend Commands (Vite+ / `vp`)
