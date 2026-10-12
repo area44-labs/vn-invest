@@ -17,11 +17,11 @@ Checks must distinguish missing data, invalid data, skipped checks, and insuffic
 
 ## 2. Status and Thresholds
 
-| Status | Meaning |
-|---|---|
-| `PASS` | Applicable checks satisfy their requirements. |
-| `WARNING` | Non-critical data-quality or coverage issue. |
-| `FAIL` | Critical validation or operational failure. |
+| Status         | Meaning                                           |
+| -------------- | ------------------------------------------------- |
+| `PASS`         | Applicable checks satisfy their requirements.     |
+| `WARNING`      | Non-critical data-quality or coverage issue.      |
+| `FAIL`         | Critical validation or operational failure.       |
 | `INSUFFICIENT` | Not enough reliable evidence to evaluate a check. |
 
 The existing processed-coverage policy is:
