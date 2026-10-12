@@ -14,7 +14,7 @@ Calculations are pure, deterministic functions or engine classes operating on ty
   - Momentum: Relative Strength Index (RSI 14D), Moving Average Convergence Divergence (MACD 12/26/9).
   - Divergence: Bullish and bearish price-RSI and price-MACD divergence pattern detection across 1D, 1W, and 1M timeframes.
   - Volume: Volume ratios relative to 20D simple moving average of volume.
-- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend (relative to MA20/MA50), market breadth, and volatility to classify active market regime (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`). Note: `NEUTRAL` is retained in `QuantConfig` for planned future backend support, but is not emitted by the active classifier.
+- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend (relative to MA20/MA50), market breadth, and volatility to classify market regime (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`).
 - **`signal.py` (`compute_signal` / `calculate_signal_score`)**: Combines 5 weighted technical signal components into a composite signal score (0 to 100):
   1. **Trend Component** (`trend`): MA20 and MA50 alignment relative to price and each other.
   2. **Momentum Component** (`momentum`): RSI momentum bands and MACD Histogram expansion/contraction state.
@@ -22,7 +22,7 @@ Calculations are pure, deterministic functions or engine classes operating on ty
   4. **Relative Strength Component** (`relative_strength`): 20D return differential relative to `VNINDEX` benchmark performance (`stock_ret_20 - vn_ret_20`).
   5. **Divergence Component** (`divergence`): Timeframe-weighted bullish/bearish divergence pattern score across 1D, 1W, and 1M.
 
-  Signal score is mapped to recommendation actions (`BUY`, `SELL`, `WATCH`, `HOLD`, `AVOID`). When regime is `PANIC`, action is forced to `AVOID`.
+  Signal score is mapped to recommendation actions (`BUY`, `SELL`, `WATCH`, `HOLD`, `AVOID`).
 
 - **`risk.py` (`RiskTradePlanEngine`)**: Evaluates T+2.5 settlement cycle risk metrics and trade plans:
   - Value-at-Risk (VaR 95%): Parametric and historical simulation VaR over T+2.5 settlement horizon.

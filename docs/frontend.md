@@ -35,7 +35,7 @@ export type LoadResult<T> =
 - **Framework**: React 19 + TanStack Start (`@tanstack/react-start`, `@tanstack/react-router`).
 - **UI Component Primitives**: Primitives in `src/components/ui/` built using shadcn/ui standards over `@base-ui/react` and `class-variance-authority` (`cva`).
 - **Styling**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`).
-- **Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright`. See [`naming.md`](naming.md) for canonical file and identifier naming rules.
+- **Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright`. See [`coding-standards.md`](coding-standards.md) for canonical file and identifier naming rules.
 
 ---
 

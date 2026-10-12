@@ -22,7 +22,7 @@ Primary quality checks evaluated by `evaluate_production_monitoring()`:
 | `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`. |
 | `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                           |
 | `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                           |
-| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of active regimes (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`).                          |
+| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of valid regimes (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`).                           |
 | `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                            |
 | `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                   |
 | `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                               |
@@ -42,7 +42,6 @@ Tracks changes in candidate recommendation distributions, signal scores, and reg
 
 ### 3.2 Market Regimes & PANIC Regime Drift Exception
 
-The active market regime classifier (`detect_market_regime`) evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 active market regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`. _(Note: `NEUTRAL` is retained in `QuantConfig` for planned future backend support, but is not emitted by the active classifier nor accepted by current v2 schemas)._
+Market regime classification evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`.
 
-- **`PANIC` Thresholds**: Triggered when `VNINDEX` volatility > 35% (`regime_panic_volatility = 0.35`) or 1-day drop < -3.0% (`regime_panic_daily_drop_pct = -3.0`).
-- **`PANIC` Drift Rule**: During `PANIC`, quantitative signal logic (`scripts/quant/signal.py`) forces 100% of stock recommendation actions to `AVOID`. Drift monitoring (`scripts/monitoring/drift.py`) verifies when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS` with diagnostic logging. Unjustified 100% AVOID shifts in non-PANIC regimes fail closed (`FAIL`).
+During `PANIC`, an `AVOID`-heavy recommendation distribution is expected. Drift monitoring (`scripts/monitoring/drift.py`) detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS`. Unjustified 100% AVOID shifts in non-PANIC regimes fail closed (`FAIL`).

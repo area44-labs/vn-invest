@@ -50,6 +50,5 @@ This document specifies the operational decision rules, execution sequence, and 
 - **Documentation Validation**:
   - Verify all relative Markdown links in modified documents resolve to existing files or valid anchors.
   - Inspect git diffs to ensure no stale paths or broken references were introduced.
-  - Note: Frontend check command (`vp check --fix`) validates TypeScript, ESLint rules, and formatting in `src/`. It does not validate Markdown links, and `vp check --fix` modifies source files.
 - **Backend Code Validation**: `uv run --frozen ruff check --fix scripts` & `uv run --frozen pytest`
 - **Frontend Code Validation**: `vp check --fix` & `vp test`
