@@ -39,7 +39,7 @@ Pipeline Context Payloads (recommendations, market, performance)
      ├── 6. Universe Audit Invariants Check (check_universe_audit_invariants)
      ├── 7. Market Regime Status Check (check_market_regime_status)
      ├── 8. History Index Status Check (check_history_index_status)
-     ├── 9. Conditional Benchmark Quality Checks (check_ohlcv_data_quality, if df_vnindex/df_vn30 provided)
+     ├── 9. Conditional Benchmark Quality Checks (check_ohlcv_data_quality, emitting ohlcv_quality_vnindex / ohlcv_quality_vn30)
      ├── 10. Drift Monitoring Checks (evaluate_data_and_model_drift)
      └── 11. Performance & Provider Budget Checks (performance_payload_integrity, performance_regression, provider_budget)
   -> PipelineMonitoringResult -> Serialized to generated/monitoring.json
@@ -51,7 +51,12 @@ Pipeline Context Payloads (recommendations, market, performance)
 
 ## 4. Input & Output Payload Contracts
 
-### 4.1 Output Payload (`generated/monitoring.json`)
+### 4.1 Required Artifacts vs Performance Payload Sourcing
+
+- **Required On-Disk/In-Memory Artifacts**: `check_required_artifacts()` verifies the presence and accessibility of `recommendations.json`, `market.json`, and `history/index.json`.
+- **Performance Payload Sourcing**: The performance timing and provider metrics payload evaluated by monitoring is retrieved in memory from `universe_audit["performance"]` (populated by `PerformanceStage`). It is not checked as a required on-disk artifact file by `check_required_artifacts()`.
+
+### 4.2 Output Payload (`generated/monitoring.json`)
 
 Serialized via `PipelineMonitoringResult.to_dict()`.
 
@@ -76,7 +81,7 @@ Serialized via `PipelineMonitoringResult.to_dict()`.
 }
 ```
 
-### 4.2 `CheckResult` Item Contract (`scripts/monitoring/models.py`)
+### 4.3 `CheckResult` Item Contract (`scripts/monitoring/models.py`)
 
 Every check in the `checks` array exposes these 5 required keys:
 
@@ -94,20 +99,20 @@ Every check in the `checks` array exposes these 5 required keys:
 
 Emitted check names and status evaluation rules in `scripts/monitoring/checks.py` & `evaluator.py`:
 
-| Check Name                               | Status Mapping              | Evaluation Condition                                                                                                                                                                 |
-| :--------------------------------------- | :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`artifact_existence`**                 | `PASS` / `FAIL`             | Confirms required JSON payload artifacts exist in memory or on disk in `generated/`.                                                                                                 |
-| **`schema_validation`**                  | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`.                                                                                                  |
-| **`data_freshness`**                     | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` trading date matches execution reference date or stays within allowed trading delay.                                                                           |
-| **`numeric_sanity`**                     | `PASS` / `FAIL`             | Recursively scans payloads for illegal `NaN`, `Inf`, or `-Inf` values using `find_nan_or_inf()`.                                                                                     |
-| **`symbol_processing_counts`**           | `PASS` / `WARNING` / `FAIL` | Evaluates processed coverage ratio $r$:<br>• `PASS`: $r \ge 0.80$<br>• `WARNING`: $0.50 \le r < 0.80$<br>• `FAIL`: $r < 0.50$ (or action count summary mismatch, total scanned = 0). |
-| **`universe_audit_invariants`**          | `PASS` / `FAIL`             | Verifies universe audit classification sets (processed, invalid, missing, failed) are mutually disjoint and cover candidate universe.                                                |
-| **`market_regime_status`**               | `PASS` / `FAIL`             | Confirms market regime payload is a valid object containing a recognized regime string (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`).                                        |
-| **`history_index_status`**               | `PASS` / `FAIL`             | Verifies `generated/history/index.json` chronological descending order and metadata structure.                                                                                       |
-| **`ohlcv_data_quality`** _(conditional)_ | `PASS` / `FAIL`             | Evaluated conditionally when benchmark DataFrames (`df_vnindex`, `df_vn30`) are provided. Checks column presence, positive prices, and non-negative volumes.                         |
-| **`performance_payload_integrity`**      | `PASS` / `FAIL`             | Validates performance timing payload against `schemas/v2/performance.schema.json`.                                                                                                   |
-| **`performance_regression`**             | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines (static offline vs dynamic `--update` request workload counts).                                                     |
-| **`provider_budget`**                    | `PASS` / `WARNING` / `FAIL` | Evaluates provider API operation calls, duplicate symbol fetches, and elapsed execution time budgets.                                                                                |
+| Check Name                                                             | Status Mapping              | Evaluation Condition                                                                                                                                                                                                                                                          |
+| :--------------------------------------------------------------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`artifact_existence`**                                               | `PASS` / `FAIL`             | Confirms required JSON payload artifacts (`recommendations.json`, `market.json`, `history/index.json`) exist in memory or on disk in `generated/`.                                                                                                                            |
+| **`schema_validation`**                                                | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`.                                                                                                                                                                                           |
+| **`data_freshness`**                                                   | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` trading date matches execution reference date or stays within allowed trading delay.                                                                                                                                                                    |
+| **`numeric_sanity`**                                                   | `PASS` / `FAIL`             | Recursively scans payloads for illegal `NaN`, `Inf`, or `-Inf` values using `find_nan_or_inf()`.                                                                                                                                                                              |
+| **`symbol_processing_counts`**                                         | `PASS` / `WARNING` / `FAIL` | Evaluates processed coverage ratio $r$:<br>• `PASS`: $r \ge 0.80$<br>• `WARNING`: $0.50 \le r < 0.80$<br>• `FAIL`: $r < 0.50$ (or action count summary mismatch, total scanned = 0).                                                                                          |
+| **`universe_audit_invariants`**                                        | `PASS` / `FAIL`             | Verifies universe audit classification sets (processed, invalid, missing, failed) are mutually disjoint and cover candidate universe.                                                                                                                                         |
+| **`market_regime_status`**                                             | `PASS` / `FAIL`             | Confirms market regime payload is a valid object containing a recognized regime string (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`), matching `DEFAULT_QUANT_CONFIG.valid_market_regimes`.                                                                |
+| **`history_index_status`**                                             | `PASS` / `FAIL`             | Verifies `generated/history/index.json` chronological descending order and metadata structure.                                                                                                                                                                                |
+| **`ohlcv_quality_vnindex`** / **`ohlcv_quality_vn30`** _(conditional)_ | `PASS` / `FAIL`             | Evaluated conditionally by `check_ohlcv_data_quality()` when benchmark DataFrames (`df_vnindex`, `df_vn30`) are supplied to `evaluate_production_monitoring()`. Emits check name `ohlcv_quality_<symbol>`. Checks column presence, positive prices, and non-negative volumes. |
+| **`performance_payload_integrity`**                                    | `PASS` / `FAIL`             | Validates performance timing payload (retrieved in memory from `universe_audit["performance"]`) against `schemas/v2/performance.schema.json`.                                                                                                                                 |
+| **`performance_regression`**                                           | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines (static offline vs dynamic `--update` request workload counts).                                                                                                                                              |
+| **`provider_budget`**                                                  | `PASS` / `WARNING` / `FAIL` | Evaluates provider API operation calls, duplicate symbol fetches, and elapsed execution time budgets.                                                                                                                                                                         |
 
 ---
 
@@ -142,7 +147,9 @@ uv run --frozen pytest scripts/tests/test_performance_subsystem.py
 
 When modifying the monitoring subsystem or payload contracts:
 
-- [ ] **Exact Check Names**: Use canonical emitted check names (`symbol_processing_counts`, `market_regime_status`, `history_index_status`, `artifact_existence`, `numeric_sanity`, etc.).
+- [ ] **Exact Check Names**: Use canonical emitted check names (`symbol_processing_counts`, `market_regime_status`, `history_index_status`, `artifact_existence`, `numeric_sanity`, `ohlcv_quality_vnindex`, `ohlcv_quality_vn30`, etc.).
+- [ ] **Performance Payload Sourcing**: Remember performance payload is sourced from `universe_audit["performance"]`, distinct from `check_required_artifacts()`.
+- [ ] **Regimes List**: Include `NEUTRAL` in valid regimes for `market_regime_status` checks.
 - [ ] **Contract Keys**: Ensure `CheckResult.to_dict()` keys (`check_name`, `status`, `measured_value`, `expected_condition`, `message`) remain exact.
 - [ ] **Exact Thresholds**: Ensure `symbol_processing_counts` maps $\ge 0.80 \to \text{PASS}$, $0.50 - 0.80 \to \text{WARNING}$, and $< 0.50 \to \text{FAIL}$.
 - [ ] **Sanitization**: Confirm floating point values use `_sanitize_value_for_json()` to convert `NaN`/`Inf` to strings.
