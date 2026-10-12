@@ -23,6 +23,8 @@
 - **Python**: `>= 3.14` quản lý bằng [uv](https://docs.astral.sh).
 - **Frontend Standard**: [Vite+](https://viteplus.dev) (`vp` / `pnpm`).
 
+Chi tiết về bộ lệnh và môi trường kiểm thử được quy định tại [`docs/testing.md`](docs/testing.md).
+
 ### 1. Backend (Python)
 
 ```bash
@@ -52,7 +54,7 @@ pnpm exec playwright install --with-deps chromium
 # Chạy kiểm thử frontend
 vp test
 
-# Kiểm tra linter, typecheck và định dạng
+# Kiểm tra linter, typecheck và định dạng (vp check --fix tự động sửa lỗi và có thể chỉnh sửa file)
 vp check
 
 # Server phát triển local

@@ -6,7 +6,7 @@ This document specifies the operational decision rules, execution sequence, and 
 
 ## 1. Purpose & When to Consult
 
-Consult this document before starting code edits, planning tests, or finalizing a pull request to ensure changes comply with repository safety invariants, testing protocols, and documentation requirements.
+Consult this document before starting code edits, planning tests, or finalizing a pull request to ensure changes comply with repository safety invariants, testing protocols, and documentation requirements. Refer to [`docs/testing.md`](testing.md) for testing commands and guidelines.
 
 ---
 
@@ -32,7 +32,7 @@ Consult this document before starting code edits, planning tests, or finalizing 
               │
               ▼
 6. Run Proportional Validation:
-   ├── Docs-only: Verify internal Markdown links & formatting (pnpm check)
+   ├── Docs-only: Verify relative Markdown links point to existing files & inspect diff
    ├── Backend: Targeted unit test -> full pytest suite (uv run --frozen pytest)
    └── Frontend: Component test -> vp check & vp test
               │
@@ -45,16 +45,17 @@ Consult this document before starting code edits, planning tests, or finalizing 
 ## 3. Mandatory Safety Rules & Invariants
 
 1. **No Routine Live Market Updates**: Never run `python scripts/generate_report.py --update` as routine validation. Running `--update` fetches external live market data and modifies generated report artifacts in `generated/`. Only execute `--update` when explicitly requested and authorized by the user.
-2. **Read-Only Frontend visualizer**: Do not add financial or quantitative business logic to `src/`. All calculations belong in `scripts/`.
+2. **Read-Only Frontend Visualizer**: Do not add financial or quantitative business logic to `src/`. All calculations belong in `scripts/`.
 3. **Fail-Closed Principle**: Never synthesize fake prices, fallback metrics, or artificial defaults to bypass missing data errors.
 4. **Proportional Testing**: Skip unnecessary test executions for documentation-only changes. For code changes, run targeted tests during development and execute full test suites prior to submission.
 
 ---
 
-## 4. Targeted Development Commands
+## 4. Documentation & Code Validation
 
-Run targeted commands during development to maintain fast feedback loops:
-
-- **Python Scripts**: `uv run --frozen pytest scripts/tests/test_domain.py`
-- **Frontend Components**: `vp test` or `vp check --fix`
-- **Link & Syntax Check**: `pnpm check`
+- **Documentation Validation**:
+  - Verify all relative Markdown links in modified documents resolve to existing files or valid anchors.
+  - Inspect git diffs to ensure no stale paths or broken references were introduced.
+  - Note: Frontend code check commands (`vp check` / `vp check --fix`) validate TypeScript, ESLint rules, and formatting in `src/`. They do not validate Markdown links and `vp check --fix` may modify source files.
+- **Backend Code Validation**: `uv run --frozen ruff check --fix scripts` & `uv run --frozen pytest`
+- **Frontend Code Validation**: `vp check` & `vp test`

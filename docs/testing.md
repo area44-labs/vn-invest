@@ -48,12 +48,12 @@ src/tests/                       # Frontend React Vitest Browser Suite
 
 ---
 
-## 5. Authoritative Test Commands
+## 5. Authoritative Testing & Validation Commands
 
-### Backend Tests
+### Backend Commands (Python >= 3.14 via `uv`)
 
 ```bash
-# Full backend suite
+# Full backend test suite
 uv run --frozen pytest
 
 # Targeted backend test file
@@ -61,14 +61,27 @@ uv run --frozen pytest scripts/tests/test_domain.py
 
 # Targeted test function
 uv run --frozen pytest scripts/tests/test_pipeline.py -k "test_pipeline_execution"
+
+# Backend linting & formatting checks
+uv run --frozen ruff check scripts          # Check only
+uv run --frozen ruff check --fix scripts    # Check & auto-fix
+uv run --frozen ruff format scripts         # Format scripts
 ```
 
-### Frontend Tests
+### Frontend Commands (Vite+ / `vp`)
 
 ```bash
+# Install dependencies & Playwright Chromium binaries
+vp install
+pnpm exec playwright install --with-deps chromium
+
 # Full frontend test suite (in Playwright Chromium)
 vp test
 
-# Frontend typecheck, linter, and formatting check
-vp check
+# Frontend typecheck, linter, and formatting checks
+vp check          # Read-only standard check (fails if errors exist)
+vp check --fix    # Standard check with automatic fixes (modifies source files)
+
+# Production static site prerender build
+vp build
 ```

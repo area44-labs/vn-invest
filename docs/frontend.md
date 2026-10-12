@@ -6,7 +6,7 @@ This document specifies the React static site generation (SSG) frontend architec
 
 ## 1. Purpose & When to Consult
 
-Consult this document before modifying React components in `src/`, adding new page routes, modifying data loaders in `src/data/loader.ts`, or tuning SSG prerender configuration in `vite.config.ts`.
+Consult this document before modifying React components in `src/`, adding new page routes, modifying data loaders in `src/data/loader.ts`, or tuning SSG prerender configuration in `vite.config.ts`. Refer to [`docs/testing.md`](testing.md) for full testing guidelines.
 
 ---
 
@@ -64,6 +64,8 @@ export type LoadResult<T> =
 
 ## 6. Authoritative Development Commands
 
+See [`docs/testing.md`](testing.md) for complete details on frontend testing and checks.
+
 ```bash
 # Install dependencies
 vp install
@@ -75,7 +77,8 @@ pnpm exec playwright install --with-deps chromium
 vp test
 
 # Run linter, type check, and format check
-vp check --fix
+vp check          # Standard read-only check
+vp check --fix    # Standard check with automatic fixes (modifies source files)
 
 # Local dev server
 vp dev

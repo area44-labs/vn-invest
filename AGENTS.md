@@ -31,6 +31,8 @@ Primary guides:
 
 ## 3. Authoritative CLI Commands
 
+Refer to [`docs/testing.md`](docs/testing.md) for complete details on backend and frontend test runners.
+
 ### Backend (Python >= 3.14 via `uv`)
 
 ```bash
@@ -61,7 +63,8 @@ pnpm exec playwright install --with-deps chromium
 vp test
 
 # Run frontend linting, formatting, and type checks
-vp check --fix
+vp check          # Read-only check
+vp check --fix    # Standard check with automatic fixes (modifies files)
 
 # Run local development server
 vp dev
@@ -72,9 +75,13 @@ vp build
 
 ---
 
-## 4. Agent Execution Principles
+## 4. Agent Execution Principles & Validation
 
 - **Inspect First**: Read relevant code and documentation in `docs/` before making changes.
 - **Minimal, Focused Edits**: Make targeted changes satisfying domain contracts. Keep PRs focused.
 - **Keep Documentation Synchronized**: Update authoritative files in `docs/` whenever interfaces, behavior, or workflows change.
-- **Proportional Testing**: For documentation-only changes, skip unnecessary test suite runs. For code edits, run targeted tests during development and execute the full test suite when changes are complete.
+- **Documentation Validation**:
+  - Verify relative Markdown links point to existing target files or valid section anchors.
+  - Inspect git diffs to ensure edits do not introduce stale paths or unintended changes.
+  - Distinguish prose/link verification from application code checks (`vp check` / `pytest`).
+- **Proportional Testing**: For documentation-only changes, skip unnecessary test suite runs. For code edits, run targeted tests during development and execute full test suites when changes are complete.
