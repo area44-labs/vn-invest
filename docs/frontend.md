@@ -9,7 +9,7 @@ This document specifies the React static site generation (SSG) frontend architec
 - **Static Page Prerendering**: HTML pages are prerendered at build time using React 19 and TanStack Start SSG (`@tanstack/react-start`).
 - **Read-Only Visualizer**: Frontend code under `src/` consumes pre-rendered static JSON artifacts from `generated/`.
 - **Zero Financial Calculations**: The frontend must never compute technical indicators, signal confidence scores, trade plan targets, or risk metrics.
-- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
+- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
 
 ---
 

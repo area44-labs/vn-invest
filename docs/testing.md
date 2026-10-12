@@ -6,8 +6,10 @@ This document specifies the testing strategy, test locations, network isolation 
 
 ## 1. Test Locations & Architecture
 
+The test layout below illustrates primary backend and frontend test files:
+
 ```text
-scripts/tests/                   # Backend Python Pytest Suite
+scripts/tests/                   # Backend Python Pytest Suite (illustrative, not exhaustive)
 ├── conftest.py                   # Network isolation hooks and slow-test reporters
 ├── fixtures.py                   # Fake market provider fixtures and synthetic DataFrames
 ├── test_artifact_publisher.py    # Publisher, transaction, and schema validation tests
@@ -37,7 +39,7 @@ src/tests/                       # Frontend React Vitest Browser Suite
 - `@pytest.mark.unit`: Fast unit tests for pure functions, models, and math calculations.
 - `@pytest.mark.integration`: Multi-component pipeline, backtest, and publisher tests.
 - `@pytest.mark.e2e`: End-to-end integration tests.
-- `@pytest.mark.live`: Tests requiring live network access.
+- `@pytest.mark.live`: Tests requiring live network access. (Note: `uv run --frozen pytest` in CI executes collected tests unless explicit marker filter flags `-m "not live"` are supplied).
 - `@pytest.mark.slow`: Tests taking >= 5.0 seconds.
 
 ---
@@ -57,7 +59,6 @@ uv run --frozen pytest scripts/tests/test_domain.py
 uv run --frozen pytest scripts/tests/test_pipeline.py -k "test_sequential_stage_execution_order"
 
 # Backend linting & formatting checks
-uv run --frozen ruff check scripts          # Read-only check
 uv run --frozen ruff check --fix scripts    # Auto-fix check (modifies source files)
 uv run --frozen ruff format scripts         # Formatting check (modifies source files)
 ```
@@ -72,9 +73,8 @@ pnpm exec playwright install --with-deps chromium
 # Full frontend test suite (in Playwright Chromium)
 vp test
 
-# Frontend typecheck, linter, and formatting checks
-vp check          # Read-only standard check (fails if errors exist)
-vp check --fix    # Standard check with automatic fixes (modifies source files)
+# Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+vp check --fix
 
 # Production static site prerender build
 vp build

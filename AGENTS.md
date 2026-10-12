@@ -40,9 +40,8 @@ Refer to [`docs/testing.md`](docs/testing.md) for complete details on backend an
 uv sync --frozen
 
 # Lint & Format Python scripts
-uv run --frozen ruff check scripts          # Read-only check
-uv run --frozen ruff check --fix scripts    # Auto-fix check (modifies source files)
-uv run --frozen ruff format scripts         # Formatting check (modifies source files)
+uv run --frozen ruff check --fix scripts
+uv run --frozen ruff format scripts
 
 # Run Python test suite
 uv run --frozen pytest

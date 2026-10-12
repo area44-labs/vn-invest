@@ -17,16 +17,16 @@ Operational monitoring provides deterministic, fail-closed quality checks and da
 
 Primary quality checks evaluated by `evaluate_production_monitoring()`:
 
-| Check Name                      | Status Conditions           | Description                                                                                                                     |
-| :------------------------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`. |
-| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                           |
-| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                           |
-| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of `VALID_MARKET_REGIMES` (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`).       |
-| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                            |
-| `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                   |
-| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                               |
-| `performance_regression`        | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines.                                                               |
+| Check Name                      | Status Conditions           | Description                                                                                                                                        |
+| :------------------------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`.                    |
+| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                                              |
+| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                                              |
+| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of `VALID_MARKET_REGIMES` (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`, with `NEUTRAL` accepted in schemas). |
+| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                                               |
+| `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                                      |
+| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                                                  |
+| `performance_regression`        | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines.                                                                                  |
 
 ---
 
@@ -42,13 +42,13 @@ Tracks changes in candidate recommendation distributions, signal scores, and reg
 
 ### 3.2 Market Regimes & PANIC Regime Drift Exception
 
-The system classifies market state into six canonical regimes:
+The active market regime classifier (`detect_market_regime`) evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 active market regimes:
 
 - **`STRONG_BULL`**: Strong upward momentum and positive trend across indicators.
 - **`BULL`**: Moderate upward market trend.
-- **`NEUTRAL`**: Balanced or non-directional market.
 - **`DEFENSIVE`**: Cautionary market trend with elevated drawdown risk.
 - **`BEAR`**: Strong downward market trend.
-- **`PANIC`**: Extreme market crash / sharp downturn.
+- **`PANIC`**: Extreme market crash / sharp downturn (triggered when volatility > 25% or 1-day VNINDEX drop < -3.5%). Force-sets all stock recommendation actions to `AVOID`.
+- _(Note: `NEUTRAL` is accepted in `QuantConfig` and JSON Schemas for backward compatibility, but is not produced by the active classifier)._
 
-**PANIC Regime Rule**: When the market regime is detected as `PANIC`, quantitative signal classification (`scripts/quant/signal.py`) forces action `AVOID` across 100% of candidate stock recommendations. Drift monitoring (`scripts/monitoring/drift.py`) explicitly detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS` with diagnostic logging. Unjustified 100% AVOID shifts in non-PANIC regimes continue to fail closed (`FAIL`).
+**PANIC Regime Drift Rule**: When market regime is detected as `PANIC`, quantitative signal classification (`scripts/quant/signal.py`) forces action `AVOID` across 100% of candidate stock recommendations. Drift monitoring (`scripts/monitoring/drift.py`) detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS` with diagnostic logging. Unjustified 100% AVOID shifts in non-PANIC regimes continue to fail closed (`FAIL`).
