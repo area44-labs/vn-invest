@@ -17,16 +17,16 @@ Operational monitoring provides deterministic, fail-closed quality checks and da
 
 Primary quality checks evaluated by `evaluate_production_monitoring()`:
 
-| Check Name                      | Status Conditions           | Description                                                                                                                     |
-| :------------------------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`. |
-| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                           |
-| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                           |
-| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of valid regimes (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`).                           |
-| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                            |
-| `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                   |
-| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                               |
-| `performance_regression`        | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines.                                                               |
+| Check Name                      | Status Conditions           | Description                                                                                                                                                               |
+| :------------------------------ | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `schema_validation`             | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`. Requires valid, non-empty `schema_version`.                                           |
+| `data_freshness`                | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` matches reference date or remains within allowed trading delay.                                                                                     |
+| `symbol_processing_count`       | `PASS` / `WARNING` / `FAIL` | Assesses percentage of candidate universe successfully processed (`processed_ratio`).                                                                                     |
+| `market_regime_validity`        | `PASS` / `FAIL`             | Confirms market regime is one of valid regimes (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`). See [`market-regimes.md`](market-regimes.md) for full regime rules. |
+| `history_index_integrity`       | `PASS` / `FAIL`             | Verifies `history/index.json` chronological order and record counts.                                                                                                      |
+| `numeric_safety`                | `PASS` / `FAIL`             | Scans output payloads recursively for illegal `NaN`, `Inf`, or `-Inf` values.                                                                                             |
+| `performance_payload_integrity` | `PASS` / `FAIL`             | Confirms timing metrics payload conforms to `schemas/v2/performance.schema.json`.                                                                                         |
+| `performance_regression`        | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines.                                                                                                         |
 
 ---
 
@@ -40,9 +40,6 @@ Tracks changes in candidate recommendation distributions, signal scores, and reg
 2. **Reverse Chronological Scan**: Scans up to 20 qualified historical reports strictly prior to execution date ($< T$).
 3. **Minimum Baseline Sufficiency**: Requires at least 5 qualified reports. If fewer than 5 exist, monitoring returns `baseline_status = "INSUFFICIENT"` and emits check result `drift_baseline_sufficiency` with `WARNING` status. Baseline insufficiency is distinguished from model drift and does NOT produce false `FAIL` alerts.
 
-### 3.2 Drift Evaluation Rules & Market Regimes
+### 3.2 Market Regimes & Drift Monitoring
 
-Market regime classification evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`.
-
-- **Action Distribution Drift Check (`drift_action_distribution`)**: Evaluates changes in recommendation proportions (`BUY`, `SELL`, `WATCH`, `HOLD`, `AVOID`) against historical baseline averages.
-- **`PANIC` Regime Handling**: When market regime is detected as `PANIC`, quantitative signal rules enforce `AVOID` across 100% of candidate stock recommendations. Drift monitoring (`scripts/monitoring/drift.py`) detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the shift as `PASS` with diagnostic logging instead of triggering false model drift alerts. Unjustified 100% `AVOID` shifts in non-`PANIC` regimes fail closed (`FAIL`).
+Market regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`. See [`market-regimes.md`](market-regimes.md) for detailed classification algorithms, downstream quantitative impacts, and regime-driven drift monitoring rules (such as `PANIC` regime `AVOID` proportion handling).

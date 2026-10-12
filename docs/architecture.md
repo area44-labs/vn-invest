@@ -1,6 +1,6 @@
 # Subsystem Architecture & Canonical Boundaries
 
-This document specifies the system package boundaries, package hierarchy, end-to-end data flow, entry points, and architectural rules for **VN Invest** (`area44-labs/vn-invest`). See [`coding-standards.md`](coding-standards.md) for canonical file and identifier naming conventions.
+This document specifies the system package boundaries, package hierarchy, end-to-end data flow, entry points, and architectural rules for **VN Invest** (`area44-labs/vn-invest`). See [`coding-standards.md`](coding-standards.md) for canonical file/identifier naming conventions and [`market-regimes.md`](market-regimes.md) for market regime architecture.
 
 ---
 
