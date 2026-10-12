@@ -42,4 +42,4 @@ Tracks changes in candidate recommendation distributions, signal scores, and reg
 
 ### 3.2 Market Regimes
 
-Market regime classification evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`.
+Market regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`.

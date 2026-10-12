@@ -10,7 +10,7 @@ This document specifies the operational decision rules, execution sequence, and 
 1. Inspect Requested Scope & Repository Status
               │
               ▼
-2. Consult Authoritative Documentation (docs/index.md -> relevant guide)
+2. Consult Relevant Documentation in docs/
               │
               ▼
 3. Determine Affected Layer(s):
