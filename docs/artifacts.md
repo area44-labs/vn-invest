@@ -31,7 +31,7 @@ generated/
 | **`monitoring.json`**         | Internal validation                      | `MonitoringStage` (`evaluator.py`)                           | Operational check results, schema compliance, data/model drift monitoring.          |
 | **`performance.json`**        | `schemas/v2/performance.schema.json`     | `PerformanceStage`                                           | Pipeline stage runtimes, provider call metrics, budget checks.                      |
 | **`provenance.json`**         | Internal validation                      | `ArtifactPublisher` (`provenance.py`)                        | Data source tags, universe parameters, data quality ratios, dataset hashes.         |
-| **`history/index.json`**      | Internal validation                      | `ArtifactPublisher` (`manifest.py`)                          | Summary index of all daily historical reports available in `history/`.              |
+| **`history/index.json`**      | Internal validation                      | `ArtifactManifestBuilder` (`manifest.py`)                    | Chronological list of all historical report dates available in `history/`.          |
 | **`history/YYYY-MM-DD.json`** | `schemas/v2/recommendations.schema.json` | `ArtifactPublisher`                                          | Point-in-time snapshot of recommendations payload for date `YYYY-MM-DD`.            |
 
 ---
@@ -42,9 +42,9 @@ To prevent corrupt or partial writes from breaking production artifacts during e
 
 ```text
 scripts/artifacts/
-├── publisher.py     # Main ArtifactPublisher orchestrating atomic publishing
+├── publisher.py     # Main ArtifactPublisher orchestrating atomic publishing and rollback
 ├── transaction.py   # ArtifactTransaction directory staging and POSIX file lock
-├── manifest.py      # History index manifest management
+├── manifest.py      # ArtifactManifest and history index manifest management
 ├── provenance.py   # ProvenanceManifest creation and validation
 └── recovery.py     # Transaction recovery and interrupted state cleanup
 ```
@@ -52,33 +52,53 @@ scripts/artifacts/
 ### 3.1 POSIX Locking (`ArtifactLock`)
 
 - File: `scripts/artifacts/transaction.py`.
-- Acquires a POSIX single-writer lock (`generated/.generated.lock`) using `fcntl.flock(LOCK_EX | LOCK_NB)`.
-- Prevents concurrent pipeline executions from writing to `generated/` simultaneously.
+- Acquires a single-writer OS file lock on `.generated.lock` (located beside `generated/`) using `fcntl.flock(LOCK_EX | LOCK_NB)`.
+- Prevents concurrent pipeline executions from modifying `generated/` simultaneously.
 
-### 3.2 Atomic Directory Transactions (`ArtifactTransaction`)
+### 3.2 Atomic Directory Transactions (`ArtifactTransaction` & `ArtifactPublisher`)
 
-- Workflow:
+- File Locations & State Journal:
+  - **Staging Directory**: `generated_staging_<txn_id>` (located beside `generated/`).
+  - **Backup Directory**: `generated_bak` (located beside `generated/`).
+  - **Transaction State Journal**: `.generated_txn.json` (persisting lifecycle stages: `STAGING`, `BACKUP`, `COMMIT`, `CLEANUP`).
+  - **Lock File**: `.generated.lock`.
+- Publication Workflow (`ArtifactPublisher.publish`):
   1. Acquire `ArtifactLock`.
-  2. Create temporary staging directory (`generated/.staging_<id>`) and backup directory (`generated/.backup_<id>`).
-  3. Validate all payloads against schema registry (`scripts/schema/registry.py`) and provenance contracts **before** copying files to staging.
-  4. Write new artifacts into staging directory.
-  5. Atomically replace existing files / swap staging directory into `generated/`.
-  6. If any step fails, restore backup directory and delete staging directory (`ArtifactTransaction.rollback()`).
+  2. Execute automatic state recovery (`recover_transaction_state`) if a previous run was interrupted.
+  3. Pre-validate all candidate payloads against schema registry (`scripts/schema/registry.py`), `data_as_of` date consistency, and provenance contracts **before** writing files.
+  4. **STAGING Stage**: Create `generated_staging_<txn_id>`, copy existing `generated/` contents into staging, and write new artifact payloads into staging.
+  5. **BACKUP Stage**: Remove any old `generated_bak` and swap existing `generated/` to `generated_bak`.
+  6. **COMMIT Stage**: Swap `generated_staging_<txn_id>` to `generated/`.
+  7. **CLEANUP Stage**: Remove `generated_bak`, remove leftover staging directories, and clear `.generated_txn.json`.
+- Rollback Handling:
+  - If any exception occurs during staging or directory swap, `ArtifactPublisher` catches the exception, attempts to restore `generated/` from `generated_bak` (if target was unseated), removes `generated_staging_<txn_id>`, and clears transaction state if target was successfully restored.
 
 ### 3.3 Transaction Recovery (`recovery.py`)
 
-- Function: `recover_interrupted_publish()`.
-- Scans `generated/` for leftover staging (`.staging_*`) or backup (`.backup_*`) directories from interrupted process crashes and restores target files or cleans them up safely.
+- Function: `recover_interrupted_publish()` / `recover_transaction_state()`.
+- Validates `.generated_txn.json` metadata (verifying target, staging, and backup paths).
+- Evaluates transaction state deterministically and idempotently:
+  - In `STAGING` stage: Cleans up incomplete staging directory.
+  - In `BACKUP`, `COMMIT`, or `CLEANUP` stages: Restores `generated/` from `generated_bak` if target is missing, then cleans up staging and backup directories.
 
 ---
 
 ## 4. History Index & Report Relationships
 
 - **Daily Archiving**: Every successful pipeline run archives a copy of `recommendations.json` into `generated/history/YYYY-MM-DD.json` (where `YYYY-MM-DD` is `data_as_of`).
-- **History Index (`history/index.json`)**:
-  - Maintains a descending chronological list of all available historical report dates.
-  - Contains summary entry metadata for each date: `data_as_of`, `generated_at`, `processed_ratio`, `recommendations_count`, `bullish_count`, `bearish_count`.
-  - Re-indexed and validated automatically during every publish cycle by `HistoryManifest`.
+- **History Index (`history/index.json`) Contract**:
+  - Maintained by `ArtifactManifestBuilder` / `update_history_index` in `scripts/artifacts/manifest.py`.
+  - JSON Payload Schema:
+    ```json
+    {
+      "last_updated": "2026-10-09T18:00:00Z",
+      "total_reports": 12,
+      "dates": ["2026-10-09", "2026-10-08", ...]
+    }
+    ```
+  - Contains a descending chronological array (`dates`) of available trading date strings (`YYYY-MM-DD`).
+  - Re-indexed and validated automatically during every publish cycle.
+- **Re-Publishing Behavior**: If a report is re-published for a date already present in `history/index.json`, the historical file `history/YYYY-MM-DD.json` is overwritten with the updated payload and `dates` array deduplication preserves descending date order.
 
 ---
 
@@ -86,4 +106,4 @@ scripts/artifacts/
 
 1. **Schema Requirement**: Schema-governed artifacts (`recommendations.json`, `performance.json`, `history/*.json`) MUST declare a non-empty `schema_version` matching a registered schema version in `scripts/schema/registry.py`.
 2. **Date Alignment**: All output artifacts generated in a single run MUST have identical `data_as_of` trading dates. Divergent dates cause publishing to fail closed before any file modifications occur.
-3. **Immutability of History**: Published historical files (`history/YYYY-MM-DD.json`) represent point-in-time state and are never retroactively modified or re-written by future runs unless explicitly requested.
+3. **Point-In-Time Historical State**: Historical files (`history/YYYY-MM-DD.json`) represent point-in-time recommendation snapshots for date `YYYY-MM-DD`.

@@ -10,7 +10,7 @@ This document specifies the React static site generation (SSG) frontend architec
 - **Read-Only Visualizer**: Frontend code under `src/` consumes pre-rendered static JSON artifacts from `generated/`.
 - **Zero Financial Calculations**: The frontend must never compute technical indicators, signal confidence scores, trade plan targets (stop-loss, cut-loss, entry range), or risk metrics.
 - **Zero Data Fabrication**: The frontend must never invent missing market data, synthesize missing recommendations, or guess placeholder prices/volumes when artifacts are incomplete.
-- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
+- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
 
 ---
 
@@ -21,7 +21,10 @@ This document specifies the React static site generation (SSG) frontend architec
 The `generated/` directory is the single, canonical contract interface between backend and frontend.
 
 - **Data Ownership**: The backend exclusively owns data content, structure, and schema validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
-- **Schema Compatibility**: All backend JSON artifacts strictly validate against Draft 2020-12 schemas in `schemas/v2/`. TypeScript type definitions in `src/types/` mirror these JSON schemas.
+- **Schema Compatibility & Market Regime Contract**:
+  - All backend JSON artifacts strictly validate against Draft 2020-12 schemas in `schemas/v2/`. TypeScript type definitions in `src/types/` mirror these JSON schemas.
+  - **Market Regime Enum Contract**: The active market regimes supported by the frontend validator (`src/data/loader.ts`) and TypeScript definitions (`src/types/recommendation.ts`) are `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, and `PANIC`.
+  - _Note on Backend/Frontend Alignment_: While `NEUTRAL` is defined in backend `QuantConfig` for planned future support, it is currently excluded from `VALID_MARKET_REGIMES` in `src/data/loader.ts`. Payloads containing `NEUTRAL` will trigger a validation error in the frontend.
 
 ### 2.2 Typed Loader Contract (`src/data/loader.ts`)
 
