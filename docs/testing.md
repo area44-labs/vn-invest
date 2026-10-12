@@ -60,12 +60,12 @@ uv run --frozen pytest
 uv run --frozen pytest scripts/tests/test_domain.py
 
 # Targeted test function
-uv run --frozen pytest scripts/tests/test_pipeline.py -k "test_pipeline_execution"
+uv run --frozen pytest scripts/tests/test_pipeline.py -k "test_sequential_stage_execution_order"
 
 # Backend linting & formatting checks
 uv run --frozen ruff check scripts          # Check only
-uv run --frozen ruff check --fix scripts    # Check & auto-fix
-uv run --frozen ruff format scripts         # Format scripts
+uv run --frozen ruff check --fix scripts    # Check & auto-fix (modifies source files)
+uv run --frozen ruff format scripts         # Format scripts (modifies source files)
 ```
 
 ### Frontend Commands (Vite+ / `vp`)
