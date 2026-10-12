@@ -140,18 +140,3 @@ uv run --frozen pytest scripts/tests/test_drift_monitoring.py
 # Run performance subsystem tests
 uv run --frozen pytest scripts/tests/test_performance_subsystem.py
 ```
-
----
-
-## 8. Agent Change Checklist
-
-When modifying the monitoring subsystem or payload contracts:
-
-- [ ] **Exact Check Names**: Use canonical emitted check names (`symbol_processing_counts`, `market_regime_status`, `history_index_status`, `artifact_existence`, `numeric_sanity`, `ohlcv_quality_vnindex`, `ohlcv_quality_vn30`, etc.).
-- [ ] **Performance Payload Sourcing**: Remember performance payload is sourced from `universe_audit["performance"]`, distinct from `check_required_artifacts()`.
-- [ ] **Regimes List**: Include `NEUTRAL` in valid regimes for `market_regime_status` checks.
-- [ ] **Contract Keys**: Ensure `CheckResult.to_dict()` keys (`check_name`, `status`, `measured_value`, `expected_condition`, `message`) remain exact.
-- [ ] **Exact Thresholds**: Ensure `symbol_processing_counts` maps $\ge 0.80 \to \text{PASS}$, $0.50 - 0.80 \to \text{WARNING}$, and $< 0.50 \to \text{FAIL}$.
-- [ ] **Sanitization**: Confirm floating point values use `_sanitize_value_for_json()` to convert `NaN`/`Inf` to strings.
-- [ ] **Fail-Closed**: Confirm critical failures return `FAIL` status and trigger publication rejection when `publish_artifacts` is `True`.
-- [ ] **Test Coverage**: Run `uv run --frozen pytest scripts/tests/test_monitoring.py` and verify all tests pass.
