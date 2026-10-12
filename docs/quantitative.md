@@ -14,7 +14,7 @@ Calculations are pure, deterministic functions or engine classes operating on ty
   - Momentum: Relative Strength Index (RSI 14D), Moving Average Convergence Divergence (MACD 12/26/9).
   - Divergence: Bullish and bearish price-RSI and price-MACD divergence pattern detection across 1D, 1W, and 1M timeframes.
   - Volume: Volume ratios relative to 20D simple moving average of volume.
-- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend (relative to MA20/MA50), market breadth, and volatility to classify active market regime (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`). Note: `NEUTRAL` is accepted in `QuantConfig` / schemas as a legacy/fallback regime.
+- **`regime.py` (`detect_market_regime`)**: Evaluates `VNINDEX` trend (relative to MA20/MA50), market breadth, and volatility to classify active market regime (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`). Note: `NEUTRAL` is retained in `QuantConfig` for planned future backend support, but is not emitted by the active classifier.
 - **`signal.py` (`compute_signal` / `calculate_signal_score`)**: Combines 5 weighted technical signal components into a composite signal score (0 to 100):
   1. **Trend Component** (`trend`): MA20 and MA50 alignment relative to price and each other.
   2. **Momentum Component** (`momentum`): RSI momentum bands and MACD Histogram expansion/contraction state.
