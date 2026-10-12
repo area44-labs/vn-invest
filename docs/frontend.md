@@ -20,9 +20,10 @@ This document specifies the React static site generation (SSG) frontend architec
 
 The `generated/` directory is the single, canonical contract interface between backend and frontend.
 
-- **Data Ownership**: The backend exclusively owns data content, structure, and schema validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
+- **Data Ownership**: The backend exclusively owns data content, structure, and contract validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
 - **Schema Compatibility & Market Regime Contract**:
-  - All backend JSON artifacts strictly validate against Draft 2020-12 schemas in `schemas/v2/`. TypeScript type definitions in `src/types/` mirror these JSON schemas.
+  - Primary recommendation and performance payloads (`recommendations.json`, `performance.json`, `history/YYYY-MM-DD.json`) strictly validate against Draft 2020-12 JSON Schemas in `schemas/v2/`. Non-schema-governed artifacts (`market.json`, `monitoring.json`, `provenance.json`, `history/index.json`) validate against their respective internal dictionary contracts in `scripts/artifacts/` and `scripts/monitoring/`.
+  - TypeScript type definitions in `src/types/` mirror the relevant frontend data contracts consumed by typed loaders (`src/data/loader.ts`).
   - **Market Regime Enum Contract**: The active market regimes supported by the frontend validator (`src/data/loader.ts`) and TypeScript definitions (`src/types/recommendation.ts`) are `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, and `PANIC`.
   - _Note on Backend/Frontend Alignment_: While `NEUTRAL` is defined in backend `QuantConfig` for planned future support, it is currently excluded from `VALID_MARKET_REGIMES` in `src/data/loader.ts`. Payloads containing `NEUTRAL` will trigger a validation error in the frontend.
 
