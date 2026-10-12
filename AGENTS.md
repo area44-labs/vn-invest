@@ -1,4 +1,4 @@
-# VN Invest — Technical & Operational Playbook for Agents Coding Agents
+# VN Invest — Technical & Operational Playbook for Coding Agents
 
 This document is the authoritative entry point for Agents coding agents working on **VN Invest** (`area44-labs/vn-invest`).
 

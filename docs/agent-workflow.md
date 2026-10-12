@@ -28,7 +28,7 @@ This document specifies the operational decision rules, execution sequence, and 
 6. Run Proportional Validation:
    ├── Docs-only: Verify relative Markdown links point to existing files & inspect diff
    ├── Backend: Targeted unit test -> full pytest suite (uv run --frozen pytest)
-   └── Frontend: Component test -> Vites+ test (vp test)
+   └── Frontend: Component test -> Vite+ test (vp test)
               │
               ▼
 7. Submit Change with Descriptive Summary

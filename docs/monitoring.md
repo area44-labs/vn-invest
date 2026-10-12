@@ -1,136 +1,57 @@
-# Operational Monitoring Architecture & Payloads
+# Production Monitoring
 
-This document is the agent-first guide for the operational monitoring subsystem in **VN Invest** (`area44-labs/vn-invest`). Operational monitoring evaluates pipeline output payloads (`recommendations.json`, `market.json`, `performance.json`) and historical index metadata (`generated/history/index.json`) during Stage 8 (`MonitoringStage`) before persistent artifact publication.
+This document is the agent-first guide for the operational monitoring subsystem in **VN Invest** (`area44-labs/vn-invest`). Monitoring validates pipeline execution, market-data quality, symbol coverage, data freshness, and performance metrics before reporting results.
 
-- **System Role**: Quality gatekeeper preventing invalid, stale, corrupt, or degraded reports from reaching production.
-- **Fail-Closed Guarantee**: In `ArtifactPublishingStage`, when `context.publish_artifacts is True` and `context.monitoring_result.overall_status == "FAIL"`, the pipeline logs all failed checks and raises `SystemExit(1)`, preserving existing production files in `generated/` 100% byte-for-byte unchanged.
+Monitoring must reflect actual pipeline outcomes and use authoritative data sources. A successful CI run alone does not guarantee complete or up-to-date market data.
 
----
+## 1. Monitoring Checks
 
-## 2. Key Modules & Responsibilities
+- **Pipeline execution:** Verify required stages complete successfully and preserve failure diagnostics.
+- **Symbol coverage:** Track expected, processed, skipped, and failed symbols.
+- **Market data quality:** Validate OHLCV completeness, values, duplicates, and trading dates.
+- **Benchmark quality:** Validate VNINDEX and VN30 independently when required or supplied.
+- **Data freshness:** Compare the latest available trading date with the expected trading date, accounting for market holidays.
+- **Performance monitoring:** Validate performance metrics and detect drift only when sufficient reliable data is available.
 
-| Module                                  | Responsibility                                                             | Primary Functions / Dataclasses                                                                                                                                                                                                                                                      |
-| :-------------------------------------- | :------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`scripts/monitoring/evaluator.py`**   | Main orchestrator evaluating production monitoring.                        | `evaluate_production_monitoring()`                                                                                                                                                                                                                                                   |
-| **`scripts/monitoring/checks.py`**      | Operational data quality, schema compliance, freshness, and safety checks. | `check_required_artifacts()`, `check_schema_validation()`, `check_data_freshness()`, `check_numeric_sanity()`, `check_symbol_processing_counts()`, `check_universe_audit_invariants()`, `check_market_regime_status()`, `check_history_index_status()`, `check_ohlcv_data_quality()` |
-| **`scripts/monitoring/models.py`**      | Dataclasses for check observations and aggregated results.                 | `CheckResult`, `PipelineMonitoringResult`, `DriftCheckResult`                                                                                                                                                                                                                        |
-| **`scripts/monitoring/metrics.py`**     | Metric extraction helpers.                                                 | `extract_processed_ratio()`, `compute_action_proportions()`                                                                                                                                                                                                                          |
-| **`scripts/monitoring/drift.py`**       | Historical data and model output drift checks.                             | `evaluate_data_and_model_drift()`                                                                                                                                                                                                                                                    |
-| **`scripts/performance/regression.py`** | Mode-aware pipeline stage execution duration and provider budget checks.   | `evaluate_performance_regression()`, `evaluate_provider_budget()`                                                                                                                                                                                                                    |
+Checks must distinguish missing data, invalid data, skipped checks, and insufficient evidence.
 
----
+## 2. Status and Thresholds
 
-## 3. Monitoring Execution Flow
+| Status | Meaning |
+|---|---|
+| `PASS` | Applicable checks satisfy their requirements. |
+| `WARNING` | Non-critical data-quality or coverage issue. |
+| `FAIL` | Critical validation or operational failure. |
+| `INSUFFICIENT` | Not enough reliable evidence to evaluate a check. |
 
-```text
-Pipeline Context Payloads (recommendations, market, performance)
-  -> evaluate_production_monitoring() (scripts/monitoring/evaluator.py)
-     ├── 1. Required Artifacts Check (check_required_artifacts)
-     ├── 2. Schema Validation (check_schema_validation)
-     ├── 3. Data Freshness Check (check_data_freshness)
-     ├── 4. Numeric Sanity Check (check_numeric_sanity)
-     ├── 5. Symbol Processing Counts Check (check_symbol_processing_counts)
-     ├── 6. Universe Audit Invariants Check (check_universe_audit_invariants)
-     ├── 7. Market Regime Status Check (check_market_regime_status)
-     ├── 8. History Index Status Check (check_history_index_status)
-     ├── 9. Conditional Benchmark Quality Checks (check_ohlcv_data_quality, emitting ohlcv_quality_vnindex / ohlcv_quality_vn30)
-     ├── 10. Drift Monitoring Checks (evaluate_data_and_model_drift)
-     └── 11. Performance & Provider Budget Checks (performance_payload_integrity, performance_regression, provider_budget)
-  -> PipelineMonitoringResult -> Serialized to generated/monitoring.json
-     ├── Status "PASS" or "WARNING" -> Proceed to Stage 9 (ArtifactPublishingStage)
-     └── Status "FAIL" -> If publish_artifacts is True, raises SystemExit(1) and preserves on-disk state
-```
+The existing processed-coverage policy is:
 
----
+- `PASS`: processed ratio ≥ 0.80, subject to other checks.
+- `WARNING`: 0.50 ≤ processed ratio < 0.80.
+- `FAIL`: processed ratio < 0.50, subject to the configured failure policy.
 
-## 4. Input & Output Payload Contracts
+Critical validation failures must not be overridden by coverage thresholds. Missing metrics must not be treated as zero, and market holidays must not be misclassified as stale data.
 
-### 4.1 Required Artifacts vs Performance Payload Sourcing
+## 3. Performance and Drift
 
-- **Required On-Disk/In-Memory Artifacts**: `check_required_artifacts()` verifies the presence and accessibility of `recommendations.json`, `market.json`, and `history/index.json`.
-- **Performance Payload Sourcing**: The performance timing and provider metrics payload evaluated by monitoring is retrieved in memory from `universe_audit["performance"]` (populated by `PerformanceStage`). It is not checked as a required on-disk artifact file by `check_required_artifacts()`.
+Performance monitoring consumes the performance payload from `universe_audit["performance"]` in memory.
 
-### 4.2 Output Payload (`generated/monitoring.json`)
+Historical drift checks must use qualified reports and exclude incomplete or low-coverage baselines according to the existing implementation. If sufficient evidence is unavailable, return `INSUFFICIENT` rather than generating a misleading drift failure.
 
-Serialized via `PipelineMonitoringResult.to_dict()`.
+## 4. Reporting and Failure Handling
 
-```json
-{
-  "overall_status": "PASS",
-  "generated_at": "2026-03-30T11:00:00Z",
-  "data_as_of": "2026-03-30",
-  "checks": [
-    {
-      "check_name": "schema_validation",
-      "status": "PASS",
-      "measured_value": "2.0",
-      "expected_condition": "Payload validates against recommendations.schema.json",
-      "message": "Recommendations payload matches schema v2.0."
-    }
-  ],
-  "metrics": {
-    "processed_symbols": 44,
-    "processed_ratio": 1.0
-  }
-}
-```
+Monitoring output must follow the repository's authoritative schema and include, where available:
 
-### 4.3 `CheckResult` Item Contract (`scripts/monitoring/models.py`)
+- Overall status and report timestamp.
+- Pipeline and symbol-processing results.
+- Market-data quality and freshness.
+- Performance and drift results.
+- Actionable warnings, failures, and diagnostic details.
 
-Every check in the `checks` array exposes these 5 required keys:
+Critical monitoring failures must follow the configured fail-closed policy, return a non-zero exit status when required, and preserve diagnostic artifacts where possible.
 
-| Key                  | Type     | Description                                                                                        |
-| :------------------- | :------- | :------------------------------------------------------------------------------------------------- |
-| `check_name`         | `string` | Unique emitted identifier of the check (e.g. `"schema_validation"`, `"symbol_processing_counts"`). |
-| `status`             | `string` | Result status: `"PASS"`, `"WARNING"`, or `"FAIL"`.                                                 |
-| `measured_value`     | `any`    | Sanitized measured value or metric object. NaN/Inf sanitizes to `"NaN"`/`"Inf"`.                   |
-| `expected_condition` | `string` | Human-readable requirement (e.g. `"processed_ratio >= 0.80"`).                                     |
-| `message`            | `string` | Informational or diagnostic result summary.                                                        |
+## 5. Testing and Maintenance
 
----
+Tests must cover successful runs, partial processing, stale or invalid data, insufficient historical baselines, missing benchmarks, malformed inputs, and critical failures.
 
-## 5. Canonical Operational Checks Inventory
-
-Emitted check names and status evaluation rules in `scripts/monitoring/checks.py` & `evaluator.py`:
-
-| Check Name                                                             | Status Mapping              | Evaluation Condition                                                                                                                                                                                                                                                          |
-| :--------------------------------------------------------------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`artifact_existence`**                                               | `PASS` / `FAIL`             | Confirms required JSON payload artifacts (`recommendations.json`, `market.json`, `history/index.json`) exist in memory or on disk in `generated/`.                                                                                                                            |
-| **`schema_validation`**                                                | `PASS` / `FAIL`             | Validates recommendations payload against `schemas/v2/recommendations.schema.json`.                                                                                                                                                                                           |
-| **`data_freshness`**                                                   | `PASS` / `WARNING` / `FAIL` | Confirms `data_as_of` trading date matches execution reference date or stays within allowed trading delay.                                                                                                                                                                    |
-| **`numeric_sanity`**                                                   | `PASS` / `FAIL`             | Recursively scans payloads for illegal `NaN`, `Inf`, or `-Inf` values using `find_nan_or_inf()`.                                                                                                                                                                              |
-| **`symbol_processing_counts`**                                         | `PASS` / `WARNING` / `FAIL` | Evaluates processed coverage ratio $r$:<br>• `PASS`: $r \ge 0.80$<br>• `WARNING`: $0.50 \le r < 0.80$<br>• `FAIL`: $r < 0.50$ (or action count summary mismatch, total scanned = 0).                                                                                          |
-| **`universe_audit_invariants`**                                        | `PASS` / `FAIL`             | Verifies universe audit classification sets (processed, invalid, missing, failed) are mutually disjoint and cover candidate universe.                                                                                                                                         |
-| **`market_regime_status`**                                             | `PASS` / `FAIL`             | Confirms market regime payload is a valid object containing a recognized regime string (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`), matching `DEFAULT_QUANT_CONFIG.valid_market_regimes`.                                                                |
-| **`history_index_status`**                                             | `PASS` / `FAIL`             | Verifies `generated/history/index.json` chronological descending order and metadata structure.                                                                                                                                                                                |
-| **`ohlcv_quality_vnindex`** / **`ohlcv_quality_vn30`** _(conditional)_ | `PASS` / `FAIL`             | Evaluated conditionally by `check_ohlcv_data_quality()` when benchmark DataFrames (`df_vnindex`, `df_vn30`) are supplied to `evaluate_production_monitoring()`. Emits check name `ohlcv_quality_<symbol>`. Checks column presence, positive prices, and non-negative volumes. |
-| **`performance_payload_integrity`**                                    | `PASS` / `FAIL`             | Validates performance timing payload (retrieved in memory from `universe_audit["performance"]`) against `schemas/v2/performance.schema.json`.                                                                                                                                 |
-| **`performance_regression`**                                           | `PASS` / `WARNING` / `FAIL` | Evaluates stage execution durations against mode-aware baselines (static offline vs dynamic `--update` request workload counts).                                                                                                                                              |
-| **`provider_budget`**                                                  | `PASS` / `WARNING` / `FAIL` | Evaluates provider API operation calls, duplicate symbol fetches, and elapsed execution time budgets.                                                                                                                                                                         |
-
----
-
-## 6. Status Semantics & Publication Guards
-
-In Stage 9 (`ArtifactPublishingStage`), the pipeline evaluates publication safety:
-
-- **`PASS`**: All operational checks satisfied. Atomic directory publishing completes with code 0.
-- **`WARNING`**: Non-critical threshold exceedance (e.g. $0.50 \le \text{processed\_ratio} < 0.80$, DEGRADED timing, or provider budget overrun). Pipeline logs warnings and publishes artifacts with code 0.
-- **`FAIL`**: Critical operational or schema failure (e.g. $\text{processed\_ratio} < 0.50$, schema mismatch, non-finite float value, or missing required artifact). When `context.publish_artifacts` is `True`, the stage logs all failed checks and raises `SystemExit(1)`, halting execution and leaving existing files in `generated/` 100% byte-for-byte unchanged.
-
----
-
-## 7. Commands & Testing
-
-Run monitoring subsystem unit and integration tests:
-
-```bash
-# Run monitoring test suite
-uv run --frozen pytest scripts/tests/test_monitoring.py
-
-# Run drift monitoring tests
-uv run --frozen pytest scripts/tests/test_drift_monitoring.py
-
-# Run performance subsystem tests
-uv run --frozen pytest scripts/tests/test_performance_subsystem.py
-```
+When monitoring behavior or thresholds change, update the implementation, tests, and this document together. Keep all documented artifact dependencies and schema fields consistent with the actual code.
