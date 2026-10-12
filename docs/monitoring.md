@@ -40,8 +40,6 @@ Tracks changes in candidate recommendation distributions, signal scores, and reg
 2. **Reverse Chronological Scan**: Scans up to 20 qualified historical reports strictly prior to execution date ($< T$).
 3. **Minimum Baseline Sufficiency**: Requires at least 5 qualified reports. If fewer than 5 exist, monitoring returns `baseline_status = "INSUFFICIENT"` and emits check result `drift_baseline_sufficiency` with `WARNING` status. Baseline insufficiency is distinguished from model drift and does NOT produce false `FAIL` alerts.
 
-### 3.2 Market Regimes & PANIC Regime Drift Exception
+### 3.2 Market Regimes
 
 Market regime classification evaluates `VNINDEX` trend, breadth, and volatility to output one of 5 regimes: `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`.
-
-During `PANIC`, an `AVOID`-heavy recommendation distribution is expected. Drift monitoring (`scripts/monitoring/drift.py`) detects when `market_regime == "PANIC"` and `action_proportions["AVOID"] == 1.0`, classifying the distribution shift as `PASS`. Unjustified 100% AVOID shifts in non-PANIC regimes fail closed (`FAIL`).

@@ -4,22 +4,7 @@ This document is the authoritative entry point for AI coding agents working on *
 
 ---
 
-## 1. Documentation Index
-
-For the full documentation index and task-to-document mapping, see [`docs/index.md`](docs/index.md).
-
-Primary guides:
-
-- **Architecture & System Boundaries**: [`docs/architecture.md`](docs/architecture.md)
-- **Agent Workflow & Execution Sequence**: [`docs/agent-workflow.md`](docs/agent-workflow.md)
-- **Data Contracts & Schemas**: [`docs/data-contracts.md`](docs/data-contracts.md)
-- **Frontend SSG Architecture**: [`docs/frontend.md`](docs/frontend.md)
-- **Testing Standards**: [`docs/testing.md`](docs/testing.md)
-- **CI/CD Workflows**: [`docs/ci-cd.md`](docs/ci-cd.md)
-
----
-
-## 2. Mandatory Guardrails & Non-Negotiable Constraints
+## 1. Mandatory Guardrails & Non-Negotiable Constraints
 
 1. **Subsystem Isolation**: Backend Python logic resides under `scripts/`. Frontend React SSG code resides under `src/`.
 2. **Read-Only Frontend Visualizer**: `src/` displays pre-rendered artifacts from `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
@@ -29,7 +14,7 @@ Primary guides:
 
 ---
 
-## 3. Authoritative CLI Commands
+## 2. Authoritative CLI Commands
 
 Refer to [`docs/testing.md`](docs/testing.md) for complete details on backend and frontend test runners.
 
@@ -74,7 +59,7 @@ vp build
 
 ---
 
-## 4. Agent Execution Principles & Validation
+## 3. Agent Execution Principles & Validation
 
 - **Inspect First**: Read relevant code and documentation in `docs/` before making changes.
 - **Minimal, Focused Edits**: Make targeted changes satisfying domain contracts. Keep PRs focused.
@@ -82,5 +67,4 @@ vp build
 - **Documentation Validation**:
   - Verify relative Markdown links point to existing target files or valid section anchors.
   - Inspect git diffs to ensure edits do not introduce stale paths or unintended changes.
-  - Distinguish prose/link verification from application code checks (`vp check --fix` / `pytest`).
 - **Proportional Testing**: For documentation-only changes, skip unnecessary test suite runs. For code edits, run targeted tests during development and execute full test suites when changes are complete.
