@@ -8,8 +8,6 @@ This document specifies the system package boundaries, package hierarchy, end-to
 
 The end-to-end flow connects backend market acquisition to frontend visualization:
 
-Market Data -> Backend Validation & Quant -> JSON Artifacts (generated/) -> Frontend Loaders (loader.ts) -> Visual UI
-
 ```text
 +-------------------------------------------------------------+
 |                 Python Quantitative Backend                 |

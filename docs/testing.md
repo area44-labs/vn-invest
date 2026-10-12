@@ -74,7 +74,7 @@ pnpm exec playwright install --with-deps chromium
 vp test
 
 # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
-vp check --fix
+vp check
 
 # Production static site prerender build
 vp build

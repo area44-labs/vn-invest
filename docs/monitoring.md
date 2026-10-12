@@ -1,12 +1,6 @@
 # Operational Monitoring Architecture & Payloads
 
-This document is the agent-first guide for the operational monitoring subsystem in **VN Invest** (`area44-labs/vn-invest`).
-
----
-
-## 1. Purpose & System Boundaries
-
-Operational monitoring evaluates pipeline output payloads (`recommendations.json`, `market.json`, `performance.json`) and historical index metadata (`generated/history/index.json`) during Stage 8 (`MonitoringStage`) before persistent artifact publication.
+This document is the agent-first guide for the operational monitoring subsystem in **VN Invest** (`area44-labs/vn-invest`). Operational monitoring evaluates pipeline output payloads (`recommendations.json`, `market.json`, `performance.json`) and historical index metadata (`generated/history/index.json`) during Stage 8 (`MonitoringStage`) before persistent artifact publication.
 
 - **System Role**: Quality gatekeeper preventing invalid, stale, corrupt, or degraded reports from reaching production.
 - **Fail-Closed Guarantee**: In `ArtifactPublishingStage`, when `context.publish_artifacts is True` and `context.monitoring_result.overall_status == "FAIL"`, the pipeline logs all failed checks and raises `SystemExit(1)`, preserving existing production files in `generated/` 100% byte-for-byte unchanged.

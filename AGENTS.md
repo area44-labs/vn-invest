@@ -1,6 +1,6 @@
-# VN Invest — Technical & Operational Playbook for AI Coding Agents
+# VN Invest — Technical & Operational Playbook for Agents Coding Agents
 
-This document is the authoritative entry point for AI coding agents working on **VN Invest** (`area44-labs/vn-invest`).
+This document is the authoritative entry point for Agents coding agents working on **VN Invest** (`area44-labs/vn-invest`).
 
 For the full documentation index and task-to-document mapping, see [`docs/index.md`](docs/index.md).
 
@@ -8,7 +8,7 @@ For the full documentation index and task-to-document mapping, see [`docs/index.
 
 ## 1. Mandatory Guardrails & Non-Negotiable Constraints
 
-1. **Subsystem Isolation**: Backend Python logic resides under `scripts/`. Frontend React SSG code resides under `src/`.
+1. **Subsystem Isolation**: Backend Python logic resides under `scripts/`. Frontend React code resides under `src/`.
 2. **Read-Only Frontend Visualizer**: `src/` displays pre-rendered artifacts from `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
 3. **Fail-Closed & Anti-Lookahead Safety**: Point-in-time isolation (<= T) is enforced for all historical data. Never access future data (> T). Rejects corrupt or incomplete data explicitly without fabricating synthetic values.
 4. **Schema Enforcement**: Published JSON artifacts in `generated/` must validate against schemas in `schemas/v2/` via `scripts/schema/registry.py`.
@@ -50,7 +50,7 @@ pnpm exec playwright install --with-deps chromium
 vp test
 
 # Run frontend linting, formatting, and type checks
-vp check --fix    # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+vp check  # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
 
 # Run local development server
 vp dev

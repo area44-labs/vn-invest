@@ -9,7 +9,7 @@ This document specifies the React static site generation (SSG) frontend architec
 - **Static Page Prerendering**: HTML pages are prerendered at build time using React 19 and TanStack Start SSG (`@tanstack/react-start`).
 - **Read-Only Visualizer**: Frontend code under `src/` consumes pre-rendered static JSON artifacts from `generated/`.
 - **Zero Financial Calculations**: The frontend must never compute technical indicators, signal confidence scores, trade plan targets, or risk metrics.
-- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
+- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
 
 ---
 
@@ -26,16 +26,16 @@ export type LoadResult<T> =
 
 - **SSG Prerender Mode (Node.js)**: Reads `generated/*.json` directly via `node:fs/promises`.
 - **Browser Runtime Mode**: Fetches JSON assets via HTTP `fetch` relative to `import.meta.env.BASE_URL`. Returns `NOT_FOUND` on 404, `SUCCESS` on 200 with valid JSON, and `ERROR` on non-200 or parsing error.
-- **Race Condition Protection**: Page components (`src/pages/history.tsx`, `src/pages/stock-detail.tsx`) use `useRef` tokens or cancellation flags in `useEffect` to discard out-of-order asynchronous responses from superseded symbol/date selections.
+- **Race Condition Protection**: Page components (e.g. `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) use `useRef` tokens or cancellation flags in `useEffect` to discard out-of-order asynchronous responses from superseded symbol/date selections.
 
 ---
 
 ## 3. Technology Stack
 
-- **Framework**: React 19 + TanStack Start (`@tanstack/react-start`, `@tanstack/react-router`).
-- **UI Component Primitives**: Primitives in `src/components/ui/` built using shadcn/ui standards over `@base-ui/react` and `class-variance-authority` (`cva`).
-- **Styling**: Tailwind CSS v4 (`tailwindcss`, `@tailwindcss/vite`).
-- **Toolchain**: Vite+ (`vite-plus`, `vp`), embedded Vitest, and `@vitest/browser-playwright`. See [`coding-standards.md`](coding-standards.md) for canonical file and identifier naming rules.
+- **Framework**: React 19 + TanStack Start.
+- **UI Component Primitives**: Primitives in `src/components/ui/` built using [shadcn/ui](https://ui.shadcn.com) standards over `@base-ui/react`.
+- **Styling**: Tailwind CSS v4.
+- **Toolchain**: [Vite+](http://viteplus.dev).
 
 ---
 
@@ -64,7 +64,7 @@ pnpm exec playwright install --with-deps chromium
 vp test
 
 # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
-vp check --fix
+vp check
 
 # Local dev server
 vp dev

@@ -11,7 +11,7 @@
 
 - **Phân tích định lượng (Quantitative Analysis):** Áp dụng các mô hình toán học, chỉ báo kỹ thuật (RSI, MACD, MA, Divergence) và đánh giá rủi ro T+2.5.
 - **Khuyến nghị tự động (Automated Recommendations):** Sinh tín hiệu giao dịch và kế hoạch giao dịch khách quan dựa trên dữ liệu thị trường thực tế.
-- **Phân loại trạng thái thị trường (Market Regime):** Phân loại xu hướng thị trường theo các trạng thái (`STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, `PANIC`) và cảnh báo rủi ro hệ thống.
+- **Phân loại trạng thái thị trường (Market Regime):** Phân loại xu hướng thị trường theo các trạng thái và cảnh báo rủi ro hệ thống.
 - **Tĩnh hóa & Hiệu năng cao (React SSG):** Giao diện hiển thị trực quan pre-rendered static site, tích hợp dữ liệu đã pre-calculate từ backend Python.
 
 ---
@@ -52,8 +52,8 @@ pnpm exec playwright install --with-deps chromium
 # Chạy kiểm thử frontend
 vp test
 
-# Kiểm tra linter, typecheck và định dạng (vp check --fix tự động sửa lỗi và có thể chỉnh sửa file)
-vp check --fix
+# Kiểm tra linter, typecheck và định dạng
+vp check
 
 # Server phát triển local
 vp dev
