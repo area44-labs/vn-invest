@@ -70,3 +70,9 @@ vp build
   - Verify relative Markdown links point to existing target files or valid section anchors.
   - Inspect git diffs to ensure edits do not introduce stale paths or unintended changes.
 - **Proportional Testing**: For documentation-only changes, skip unnecessary test suite runs. For code edits, run targeted tests during development and execute full test suites when changes are complete.
+
+<!-- vnai-bootstrap | auto-generated -->
+
+# Vnstock Vibe Onboarding
+
+Please visit https://vnstocks.com/onboard/agent-guide to learn how to setup AI Agents for vnstock.
