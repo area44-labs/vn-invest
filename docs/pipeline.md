@@ -16,7 +16,7 @@ Pipeline Run (scripts/generate_report.py)
      2. DataValidationStage
      3. UniverseValidationStage
      4. MarketAnalysisStage
-     5. SignalRecommendationStage
+     5. SignalRecommendationGenerationStage
      6. RiskTradePlanStage
      7. PerformanceStage
      8. MonitoringStage
