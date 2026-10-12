@@ -49,8 +49,11 @@ pnpm exec playwright install --with-deps chromium
 # Run frontend tests (vite-plus/test in Playwright browser)
 vp test
 
-# Run frontend linting, formatting, and type checks
-vp check  # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+# Non-mutating frontend check (linting, type checking, formatting validation)
+vp check
+
+# Auto-fixing frontend check (lints, typechecks, auto-formats; modifies source files)
+vp check --fix
 
 # Run local development server
 vp dev

@@ -29,7 +29,8 @@ uv run --frozen pytest
 # Frontend CI Checks
 vp install
 pnpm exec playwright install --with-deps chromium
-vp check    # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+vp check        # Non-mutating validation check (lints, typechecks, format check)
+vp check --fix  # Auto-fixing validation (lints, typechecks, auto-formats; modifies source files)
 vp test
 vp build
 ```
