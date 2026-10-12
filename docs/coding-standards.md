@@ -15,16 +15,16 @@ This document specifies the practical coding standards, engineering conventions,
 
 ## 2. Naming
 
-| Entity | Convention | Example |
-|---|---|---|
-| Python module | `snake_case.py` | `market_data.py` |
-| Python function or variable | `snake_case` | `validate_ohlcv` |
-| Python class | `PascalCase` | `PipelineContext` |
-| Constant | `UPPER_SNAKE_CASE` | `DEFAULT_QUANT_CONFIG` |
-| React component | `PascalCase` | `StockDetail` |
-| Frontend file | Follow existing project convention | `stock-detail.tsx` |
-| TypeScript variable or function | `camelCase` | `loadRecommendations` |
-| Test function | `test_<behavior>` | `test_stage_execution_order` |
+| Entity                          | Convention                         | Example                      |
+| ------------------------------- | ---------------------------------- | ---------------------------- |
+| Python module                   | `snake_case.py`                    | `market_data.py`             |
+| Python function or variable     | `snake_case`                       | `validate_ohlcv`             |
+| Python class                    | `PascalCase`                       | `PipelineContext`            |
+| Constant                        | `UPPER_SNAKE_CASE`                 | `DEFAULT_QUANT_CONFIG`       |
+| React component                 | `PascalCase`                       | `StockDetail`                |
+| Frontend file                   | Follow existing project convention | `stock-detail.tsx`           |
+| TypeScript variable or function | `camelCase`                        | `loadRecommendations`        |
+| Test function                   | `test_<behavior>`                  | `test_stage_execution_order` |
 
 ### 2.1 Backend
 
