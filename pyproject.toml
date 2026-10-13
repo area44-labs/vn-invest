@@ -43,3 +43,6 @@ markers = [
 line-length = 100
 target-version = "py314"
 extend-exclude = ["AGENTS.md"]
+
+[dependency-groups]
+dev = ["ruff>=0.17.0"]

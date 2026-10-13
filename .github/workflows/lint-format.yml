@@ -22,15 +22,10 @@ jobs:
           python-version-file: "pyproject.toml"
           enable-cache: false
 
-      - name: Install Ruff
-        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
-        with:
-          args: "--version"
-
       - name: Run Ruff
         run: |
-          ruff check --fix scripts
-          ruff format scripts
+          uv run --frozen ruff check --fix scripts
+          uv run --frozen ruff format scripts
 
       - name: Run lint and format
         uses: area44/workflows/lint-format@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
