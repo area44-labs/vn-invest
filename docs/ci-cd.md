@@ -22,6 +22,8 @@ To replicate CI checks locally before submitting code:
 ```bash
 # Backend CI Checks
 uv sync --frozen
+uv run --frozen ruff check scripts          # Non-mutating check
+uv run --frozen ruff format --check scripts  # Non-mutating format check
 uv run --frozen ruff check --fix scripts    # Auto-fix check (modifies source files)
 uv run --frozen ruff format scripts         # Formatting check (modifies source files)
 uv run --frozen pytest

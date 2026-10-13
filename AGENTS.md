@@ -26,7 +26,11 @@ Refer to [`docs/testing.md`](docs/testing.md) for complete details on backend an
 # Sync dependencies
 uv sync --frozen
 
-# Lint & Format Python scripts
+# Non-mutating Python lint & format check
+uv run --frozen ruff check scripts
+uv run --frozen ruff format --check scripts
+
+# Auto-fix linting & formatting (modifies source files)
 uv run --frozen ruff check --fix scripts
 uv run --frozen ruff format scripts
 
