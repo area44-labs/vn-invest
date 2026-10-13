@@ -19,18 +19,13 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.13.0"
-          python-version-file: "pyproject.toml"
+          version-file: "pyproject.toml"
           enable-cache: false
-
-      - name: Install Ruff
-        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
-        with:
-          args: "--version"
 
       - name: Run Ruff
         run: |
-          ruff check --fix scripts
-          ruff format scripts
+          uv run --frozen ruff check --fix scripts
+          uv run --frozen ruff format scripts
 
       - name: Run lint and format
         uses: area44/workflows/lint-format@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
