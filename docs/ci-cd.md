@@ -1,82 +1,38 @@
 # CI/CD Workflows, Automation & Build Invariants
 
-This document specifies the GitHub Actions workflows, automated scheduled pipeline jobs, testing triggers, and CI invariants in **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the GitHub Actions workflows, path filtering rules, scheduled market updates, and deployment pipelines in **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
-## 1. GitHub Actions Workflows Overview (`.github/workflows/`)
+## 1. GitHub Actions Workflows Summary (`.github/workflows/`)
 
-The repository includes four primary GitHub Actions workflows:
-
-| Workflow File         | Trigger Events                                            | Primary Responsibilities                                                                                                          |
-| :-------------------- | :-------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
-| **`tests.yml`**       | `push` / `pull_request` on `main`                         | Executes Python backend tests (`uv run --frozen pytest`) and Vite+ frontend tests (`vp test`) via conditional path change filter. |
-| **`lint-format.yml`** | `push` / `pull_request` on `main`                         | Python autofix/formatting (`ruff check --fix` / `ruff format`) and Vite+ check.                                                   |
-| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch` | Scheduled EOD market data update and daily report regeneration.                                                                   |
-| **`pages.yml`**       | `push` on `main` / `pull_request` / `workflow_dispatch`   | SSG prerender build via Vite+ and deployment to GitHub Pages.                                                                     |
+| Workflow File         | Trigger Events                                                                           | Primary Responsibilities & Path Filters                                                                                                                                                                                                                                                                            |
+| :-------------------- | :--------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`tests.yml`**       | `push` (restricted to `main` branch) / `pull_request` (any branch)                       | Runs backend pytest (`backend-test`) when backend paths change; runs frontend Playwright Vitest (`frontend-test`) when frontend paths change. Note: `uv run --frozen pytest` in CI executes all tests; `@pytest.mark.live` tests are not filtered automatically unless explicitly configured via pytest CLI flags. |
+| **`lint-format.yml`** | `push` (restricted to `main` branch) / `pull_request` (any branch)                       | Runs on all pushes to `main` and pull requests **without path filters**.                                                                                                                                                                                                                                           |
+| **`update-data.yml`** | `schedule` (`cron: "0 11 * * 1-5"`) / `workflow_dispatch`                                | Scheduled daily EOD market update (11:00 UTC = 18:00 ICT, Mon-Fri). Runs `uv run --frozen python scripts/generate_report.py --update` on `main` and commits updated `generated/` artifacts.                                                                                                                        |
+| **`pages.yml`**       | `push` (restricted to `main` branch) / `pull_request` (any branch) / `workflow_dispatch` | Builds static site via Vite+ SSG (`dist/client`). Deployment to GitHub Pages environment.                                                                                                                                                                                                                          |
 
 ---
 
-## 2. Detailed Breakdown of Workflows
+## 2. Authoritative Local Commands Matching CI
 
-### 2.1 Test Suite Workflow (`tests.yml`)
-
-- **Job Filter (`changes`)**: Uses `dorny/paths-filter@v4` to inspect modified files against two separate target filters:
-  - `backend`: `**/*.py`, `pyproject.toml`, `uv.lock`, `pytest.ini`, `.github/workflows/tests.yml`.
-  - `frontend`: `src/**`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts`, `tsconfig.json`, `components.json`, `.github/workflows/tests.yml`.
-- **Python Backend Test Job (`backend-test`)**:
-  - Environment: `ubuntu-latest`, Python 3.14, managed via `astral-sh/setup-uv@v10`.
-  - Commands: `uv sync --frozen` & `uv run --frozen pytest`.
-- **Frontend Test Job (`frontend-test`)**:
-  - Environment: `ubuntu-latest`.
-  - Setup Action: Uses `voidzero-dev/setup-vp@v1` to set up the Vite+ environment.
-  - Commands: `vp install`, `pnpm exec playwright install --with-deps chromium`, and `vp test`.
-
-### 2.2 Linting & Formatting Workflow (`lint-format.yml`)
-
-- **Environment**: `ubuntu-latest`.
-- **Python Step**:
-  ```bash
-  ruff check --fix scripts
-  ruff format scripts
-  ```
-- **Frontend Step**: Uses `area44/workflows/lint-format` for Vite+ checks.
-
-### 2.3 Daily Scheduled EOD Market Update (`update-data.yml`)
-
-- **Schedule**: `cron: "0 11 * * 1-5"` (11:00 UTC = 18:00 ICT, Mon–Fri, following HOSE/HNX/UPCoM market close).
-- **Execution Command**:
-  ```bash
-  uv run --frozen python scripts/generate_report.py --update
-  ```
-- **Commit & Push Step**:
-  - Checks `git status --porcelain generated/`.
-  - If new data was generated, commits updated `generated/` artifacts with message `chore(data): update daily market recommendations` and pushes to `main`.
-- **Fail-Closed Invariant**: If market data acquisition fails or is incomplete, `generate_report.py --update` exits code 1, halting the workflow and preserving existing on-disk report artifacts without pushing corrupt updates.
-
-### 2.4 GitHub Pages SSG Deployment (`pages.yml`)
-
-- **Build Step**: Executes `area44/workflows/vite-plus` outputting static SSG files to `dist/client`.
-- **Deploy Step**: Deploys `dist/client` to GitHub Pages environment.
-
----
-
-## 3. Essential CI Commands Standard
-
-All local development and CI steps must use these exact commands:
+To replicate CI checks locally before submitting code:
 
 ```bash
-# Backend Dependencies & Testing
+# Backend CI Checks
 uv sync --frozen
+uv run --frozen ruff check --fix scripts    # Auto-fix check (modifies source files)
+uv run --frozen ruff format scripts         # Formatting check (modifies source files)
 uv run --frozen pytest
 
-# Backend Formatting & Linting
-uv run --frozen ruff check --fix scripts
-uv run --frozen ruff format scripts
-
-# Frontend Development, Testing & SSG Prerender
+# Frontend CI Checks
 vp install
+pnpm exec playwright install --with-deps chromium
+vp check        # Non-mutating validation check (lints, typechecks, format check)
+vp check --fix  # Auto-fixing validation (lints, typechecks, auto-formats; modifies source files)
 vp test
-vp check --fix
 vp build
 ```
+
+_Note on Scheduled Data Updates_: `.github/workflows/update-data.yml` executes `uv run --frozen python scripts/generate_report.py --update`. This command fetches external live market data and mutates generated artifacts under `generated/`. **Never run `--update` merely as routine local validation.**

@@ -1,6 +1,6 @@
-# Python Coding Standards & Project Conventions
+# Coding Standards, Engineering Conventions & Naming
 
-This document specifies the practical Python coding standards, design patterns, and engineering conventions enforced across **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the practical Python and frontend coding standards, engineering conventions, error handling rules, and canonical naming standards enforced across **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
@@ -9,6 +9,7 @@ This document specifies the practical Python coding standards, design patterns, 
 - **Python Version**: `>= 3.14` (managed deterministically via `uv`).
 - **Dependency Source of Truth**: `pyproject.toml` and `uv.lock`.
 - **Package Management**: All Python commands must run via `uv run --frozen ...`.
+- **Frontend Engine**: React 19 + TanStack Start SSG with Vite+ (`vp`).
 
 ---
 
@@ -53,15 +54,16 @@ This document specifies the practical Python coding standards, design patterns, 
 
 ---
 
-## 3. Error Handling & Fail-Closed Principles
+## 3. Exception Handling & Fail-Closed Principles
 
 ### 3.1 Exception Hierarchy
 
 Custom exceptions must inherit from domain-specific base exceptions:
 
-- Market Data Exceptions: `AcquisitionError`, `InvalidSymbolError`, `ExplicitlyInvalidDataError`, `ProviderRateLimitError` (in `scripts/data/providers/base.py`).
-- Data Validation Exceptions: `CanonicalOHLCVError` (in `scripts/data/validation.py`).
-- Schema Exceptions: `SchemaResolutionError` (in `scripts/schema/registry.py`).
+- **Market Data Exceptions**: `AcquisitionError`, `InvalidSymbolError`, `ExplicitlyInvalidDataError`, `ProviderRateLimitError` (in `scripts/data/providers/base.py`).
+- **Data Validation Exceptions**: `CanonicalOHLCVError` (in `scripts/data/validation.py`).
+- **Schema Exceptions**: `SchemaResolutionError` (in `scripts/schema/registry.py`).
+- **Artifact & Lock Exceptions**: `ArtifactLockError` (in `scripts/artifacts/transaction.py`), `ProvenanceValidationError` (in `scripts/artifacts/provenance.py`).
 
 ### 3.2 Fail-Closed Principle
 
@@ -69,7 +71,7 @@ When data quality fails or provider limits are exceeded:
 
 - Do **not** silently fill missing values with zeros or synthetic numbers.
 - Return `None`, mark status as `INSUFFICIENT` or `EXPLICITLY_INVALID`, or raise an explicit exception.
-- In production update mode (`--update`), data failures must raise `RuntimeError` to abort report generation without overwriting existing on-disk report artifacts in `generated/`.
+- In production update mode (`--update`), data integrity or monitoring failures must halt report generation non-zero without overwriting existing on-disk report artifacts in `generated/`.
 
 ---
 
@@ -103,19 +105,33 @@ from scripts.quant.config import DEFAULT_QUANT_CONFIG
 
 ## 5. Formatting & Linting Rules
 
-- **Linter & Formatter**: Ruff (`astral-sh/ruff`).
-- **Formatting Standard**: Enforced automatically via:
+- **Python Linter & Formatter**: Ruff (`astral-sh/ruff`).
   ```bash
   uv run --frozen ruff check --fix scripts
   uv run --frozen ruff format scripts
   ```
-- Line length, code formatting, and unused import cleanup are managed directly by Ruff rules defined in `pyproject.toml`.
+- **Frontend Linter & Formatter**: Vite+ (`vp check` / `vp check --fix`).
 
 ---
 
-## 6. Docstrings & Comments
+## 6. Docstrings & Canonical Naming Conventions
+
+### 6.1 Docstrings & Comments
 
 - **Module Docstrings**: Every Python module should contain a top-level docstring stating its canonical responsibility.
 - **Function Docstrings**: Use concise Google-style or standard Python docstrings specifying purpose, non-obvious parameters, return types, and raised exceptions.
 - **Financial & Quantitative Notes**: Document mathematical logic, formula definitions, or market rules (e.g., Vietnam T+2.5 settlement cycle, floor/ceiling price calculation rules) directly in function docstrings where applicable.
 - **No Redundant Comments or Generic Numbers**: Comments must add value by explaining business rationale or temporal invariants rather than merely restating Python code. Avoid arbitrary numbered labels (`# 1.`, `# 2.`, `# Scenario 1:`) in code comments and test docstrings.
+
+### 6.2 Naming Summary Table
+
+| Entity                          | Convention         | Example                      |
+| ------------------------------- | ------------------ | ---------------------------- |
+| Python module                   | `snake_case.py`    | `market_data.py`             |
+| Python function or variable     | `snake_case`       | `validate_ohlcv`             |
+| Python class                    | `PascalCase`       | `PipelineContext`            |
+| Constant                        | `UPPER_SNAKE_CASE` | `DEFAULT_QUANT_CONFIG`       |
+| React component                 | `PascalCase`       | `StockDetail`                |
+| Frontend file                   | `kebab-case`       | `stock-detail.tsx`           |
+| TypeScript variable or function | `camelCase`        | `loadRecommendations`        |
+| Test function                   | `test_<behavior>`  | `test_stage_execution_order` |

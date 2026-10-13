@@ -1,65 +1,16 @@
-# Frontend Architecture, SSG Build & UI Standards
+# Frontend SSG Architecture, Routing & UI Standards
 
-This document specifies the React static site generation (SSG) frontend architecture, layer separation boundaries, JSON integration contract, data loading result contract, build toolchain, deployment, accessibility, and UI standards for **VN Invest** (`area44-labs/vn-invest`).
+This document specifies the React static site generation (SSG) frontend architecture, typed data loader contracts, UI component standards, accessibility guidelines, and build tools in **VN Invest** (`area44-labs/vn-invest`).
 
 ---
 
-## 1. System Responsibilities & Layer Separation
+## 1. Frontend Responsibilities & Non-Negotiable Boundaries
 
-VN Invest strictly separates quantitative report generation (backend) from presentation and visualization (frontend).
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                 Python Quantitative Backend                 │
-│                         (scripts/)                          │
-│ Market Data -> Canonical Validation -> Indicators & Signals │
-│     -> T+2.5 Risk Models -> Monitoring -> Schema Check      │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ Schema-Validated JSON Artifacts
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Static Artifact Contract                    │
-│                        (generated/)                         │
-│ recommendations.json / market.json / history/*.json / ...   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ SSG Build (Vite+ Prerender)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      React SSG Frontend                     │
-│                           (src/)                            │
-│     TanStack Start -> Data Loaders -> Presentation UI       │
-│            -> Interactive Visualizer & Routing              │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               │ Static Site Artifacts
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│               GitHub Pages Deployment (dist/client)         │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 1.1 Backend Responsibilities (`scripts/`)
-
-- **Market Data Acquisition & Validation**: Fetching OHLCV market data (`VnstockMarketProvider`), price/volume normalization, and temporal consistency checks (`data_as_of`).
-- **Quantitative Calculations**: Computing technical indicators (RSI, MACD, MA, Divergence), market regimes, signal recommendation scores, and T+2.5 VaR/ES risk plans.
-- **Monitoring & Quality Assurance**: Performing drift detection, symbol accounting, schema compliance checks against `schemas/v2/`, and publishing artifacts atomically.
-- **Artifact Generation**: Persisting static JSON payloads in `generated/` (`recommendations.json`, `market.json`, `monitoring.json`, `history/index.json`, `history/{YYYY-MM-DD}.json`).
-
-### 1.2 Frontend Responsibilities (`src/`)
-
-- **Static Page Prerendering**: Building static HTML pages via React 19 and TanStack Start SSG prerendering.
-- **Routing & Navigation**: Managing client and static file-based routing (`src/routes/` and `src/pages/`).
-- **Data Loading**: Reading pre-rendered JSON artifacts during SSG build or fetching them in browser runtime (`src/data/loader.ts`).
-- **Presentation & Visualization**: Rendering stock tables, metric summary cards, modal overlays, and historical report selectors using existing component primitives.
-- **User Interactions**: Handling theme switching (light/dark mode), client-side search/filtering, interactive dialogs, and request retry actions.
-
-### 1.3 Non-Negotiable Boundary Rules
-
-- **Zero Financial Calculations**: The frontend must never calculate technical indicators, signal confidence scores, trade plan targets (stop-loss, cut-loss, entry range), or risk metrics.
+- **Static Page Prerendering**: HTML pages are prerendered at build time using React 19 and TanStack Start SSG (`@tanstack/react-start`).
+- **Read-Only Visualizer**: Frontend code under `src/` consumes pre-rendered static JSON artifacts from `generated/`.
+- **Zero Financial Calculations**: The frontend must never compute technical indicators, signal confidence scores, trade plan targets (stop-loss, cut-loss, entry range), or risk metrics.
 - **Zero Data Fabrication**: The frontend must never invent missing market data, synthesize missing recommendations, or guess placeholder prices/volumes when artifacts are incomplete.
-- **Zero Status Reinterpretation**: The frontend must display backend status codes (`BULLISH`, `BEARISH`, `SIDEWAYS`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as provided by the schema-validated artifacts without changing business classification logic.
+- **Verbatim Status Codes**: Display backend status strings (`STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, `PANIC`, `BUY`, `HOLD`, `SELL`, `WATCHLIST`, `WARNING`, `PASS`, `FAIL`) verbatim as supplied by schema-validated payloads without reinterpreting business logic.
 
 ---
 
@@ -69,8 +20,12 @@ VN Invest strictly separates quantitative report generation (backend) from prese
 
 The `generated/` directory is the single, canonical contract interface between backend and frontend.
 
-- **Data Ownership**: The backend exclusively owns data content, structure, and schema validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
-- **Schema Compatibility**: All backend JSON artifacts strictly validate against Draft 2020-12 schemas in `schemas/v2/`. TypeScript type definitions in `src/types/` mirror these JSON schemas.
+- **Data Ownership**: The backend exclusively owns data content, structure, and contract validity. The frontend exclusively owns visual layout, formatting, and DOM composition.
+- **Schema Compatibility & Market Regime Contract**:
+  - Primary recommendation and performance payloads (`recommendations.json`, `performance.json`, `history/YYYY-MM-DD.json`) strictly validate against Draft 2020-12 JSON Schemas in `schemas/v2/`. During publication, `ArtifactPublisher` (`scripts/artifacts/publisher.py`) validates governed artifacts against registered JSON Schemas, invokes `validate_final_payload_integrity()` (defined in `scripts/pipeline/validation.py`), and verifies provenance manifests (`scripts/artifacts/provenance.py`). Operational monitoring checks (`scripts/monitoring/evaluator.py`) are evaluated prior to publication in `scripts/generate_report.py`.
+  - Frontend runtime validation is implemented in `src/data/loader.ts`, which enforces fail-closed structural type guards (such as `isMarketPayload` for `market.json` and `isHistoryIndexPayload` for `history/index.json`) before rendering payloads. TypeScript type definitions in `src/types/` mirror these frontend data loader contracts.
+  - **Market Regime Enum Contract**: The active market regimes supported by the frontend validator (`src/data/loader.ts`) and TypeScript definitions (`src/types/recommendation.ts`) are `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, and `PANIC`.
+  - _Note on Backend/Frontend Alignment_: While `NEUTRAL` is defined in backend `QuantConfig` for planned future support, it is currently excluded from `VALID_MARKET_REGIMES` in `src/data/loader.ts`. Payloads containing `NEUTRAL` will trigger a validation error in the frontend.
 
 ### 2.2 Typed Loader Contract (`src/data/loader.ts`)
 
@@ -86,30 +41,29 @@ export type LoadResult<T> =
 Data resolution mechanics:
 
 1. **SSG Prerender Mode (Node.js)**: Reads static files directly from disk (`generated/*.json`) via `node:fs/promises`.
-   - Missing file (`ENOENT`): Returns `{ status: "NOT_FOUND" }`.
-   - Invalid JSON or file error: Throws an explicit `[SSG Build Error]` halting SSG prerendering immediately.
+   - Missing required file (e.g. `recommendations.json`): Throws an explicit build error (`ENOENT`) halting SSG build.
+   - Missing optional artifact (`optional: true`, e.g. `market.json`): Returns `{ status: "NOT_FOUND" }` gracefully.
 2. **Browser Runtime Mode**: Fetches JSON assets via HTTP `fetch` relative to `import.meta.env.BASE_URL`:
    - `404 Not Found`: Returns `{ status: "NOT_FOUND" }`.
    - `200 OK` with valid JSON: Returns `{ status: "SUCCESS", data }`.
-   - Non-200 HTTP status or invalid JSON: Returns `{ status: "ERROR", error: "..." }`.
-   - Network failure or TypeError: Returns `{ status: "ERROR", error: "..." }`.
+   - Non-200 HTTP status, network failure, or invalid JSON: Returns `{ status: "ERROR", error: "..." }`.
 
 ### 2.3 Race Condition Protection, Component States & Retry Paths
 
-- **Asynchronous Race Protection**: Page components (e.g `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens (e.g `isCancelled` flag in `useEffect` or `useRef` request tokens) when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current state.
+- **Asynchronous Race Protection**: Page components (e.g. `src/pages/history.tsx`, `src/pages/stock-detail.tsx`) track cancellation tokens or `useRef` request tokens when dates or stock symbols change. Late responses from previous selections are discarded and cannot corrupt current view state.
 - **State Disambiguation & Recovery**:
   - **Loading State**: Displayed while `LoadResult` is pending when user changes selected date or symbol. State is cleared immediately on selection change to prevent stale views.
   - **Successful Data State**: Rendered when `status === "SUCCESS"`.
-  - **Genuinely Missing Data State**: Rendered when `status === "NOT_FOUND"` (e.g., "Không tìm thấy file báo cáo ngày YYYY-MM-DD" or "Không tìm thấy dữ liệu phân tích cho mã 'XYZ'").
-  - **Request / Parsing Error State**: Rendered when `status === "ERROR"` (e.g., "Lỗi tải báo cáo: HTTP 500"). **Network or parsing errors must never be presented as "not found".** An interactive **"Thử lại"** button allows users to retry and recover cleanly.
-- **Dashboard Synchronization**: Dashboard re-fetches both `loadRecommendationsResult()` and `loadMarketResult()` on retry to ensure complete data recovery.
-- **Warning Banners**: Freshness warnings or status flags present in valid backend payloads (such as `source_date` age checks in `src/pages/dashboard.tsx`) render inline warning banners without blocking page rendering.
+  - **Genuinely Missing Data State**: Rendered when `status === "NOT_FOUND"` (e.g., missing historical report or unknown stock symbol).
+  - **Request / Parsing Error State**: Rendered when `status === "ERROR"`. **Network or parsing errors must never be presented as "not found".** An interactive retry button allows users to re-fetch and recover cleanly.
+- **Dashboard Synchronization**: Dashboard re-fetches both recommendations and market data on retry to ensure complete recovery.
+- **Warning Banners**: Freshness warnings or fallback notifications present in valid backend payloads render explicit inline warning banners without blocking page rendering.
 
 ---
 
 ## 3. Technology Stack & Project Configuration
 
-The project configuration and dependencies in `package.json` and `components.json` serve as the source of truth for the frontend setup.
+The project configuration and dependencies in `package.json` serve as the source of truth for the frontend setup.
 
 ### 3.1 Technology Stack
 
@@ -122,8 +76,7 @@ The project configuration and dependencies in `package.json` and `components.jso
 
 ### 3.2 Key Configuration Files
 
-- **`components.json`**: shadcn CLI configuration (`style: "base-nova"`, `tailwind.css: "src/styles/index.css"`, aliases for `@/components`, `@/components/ui`, `@/lib`, `@/hooks`).
-- **`package.json`**: Package dependencies and scripts (`vp dev`, `vp build`, `vp check`, `vp fmt`, `vp test`).
+- **`package.json`**: Package dependencies and scripts (`vp dev`, `vp build`, `vp check`, `vp check --fix`, `vp test`).
 - **`vite.config.ts`**: Merged build and test configuration integrating TanStack Start, `@tailwindcss/vite`, and `@vitest/browser-playwright`.
 - **`src/styles/index.css`**: Design tokens, CSS variables, theme definitions, and `@theme inline` mappings.
 
@@ -133,7 +86,7 @@ The project configuration and dependencies in `package.json` and `components.jso
 
 ### 4.1 File Naming & Component Architecture
 
-**File Naming Rule**: All frontend source files under `src/` (pages, components, hooks, utilities, tests, styles) MUST use `kebab-case` filenames (e.g., `src/pages/dashboard.tsx`). React component exported identifiers remain `PascalCase` (e.g `export function StockDetail()`).
+**File Naming Rule**: All frontend source files under `src/` (pages, components, hooks, utilities, tests, styles) MUST use `kebab-case` filenames (e.g., `src/pages/dashboard.tsx`). React component exported identifiers remain `PascalCase` (e.g. `export function StockDetail()`).
 
 To maintain consistency and avoid unnecessary complexity:
 
@@ -144,9 +97,8 @@ To maintain consistency and avoid unnecessary complexity:
 ### 4.2 Accessibility & Responsive Behavior
 
 - **Semantic HTML**: Structural layout uses semantic tags (`<header>`, `<nav>`, `<main>`, `<section>`, `<article>`, `<footer>`).
-- **Keyboard Navigation**: Interactive elements (such as stock table rows) support keyboard navigation (`Enter` and `Space` keypress events, `role="button"`, and `tabIndex={0}`).
+- **Keyboard Navigation**: Interactive elements (such as stock table rows wrapped in TanStack Router `<Link>`) support keyboard navigation and standard web accessibility expectations.
 - **Focus Rings**: All interactive controls feature visible focus indicators (`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`).
-- **ARIA Attributes**: Elements include appropriate labels (`aria-label`, `aria-describedby`, `aria-selected`) for accessibility.
 - **Responsive Layouts**: Content scales cleanly across mobile, tablet, and desktop viewports using flex wrapping and scrollable table wrappers (`overflow-x-auto`).
 
 ### 4.3 Styling & Tokens
@@ -182,10 +134,10 @@ vp install && pnpm exec playwright install --with-deps chromium
 # Execute frontend unit and regression test suite in real browser mode
 vp test
 
-# Check linter, TypeScript types, and code formatting
+# Check linter, TypeScript types, and code formatting (non-mutating)
 vp check
 
-# Automatically fix linting and formatting issues
+# Auto-fix linting and formatting issues (modifies source files)
 vp check --fix
 
 # Start local development server
