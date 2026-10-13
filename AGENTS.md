@@ -11,7 +11,7 @@ For the full documentation index and task-to-document mapping, see [`docs/index.
 1. **Subsystem Isolation**: Backend Python logic resides under `scripts/`. Frontend React code resides under `src/`.
 2. **Read-Only Frontend Visualizer**: `src/` displays pre-rendered artifacts from `generated/`. **Zero financial or quantitative calculations occur in the frontend.**
 3. **Fail-Closed & Anti-Lookahead Safety**: Point-in-time isolation (<= T) is enforced for all historical data. Never access future data (> T). Rejects corrupt or incomplete data explicitly without fabricating synthetic values.
-4. **Schema Enforcement**: Published JSON artifacts in `generated/` must validate against schemas in `schemas/v2/`.
+4. **Schema Enforcement**: Schema-governed JSON artifacts (`recommendations.json`, `performance.json`, `history/YYYY-MM-DD.json`) must validate against Draft 2020-12 schemas in `schemas/v2/`. Other published artifacts validate against internal dictionary payload contracts (`scripts/pipeline/validation.py`, `scripts/artifacts/`, `scripts/monitoring/`).
 5. **No Routine Live Data Updates**: Never run `python scripts/generate_report.py --update` merely as routine validation. It fetches live market data and alters output artifacts. Execute live updates only when explicitly requested and authorized by the user.
 
 ---
@@ -49,8 +49,11 @@ pnpm exec playwright install --with-deps chromium
 # Run frontend tests (vite-plus/test in Playwright browser)
 vp test
 
-# Run frontend linting, formatting, and type checks
-vp check  # Preferred frontend validation (lints, typechecks, auto-formats; modifies source files)
+# Non-mutating frontend check (linting, type checking, formatting validation)
+vp check
+
+# Auto-fixing frontend check (lints, typechecks, auto-formats; modifies source files)
+vp check --fix
 
 # Run local development server
 vp dev
