@@ -29,7 +29,7 @@ class TestMarketRegime:
         assert res["regime_score"] <= 40.0
 
     def test_neutral_regime_evaluation_and_support(self):
-        """1. Verify NEUTRAL market regime classification, boundaries, risk factor calculation, and score bounds."""
+        """Verify NEUTRAL market regime classification, boundaries, risk factor calculation, and score bounds."""
         from scripts.quant.config import DEFAULT_QUANT_CONFIG
         from scripts.quant.risk import calculate_risk_adjusted_score
 

@@ -86,7 +86,7 @@ function getValidRecommendationSample(overrides: Record<string, any> = {}) {
 function getValidRecommendationsPayloadSample(overrides: Record<string, any> = {}) {
   return {
     schema_version: "2.0",
-    signal_model_version: "v2.1",
+    signal_model_version: "2.0",
     generated_at: "2026-10-09T16:00:00Z",
     data_as_of: "2026-10-09",
     source_date: "2026-10-09",
