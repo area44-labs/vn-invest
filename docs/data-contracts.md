@@ -1,6 +1,6 @@
 # Data Contracts, Schemas & Validation Boundaries
 
-All output artifacts published by **VN Invest** (`area44-labs/vn-invest`) are governed by versioned JSON Schemas stored in `schemas/v2/`.
+Schema-governed JSON artifacts published by **VN Invest** (`recommendations.json`, `performance.json`, and point-in-time historical snapshots `history/YYYY-MM-DD.json`) are governed by Draft 2020-12 JSON Schemas stored in `schemas/v2/` via `scripts/schema/registry.py`. Other published artifacts (`market.json`, `monitoring.json`, `provenance.json`, `history/index.json`) validate against artifact-specific internal payload contracts.
 
 ---
 
@@ -18,7 +18,7 @@ Schema loading and resolution are strictly version-aware:
 | :----------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------- |
 | **`PIPELINE_VERSION`** (`"2.0.0"`)   | `scripts/pipeline/constants.py` | Pipeline execution runner software version.                                         |
 | **`SIGNAL_MODEL_VERSION`** (`"2.0"`) | `scripts/quant/signal.py`       | Quantitative signal scoring formula version (`DEFAULT_QUANT_CONFIG.model_version`). |
-| **`QUANT_VERSION`** (`"2.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version (`DEFAULT_QUANT_CONFIG.quant_version`).   |
+| **`QUANT_VERSION`** (`"1.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version (`DEFAULT_QUANT_CONFIG.quant_version`).   |
 | **`SCHEMA_VERSION`** (`"2.0"`)       | `scripts/schema/registry.py`    | Versioned JSON Schema definition version.                                           |
 
 ---
