@@ -1,3 +1,4 @@
 scripts/
 requirements.txt
+uv.lock
 *.py
