@@ -1,6 +1,6 @@
 # Data Contracts, Schemas & Validation Boundaries
 
-All output artifacts published by **VN Invest** (`area44-labs/vn-invest`) are governed by versioned JSON Schemas stored in `schemas/v2/`.
+Schema-governed JSON artifacts published by **VN Invest** (`recommendations.json`, `performance.json`, and point-in-time historical snapshots `history/YYYY-MM-DD.json`) are governed by Draft 2020-12 JSON Schemas stored in `schemas/v2/` via `scripts/schema/registry.py`. Other published artifacts (`market.json`, `monitoring.json`, `provenance.json`, `history/index.json`) validate against artifact-specific internal payload contracts.
 
 ---
 
@@ -14,12 +14,12 @@ Schema loading and resolution are strictly version-aware:
 
 ### Four Metadata Version Contracts
 
-| Version Contract                     | Source Module                   | Purpose                                      |
-| :----------------------------------- | :------------------------------ | :------------------------------------------- |
-| **`PIPELINE_VERSION`** (`"2.0.0"`)   | `scripts/pipeline/constants.py` | Pipeline execution runner software version.  |
-| **`SIGNAL_MODEL_VERSION`** (`"2.0"`) | `scripts/quant/config.py`       | Quantitative signal scoring formula version. |
-| **`QUANT_VERSION`** (`"2.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version.   |
-| **`SCHEMA_VERSION`** (`"2.0"`)       | `scripts/schema/registry.py`    | Versioned JSON Schema definition version.    |
+| Version Contract                     | Source Module                   | Purpose                                                                             |
+| :----------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------- |
+| **`PIPELINE_VERSION`** (`"2.0.0"`)   | `scripts/pipeline/constants.py` | Pipeline execution runner software version.                                         |
+| **`SIGNAL_MODEL_VERSION`** (`"2.0"`) | `scripts/quant/signal.py`       | Quantitative signal scoring formula version (`DEFAULT_QUANT_CONFIG.model_version`). |
+| **`QUANT_VERSION`** (`"1.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version (`DEFAULT_QUANT_CONFIG.quant_version`).   |
+| **`SCHEMA_VERSION`** (`"2.0"`)       | `scripts/schema/registry.py`    | Versioned JSON Schema definition version.                                           |
 
 ---
 
@@ -35,7 +35,7 @@ Schema loading and resolution are strictly version-aware:
 1. **Boundary 1 (Canonical OHLCV)**: Rejects datasets with missing columns, non-positive prices, negative volumes, non-monotonic dates, or duplicate trading sessions.
 2. **Boundary 2 (Universe Completeness)**: Rejects pipeline runs with missing benchmarks (`VNINDEX`, `VN30`) or unhandled candidate stocks.
 3. **Boundary 3 (Final Payload Integrity)**: Ensures recommendations list is non-empty, top-level metadata matches, and numeric fields contain no `NaN`/`Inf`.
-4. **Boundary 4 (Publisher Schema Validation)**: Validates generated JSON files against JSON Schemas in `schemas/v2/` prior to atomic persistence.
+4. **Boundary 4 (Publisher Validation)**: Validates schema-governed artifacts against their registered JSON Schemas and applies the relevant internal payload, date-consistency, and provenance checks before atomic persistence.
 
 ---
 
