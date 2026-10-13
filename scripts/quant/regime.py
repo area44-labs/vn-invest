@@ -185,6 +185,8 @@ def _detect_market_regime(
         regime = "STRONG_BULL"
     elif score >= config.regime_threshold_bull:
         regime = "BULL"
+    elif score >= config.regime_threshold_neutral:
+        regime = "NEUTRAL"
     elif score >= config.regime_threshold_defensive:
         regime = "DEFENSIVE"
     elif score >= config.regime_threshold_bear:

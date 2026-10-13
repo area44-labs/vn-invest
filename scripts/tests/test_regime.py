@@ -29,12 +29,54 @@ class TestMarketRegime:
         assert res["regime_score"] <= 40.0
 
     def test_neutral_regime_evaluation_and_support(self):
-        """1. Verify NEUTRAL market regime handling, risk factor calculation, and score bounds."""
+        """1. Verify NEUTRAL market regime classification, boundaries, risk factor calculation, and score bounds."""
         from scripts.quant.config import DEFAULT_QUANT_CONFIG
         from scripts.quant.risk import calculate_risk_adjusted_score
 
         assert "NEUTRAL" in DEFAULT_QUANT_CONFIG.valid_market_regimes
         assert DEFAULT_QUANT_CONFIG.regime_score_factors["NEUTRAL"] == 0.90
+
+        # Create a synthetic dataset that produces a score in [50.0, 60.0) (NEUTRAL)
+        # Base score 50 + MA20 (+15) - MA50 (-10) = 55.0 (NEUTRAL)
+        close_prices = [1300.0] * 30 + [1200.0] * 10 + [1201.0] * 10 + [1205.0] * 10
+        df_vnindex = pd.DataFrame({"close": close_prices, "volume": [1e8] * len(close_prices)})
+
+        res_neutral = detect_market_regime(df_vnindex=df_vnindex, breadth_ratio=None)
+        assert res_neutral["regime"] == "NEUTRAL"
+        assert res_neutral["regime_score"] == 55.0
+
+        # Boundary checks: mock detector outputs for regime score boundary transitions
+        def _mock_detector(score_val):
+            return lambda **kw: {
+                "regime": (
+                    "STRONG_BULL"
+                    if score_val >= 80.0
+                    else "BULL"
+                    if score_val >= 60.0
+                    else "NEUTRAL"
+                    if score_val >= 50.0
+                    else "DEFENSIVE"
+                    if score_val >= 40.0
+                    else "BEAR"
+                    if score_val >= 20.0
+                    else "PANIC"
+                ),
+                "regime_score": score_val,
+                "confidence": 0.85,
+                "metrics": {},
+            }
+
+        res_49_9 = detect_market_regime(detector=_mock_detector(49.9))
+        assert res_49_9["regime"] == "DEFENSIVE"
+
+        res_50_0 = detect_market_regime(detector=_mock_detector(50.0))
+        assert res_50_0["regime"] == "NEUTRAL"
+
+        res_59_9 = detect_market_regime(detector=_mock_detector(59.9))
+        assert res_59_9["regime"] == "NEUTRAL"
+
+        res_60_0 = detect_market_regime(detector=_mock_detector(60.0))
+        assert res_60_0["regime"] == "BULL"
 
         # Verify risk adjusted score calculation for NEUTRAL regime
         score_neutral = calculate_risk_adjusted_score(signal_score=80.0, regime="NEUTRAL")

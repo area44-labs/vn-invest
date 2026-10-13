@@ -278,6 +278,7 @@ class QuantConfig:
 
     regime_threshold_strong_bull: float = 80.0
     regime_threshold_bull: float = 60.0
+    regime_threshold_neutral: float = 50.0
     regime_threshold_defensive: float = 40.0
     regime_threshold_bear: float = 20.0
 
