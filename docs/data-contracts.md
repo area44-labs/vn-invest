@@ -35,7 +35,7 @@ Schema loading and resolution are strictly version-aware:
 1. **Boundary 1 (Canonical OHLCV)**: Rejects datasets with missing columns, non-positive prices, negative volumes, non-monotonic dates, or duplicate trading sessions.
 2. **Boundary 2 (Universe Completeness)**: Rejects pipeline runs with missing benchmarks (`VNINDEX`, `VN30`) or unhandled candidate stocks.
 3. **Boundary 3 (Final Payload Integrity)**: Ensures recommendations list is non-empty, top-level metadata matches, and numeric fields contain no `NaN`/`Inf`.
-4. **Boundary 4 (Publisher Schema Validation)**: Validates generated JSON files against JSON Schemas in `schemas/v2/` prior to atomic persistence.
+4. **Boundary 4 (Publisher Validation)**: Validates schema-governed artifacts against their registered JSON Schemas and applies the relevant internal payload, date-consistency, and provenance checks before atomic persistence.
 
 ---
 
