@@ -1,5 +1,4 @@
-// TODO: Include "NEUTRAL" in MarketRegime union when frontend support for NEUTRAL regime is implemented.
-export type MarketRegime = "STRONG_BULL" | "BULL" | "DEFENSIVE" | "BEAR" | "PANIC";
+export type MarketRegime = "STRONG_BULL" | "BULL" | "NEUTRAL" | "DEFENSIVE" | "BEAR" | "PANIC";
 
 export type ActionType = "BUY" | "WATCH" | "HOLD" | "SELL" | "AVOID";
 

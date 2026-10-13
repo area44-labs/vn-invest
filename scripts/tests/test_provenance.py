@@ -38,7 +38,7 @@ class TestArtifactProvenanceSuite:
             "pipeline_version": "2.0.0",
             "signal_model_version": "2.0",
             "quantitative_config_version": {
-                "quant_version": "1.0.0",
+                "quant_version": "2.0",
                 "config_hash": "a1b2c3d4e5f6",
             },
             "schema_version": "2.0",
@@ -72,7 +72,7 @@ class TestArtifactProvenanceSuite:
         assert manifest.data_as_of == self.canonical_date
         assert manifest.pipeline_version == "2.0.0"
         assert manifest.signal_model_version == "2.0"
-        assert manifest.quantitative_config_version["quant_version"] == "1.0.0"
+        assert manifest.quantitative_config_version["quant_version"] == "2.0"
 
         d_repr = manifest.to_dict()
         assert d_repr["data_as_of"] == self.canonical_date
@@ -92,7 +92,7 @@ class TestArtifactProvenanceSuite:
         context.record_symbol_processed("AAA")
         context.recommendations_payload = {
             "signal_model_version": "2.0",
-            "quant_version": "1.0.0",
+            "quant_version": "2.0",
             "config_hash": "c1d2e3f4",
             "schema_version": "2.0",
             "universe_info": context.universe.to_info_dict(),

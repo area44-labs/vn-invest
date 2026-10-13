@@ -49,7 +49,7 @@ class QuantConfig:
     """Canonical, single authoritative quantitative configuration and version contract."""
 
     # Model and Configuration Versions
-    quant_version: str = "1.0.0"
+    quant_version: str = "2.0"
     model_version: str = "2.0"
 
     # Signal weights
@@ -278,6 +278,7 @@ class QuantConfig:
 
     regime_threshold_strong_bull: float = 80.0
     regime_threshold_bull: float = 60.0
+    regime_threshold_neutral: float = 50.0
     regime_threshold_defensive: float = 40.0
     regime_threshold_bear: float = 20.0
 
