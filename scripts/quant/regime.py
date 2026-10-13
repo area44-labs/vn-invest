@@ -1,7 +1,7 @@
 """Market Regime Module for VN Invest.
 
 Determines multi-factor Vietnam market regime:
-STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC
+STRONG_BULL, BULL, NEUTRAL, DEFENSIVE, BEAR, PANIC
 Evaluating VNINDEX, VN30, breadth, volatility, volume, and momentum.
 
 Invariant:

@@ -37,7 +37,7 @@ Key Architectural Principles:
    - Production Market Regime & Signal Generation: Real-time, point-in-time calculation of complete market
       regimes and stock signal recommendations using production model weights, confidence rules, and trade plans.
    - Historical Market-Regime Validation: Point-in-time descriptive evaluation measuring how production
-      market regimes (STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC) assigned at date T map to forward market returns
+      market regimes (STRONG_BULL, BULL, NEUTRAL, DEFENSIVE, BEAR, PANIC) assigned at date T map to forward market returns
       (5D, 10D, 20D) strictly without lookahead bias, threshold tuning, or model modification.
    - Historical Component Evaluation: Point-in-time measurement of individual signal component scores
       (Trend, Momentum, Volume, Relative Strength, Divergence) against forward historical returns

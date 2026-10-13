@@ -284,7 +284,7 @@ class TestScoringFunctionsAndThresholds:
 @pytest.mark.unit
 class TestMarketRegimeDetection:
     def test_detect_market_regime_cases(self):
-        """Verify detect_market_regime across STRONG_BULL, BULL, DEFENSIVE, BEAR, PANIC, and insufficient history."""
+        """Verify detect_market_regime across STRONG_BULL, BULL, NEUTRAL, DEFENSIVE, BEAR, PANIC, and insufficient history."""
         # Insufficient history (< 20 rows)
         df_short = pd.DataFrame({"close": [100.0] * 10})
         res_short = detect_market_regime(df_short)
