@@ -14,12 +14,12 @@ Schema loading and resolution are strictly version-aware:
 
 ### Four Metadata Version Contracts
 
-| Version Contract                     | Source Module                   | Purpose                                      |
-| :----------------------------------- | :------------------------------ | :------------------------------------------- |
-| **`PIPELINE_VERSION`** (`"2.0.0"`)   | `scripts/pipeline/constants.py` | Pipeline execution runner software version.  |
-| **`SIGNAL_MODEL_VERSION`** (`"2.0"`) | `scripts/quant/config.py`       | Quantitative signal scoring formula version. |
-| **`QUANT_VERSION`** (`"2.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version.   |
-| **`SCHEMA_VERSION`** (`"2.0"`)       | `scripts/schema/registry.py`    | Versioned JSON Schema definition version.    |
+| Version Contract                     | Source Module                   | Purpose                                                                             |
+| :----------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------- |
+| **`PIPELINE_VERSION`** (`"2.0.0"`)   | `scripts/pipeline/constants.py` | Pipeline execution runner software version.                                         |
+| **`SIGNAL_MODEL_VERSION`** (`"2.0"`) | `scripts/quant/signal.py`       | Quantitative signal scoring formula version (`DEFAULT_QUANT_CONFIG.model_version`). |
+| **`QUANT_VERSION`** (`"2.0.0"`)      | `scripts/quant/config.py`       | Quantitative configuration schema version (`DEFAULT_QUANT_CONFIG.quant_version`).   |
+| **`SCHEMA_VERSION`** (`"2.0"`)       | `scripts/schema/registry.py`    | Versioned JSON Schema definition version.                                           |
 
 ---
 
