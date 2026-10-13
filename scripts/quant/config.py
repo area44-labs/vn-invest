@@ -49,7 +49,7 @@ class QuantConfig:
     """Canonical, single authoritative quantitative configuration and version contract."""
 
     # Model and Configuration Versions
-    quant_version: str = "1.0.0"
+    quant_version: str = "2.0"
     model_version: str = "2.0"
 
     # Signal weights

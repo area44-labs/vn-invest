@@ -25,10 +25,10 @@ export type LoadResult<T> =
   | { status: "NOT_FOUND" }
   | { status: "ERROR"; error: string };
 
-// TODO: Include "NEUTRAL" in VALID_MARKET_REGIMES when frontend support for NEUTRAL regime is implemented.
 const VALID_MARKET_REGIMES: Set<string> = new Set<MarketRegime>([
   "STRONG_BULL",
   "BULL",
+  "NEUTRAL",
   "DEFENSIVE",
   "BEAR",
   "PANIC",

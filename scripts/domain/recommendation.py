@@ -63,7 +63,7 @@ class Recommendation:
     action: str
     model_version: str
     data_quality: str
-    quant_version: str = "1.0.0"
+    quant_version: str = "2.0"
     config_hash: str = ""
     data_quality_issues: tuple[str, ...] = ()
     data_as_of: str | None = None
@@ -285,7 +285,7 @@ class Recommendation:
             sector=sec_val,
             action=data_dict.get("action", "AVOID"),
             model_version=data_dict.get("model_version", "2.0"),
-            quant_version=data_dict.get("quant_version", "1.0.0"),
+            quant_version=data_dict.get("quant_version", "2.0"),
             config_hash=data_dict.get("config_hash", ""),
             data_quality=data_dict.get("data_quality", "INSUFFICIENT"),
             data_quality_issues=tuple(data_dict.get("data_quality_issues", [])),

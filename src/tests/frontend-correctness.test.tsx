@@ -128,6 +128,21 @@ describe("Frontend Data Correctness & Market Metrics", () => {
     container.remove();
   });
 
+  describe("NEUTRAL regime frontend support", () => {
+    it("accepts and correctly validates NEUTRAL market regime payload", () => {
+      const neutralPayload = getValidRecommendationsPayloadSample({
+        market: {
+          regime: "NEUTRAL",
+          confidence: 0.85,
+          regime_score: 50.0,
+          metrics: { vnindex_value: 1250, vnindex_change_pct: 0.0 },
+        },
+      });
+
+      expect(isRecommendationsPayload(neutralPayload)).toBe(true);
+    });
+  });
+
   describe("MarketSummary correctness", () => {
     it("never presents confidence and breadth as price changes", () => {
       const sampleMarketData = {

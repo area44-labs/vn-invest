@@ -82,6 +82,9 @@ export function Methodology() {
             <strong>BULL:</strong> Xu hướng tăng ổn định, hỗ trợ xu hướng vững chắc.
           </li>
           <li>
+            <strong>NEUTRAL:</strong> Trạng thái trung tính, biến động hẹp và tín hiệu đi ngang.
+          </li>
+          <li>
             <strong>DEFENSIVE:</strong> Thị trường giằng co, phân hóa cao. Yêu cầu điểm số Signal
             Score khắt khe hơn để đưa ra khuyến nghị BUY.
           </li>

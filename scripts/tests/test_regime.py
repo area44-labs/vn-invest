@@ -28,6 +28,19 @@ class TestMarketRegime:
         assert res["regime"] in ["BEAR", "PANIC"]
         assert res["regime_score"] <= 40.0
 
+    def test_neutral_regime_evaluation_and_support(self):
+        """1. Verify NEUTRAL market regime handling, risk factor calculation, and score bounds."""
+        from scripts.quant.config import DEFAULT_QUANT_CONFIG
+        from scripts.quant.risk import calculate_risk_adjusted_score
+
+        assert "NEUTRAL" in DEFAULT_QUANT_CONFIG.valid_market_regimes
+        assert DEFAULT_QUANT_CONFIG.regime_score_factors["NEUTRAL"] == 0.90
+
+        # Verify risk adjusted score calculation for NEUTRAL regime
+        score_neutral = calculate_risk_adjusted_score(signal_score=80.0, regime="NEUTRAL")
+        assert score_neutral is not None
+        assert 0.0 <= score_neutral <= 100.0
+
     def test_insufficient_data_regime(self):
         res = detect_market_regime(df_vnindex=None)
         assert res["regime"] == "DEFENSIVE"

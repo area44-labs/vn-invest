@@ -24,8 +24,7 @@ The `generated/` directory is the single, canonical contract interface between b
 - **Schema Compatibility & Market Regime Contract**:
   - Primary recommendation and performance payloads (`recommendations.json`, `performance.json`, `history/YYYY-MM-DD.json`) strictly validate against Draft 2020-12 JSON Schemas in `schemas/v2/`. During publication, `ArtifactPublisher` (`scripts/artifacts/publisher.py`) validates governed artifacts against registered JSON Schemas, invokes `validate_final_payload_integrity()` (defined in `scripts/pipeline/validation.py`), and verifies provenance manifests (`scripts/artifacts/provenance.py`). Operational monitoring checks (`scripts/monitoring/evaluator.py`) are evaluated prior to publication in `scripts/generate_report.py`.
   - Frontend runtime validation is implemented in `src/data/loader.ts`, which enforces fail-closed structural type guards (such as `isMarketPayload` for `market.json` and `isHistoryIndexPayload` for `history/index.json`) before rendering payloads. TypeScript type definitions in `src/types/` mirror these frontend data loader contracts.
-  - **Market Regime Enum Contract**: The active market regimes supported by the frontend validator (`src/data/loader.ts`) and TypeScript definitions (`src/types/recommendation.ts`) are `STRONG_BULL`, `BULL`, `DEFENSIVE`, `BEAR`, and `PANIC`.
-  - _Note on Backend/Frontend Alignment_: While `NEUTRAL` is defined in backend `QuantConfig` for planned future support, it is currently excluded from `VALID_MARKET_REGIMES` in `src/data/loader.ts`. Payloads containing `NEUTRAL` will trigger a validation error in the frontend.
+  - **Market Regime Enum Contract**: The active market regimes supported by the frontend validator (`src/data/loader.ts`) and TypeScript definitions (`src/types/recommendation.ts`) are `STRONG_BULL`, `BULL`, `NEUTRAL`, `DEFENSIVE`, `BEAR`, and `PANIC`.
 
 ### 2.2 Typed Loader Contract (`src/data/loader.ts`)
 

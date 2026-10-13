@@ -42,14 +42,14 @@ class TestQuantitativeConfigAndVersionContract:
     def test_default_config_properties_and_version_contract(self):
         """Verifies DEFAULT_QUANT_CONFIG properties, SHA-256 hash calculation, and version contract structure."""
         cfg = DEFAULT_QUANT_CONFIG
-        assert cfg.quant_version == "1.0.0"
+        assert cfg.quant_version == "2.0"
         assert cfg.model_version == "2.0"
 
         contract = cfg.version_contract
         assert "quant_version" in contract
         assert "model_version" in contract
         assert "config_hash" in contract
-        assert contract["quant_version"] == "1.0.0"
+        assert contract["quant_version"] == "2.0"
         assert contract["model_version"] == "2.0"
         assert contract["config_hash"] == cfg.get_config_hash()
         assert len(cfg.get_config_hash()) == 12
@@ -74,7 +74,7 @@ class TestQuantitativeConfigAndVersionContract:
 
     def test_default_quant_config_canonical_defaults(self):
         """Verifies DEFAULT_QUANT_CONFIG canonical defaults, parameter values, and weight structures."""
-        assert DEFAULT_QUANT_CONFIG.quant_version == "1.0.0"
+        assert DEFAULT_QUANT_CONFIG.quant_version == "2.0"
         assert DEFAULT_QUANT_CONFIG.model_version == "2.0"
         assert sum(DEFAULT_QUANT_CONFIG.signal_weights.values()) == pytest.approx(1.0)
         assert sum(DEFAULT_QUANT_CONFIG.divergence_timeframe_weights.values()) == pytest.approx(1.0)
