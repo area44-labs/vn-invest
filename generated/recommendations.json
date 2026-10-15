@@ -3,9 +3,9 @@
   "signal_model_version": "2.0",
   "quant_version": "2.0",
   "config_hash": "5d7d4b500ff2",
-  "generated_at": "2026-10-14T15:44:42.639004+00:00",
-  "data_as_of": "2026-10-14",
-  "source_date": "2026-10-14",
+  "generated_at": "2026-10-15T15:32:15.162193+00:00",
+  "data_as_of": "2026-10-15",
+  "source_date": "2026-10-15",
   "data_source": "REAL_DATA",
   "universe_info": {
     "universe_type": "VN30_MIDCAP_LEADERS",
@@ -16,12 +16,12 @@
     "regime_score": 0.0,
     "confidence": 0.85,
     "metrics": {
-      "vnindex_value": 1704.87,
-      "vnindex_change_pct": -0.85,
-      "vn30_change_pct": -0.46,
+      "vnindex_value": 1698.35,
+      "vnindex_change_pct": -0.38,
+      "vn30_change_pct": -0.47,
       "market_breadth_ratio": 0.26,
-      "volatility": 0.1085,
-      "volume_20d_ratio": 1.1
+      "volatility": 0.102,
+      "volume_20d_ratio": 1.3
     }
   },
   "summary": {
@@ -44,18 +44,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 25.5,
-      "risk_adjusted_score": 11.8,
+      "signal_score": 27.8,
+      "risk_adjusted_score": 12.9,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
         "volume": 35.0,
-        "relative_strength": 35.0,
+        "relative_strength": 50.0,
         "divergence": 67.0
       },
-      "confidence": 0.65,
+      "confidence": 0.57,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -65,13 +65,13 @@
       "risk_metrics": {
         "var_t25": -0.038,
         "es_t25": -0.0475,
-        "volatility_60d": 0.2174,
+        "volatility_60d": 0.2105,
         "max_drawdown": -0.175,
         "liquidity_score": 61.9,
-        "avg_value_20d": 165.95
+        "avg_value_20d": 161.52
       },
       "trade_plan": {
-        "current_price": 20450.0,
+        "current_price": 20600.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -85,9 +85,9 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (20.450 VNĐ) nằm dưới đường xu hướng MA20 (21.162 VNĐ).",
+        "Giá đóng cửa (20.600 VNĐ) nằm dưới đường xu hướng MA20 (21.052 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (22.9) quá bán nặng (< 35).",
+        "RSI (28.9) quá bán nặng (< 35).",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
@@ -112,13 +112,13 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 21.5,
-      "risk_adjusted_score": 6.3,
+      "signal_score": 25.2,
+      "risk_adjusted_score": 7.5,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
+        "momentum": 20.0,
         "volume": 35.0,
         "relative_strength": 50.0,
         "divergence": 50.0
@@ -133,13 +133,13 @@
       "risk_metrics": {
         "var_t25": -0.0845,
         "es_t25": -0.105,
-        "volatility_60d": 0.4744,
+        "volatility_60d": 0.4537,
         "max_drawdown": -0.5549,
         "liquidity_score": 4.8,
-        "avg_value_20d": 18.21
+        "avg_value_20d": 18.12
       },
       "trade_plan": {
-        "current_price": 37900.0,
+        "current_price": 38250.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -150,9 +150,9 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (37.900 VNĐ) nằm dưới đường xu hướng MA20 (39.300 VNĐ).",
+        "Giá đóng cửa (38.250 VNĐ) nằm dưới đường xu hướng MA20 (39.190 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (26.7) quá bán nặng (< 35)."
+        "RSI (34.1) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -176,15 +176,15 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 23.3,
-      "risk_adjusted_score": 9.4,
+      "signal_score": 29.3,
+      "risk_adjusted_score": 12.0,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
+        "momentum": 20.0,
         "volume": 50.0,
-        "relative_strength": 35.0,
+        "relative_strength": 50.0,
         "divergence": 62.0
       },
       "confidence": 0.52,
@@ -197,13 +197,13 @@
       "risk_metrics": {
         "var_t25": -0.0527,
         "es_t25": -0.0725,
-        "volatility_60d": 0.2445,
+        "volatility_60d": 0.2259,
         "max_drawdown": -0.3618,
         "liquidity_score": 50.0,
-        "avg_value_20d": 125.41
+        "avg_value_20d": 124.34
       },
       "trade_plan": {
-        "current_price": 33100.0,
+        "current_price": 33200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -216,9 +216,9 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (33.100 VNĐ) nằm dưới đường xu hướng MA20 (35.125 VNĐ).",
+        "Giá đóng cửa (33.200 VNĐ) nằm dưới đường xu hướng MA20 (34.950 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (6.2) quá bán nặng (< 35)."
+        "RSI (9.5) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -242,18 +242,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 57.2,
-      "risk_adjusted_score": 21.0,
+      "signal_score": 56.2,
+      "risk_adjusted_score": 20.5,
       "score_components": {
-        "trend": 100.0,
-        "momentum": 10.0,
-        "volume": 35.0,
+        "trend": 50.0,
+        "momentum": 45.0,
+        "volume": 70.0,
         "relative_strength": 100.0,
         "divergence": 30.0
       },
-      "confidence": 0.5,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -261,15 +261,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0595,
-        "es_t25": -0.0753,
-        "volatility_60d": 0.3887,
+        "var_t25": -0.0604,
+        "es_t25": -0.0754,
+        "volatility_60d": 0.4043,
         "max_drawdown": -0.3419,
-        "liquidity_score": 31.0,
-        "avg_value_20d": 74.08
+        "liquidity_score": 33.3,
+        "avg_value_20d": 75.6
       },
       "trade_plan": {
-        "current_price": 76000.0,
+        "current_price": 71400.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -279,13 +279,14 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (76.000 VNĐ) nằm trên đường xu hướng MA20 (73.250 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (68.544 VNĐ).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+16.0%)."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (68.686 VNĐ).",
+        "Khối lượng bùng nổ 1.4x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (56.5) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+10.7%)."
       ],
       "warnings": [
+        "Giá đóng cửa (71.400 VNĐ) nằm dưới đường xu hướng MA20 (73.350 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (71.5) thuộc vùng quá mua (> 70).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -310,18 +311,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 27.8,
-      "risk_adjusted_score": 11.9,
+      "signal_score": 44.0,
+      "risk_adjusted_score": 19.1,
       "score_components": {
         "trend": 0.0,
-        "momentum": 30.0,
-        "volume": 35.0,
-        "relative_strength": 50.0,
+        "momentum": 65.0,
+        "volume": 70.0,
+        "relative_strength": 65.0,
         "divergence": 50.0
       },
-      "confidence": 0.65,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -331,13 +332,13 @@
       "risk_metrics": {
         "var_t25": -0.048,
         "es_t25": -0.0667,
-        "volatility_60d": 0.2511,
+        "volatility_60d": 0.2398,
         "max_drawdown": -0.2966,
-        "liquidity_score": 66.7,
-        "avg_value_20d": 208.38
+        "liquidity_score": 69.0,
+        "avg_value_20d": 203.68
       },
       "trade_plan": {
-        "current_price": 29550.0,
+        "current_price": 29800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -346,10 +347,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [],
+      "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
+      ],
       "warnings": [
-        "Giá đóng cửa (29.550 VNĐ) nằm dưới đường xu hướng MA20 (30.022 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
+        "Giá đóng cửa (29.800 VNĐ) nằm dưới đường xu hướng MA20 (29.942 VNĐ)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -373,18 +376,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
       "signal_score": 23.4,
       "risk_adjusted_score": 9.5,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
-        "volume": 70.0,
-        "relative_strength": 15.0,
+        "volume": 50.0,
+        "relative_strength": 35.0,
         "divergence": 38.0
       },
-      "confidence": 0.52,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -394,13 +397,13 @@
       "risk_metrics": {
         "var_t25": -0.054,
         "es_t25": -0.0671,
-        "volatility_60d": 0.2853,
+        "volatility_60d": 0.2873,
         "max_drawdown": -0.4084,
         "liquidity_score": 81.0,
-        "avg_value_20d": 367.16
+        "avg_value_20d": 359.17
       },
       "trade_plan": {
-        "current_price": 57100.0,
+        "current_price": 58000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -409,14 +412,11 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [
-        "Khối lượng bùng nổ 1.2x so với bình quân 20 phiên."
-      ],
+      "reasons": [],
       "warnings": [
-        "Giá đóng cửa (57.100 VNĐ) nằm dưới đường xu hướng MA20 (62.333 VNĐ).",
+        "Giá đóng cửa (58.000 VNĐ) nằm dưới đường xu hướng MA20 (61.855 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (8.2) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-9.0%).",
+        "RSI (16.8) quá bán nặng (< 35).",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
@@ -441,18 +441,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 33.3,
-      "risk_adjusted_score": 11.0,
+      "signal_score": 34.8,
+      "risk_adjusted_score": 11.5,
       "score_components": {
         "trend": 20.0,
-        "momentum": 30.0,
-        "volume": 35.0,
+        "momentum": 15.0,
+        "volume": 70.0,
         "relative_strength": 35.0,
         "divergence": 62.0
       },
-      "confidence": 0.7,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -462,13 +462,13 @@
       "risk_metrics": {
         "var_t25": -0.0833,
         "es_t25": -0.1256,
-        "volatility_60d": 0.4515,
+        "volatility_60d": 0.4479,
         "max_drawdown": -0.4996,
         "liquidity_score": 42.9,
-        "avg_value_20d": 99.15
+        "avg_value_20d": 93.44
       },
       "trade_plan": {
-        "current_price": 78600.0,
+        "current_price": 76200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -478,10 +478,11 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên.",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (78.600 VNĐ) nằm dưới đường xu hướng MA20 (81.886 VNĐ).",
+        "Giá đóng cửa (76.200 VNĐ) nằm dưới đường xu hướng MA20 (81.391 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
@@ -506,14 +507,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 33.8,
-      "risk_adjusted_score": 12.0,
+      "signal_score": 31.5,
+      "risk_adjusted_score": 11.3,
       "score_components": {
         "trend": 20.0,
         "momentum": 15.0,
-        "volume": 50.0,
+        "volume": 35.0,
         "relative_strength": 65.0,
         "divergence": 45.0
       },
@@ -527,13 +528,13 @@
       "risk_metrics": {
         "var_t25": -0.0799,
         "es_t25": -0.1185,
-        "volatility_60d": 0.3813,
+        "volatility_60d": 0.3608,
         "max_drawdown": -0.4317,
         "liquidity_score": 40.5,
-        "avg_value_20d": 92.78
+        "avg_value_20d": 92.29
       },
       "trade_plan": {
-        "current_price": 31400.0,
+        "current_price": 30900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -546,7 +547,7 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (31.400 VNĐ) nằm dưới đường xu hướng MA20 (32.650 VNĐ).",
+        "Giá đóng cửa (30.900 VNĐ) nằm dưới đường xu hướng MA20 (32.585 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
@@ -572,18 +573,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 71.8,
-      "risk_adjusted_score": 33.6,
+      "signal_score": 76.8,
+      "risk_adjusted_score": 35.9,
       "score_components": {
         "trend": 100.0,
-        "momentum": 50.0,
+        "momentum": 70.0,
         "volume": 50.0,
         "relative_strength": 100.0,
         "divergence": 45.0
       },
-      "confidence": 0.57,
+      "confidence": 0.62,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -593,13 +594,13 @@
       "risk_metrics": {
         "var_t25": -0.0512,
         "es_t25": -0.0655,
-        "volatility_60d": 0.2304,
+        "volatility_60d": 0.2312,
         "max_drawdown": -0.1885,
         "liquidity_score": 78.6,
-        "avg_value_20d": 339.17
+        "avg_value_20d": 343.84
       },
       "trade_plan": {
-        "current_price": 23200.0,
+        "current_price": 22800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -609,14 +610,12 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (23.200 VNĐ) nằm trên đường xu hướng MA20 (21.680 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (21.152 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+15.7%).",
+        "Giá đóng cửa (22.800 VNĐ) nằm trên đường xu hướng MA20 (21.758 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (21.208 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+14.2%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "RSI (78.9) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -641,10 +640,10 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
       "signal_score": 65.3,
-      "risk_adjusted_score": 29.4,
+      "risk_adjusted_score": 29.9,
       "score_components": {
         "trend": 50.0,
         "momentum": 95.0,
@@ -662,13 +661,13 @@
       "risk_metrics": {
         "var_t25": -0.0432,
         "es_t25": -0.0583,
-        "volatility_60d": 0.2671,
+        "volatility_60d": 0.2398,
         "max_drawdown": -0.2359,
         "liquidity_score": 83.3,
-        "avg_value_20d": 380.5
+        "avg_value_20d": 383.83
       },
       "trade_plan": {
-        "current_price": 20800.0,
+        "current_price": 20750.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -678,9 +677,9 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (20.800 VNĐ) nằm trên đường xu hướng MA20 (20.590 VNĐ).",
+        "Giá đóng cửa (20.750 VNĐ) nằm trên đường xu hướng MA20 (20.568 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Chỉ báo RSI (50.0) nằm trong vùng an toàn (45 - 65).",
+        "Chỉ báo RSI (51.7) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [],
@@ -706,18 +705,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 36.0,
-      "risk_adjusted_score": 16.3,
+      "signal_score": 76.2,
+      "risk_adjusted_score": 34.7,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 30.0,
-        "volume": 70.0,
-        "relative_strength": 50.0,
+        "trend": 50.0,
+        "momentum": 95.0,
+        "volume": 100.0,
+        "relative_strength": 80.0,
         "divergence": 70.0
       },
-      "confidence": 0.62,
+      "confidence": 0.7,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -727,13 +726,13 @@
       "risk_metrics": {
         "var_t25": -0.048,
         "es_t25": -0.0605,
-        "volatility_60d": 0.2472,
+        "volatility_60d": 0.2399,
         "max_drawdown": -0.2238,
-        "liquidity_score": 73.8,
-        "avg_value_20d": 217.22
+        "liquidity_score": 76.2,
+        "avg_value_20d": 232.73
       },
       "trade_plan": {
-        "current_price": 19350.0,
+        "current_price": 19900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -743,13 +742,14 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Khối lượng bùng nổ 1.4x so với bình quân 20 phiên.",
+        "Giá đóng cửa (19.900 VNĐ) nằm trên đường xu hướng MA20 (19.525 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 2.7x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (50.0) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+6.5%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Giá đóng cửa (19.350 VNĐ) nằm dưới đường xu hướng MA20 (19.558 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
-      ],
+      "warnings": [],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -772,18 +772,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 76.5,
-      "risk_adjusted_score": 34.0,
+      "signal_score": 49.8,
+      "risk_adjusted_score": 22.4,
       "score_components": {
-        "trend": 100.0,
-        "momentum": 80.0,
+        "trend": 50.0,
+        "momentum": 45.0,
         "volume": 35.0,
-        "relative_strength": 100.0,
+        "relative_strength": 80.0,
         "divergence": 42.0
       },
-      "confidence": 0.57,
+      "confidence": 0.7,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -793,13 +793,13 @@
       "risk_metrics": {
         "var_t25": -0.0513,
         "es_t25": -0.0711,
-        "volatility_60d": 0.2634,
+        "volatility_60d": 0.247,
         "max_drawdown": -0.2755,
-        "liquidity_score": 85.7,
-        "avg_value_20d": 416.33
+        "liquidity_score": 88.1,
+        "avg_value_20d": 419.66
       },
       "trade_plan": {
-        "current_price": 71700.0,
+        "current_price": 70400.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -809,13 +809,14 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (71.700 VNĐ) nằm trên đường xu hướng MA20 (70.830 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (69.164 VNĐ).",
-        "Chỉ báo RSI (53.2) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.4%).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (69.208 VNĐ).",
+        "Chỉ báo RSI (51.0) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+9.4%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
+        "Giá đóng cửa (70.400 VNĐ) nằm dưới đường xu hướng MA20 (70.965 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -840,18 +841,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 77.0,
-      "risk_adjusted_score": 31.4,
+      "signal_score": 62.0,
+      "risk_adjusted_score": 25.1,
       "score_components": {
-        "trend": 100.0,
+        "trend": 50.0,
         "momentum": 80.0,
         "volume": 50.0,
         "relative_strength": 80.0,
         "divergence": 50.0
       },
-      "confidence": 0.65,
+      "confidence": 0.7,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -861,13 +862,13 @@
       "risk_metrics": {
         "var_t25": -0.0614,
         "es_t25": -0.0842,
-        "volatility_60d": 0.349,
+        "volatility_60d": 0.3471,
         "max_drawdown": -0.3244,
-        "liquidity_score": 76.2,
-        "avg_value_20d": 217.92
+        "liquidity_score": 71.4,
+        "avg_value_20d": 213.27
       },
       "trade_plan": {
-        "current_price": 73500.0,
+        "current_price": 72800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -877,12 +878,13 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (73.500 VNĐ) nằm trên đường xu hướng MA20 (73.072 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (72.368 VNĐ).",
-        "Chỉ báo RSI (56.9) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+8.4%)."
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (72.393 VNĐ).",
+        "Chỉ báo RSI (51.6) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+8.2%)."
       ],
-      "warnings": [],
+      "warnings": [
+        "Giá đóng cửa (72.800 VNĐ) nằm dưới đường xu hướng MA20 (73.106 VNĐ)."
+      ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -905,18 +907,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 48.0,
-      "risk_adjusted_score": 16.7,
+      "signal_score": 33.0,
+      "risk_adjusted_score": 11.5,
       "score_components": {
-        "trend": 50.0,
+        "trend": 0.0,
         "momentum": 45.0,
-        "volume": 35.0,
-        "relative_strength": 65.0,
+        "volume": 50.0,
+        "relative_strength": 50.0,
         "divergence": 45.0
       },
-      "confidence": 0.75,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -926,13 +928,13 @@
       "risk_metrics": {
         "var_t25": -0.0866,
         "es_t25": -0.1221,
-        "volatility_60d": 0.3859,
+        "volatility_60d": 0.3842,
         "max_drawdown": -0.5303,
         "liquidity_score": 64.3,
-        "avg_value_20d": 167.08
+        "avg_value_20d": 162.96
       },
       "trade_plan": {
-        "current_price": 36250.0,
+        "current_price": 35550.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -942,12 +944,11 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (36.244 VNĐ).",
-        "Chỉ báo RSI (57.2) nằm trong vùng an toàn (45 - 65).",
+        "Chỉ báo RSI (52.9) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (36.250 VNĐ) nằm dưới đường xu hướng MA20 (36.312 VNĐ).",
+        "Giá đóng cửa (35.550 VNĐ) nằm dưới đường xu hướng MA20 (36.200 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
@@ -973,18 +974,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 47.0,
-      "risk_adjusted_score": 19.8,
+      "signal_score": 36.0,
+      "risk_adjusted_score": 15.1,
       "score_components": {
         "trend": 0.0,
-        "momentum": 80.0,
-        "volume": 50.0,
-        "relative_strength": 80.0,
+        "momentum": 15.0,
+        "volume": 100.0,
+        "relative_strength": 65.0,
         "divergence": 50.0
       },
-      "confidence": 0.57,
+      "confidence": 0.5,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -994,13 +995,13 @@
       "risk_metrics": {
         "var_t25": -0.0502,
         "es_t25": -0.0792,
-        "volatility_60d": 0.2081,
-        "max_drawdown": -0.2508,
-        "liquidity_score": 26.2,
-        "avg_value_20d": 65.88
+        "volatility_60d": 0.2059,
+        "max_drawdown": -0.2628,
+        "liquidity_score": 28.6,
+        "avg_value_20d": 70.1
       },
       "trade_plan": {
-        "current_price": 12450.0,
+        "current_price": 12200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1010,11 +1011,11 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Chỉ báo RSI (48.1) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+5.3%)."
+        "Khối lượng bùng nổ 2.0x so với bình quân 20 phiên."
       ],
       "warnings": [
-        "Giá đóng cửa (12.450 VNĐ) nằm dưới đường xu hướng MA20 (12.625 VNĐ)."
+        "Giá đóng cửa (12.200 VNĐ) nằm dưới đường xu hướng MA20 (12.605 VNĐ).",
+        "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1038,18 +1039,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 29.2,
-      "risk_adjusted_score": 12.1,
+      "signal_score": 34.0,
+      "risk_adjusted_score": 14.1,
       "score_components": {
         "trend": 0.0,
-        "momentum": 55.0,
-        "volume": 20.0,
+        "momentum": 65.0,
+        "volume": 35.0,
         "relative_strength": 65.0,
         "divergence": 18.0
       },
-      "confidence": 0.57,
+      "confidence": 0.62,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -1059,10 +1060,10 @@
       "risk_metrics": {
         "var_t25": -0.0393,
         "es_t25": -0.0521,
-        "volatility_60d": 0.1911,
+        "volatility_60d": 0.1902,
         "max_drawdown": -0.2094,
         "liquidity_score": 2.4,
-        "avg_value_20d": 16.15
+        "avg_value_20d": 15.86
       },
       "trade_plan": {
         "current_price": 43000.0,
@@ -1078,8 +1079,7 @@
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng."
       ],
       "warnings": [
-        "Giá đóng cửa (43.000 VNĐ) nằm dưới đường xu hướng MA20 (43.372 VNĐ).",
-        "RSI (33.8) quá bán nặng (< 35).",
+        "Giá đóng cửa (43.000 VNĐ) nằm dưới đường xu hướng MA20 (43.308 VNĐ).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D.",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
@@ -1105,10 +1105,10 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
       "signal_score": 29.0,
-      "risk_adjusted_score": 9.9,
+      "risk_adjusted_score": 9.8,
       "score_components": {
         "trend": 20.0,
         "momentum": 20.0,
@@ -1124,15 +1124,15 @@
         "expected_return_20d": null
       },
       "risk_metrics": {
-        "var_t25": -0.0489,
+        "var_t25": -0.0482,
         "es_t25": -0.0811,
-        "volatility_60d": 0.4857,
+        "volatility_60d": 0.486,
         "max_drawdown": -0.3506,
-        "liquidity_score": 21.4,
-        "avg_value_20d": 62.05
+        "liquidity_score": 19.0,
+        "avg_value_20d": 57.99
       },
       "trade_plan": {
-        "current_price": 15650.0,
+        "current_price": 15900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1145,10 +1145,10 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (15.650 VNĐ) nằm dưới đường xu hướng MA20 (18.772 VNĐ).",
+        "Giá đóng cửa (15.900 VNĐ) nằm dưới đường xu hướng MA20 (18.395 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (17.3) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-26.8%)."
+        "RSI (22.0) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-27.6%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1172,14 +1172,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 24.8,
-      "risk_adjusted_score": 9.8,
+      "signal_score": 27.0,
+      "risk_adjusted_score": 10.7,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
-        "volume": 35.0,
+        "volume": 50.0,
         "relative_strength": 35.0,
         "divergence": 62.0
       },
@@ -1193,13 +1193,13 @@
       "risk_metrics": {
         "var_t25": -0.0616,
         "es_t25": -0.0838,
-        "volatility_60d": 0.3459,
+        "volatility_60d": 0.3214,
         "max_drawdown": -0.4178,
-        "liquidity_score": 88.1,
-        "avg_value_20d": 426.17
+        "liquidity_score": 85.7,
+        "avg_value_20d": 405.7
       },
       "trade_plan": {
-        "current_price": 18900.0,
+        "current_price": 19250.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1212,9 +1212,9 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (18.900 VNĐ) nằm dưới đường xu hướng MA20 (20.050 VNĐ).",
+        "Giá đóng cửa (19.250 VNĐ) nằm dưới đường xu hướng MA20 (19.955 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (8.5) quá bán nặng (< 35)."
+        "RSI (21.6) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1238,18 +1238,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 22.2,
-      "risk_adjusted_score": 9.9,
+      "signal_score": 26.0,
+      "risk_adjusted_score": 11.6,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 50.0,
+        "momentum": 5.0,
+        "volume": 100.0,
         "relative_strength": 15.0,
         "divergence": 50.0
       },
-      "confidence": 0.65,
+      "confidence": 0.5,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -1259,13 +1259,13 @@
       "risk_metrics": {
         "var_t25": -0.0619,
         "es_t25": -0.0841,
-        "volatility_60d": 0.2536,
-        "max_drawdown": -0.2409,
-        "liquidity_score": 71.4,
-        "avg_value_20d": 210.45
+        "volatility_60d": 0.2589,
+        "max_drawdown": -0.2333,
+        "liquidity_score": 73.8,
+        "avg_value_20d": 221.49
       },
       "trade_plan": {
-        "current_price": 64600.0,
+        "current_price": 62800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1274,12 +1274,14 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [],
+      "reasons": [
+        "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên."
+      ],
       "warnings": [
-        "Giá đóng cửa (64.600 VNĐ) nằm dưới đường xu hướng MA20 (71.900 VNĐ).",
+        "Giá đóng cửa (62.800 VNĐ) nằm dưới đường xu hướng MA20 (71.230 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (8.2) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-8.8%)."
+        "RSI (7.5) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-13.2%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1303,15 +1305,15 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 69.0,
-      "risk_adjusted_score": 29.7,
+      "signal_score": 80.8,
+      "risk_adjusted_score": 35.0,
       "score_components": {
         "trend": 100.0,
-        "momentum": 60.0,
+        "momentum": 95.0,
         "volume": 50.0,
-        "relative_strength": 80.0,
+        "relative_strength": 100.0,
         "divergence": 30.0
       },
       "confidence": 0.57,
@@ -1324,13 +1326,13 @@
       "risk_metrics": {
         "var_t25": -0.0621,
         "es_t25": -0.0771,
-        "volatility_60d": 0.3229,
+        "volatility_60d": 0.3067,
         "max_drawdown": -0.3042,
         "liquidity_score": 95.2,
-        "avg_value_20d": 592.04
+        "avg_value_20d": 598.09
       },
       "trade_plan": {
-        "current_price": 33000.0,
+        "current_price": 32900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1340,13 +1342,13 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (33.000 VNĐ) nằm trên đường xu hướng MA20 (32.572 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (31.972 VNĐ).",
-        "Chỉ báo RSI (50.6) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+7.5%)."
+        "Giá đóng cửa (32.900 VNĐ) nằm trên đường xu hướng MA20 (32.585 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (32.031 VNĐ).",
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Chỉ báo RSI (45.6) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+10.6%)."
       ],
       "warnings": [
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -1371,14 +1373,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 31.6,
-      "risk_adjusted_score": 13.5,
+      "signal_score": 34.5,
+      "risk_adjusted_score": 14.9,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
-        "volume": 50.0,
+        "volume": 70.0,
         "relative_strength": 80.0,
         "divergence": 47.0
       },
@@ -1392,13 +1394,13 @@
       "risk_metrics": {
         "var_t25": -0.0441,
         "es_t25": -0.0623,
-        "volatility_60d": 0.2173,
+        "volatility_60d": 0.2001,
         "max_drawdown": -0.2762,
         "liquidity_score": 47.6,
-        "avg_value_20d": 112.09
+        "avg_value_20d": 113.69
       },
       "trade_plan": {
-        "current_price": 11700.0,
+        "current_price": 11750.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1408,13 +1410,14 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+5.5%).",
+        "Khối lượng bùng nổ 1.2x so với bình quân 20 phiên.",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+5.6%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (11.700 VNĐ) nằm dưới đường xu hướng MA20 (11.922 VNĐ).",
+        "Giá đóng cửa (11.750 VNĐ) nằm dưới đường xu hướng MA20 (11.919 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (21.7) quá bán nặng (< 35).",
+        "RSI (26.8) quá bán nặng (< 35).",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
@@ -1439,7 +1442,7 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
       "signal_score": 28.2,
       "risk_adjusted_score": 12.4,
@@ -1460,13 +1463,13 @@
       "risk_metrics": {
         "var_t25": -0.044,
         "es_t25": -0.0637,
-        "volatility_60d": 0.2213,
+        "volatility_60d": 0.2122,
         "max_drawdown": -0.2842,
-        "liquidity_score": 69.0,
-        "avg_value_20d": 208.39
+        "liquidity_score": 66.7,
+        "avg_value_20d": 199.0
       },
       "trade_plan": {
-        "current_price": 56300.0,
+        "current_price": 56500.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1479,9 +1482,9 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (56.300 VNĐ) nằm dưới đường xu hướng MA20 (57.750 VNĐ).",
+        "Giá đóng cửa (56.500 VNĐ) nằm dưới đường xu hướng MA20 (57.595 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (21.9) quá bán nặng (< 35)."
+        "RSI (27.3) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1505,18 +1508,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 24.0,
-      "risk_adjusted_score": 9.3,
+      "signal_score": 21.5,
+      "risk_adjusted_score": 8.3,
       "score_components": {
         "trend": 0.0,
-        "momentum": 15.0,
+        "momentum": 5.0,
         "volume": 70.0,
         "relative_strength": 15.0,
         "divergence": 50.0
       },
-      "confidence": 0.57,
+      "confidence": 0.52,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1526,13 +1529,13 @@
       "risk_metrics": {
         "var_t25": -0.0928,
         "es_t25": -0.1198,
-        "volatility_60d": 0.4091,
+        "volatility_60d": 0.4117,
         "max_drawdown": -0.4087,
         "liquidity_score": 97.6,
-        "avg_value_20d": 605.3
+        "avg_value_20d": 610.02
       },
       "trade_plan": {
-        "current_price": 61000.0,
+        "current_price": 58900.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1545,9 +1548,10 @@
         "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên."
       ],
       "warnings": [
-        "Giá đóng cửa (61.000 VNĐ) nằm dưới đường xu hướng MA20 (67.645 VNĐ).",
+        "Giá đóng cửa (58.900 VNĐ) nằm dưới đường xu hướng MA20 (67.025 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-8.0%)."
+        "RSI (16.9) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-10.6%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1571,14 +1575,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 85.5,
-      "risk_adjusted_score": 35.6,
+      "signal_score": 76.5,
+      "risk_adjusted_score": 31.8,
       "score_components": {
         "trend": 100.0,
-        "momentum": 95.0,
-        "volume": 85.0,
+        "momentum": 80.0,
+        "volume": 50.0,
         "relative_strength": 80.0,
         "divergence": 47.0
       },
@@ -1592,13 +1596,13 @@
       "risk_metrics": {
         "var_t25": -0.0404,
         "es_t25": -0.0549,
-        "volatility_60d": 0.2236,
+        "volatility_60d": 0.2164,
         "max_drawdown": -0.2634,
-        "liquidity_score": 28.6,
-        "avg_value_20d": 70.46
+        "liquidity_score": 26.2,
+        "avg_value_20d": 70.08
       },
       "trade_plan": {
-        "current_price": 13950.0,
+        "current_price": 13800.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1608,12 +1612,10 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (13.950 VNĐ) nằm trên đường xu hướng MA20 (13.535 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (13.479 VNĐ).",
-        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Khối lượng bùng nổ 1.7x so với bình quân 20 phiên.",
-        "Chỉ báo RSI (63.9) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+9.0%).",
+        "Giá đóng cửa (13.800 VNĐ) nằm trên đường xu hướng MA20 (13.545 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (13.483 VNĐ).",
+        "Chỉ báo RSI (60.5) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+7.9%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
@@ -1641,18 +1643,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 28.2,
-      "risk_adjusted_score": 11.7,
+      "signal_score": 35.5,
+      "risk_adjusted_score": 14.7,
       "score_components": {
         "trend": 20.0,
-        "momentum": 15.0,
-        "volume": 50.0,
+        "momentum": 20.0,
+        "volume": 70.0,
         "relative_strength": 35.0,
-        "divergence": 38.0
+        "divergence": 58.0
       },
-      "confidence": 0.7,
+      "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1665,10 +1667,10 @@
         "volatility_60d": 0.3926,
         "max_drawdown": -0.3207,
         "liquidity_score": 100.0,
-        "avg_value_20d": 763.15
+        "avg_value_20d": 762.89
       },
       "trade_plan": {
-        "current_price": 218400.0,
+        "current_price": 218000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1677,10 +1679,14 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [],
+      "reasons": [
+        "Khối lượng bùng nổ 1.3x so với bình quân 20 phiên.",
+        "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
+      ],
       "warnings": [
-        "Giá đóng cửa (218.400 VNĐ) nằm dưới đường xu hướng MA20 (229.995 VNĐ).",
+        "Giá đóng cửa (218.000 VNĐ) nằm dưới đường xu hướng MA20 (228.835 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
+        "RSI (34.1) quá bán nặng (< 35).",
         "Cảnh báo Phân Kỳ Âm trên khung 1W."
       ],
       "invalidation": [
@@ -1689,7 +1695,7 @@
       ],
       "divergence": {
         "1H": "NONE",
-        "1D": "NONE",
+        "1D": "BULLISH",
         "1W": "BEARISH",
         "1M": "NONE"
       }
@@ -1705,18 +1711,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 46.5,
-      "risk_adjusted_score": 19.7,
+      "signal_score": 36.0,
+      "risk_adjusted_score": 15.3,
       "score_components": {
-        "trend": 50.0,
-        "momentum": 20.0,
-        "volume": 35.0,
+        "trend": 20.0,
+        "momentum": 5.0,
+        "volume": 50.0,
         "relative_strength": 80.0,
         "divergence": 62.0
       },
-      "confidence": 0.6,
+      "confidence": 0.52,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1729,10 +1735,10 @@
         "volatility_60d": 0.2248,
         "max_drawdown": -0.3072,
         "liquidity_score": 54.8,
-        "avg_value_20d": 132.83
+        "avg_value_20d": 130.24
       },
       "trade_plan": {
-        "current_price": 128100.0,
+        "current_price": 127300.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1742,14 +1748,13 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (127.358 VNĐ).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+7.5%).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+5.1%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1W."
       ],
       "warnings": [
-        "Giá đóng cửa (128.100 VNĐ) nằm dưới đường xu hướng MA20 (130.765 VNĐ).",
+        "Giá đóng cửa (127.300 VNĐ) nằm dưới đường xu hướng MA20 (130.790 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (28.1) quá bán nặng (< 35)."
+        "RSI (19.1) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1773,15 +1778,15 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 24.5,
-      "risk_adjusted_score": 10.8,
+      "signal_score": 20.8,
+      "risk_adjusted_score": 9.2,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 35.0,
-        "relative_strength": 65.0,
+        "momentum": 5.0,
+        "volume": 50.0,
+        "relative_strength": 50.0,
         "divergence": 30.0
       },
       "confidence": 0.65,
@@ -1794,13 +1799,13 @@
       "risk_metrics": {
         "var_t25": -0.0387,
         "es_t25": -0.0666,
-        "volatility_60d": 0.219,
+        "volatility_60d": 0.2197,
         "max_drawdown": -0.2296,
         "liquidity_score": 52.4,
-        "avg_value_20d": 127.49
+        "avg_value_20d": 125.82
       },
       "trade_plan": {
-        "current_price": 57900.0,
+        "current_price": 57200.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1811,9 +1816,9 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (57.900 VNĐ) nằm dưới đường xu hướng MA20 (59.160 VNĐ).",
+        "Giá đóng cửa (57.200 VNĐ) nằm dưới đường xu hướng MA20 (59.010 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (32.0) quá bán nặng (< 35).",
+        "RSI (32.4) quá bán nặng (< 35).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -1838,18 +1843,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 63.5,
-      "risk_adjusted_score": 28.2,
+      "signal_score": 68.2,
+      "risk_adjusted_score": 30.5,
       "score_components": {
         "trend": 100.0,
-        "momentum": 35.0,
-        "volume": 35.0,
+        "momentum": 45.0,
+        "volume": 50.0,
         "relative_strength": 100.0,
         "divergence": 30.0
       },
-      "confidence": 0.45,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1859,13 +1864,13 @@
       "risk_metrics": {
         "var_t25": -0.0521,
         "es_t25": -0.0712,
-        "volatility_60d": 0.2693,
+        "volatility_60d": 0.2588,
         "max_drawdown": -0.2879,
         "liquidity_score": 92.9,
-        "avg_value_20d": 499.48
+        "avg_value_20d": 490.38
       },
       "trade_plan": {
-        "current_price": 24350.0,
+        "current_price": 24450.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1875,12 +1880,12 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (24.350 VNĐ) nằm trên đường xu hướng MA20 (23.078 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (21.729 VNĐ).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+15.3%)."
+        "Giá đóng cửa (24.450 VNĐ) nằm trên đường xu hướng MA20 (23.182 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (21.814 VNĐ).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+18.8%)."
       ],
       "warnings": [
-        "RSI (82.6) rơi vào vùng quá mua nặng (> 78), rủi ro đảo chiều cao.",
+        "RSI (77.4) thuộc vùng quá mua (> 70).",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
       "invalidation": [
@@ -1905,15 +1910,15 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 19.2,
-      "risk_adjusted_score": 6.6,
+      "signal_score": 26.0,
+      "risk_adjusted_score": 9.0,
       "score_components": {
         "trend": 0.0,
-        "momentum": 5.0,
+        "momentum": 20.0,
         "volume": 35.0,
-        "relative_strength": 15.0,
+        "relative_strength": 35.0,
         "divergence": 70.0
       },
       "confidence": 0.52,
@@ -1926,13 +1931,13 @@
       "risk_metrics": {
         "var_t25": -0.091,
         "es_t25": -0.1154,
-        "volatility_60d": 0.3799,
+        "volatility_60d": 0.3648,
         "max_drawdown": -0.4918,
         "liquidity_score": 38.1,
-        "avg_value_20d": 88.94
+        "avg_value_20d": 86.19
       },
       "trade_plan": {
-        "current_price": 22400.0,
+        "current_price": 22600.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -1945,10 +1950,9 @@
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (22.400 VNĐ) nằm dưới đường xu hướng MA20 (24.018 VNĐ).",
+        "Giá đóng cửa (22.600 VNĐ) nằm dưới đường xu hướng MA20 (23.858 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (23.9) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.7%)."
+        "RSI (20.3) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -1972,18 +1976,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 23.0,
-      "risk_adjusted_score": 9.1,
+      "signal_score": 22.2,
+      "risk_adjusted_score": 9.0,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
-        "volume": 35.0,
-        "relative_strength": 35.0,
+        "volume": 50.0,
+        "relative_strength": 15.0,
         "divergence": 50.0
       },
-      "confidence": 0.65,
+      "confidence": 0.6,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -1993,13 +1997,13 @@
       "risk_metrics": {
         "var_t25": -0.0507,
         "es_t25": -0.0697,
-        "volatility_60d": 0.3118,
+        "volatility_60d": 0.2829,
         "max_drawdown": -0.4429,
         "liquidity_score": 90.5,
-        "avg_value_20d": 465.65
+        "avg_value_20d": 460.25
       },
       "trade_plan": {
-        "current_price": 10300.0,
+        "current_price": 10400.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2010,9 +2014,10 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (10.300 VNĐ) nằm dưới đường xu hướng MA20 (11.122 VNĐ).",
+        "Giá đóng cửa (10.400 VNĐ) nằm dưới đường xu hướng MA20 (11.062 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (20.5) quá bán nặng (< 35)."
+        "RSI (23.9) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-5.4%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2036,18 +2041,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 25.2,
-      "risk_adjusted_score": 7.4,
+      "signal_score": 23.0,
+      "risk_adjusted_score": 6.8,
       "score_components": {
         "trend": 0.0,
         "momentum": 20.0,
         "volume": 35.0,
-        "relative_strength": 50.0,
+        "relative_strength": 35.0,
         "divergence": 50.0
       },
-      "confidence": 0.6,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2057,13 +2062,13 @@
       "risk_metrics": {
         "var_t25": -0.112,
         "es_t25": -0.1562,
-        "volatility_60d": 0.4155,
+        "volatility_60d": 0.408,
         "max_drawdown": -0.6243,
-        "liquidity_score": 9.5,
-        "avg_value_20d": 20.1
+        "liquidity_score": 7.1,
+        "avg_value_20d": 19.04
       },
       "trade_plan": {
-        "current_price": 32600.0,
+        "current_price": 32750.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2074,9 +2079,9 @@
       },
       "reasons": [],
       "warnings": [
-        "Giá đóng cửa (32.600 VNĐ) nằm dưới đường xu hướng MA20 (34.818 VNĐ).",
+        "Giá đóng cửa (32.750 VNĐ) nằm dưới đường xu hướng MA20 (34.690 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (33.1) quá bán nặng (< 35)."
+        "RSI (28.7) quá bán nặng (< 35)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2100,14 +2105,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 42.0,
-      "risk_adjusted_score": 15.0,
+      "signal_score": 39.8,
+      "risk_adjusted_score": 14.2,
       "score_components": {
         "trend": 20.0,
         "momentum": 45.0,
-        "volume": 35.0,
+        "volume": 20.0,
         "relative_strength": 100.0,
         "divergence": 30.0
       },
@@ -2121,13 +2126,13 @@
       "risk_metrics": {
         "var_t25": -0.0619,
         "es_t25": -0.0806,
-        "volatility_60d": 0.4472,
+        "volatility_60d": 0.445,
         "max_drawdown": -0.3718,
         "liquidity_score": 45.2,
-        "avg_value_20d": 101.63
+        "avg_value_20d": 100.64
       },
       "trade_plan": {
-        "current_price": 140600.0,
+        "current_price": 141000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2137,11 +2142,11 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Chỉ báo RSI (48.0) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+14.6%)."
+        "Chỉ báo RSI (48.7) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+14.2%)."
       ],
       "warnings": [
-        "Giá đóng cửa (140.600 VNĐ) nằm dưới đường xu hướng MA20 (142.070 VNĐ).",
+        "Giá đóng cửa (141.000 VNĐ) nằm dưới đường xu hướng MA20 (142.620 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
         "Cảnh báo Phân Kỳ Âm trên khung 1D."
       ],
@@ -2167,14 +2172,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 36.0,
-      "risk_adjusted_score": 13.5,
+      "signal_score": 34.5,
+      "risk_adjusted_score": 12.8,
       "score_components": {
         "trend": 0.0,
-        "momentum": 60.0,
-        "volume": 20.0,
+        "momentum": 45.0,
+        "volume": 35.0,
         "relative_strength": 50.0,
         "divergence": 70.0
       },
@@ -2188,13 +2193,13 @@
       "risk_metrics": {
         "var_t25": -0.0721,
         "es_t25": -0.094,
-        "volatility_60d": 0.3536,
+        "volatility_60d": 0.3543,
         "max_drawdown": -0.3509,
-        "liquidity_score": 33.3,
-        "avg_value_20d": 80.22
+        "liquidity_score": 31.0,
+        "avg_value_20d": 73.6
       },
       "trade_plan": {
-        "current_price": 18000.0,
+        "current_price": 17700.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2204,11 +2209,11 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Chỉ báo RSI (45.9) nằm trong vùng an toàn (45 - 65).",
+        "Chỉ báo RSI (46.4) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (18.000 VNĐ) nằm dưới đường xu hướng MA20 (18.472 VNĐ).",
+        "Giá đóng cửa (17.700 VNĐ) nằm dưới đường xu hướng MA20 (18.395 VNĐ).",
         "MACD Histogram âm, báo hiệu áp lực điều chỉnh."
       ],
       "invalidation": [
@@ -2233,18 +2238,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 30.5,
-      "risk_adjusted_score": 11.1,
+      "signal_score": 44.8,
+      "risk_adjusted_score": 16.4,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 50.0,
-        "relative_strength": 50.0,
+        "momentum": 65.0,
+        "volume": 85.0,
+        "relative_strength": 35.0,
         "divergence": 70.0
       },
-      "confidence": 0.52,
+      "confidence": 0.5,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2254,13 +2259,13 @@
       "risk_metrics": {
         "var_t25": -0.0748,
         "es_t25": -0.0945,
-        "volatility_60d": 0.4249,
-        "max_drawdown": -0.4115,
+        "volatility_60d": 0.409,
+        "max_drawdown": -0.4081,
         "liquidity_score": 59.5,
-        "avg_value_20d": 161.85
+        "avg_value_20d": 156.01
       },
       "trade_plan": {
-        "current_price": 18600.0,
+        "current_price": 18850.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2270,12 +2275,12 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.6x so với bình quân 20 phiên.",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (18.600 VNĐ) nằm dưới đường xu hướng MA20 (19.365 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (30.8) quá bán nặng (< 35)."
+        "Giá đóng cửa (18.850 VNĐ) nằm dưới đường xu hướng MA20 (19.308 VNĐ)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2299,18 +2304,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 25.2,
-      "risk_adjusted_score": 10.1,
+      "signal_score": 44.0,
+      "risk_adjusted_score": 17.6,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 50.0,
-        "relative_strength": 35.0,
+        "momentum": 65.0,
+        "volume": 85.0,
+        "relative_strength": 50.0,
         "divergence": 50.0
       },
-      "confidence": 0.6,
+      "confidence": 0.57,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2320,13 +2325,13 @@
       "risk_metrics": {
         "var_t25": -0.0617,
         "es_t25": -0.0842,
-        "volatility_60d": 0.2659,
-        "max_drawdown": -0.2794,
+        "volatility_60d": 0.2769,
+        "max_drawdown": -0.2753,
         "liquidity_score": 23.8,
-        "avg_value_20d": 65.83
+        "avg_value_20d": 66.84
       },
       "trade_plan": {
-        "current_price": 23100.0,
+        "current_price": 24000.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2335,11 +2340,12 @@
         "risk_reward": null,
         "position_percent": 0.0
       },
-      "reasons": [],
+      "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.7x so với bình quân 20 phiên."
+      ],
       "warnings": [
-        "Giá đóng cửa (23.100 VNĐ) nằm dưới đường xu hướng MA20 (24.072 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (29.2) quá bán nặng (< 35)."
+        "Giá đóng cửa (24.000 VNĐ) nằm dưới đường xu hướng MA20 (24.008 VNĐ)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2363,14 +2369,14 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 25.2,
-      "risk_adjusted_score": 9.1,
+      "signal_score": 37.0,
+      "risk_adjusted_score": 13.4,
       "score_components": {
         "trend": 0.0,
-        "momentum": 20.0,
-        "volume": 50.0,
+        "momentum": 55.0,
+        "volume": 70.0,
         "relative_strength": 15.0,
         "divergence": 70.0
       },
@@ -2384,13 +2390,13 @@
       "risk_metrics": {
         "var_t25": -0.0667,
         "es_t25": -0.0888,
-        "volatility_60d": 0.3881,
+        "volatility_60d": 0.3856,
         "max_drawdown": -0.4423,
         "liquidity_score": 57.1,
-        "avg_value_20d": 136.23
+        "avg_value_20d": 134.55
       },
       "trade_plan": {
-        "current_price": 13000.0,
+        "current_price": 13250.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2400,13 +2406,14 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.4x so với bình quân 20 phiên.",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (13.000 VNĐ) nằm dưới đường xu hướng MA20 (13.902 VNĐ).",
-        "MACD Histogram âm, báo hiệu áp lực điều chỉnh.",
-        "RSI (26.6) quá bán nặng (< 35).",
-        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-5.7%)."
+        "Giá đóng cửa (13.250 VNĐ) nằm dưới đường xu hướng MA20 (13.825 VNĐ).",
+        "RSI (33.3) quá bán nặng (< 35).",
+        "Sức mạnh tương quan (RS) yếu hơn VN-Index (-6.4%)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2430,15 +2437,15 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 85.8,
-      "risk_adjusted_score": 33.1,
+      "signal_score": 83.0,
+      "risk_adjusted_score": 32.5,
       "score_components": {
         "trend": 80.0,
-        "momentum": 85.0,
-        "volume": 100.0,
-        "relative_strength": 100.0,
+        "momentum": 95.0,
+        "volume": 85.0,
+        "relative_strength": 80.0,
         "divergence": 70.0
       },
       "confidence": 0.75,
@@ -2451,13 +2458,13 @@
       "risk_metrics": {
         "var_t25": -0.0485,
         "es_t25": -0.0752,
-        "volatility_60d": 0.2714,
+        "volatility_60d": 0.2448,
         "max_drawdown": -0.3033,
         "liquidity_score": 11.9,
-        "avg_value_20d": 23.83
+        "avg_value_20d": 24.83
       },
       "trade_plan": {
-        "current_price": 10500.0,
+        "current_price": 10450.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2467,11 +2474,12 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (10.500 VNĐ) nằm trên đường xu hướng MA20 (10.056 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (10.421 VNĐ).",
+        "Giá đóng cửa (10.450 VNĐ) nằm trên đường xu hướng MA20 (10.074 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (10.411 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Khối lượng bùng nổ 2.7x so với bình quân 20 phiên.",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+10.4%).",
+        "Khối lượng bùng nổ 1.6x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (64.3) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+9.4%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [],
@@ -2497,10 +2505,10 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
       "signal_score": 88.2,
-      "risk_adjusted_score": 30.3,
+      "risk_adjusted_score": 30.9,
       "score_components": {
         "trend": 80.0,
         "momentum": 95.0,
@@ -2518,10 +2526,10 @@
       "risk_metrics": {
         "var_t25": -0.0571,
         "es_t25": -0.0763,
-        "volatility_60d": 0.3383,
+        "volatility_60d": 0.3086,
         "max_drawdown": -0.4331,
-        "liquidity_score": 7.1,
-        "avg_value_20d": 19.74
+        "liquidity_score": 9.5,
+        "avg_value_20d": 21.43
       },
       "trade_plan": {
         "current_price": 10500.0,
@@ -2534,12 +2542,12 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (10.500 VNĐ) nằm trên đường xu hướng MA20 (9.658 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (10.350 VNĐ).",
+        "Giá đóng cửa (10.500 VNĐ) nằm trên đường xu hướng MA20 (9.682 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (10.335 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
-        "Khối lượng bùng nổ 3.0x so với bình quân 20 phiên.",
+        "Khối lượng bùng nổ 2.1x so với bình quân 20 phiên.",
         "Chỉ báo RSI (64.2) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+11.5%).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+12.6%).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [],
@@ -2565,18 +2573,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 37.2,
-      "risk_adjusted_score": 12.4,
+      "signal_score": 71.8,
+      "risk_adjusted_score": 24.2,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 65.0,
-        "volume": 20.0,
-        "relative_strength": 50.0,
+        "trend": 50.0,
+        "momentum": 95.0,
+        "volume": 85.0,
+        "relative_strength": 65.0,
         "divergence": 70.0
       },
-      "confidence": 0.57,
+      "confidence": 0.7,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2586,13 +2594,13 @@
       "risk_metrics": {
         "var_t25": -0.0778,
         "es_t25": -0.0925,
-        "volatility_60d": 0.3949,
+        "volatility_60d": 0.3737,
         "max_drawdown": -0.5161,
         "liquidity_score": 35.7,
-        "avg_value_20d": 86.08
+        "avg_value_20d": 85.28
       },
       "trade_plan": {
-        "current_price": 10000.0,
+        "current_price": 10250.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2602,12 +2610,13 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "Giá đóng cửa (10.250 VNĐ) nằm trên đường xu hướng MA20 (10.124 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.6x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (55.2) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Giá đóng cửa (10.000 VNĐ) nằm dưới đường xu hướng MA20 (10.151 VNĐ)."
-      ],
+      "warnings": [],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -2630,18 +2639,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 41.8,
-      "risk_adjusted_score": 12.8,
+      "signal_score": 69.5,
+      "risk_adjusted_score": 21.6,
       "score_components": {
-        "trend": 0.0,
-        "momentum": 65.0,
-        "volume": 50.0,
+        "trend": 50.0,
+        "momentum": 95.0,
+        "volume": 85.0,
         "relative_strength": 50.0,
         "divergence": 70.0
       },
-      "confidence": 0.57,
+      "confidence": 0.65,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2651,13 +2660,13 @@
       "risk_metrics": {
         "var_t25": -0.0842,
         "es_t25": -0.0966,
-        "volatility_60d": 0.3733,
+        "volatility_60d": 0.3499,
         "max_drawdown": -0.6105,
         "liquidity_score": 14.3,
-        "avg_value_20d": 35.91
+        "avg_value_20d": 37.86
       },
       "trade_plan": {
-        "current_price": 9500.0,
+        "current_price": 9600.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2667,12 +2676,13 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "Giá đóng cửa (9.600 VNĐ) nằm trên đường xu hướng MA20 (9.566 VNĐ).",
         "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.8x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (49.2) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
-      "warnings": [
-        "Giá đóng cửa (9.500 VNĐ) nằm dưới đường xu hướng MA20 (9.591 VNĐ)."
-      ],
+      "warnings": [],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
         "Tín hiệu phân kỳ dương hình thành trên khung 1D."
@@ -2695,18 +2705,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 37.8,
-      "risk_adjusted_score": 12.3,
+      "signal_score": 54.5,
+      "risk_adjusted_score": 18.0,
       "score_components": {
         "trend": 0.0,
-        "momentum": 40.0,
-        "volume": 50.0,
+        "momentum": 95.0,
+        "volume": 70.0,
         "relative_strength": 65.0,
         "divergence": 70.0
       },
-      "confidence": 0.52,
+      "confidence": 0.5,
       "risk_level": "HIGH",
       "expected_return": {
         "expected_return_5d": null,
@@ -2716,13 +2726,13 @@
       "risk_metrics": {
         "var_t25": -0.0742,
         "es_t25": -0.0881,
-        "volatility_60d": 0.3016,
+        "volatility_60d": 0.2838,
         "max_drawdown": -0.5779,
         "liquidity_score": 16.7,
-        "avg_value_20d": 46.08
+        "avg_value_20d": 47.22
       },
       "trade_plan": {
-        "current_price": 11100.0,
+        "current_price": 11300.0,
         "entry_low": null,
         "entry_high": null,
         "stop_loss": null,
@@ -2732,11 +2742,13 @@
         "position_percent": 0.0
       },
       "reasons": [
+        "MACD Histogram dương và đang tăng trưởng, củng cố đà tăng.",
+        "Khối lượng bùng nổ 1.4x so với bình quân 20 phiên.",
+        "Chỉ báo RSI (50.0) nằm trong vùng an toàn (45 - 65).",
         "Xuất hiện tín hiệu Phân Kỳ Dương trên khung 1D."
       ],
       "warnings": [
-        "Giá đóng cửa (11.100 VNĐ) nằm dưới đường xu hướng MA20 (11.320 VNĐ).",
-        "RSI (25.0) quá bán nặng (< 35)."
+        "Giá đóng cửa (11.300 VNĐ) nằm dưới đường xu hướng MA20 (11.308 VNĐ)."
       ],
       "invalidation": [
         "Giá vượt lên trên MA20 kèm thanh khoản bùng nổ vượt 1.5x bình quân 20 phiên.",
@@ -2760,18 +2772,18 @@
       "config_hash": "5d7d4b500ff2",
       "data_quality": "SUFFICIENT",
       "data_quality_issues": [],
-      "data_as_of": "2026-10-14",
+      "data_as_of": "2026-10-15",
       "data_source": "REAL_DATA",
-      "signal_score": 75.2,
-      "risk_adjusted_score": 31.8,
+      "signal_score": 72.2,
+      "risk_adjusted_score": 30.8,
       "score_components": {
         "trend": 100.0,
         "momentum": 80.0,
         "volume": 50.0,
-        "relative_strength": 100.0,
+        "relative_strength": 80.0,
         "divergence": 18.0
       },
-      "confidence": 0.55,
+      "confidence": 0.62,
       "risk_level": "MEDIUM",
       "expected_return": {
         "expected_return_5d": null,
@@ -2781,10 +2793,10 @@
       "risk_metrics": {
         "var_t25": -0.058,
         "es_t25": -0.0796,
-        "volatility_60d": 0.237,
+        "volatility_60d": 0.2333,
         "max_drawdown": -0.1857,
-        "liquidity_score": 19.0,
-        "avg_value_20d": 58.95
+        "liquidity_score": 21.4,
+        "avg_value_20d": 59.88
       },
       "trade_plan": {
         "current_price": 53000.0,
@@ -2797,10 +2809,10 @@
         "position_percent": 0.0
       },
       "reasons": [
-        "Giá đóng cửa (53.000 VNĐ) nằm trên đường xu hướng MA20 (52.294 VNĐ).",
-        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (51.852 VNĐ).",
-        "Chỉ báo RSI (62.4) nằm trong vùng an toàn (45 - 65).",
-        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+10.2%)."
+        "Giá đóng cửa (53.000 VNĐ) nằm trên đường xu hướng MA20 (52.390 VNĐ).",
+        "Giá đóng cửa nằm trên hỗ trợ trung hạn MA50 (51.884 VNĐ).",
+        "Chỉ báo RSI (58.9) nằm trong vùng an toàn (45 - 65).",
+        "Sức mạnh tương quan (RS) vượt trội so với VN-Index (+9.3%)."
       ],
       "warnings": [
         "Cảnh báo Phân Kỳ Âm trên khung 1D.",
