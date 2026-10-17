@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  lint-format:
+  autofix:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
