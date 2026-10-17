@@ -29,6 +29,7 @@ This document specifies the practical Python and frontend coding standards, engi
   ```python
   from dataclasses import dataclass
 
+
   @dataclass(frozen=True)
   class UniverseCandidate:
       symbol: str
