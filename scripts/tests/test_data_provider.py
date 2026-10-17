@@ -11,7 +11,31 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from vnai.beam.quota import RateLimitExceeded
+
+try:
+    from vnai.beam.quota import RateLimitExceeded
+except ImportError:
+
+    class RateLimitExceeded(Exception):
+        """Mock RateLimitExceeded exception matching upstream rate limit exception structure."""
+
+        def __init__(
+            self,
+            resource_type=None,
+            limit_type=None,
+            current_usage=None,
+            limit_value=None,
+            retry_after=None,
+            tier=None,
+        ):
+            super().__init__(f"Rate limit reached. Retry after {retry_after}")
+            self.resource_type = resource_type
+            self.limit_type = limit_type
+            self.current_usage = current_usage
+            self.limit_value = limit_value
+            self.retry_after = retry_after
+            self.tier = tier
+
 
 from scripts.data.acquisition import InvalidSymbolError, get_historical_data
 from scripts.data_provider import (
