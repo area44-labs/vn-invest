@@ -15,17 +15,5 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Set up uv and Python
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          version: "0.13.1"
-          version-file: "pyproject.toml"
-          enable-cache: false
-
-      - name: Run Ruff
-        run: |
-          uv run --frozen ruff check --fix scripts
-          uv run --frozen ruff format scripts
-
-      - name: Run lint and format
-        uses: area44/workflows/lint-format@05e99afee9dc6c9bd7af6d14bf07b53854dafdf0 # v7.0.1
+      - name: Run autofix
+        uses: area44/workflows/autofix@main
