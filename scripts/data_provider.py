@@ -28,7 +28,10 @@ from scripts.performance.provider_metrics import (
 logger = logging.getLogger(__name__)
 
 try:
-    from vnstock.api.quote import Quote as VnQuote
+    try:
+        from vnstock import Quote as VnQuote
+    except ImportError:
+        from vnstock.api.quote import Quote as VnQuote
 
     VNSTOCK_AVAILABLE = True
 except ImportError:
