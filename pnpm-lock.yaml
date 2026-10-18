@@ -179,10 +179,10 @@ importers:
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@25.9.9)(jiti@2.7.0))
       '@tanstack/react-router':
-        specifier: ^1.170.44
+        specifier: ^1.170.45
         version: 1.170.45(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-start':
-        specifier: ^1.169.2
+        specifier: ^1.169.3
         version: 1.169.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.14)(vite@8.3.4(@types/node@25.9.9)(jiti@2.7.0))
       '@vitejs/plugin-react':
         specifier: ^6.1.2
@@ -191,10 +191,10 @@ importers:
         specifier: ^0.7.1
         version: 0.7.1
       cn:
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       lucide-react:
-        specifier: ^1.57.0
+        specifier: ^1.58.0
         version: 1.58.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
@@ -203,7 +203,7 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
       shadcn:
-        specifier: ^4.21.5
+        specifier: ^4.22.0
         version: 4.22.0
       tailwindcss:
         specifier: ^4.3.3
@@ -231,7 +231,7 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
       vite-plus:
-        specifier: ^1.2.0
+        specifier: ^1.3.0
         version: 1.3.0(@types/node@25.9.9)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(jiti@2.7.0)(playwright@1.64.1)(typescript@7.0.2)
 
 packages:
@@ -1655,9 +1655,9 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  cn@0.4.0:
-    resolution: {integrity: sha512-qOAeUhPwPzBxx6jaeQdo646XIKliKHc2j1ZF7Ngb1o0pJZKH5gq8FkA0aVdUdPFUDXNXyUCXpCtoJISo6dhizg==}
-    engines: {node: '>=20'}
+  cn@0.5.0:
+    resolution: {integrity: sha512-JGEixZEpfFXm1P5uXwvEobOFLlHwIWi5v4tjd1ZwfiYmcEilkuD2l+054rvJcYCR1B+uVThHeUbgmNz1FwuxuA==}
+    engines: {node: '>=22'}
     hasBin: true
 
   code-block-writer@13.0.3:
@@ -4406,7 +4406,7 @@ snapshots:
 
   cn@0.2.6: {}
 
-  cn@0.4.0: {}
+  cn@0.5.0: {}
 
   code-block-writer@13.0.3: {}
 
