@@ -27,15 +27,48 @@ from scripts.performance.provider_metrics import (
 
 logger = logging.getLogger(__name__)
 
+import os
+
 try:
     try:
         from vnstock import Quote as VnQuote
     except ImportError:
         from vnstock.api.quote import Quote as VnQuote
 
+    try:
+        import vnstock
+    except ImportError:
+        vnstock = None
+
     VNSTOCK_AVAILABLE = True
 except ImportError:
+    vnstock = None
     VNSTOCK_AVAILABLE = False
+
+
+def setup_vnstock_auth() -> bool:
+    """Initialize vnstock API key authentication if VNSTOCK_API_KEY or VNSTOCK env var is present."""
+    if not VNSTOCK_AVAILABLE or vnstock is None:
+        return False
+
+    api_key = os.environ.get("VNSTOCK_API_KEY") or os.environ.get("VNSTOCK")
+    if not api_key or not api_key.strip():
+        return False
+
+    api_key = api_key.strip()
+    try:
+        setup_fn = getattr(vnstock, "setup_api_key", None) or getattr(vnstock, "login", None)
+        if callable(setup_fn):
+            setup_fn(api_key)
+            logger.info("Successfully setup vnstock API key authentication.")
+            return True
+        else:
+            logger.warning("vnstock package does not provide setup_api_key or login function.")
+            return False
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to setup vnstock API key: %s", exc)
+        return False
+
 
 try:
     import requests
@@ -357,6 +390,8 @@ class VnstockDataProvider:
     def __init__(self, is_available: bool = VNSTOCK_AVAILABLE):
         self.is_available = is_available
         self.call_history: list[dict] = []
+        if self.is_available:
+            setup_vnstock_auth()
 
     @classmethod
     def get_last_call_timing(cls) -> dict | None:
