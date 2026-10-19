@@ -35,6 +35,9 @@ jobs:
         run: uv sync --frozen
 
       - name: Run production pipeline
+        env:
+          VNSTOCK: ${{ secrets.VNSTOCK || vars.VNSTOCK }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY || secrets.VNSTOCK || vars.VNSTOCK_API_KEY || vars.VNSTOCK }}
         run: uv run --frozen python scripts/generate_report.py --update
 
       - name: Commit and push generated artifacts

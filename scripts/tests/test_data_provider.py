@@ -192,6 +192,42 @@ class TestCanonicalOHLCVValidator:
 
 @pytest.mark.unit
 class TestVnstockProviderBoundary:
+    def test_setup_vnstock_auth_with_api_key(self, mocker):
+        """setup_vnstock_auth correctly sets up API key when VNSTOCK_API_KEY env var is set."""
+        from scripts.data_provider import setup_vnstock_auth
+
+        mocker.patch.dict("os.environ", {"VNSTOCK_API_KEY": "test_secret_key_123"})
+        mock_setup = mocker.patch("scripts.data_provider.vnstock.setup_api_key", create=True)
+
+        res = setup_vnstock_auth()
+        assert res is True
+        mock_setup.assert_called_once_with("test_secret_key_123")
+
+    def test_setup_vnstock_auth_with_vnstock_var(self, mocker):
+        """setup_vnstock_auth falls back to VNSTOCK env var if VNSTOCK_API_KEY is unset."""
+        from scripts.data_provider import setup_vnstock_auth
+
+        mocker.patch.dict("os.environ", {"VNSTOCK": "test_vnstock_var_456"}, clear=True)
+        mock_setup = mocker.patch("scripts.data_provider.vnstock.setup_api_key", create=True)
+
+        res = setup_vnstock_auth()
+        assert res is True
+        mock_setup.assert_called_once_with("test_vnstock_var_456")
+
+    def test_setup_vnstock_auth_handles_auth_exception_gracefully(self, mocker):
+        """setup_vnstock_auth returns False and logs warning when setup_api_key raises exception."""
+        from scripts.data_provider import setup_vnstock_auth
+
+        mocker.patch.dict("os.environ", {"VNSTOCK_API_KEY": "invalid_key"})
+        mocker.patch(
+            "scripts.data_provider.vnstock.setup_api_key",
+            side_effect=ValueError("Invalid key"),
+            create=True,
+        )
+
+        res = setup_vnstock_auth()
+        assert res is False
+
     def test_provider_boundary_mock_integration(self, mocker):
         """Demonstrate provider output -> canonical conversion -> validation without live network."""
         # Raw provider output from vnstock (prices in thousand_VND/share, e.g. 128.4)
