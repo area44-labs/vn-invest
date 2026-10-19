@@ -536,6 +536,31 @@ class TestDataProviderExceptionHandling:
         )
         assert parse_wait_seconds("Rate limit reached. Chờ 50 giây", exc=exc_none_retry) == 52
 
+    def test_vnstock_v5_entitlement_rate_limit_detection(self):
+        """vnstock v5 EntitlementError and code 'VNSTOCK_AUTH_MINUTE_LIMIT' are detected correctly."""
+        from scripts.data_provider import is_rate_limit_exception, parse_wait_seconds
+
+        class EntitlementError(Exception):
+            def __init__(self, msg, code=None, message_vi=None):
+                super().__init__(msg)
+                self.code = code
+                self.message_vi = message_vi
+
+        e1 = EntitlementError(
+            "Đã dùng hết hạn mức theo phút (10/10 lượt gọi)\n(English: vnstock settings language en)",
+            code="VNSTOCK_AUTH_MINUTE_LIMIT",
+            message_vi="Đã dùng hết hạn mức theo phút (10/10 lượt gọi)",
+        )
+        assert is_rate_limit_exception(e1)
+        assert parse_wait_seconds(str(e1), exc=e1) == 60
+
+        e2 = EntitlementError(
+            "Đã dùng hết hạn mức theo ngày (100/100 lượt gọi)",
+            code="VNSTOCK_AUTH_DAY_LIMIT",
+            message_vi="Đã dùng hết hạn mức theo ngày (100/100 lượt gọi)",
+        )
+        assert is_rate_limit_exception(e2)
+
     def test_generic_wait_message_does_not_trip_circuit_breaker(self, mocker):
         """A generic exception containing the word 'wait' is NOT classified as a rate limit and does NOT trip the circuit breaker."""
         mock_quote = mocker.patch("scripts.data_provider.VnQuote")

@@ -107,7 +107,7 @@ _CIRCUIT_BREAKER_ACTIVE = False
 _CIRCUIT_BREAKER_REASON = ""
 _CIRCUIT_BREAKER_COOLDOWN = None
 
-MAX_PIPELINE_RATE_LIMIT_RECOVERIES = 10
+MAX_PIPELINE_RATE_LIMIT_RECOVERIES = 50
 _RATE_LIMIT_RECOVERY_COUNT = 0
 
 
@@ -181,9 +181,13 @@ PROVIDER_RATE_LIMIT_PATTERNS = [
     "ratelimitederror",
     "rate limit",
     "giới hạn",
+    "hạn mức",
     "quota",
     "too many requests",
     "429",
+    "vnstock_auth_minute_limit",
+    "vnstock_auth_day_limit",
+    "entitlementerror",
 ]
 
 
@@ -201,7 +205,11 @@ def get_exception_message(exc: BaseException) -> str:
 def is_rate_limit_exception(exc: BaseException) -> bool:
     """Determine whether an exception or SystemExit represents a rate-limit condition."""
     exc_type_name = type(exc).__name__.lower()
-    if "ratelimit" in exc_type_name:
+    if "ratelimit" in exc_type_name or "entitlement" in exc_type_name:
+        return True
+
+    code = str(getattr(exc, "code", "") or "").upper()
+    if code.startswith("VNSTOCK_AUTH_") and "LIMIT" in code:
         return True
 
     # Check for structured HTTP response status code == 429
@@ -278,9 +286,26 @@ def parse_wait_seconds(err_str: str, exc: BaseException | None = None) -> int:
             except ValueError, TypeError:
                 pass
 
-    match = re.search(r"(?:chờ|wait)?\s*(\d+)\s*(?:giây|seconds?|sec|s)\b", err_str, re.IGNORECASE)
+        code = str(getattr(exc, "code", "") or "").upper()
+        if code == "VNSTOCK_AUTH_MINUTE_LIMIT":
+            return 60
+        if code == "VNSTOCK_AUTH_HOUR_LIMIT":
+            return 3600
+        if code == "VNSTOCK_AUTH_DAY_LIMIT":
+            return 86400
+
+    full_str = (err_str + " " + str(getattr(exc, "message_vi", "") or "")).lower()
+    match = re.search(r"(?:chờ|wait)?\s*(\d+)\s*(?:giây|seconds?|sec|s)\b", full_str, re.IGNORECASE)
     if match:
         return int(match.group(1)) + 2
+
+    if "phút" in full_str or "minute" in full_str:
+        return 60
+    if "giờ" in full_str or "hour" in full_str:
+        return 3600
+    if "ngày" in full_str or "day" in full_str:
+        return 86400
+
     return 15
 
 
