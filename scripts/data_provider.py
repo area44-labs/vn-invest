@@ -499,8 +499,14 @@ class VnstockDataProvider:
 
                 t0 = time.perf_counter()
                 try:
-                    q = VnQuote(symbol=sym, source=source)
-                    raw_df = q.history(start=start_date, end=end_date)
+                    if sym in INDEX_SYMBOLS and vnstock is not None and hasattr(vnstock, "Market"):
+                        market_inst = vnstock.Market()
+                        raw_df = market_inst.index(sym).history(
+                            start=start_date, end=end_date, source=source
+                        )
+                    else:
+                        q = VnQuote(symbol=sym, source=source)
+                        raw_df = q.history(start=start_date, end=end_date)
                     elapsed = time.perf_counter() - t0
 
                     if raw_df is not None and not raw_df.empty:

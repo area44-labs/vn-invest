@@ -6,6 +6,7 @@ and provider boundary conversion/validation.
 
 import json
 import tempfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -263,6 +264,71 @@ class TestVnstockProviderBoundary:
 
         # Verify validation passed and DataFrame is canonical
         assert validate_canonical_ohlcv(canonical_df)
+
+    def test_fetch_ohlcv_benchmark_index_uses_market_index(self, mocker):
+        """Benchmark index symbols (e.g. VNINDEX, VN30) route through vnstock.Market().index(sym)."""
+        raw_data = []
+        for i in range(10):
+            dt_str = (datetime(2026, 8, 1, tzinfo=UTC) + timedelta(days=i)).strftime("%Y-%m-%d")
+            raw_data.append(
+                {
+                    "time": dt_str,
+                    "open": 1250.0 + i,
+                    "high": 1260.0 + i,
+                    "low": 1240.0 + i,
+                    "close": 1255.0 + i,
+                    "volume": 5000000 + (i * 10000),
+                }
+            )
+        raw_df = pd.DataFrame(raw_data)
+
+        mock_market_cls = mocker.patch("vnstock.Market")
+        mock_market_inst = mocker.MagicMock()
+        mock_index_obj = mocker.MagicMock()
+        mock_index_obj.history.return_value = raw_df
+        mock_market_inst.index.return_value = mock_index_obj
+        mock_market_cls.return_value = mock_market_inst
+
+        mock_vnquote_cls = mocker.patch("scripts.data_provider.VnQuote")
+
+        provider = VnstockDataProvider(is_available=True)
+        canonical_df = provider.fetch_ohlcv("VNINDEX", "2026-08-01", "2026-08-10")
+
+        # Verify Market().index('VNINDEX') was called and VnQuote was NOT called
+        mock_market_inst.index.assert_called_once_with("VNINDEX")
+        mock_index_obj.history.assert_called_with(
+            start="2026-08-01", end="2026-08-10", source="kbs"
+        )
+        mock_vnquote_cls.assert_not_called()
+
+        # Verify index price levels were NOT multiplied by 1000
+        assert canonical_df.loc[0, "open"] == 1250.0
+        assert canonical_df.loc[0, "close"] == 1255.0
+        assert validate_canonical_ohlcv(canonical_df)
+
+    def test_fetch_ohlcv_benchmark_index_fallback_and_failure(self, mocker):
+        """When source kbs fails for index, it falls back to subsequent source or raises non-retryable error."""
+        raw_df = make_valid_canonical_df(10, start_date="2026-08-01")
+
+        mock_market_cls = mocker.patch("vnstock.Market")
+        mock_market_inst = mocker.MagicMock()
+        mock_index_obj = mocker.MagicMock()
+
+        def history_side_effect(start, end, source):
+            if source == "kbs":
+                return pd.DataFrame()  # Empty dataset for KBS
+            return raw_df  # Valid dataset for MSN
+
+        mock_index_obj.history.side_effect = history_side_effect
+        mock_market_inst.index.return_value = mock_index_obj
+        mock_market_cls.return_value = mock_market_inst
+
+        provider = VnstockDataProvider(is_available=True)
+        canonical_df = provider.fetch_ohlcv("VNINDEX", "2026-08-01", "2026-08-10")
+
+        # KBS returned empty, so it fell back to MSN and succeeded
+        assert not canonical_df.empty
+        assert mock_index_obj.history.call_count == 2
 
 
 @pytest.mark.unit
