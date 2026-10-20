@@ -40,9 +40,37 @@ try:
     except ImportError:
         vnstock = None
 
+    try:
+        from vnstock.core.exceptions import (
+            AccessDeniedError as VnstockAccessDeniedError,
+        )
+        from vnstock.core.exceptions import (
+            AuthError as VnstockAuthError,
+        )
+        from vnstock.core.exceptions import (
+            EntitlementError as VnstockEntitlementError,
+        )
+        from vnstock.core.exceptions import (
+            RateLimitedError as VnstockRateLimitedError,
+        )
+        from vnstock.core.exceptions import (
+            VnstockError,
+        )
+    except ImportError:
+        VnstockAuthError = None
+        VnstockAccessDeniedError = None
+        VnstockEntitlementError = None
+        VnstockRateLimitedError = None
+        VnstockError = None
+
     VNSTOCK_AVAILABLE = True
 except ImportError:
     vnstock = None
+    VnstockAuthError = None
+    VnstockAccessDeniedError = None
+    VnstockEntitlementError = None
+    VnstockRateLimitedError = None
+    VnstockError = None
     VNSTOCK_AVAILABLE = False
 
 
@@ -204,6 +232,12 @@ def get_exception_message(exc: BaseException) -> str:
 
 def is_rate_limit_exception(exc: BaseException) -> bool:
     """Determine whether an exception or SystemExit represents a rate-limit condition."""
+    if VnstockRateLimitedError is not None and isinstance(exc, VnstockRateLimitedError):
+        return True
+
+    if VnstockEntitlementError is not None and isinstance(exc, VnstockEntitlementError):
+        return True
+
     exc_type_name = type(exc).__name__.lower()
     if "ratelimit" in exc_type_name or "entitlement" in exc_type_name:
         return True
@@ -227,6 +261,25 @@ def is_rate_limit_exception(exc: BaseException) -> bool:
 
 def is_client_auth_exception(exc: BaseException) -> bool:
     """Determine whether an exception represents a client/auth/permission error (all HTTP 4xx status codes except 429 Rate Limit)."""
+    if VnstockAuthError is not None and isinstance(exc, VnstockAuthError):
+        return True
+
+    if VnstockAccessDeniedError is not None and isinstance(exc, VnstockAccessDeniedError):
+        return True
+
+    code = str(getattr(exc, "code", "") or "").upper()
+    if code and (
+        "INVALID_KEY" in code
+        or "EXPIRED_KEY" in code
+        or "AUTH_FAILED" in code
+        or "ACCESS_DENIED" in code
+    ):
+        return True
+
+    exc_type_name = type(exc).__name__.lower()
+    if "autherror" in exc_type_name or "accessdenied" in exc_type_name:
+        return True
+
     response = getattr(exc, "response", None)
     if response is not None and hasattr(response, "status_code"):
         try:
@@ -234,7 +287,9 @@ def is_client_auth_exception(exc: BaseException) -> bool:
             return 400 <= status_code < 500 and status_code != 429
         except ValueError, TypeError:
             pass
-    return False
+
+    err_msg = get_exception_message(exc).lower()
+    return "khoá api không hợp lệ" in err_msg or "invalid api key" in err_msg
 
 
 def is_transient_exception(exc: BaseException) -> bool:
