@@ -87,9 +87,22 @@ SINGLE_STOCK_UNIVERSE = [
 ]
 
 
-def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
-    """Construct a valid canonical EOD OHLCV DataFrame."""
-    dates = pd.date_range(start=start_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
+def make_valid_canonical_df(
+    num_rows: int = 25,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> pd.DataFrame:
+    """Construct a valid canonical EOD OHLCV DataFrame ending on fresh business days if unspecified."""
+    if end_date is not None:
+        dates = pd.bdate_range(end=end_date, periods=num_rows).strftime("%Y-%m-%d")
+    elif start_date is not None:
+        dates = pd.date_range(start=start_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
+    else:
+        from datetime import UTC, datetime
+
+        today = datetime.now(UTC).date()
+        dates = pd.bdate_range(end=today, periods=num_rows).strftime("%Y-%m-%d")
+
     data = []
     base_price = 50000.0
     for i, d in enumerate(dates):
@@ -131,7 +144,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
@@ -187,7 +200,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
@@ -550,7 +563,7 @@ class TestPipelinePerformanceProfiling:
 
     def test_monitoring_elapsed_time_corresponds_to_mocked_execution(self, mocker):
         """Monitoring elapsed time corresponds to actual evaluate_production_monitoring() execution."""
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_eval_mon = mocker.patch("scripts.pipeline.stages.evaluate_production_monitoring")
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
@@ -673,7 +686,7 @@ class TestPipelinePerformanceProfiling:
     def test_stage_ordering_in_main_flow_remains_unchanged(self, mocker):
         """Main pipeline stage ordering matches expected canonical order strictly."""
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"

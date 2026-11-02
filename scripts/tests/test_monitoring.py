@@ -483,15 +483,56 @@ class TestProductionMonitoring:
         assert chk_pass.status == "PASS"
         assert chk_pass.measured_value["staleness_days"] == 0
 
+        # Exactly 3 days stale: -> PASS (staleness_days <= 3)
+        chk_pass_3d = check_data_freshness("2026-09-14", reference_date="2026-09-17")
+        assert chk_pass_3d.status == "PASS"
+        assert chk_pass_3d.measured_value["staleness_days"] == 3
+
+        # 4 days stale: -> WARNING (3 < staleness_days <= 14)
+        chk_warn_4d = check_data_freshness("2026-09-13", reference_date="2026-09-17")
+        assert chk_warn_4d.status == "WARNING"
+        assert chk_warn_4d.measured_value["staleness_days"] == 4
+
         # 5 days stale: data_as_of="2026-09-12", reference_date="2026-09-17" -> WARNING
         chk_warn = check_data_freshness("2026-09-12", reference_date="2026-09-17")
         assert chk_warn.status == "WARNING"
         assert chk_warn.measured_value["staleness_days"] == 5
 
+        # Exactly 14 days stale: -> WARNING (staleness_days <= 14)
+        chk_warn_14d = check_data_freshness("2026-09-03", reference_date="2026-09-17")
+        assert chk_warn_14d.status == "WARNING"
+        assert chk_warn_14d.measured_value["staleness_days"] == 14
+
+        # 15 days stale: -> FAIL (> 14 days)
+        chk_fail_15d = check_data_freshness("2026-09-02", reference_date="2026-09-17")
+        assert chk_fail_15d.status == "FAIL"
+        assert chk_fail_15d.measured_value["staleness_days"] == 15
+
         # 16 days stale: data_as_of="2026-09-01", reference_date="2026-09-17" -> FAIL (> 14 days)
         chk_fail = check_data_freshness("2026-09-01", reference_date="2026-09-17")
         assert chk_fail.status == "FAIL"
         assert chk_fail.measured_value["staleness_days"] == 16
+
+    def test_data_freshness_missing_and_malformed_dates(self):
+        """Verify missing, empty, and malformed date strings fail closed."""
+        # Missing data_as_of (None)
+        chk_none = check_data_freshness(None, reference_date="2026-09-17")
+        assert chk_none.status == "FAIL"
+        assert "missing" in chk_none.message.lower()
+
+        # Empty data_as_of string
+        chk_empty = check_data_freshness("", reference_date="2026-09-17")
+        assert chk_empty.status == "FAIL"
+
+        # Malformed data_as_of string
+        chk_malformed = check_data_freshness("2026-99-99", reference_date="2026-09-17")
+        assert chk_malformed.status == "FAIL"
+        assert "not a valid" in chk_malformed.message.lower()
+
+        # Malformed reference_date string
+        chk_bad_ref = check_data_freshness("2026-09-17", reference_date="invalid-ref-date")
+        assert chk_bad_ref.status == "FAIL"
+        assert "reference_date" in chk_bad_ref.message.lower()
 
     def test_production_script_does_not_pass_data_as_of_as_reference_date(self):
         """Verify scripts/generate_report.py does NOT pass reference_date=data_as_of."""

@@ -102,7 +102,31 @@ scripts/artifacts/
 
 ---
 
-## 5. Artifact Validation Invariants
+## 5. Historical Data Retention Policy & Pruning
+
+To maintain a lean repository footprint while ensuring required baseline sample sizes for analytics and drift monitoring, the project enforces a historical data retention policy:
+
+- **Retention Cutoff**: `2026-10-01` (`RETENTION_CUTOFF_DATE`).
+- **Retained Records**: All historical daily report files in `generated/history/` dated from `2026-10-01` onward are retained.
+- **Obsolete Records**: Records dated prior to `2026-10-01` are pruned from `generated/history/` and excluded from `generated/history/index.json`.
+- **Primary / Latest Daily Point**: The latest available daily dataset is preserved as the current daily state (`generated/recommendations.json`, `generated/market.json`, `generated/provenance.json`).
+- **Pruning Utility**: A reusable retention utility is available in `scripts/data/retention.py`.
+  - Manual execution / CLI:
+    ```bash
+    # Dry run
+    uv run --frozen python -m scripts.data.retention --dry-run
+
+    # Execute pruning on generated/
+    uv run --frozen python -m scripts.data.retention --target-dir generated
+    ```
+  - Performs atomic updates, sorts records chronologically, deduplicates entries, safely handles unparseable dates, and reports record counts.
+- **Impact on Historical Analysis & Backtesting**:
+  - The reduced date range provides sufficient baseline depth for drift monitoring (which requires $\ge 5$ baseline reports, satisfied by the retained October 2026 records).
+  - Walk-forward backtests and historical evaluations respect the earliest retained date (`2026-10-01`).
+
+---
+
+## 6. Artifact Validation Invariants
 
 1. **Schema Requirement**: Schema-governed artifacts (`recommendations.json`, `performance.json`, and point-in-time historical recommendation snapshots `history/YYYY-MM-DD.json`) MUST declare a non-empty `schema_version` string matching a registered schema version in `scripts/schema/registry.py`. In contrast, manifest index files (`history/index.json`), provenance manifests (`provenance.json`), and internal market summaries (`market.json`) validate against their respective internal dictionary payload contracts rather than requiring a JSON Schema `schema_version`.
 2. **Date Alignment**: All output artifacts published in a single run that declare a `data_as_of` field MUST agree on the canonical trading date. Divergent dates across date-bearing artifacts cause publication to fail closed before any file modifications occur. Index manifests (`history/index.json`) that do not declare `data_as_of` are exempt from date matching.

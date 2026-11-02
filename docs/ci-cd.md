@@ -38,3 +38,17 @@ vp build
 ```
 
 _Note on Scheduled Data Updates_: `.github/workflows/update-data.yml` executes `uv run --frozen python scripts/generate_report.py --update`. This command fetches external live market data and mutates generated artifacts under `generated/`. **Never run `--update` merely as routine local validation.**
+
+---
+
+## 3. Historical Data Retention & Maintenance
+
+Historical market-data records and generated reports are managed according to the project-wide retention policy:
+
+- **Cutoff Date**: `2026-10-01`.
+- **Policy**: Only daily data points from October 1, 2026 onward are retained. Obsolete historical daily snapshots prior to this date are pruned.
+- **Utility**: `scripts/data/retention.py` provides automated and manual pruning:
+  ```bash
+  uv run --frozen python -m scripts.data.retention --target-dir generated
+  ```
+- **CI Test Fixtures**: CI test suites use dynamic fresh business-day dates or explicitly injected fixed reference dates to avoid data freshness expiration over time.
