@@ -691,3 +691,83 @@ class TestArtifactTransactionSuite:
         assert os.path.exists(self.target_dir)
         assert not os.path.exists(bak_dir)
         assert not os.path.exists(state_file)
+
+    def test_partition_updates_preserve_existing_production_records(self):
+        """Sequential transactions updating the same partition merge and preserve existing records."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from scripts.history.ledger import RecommendationLedger
+            from scripts.history.manifest import RunManifestTracker
+            from scripts.history.models import RecommendationLedgerEntry, RunManifestEntry
+
+            target_dir = os.path.join(tmpdir, "generated")
+            os.makedirs(target_dir, exist_ok=True)
+
+            entry1 = RecommendationLedgerEntry(
+                recommendation_id="rec_2026-10-01_AAA_111111111111",
+                symbol="AAA",
+                trading_date="2026-10-01",
+                action="BUY",
+                reference_price=10.0,
+            )
+            run1 = RunManifestEntry(
+                run_id="run_1",
+                trading_date="2026-10-01",
+                generated_at="2026-10-01T10:00:00Z",
+                status="SUCCESS",
+            )
+
+            txn1 = ArtifactTransaction(target_dir, txn_id="txn1")
+            txn1.execute_publish(
+                {
+                    "recommendation-ledger/2026/10/2026-10-01.jsonl": {
+                        "__partition_type__": "ledger",
+                        "trading_date": "2026-10-01",
+                        "entries": [entry1],
+                    },
+                    "run-manifest/2026/10/2026-10-01.jsonl": {
+                        "__partition_type__": "manifest",
+                        "entry": run1,
+                    },
+                }
+            )
+
+            ledger = RecommendationLedger(target_dir)
+            tracker = RunManifestTracker(target_dir)
+            assert len(ledger.load_partition("2026-10-01")) == 1
+            assert len(tracker.load_partition("2026-10-01")) == 1
+
+            entry2 = RecommendationLedgerEntry(
+                recommendation_id="rec_2026-10-01_BBB_222222222222",
+                symbol="BBB",
+                trading_date="2026-10-01",
+                action="HOLD",
+                reference_price=20.0,
+            )
+            run2 = RunManifestEntry(
+                run_id="run_2",
+                trading_date="2026-10-01",
+                generated_at="2026-10-01T11:00:00Z",
+                status="SUCCESS",
+            )
+
+            txn2 = ArtifactTransaction(target_dir, txn_id="txn2")
+            txn2.execute_publish(
+                {
+                    "recommendation-ledger/2026/10/2026-10-01.jsonl": {
+                        "__partition_type__": "ledger",
+                        "trading_date": "2026-10-01",
+                        "entries": [entry2],
+                    },
+                    "run-manifest/2026/10/2026-10-01.jsonl": {
+                        "__partition_type__": "manifest",
+                        "entry": run2,
+                    },
+                }
+            )
+
+            loaded_ledger = ledger.load_partition("2026-10-01")
+            loaded_manifest = tracker.load_partition("2026-10-01")
+            assert len(loaded_ledger) == 2
+            assert {e.symbol for e in loaded_ledger} == {"AAA", "BBB"}
+            assert len(loaded_manifest) == 2
+            assert {m.run_id for m in loaded_manifest} == {"run_1", "run_2"}

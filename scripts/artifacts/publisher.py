@@ -51,6 +51,12 @@ class ArtifactPublisher:
                     ) from err
             return
 
+        if isinstance(payload, dict) and payload.get("__partition_type__") in (
+            "ledger",
+            "manifest",
+        ):
+            return
+
         if not isinstance(payload, dict):
             raise TypeError(f"Artifact '{relative_path}' payload must be a dict")
 

@@ -119,13 +119,16 @@ scripts/artifacts/
   - Re-indexed and validated automatically during every publish cycle.
 - **Recommendation Ledger (`recommendation-ledger/YYYY/MM/YYYY-MM-DD.jsonl`)**:
   - Immutable historical record of recommendations partitioned by trading date.
-  - Deterministic stable identity: `rec_{trading_date}_{symbol}_{hash}`.
-  - Idempotent append and deduplication by `recommendation_id`.
+  - Deterministic stable identity: `rec_{trading_date}_{symbol}_{hash}` generated from core decision attributes (`trading_date`, `symbol`, `action`, `reference_price`, `target_price`, `confidence`, `signal_score`, `risk_level`, `model_version`, `config_hash`).
+  - Strict immutability and conflict handling: identical ID and payload is an idempotent no-op; identical ID with differing payload raises `LedgerConflictError`; multiple distinct decisions per symbol are preserved; partition records are deterministically sorted.
 - **Run Manifest (`run-manifest/YYYY/MM/YYYY-MM-DD.jsonl`)**:
   - Tracks execution lifecycle: `run_id`, `trading_date`, `generated_at` (UTC ISO), `status` (`SUCCESS`, `FAILED`, `SKIPPED`), `run_type` (`SCHEDULED`, `MANUAL`, `BACKFILL`), sanitized `error_metadata`, and `commit_sha`.
+  - Secure error metadata sanitization (`sanitize_error_metadata`): recursively redacts sensitive dictionary keys and string patterns (Bearer tokens, Authorization headers, URL query credentials, connection strings), with fail-safe fallback to generic safe descriptions on error.
+  - Partition staging and failed-run logging are strictly protected under `ArtifactLock` to prevent lost updates under concurrent runs.
 - **Reconciliation & Backfill**:
   - Reconciles expected trading dates against indexed reports and run manifests (`reconcile_trading_history`).
-  - Non-trading days (weekends/holidays) are distinguished and not marked as failures.
+  - **Retention-Aware**: Dates that completed successfully are recognized from the run manifest and never scheduled for backfill, even if their Daily Report has expired from `history/index.json` under the 14-report retention window.
+  - **Calendar Certainty**: When an authoritative trading calendar (`known_trading_calendar_dates`) is unavailable, fallback business weekdays without execution history are categorized as `unverified` rather than automatically scheduled for backfill, preventing market holidays from triggering unnecessary backfills.
   - Idempotent backfill via `backfill_historical_date` preserves newer reports and applies 14-report retention to full reports without losing ledger records.
 - **Data Growth Monitoring**:
   - Tracked via `check_data_growth()` in `scripts/history/growth.py`, monitoring directory size, git repository footprint, and record counts.

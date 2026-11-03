@@ -90,6 +90,23 @@ class TestHistoryRetentionPolicy:
             assert os.path.exists(os.path.join(hist_dir, "2026-10-03.json"))
             assert os.path.exists(os.path.join(hist_dir, "index.json"))
 
+    def test_prune_staged_history_reports_fails_closed_on_deletion_error(self, monkeypatch):
+        """If an expired report fails to be deleted, prune helper raises RuntimeError."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            hist_dir = os.path.join(tmpdir, "history")
+            os.makedirs(hist_dir, exist_ok=True)
+            with open(os.path.join(hist_dir, "2026-10-01.json"), "w") as f:
+                f.write("{}")
+
+            def mock_remove(path):
+                raise OSError("Permission denied")
+
+            monkeypatch.setattr(os, "remove", mock_remove)
+
+            with pytest.raises(RuntimeError) as exc_info:
+                prune_staged_history_reports(tmpdir, retained_dates=["2026-10-02"])
+            assert "Retention invariant violation" in str(exc_info.value)
+
 
 @pytest.mark.integration
 class TestHistoryRetentionAtomicPublishing:

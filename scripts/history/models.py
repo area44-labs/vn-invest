@@ -42,14 +42,47 @@ def get_partition_path(base_dir: str, trading_date: str, extension: str = ".json
     return os.path.join(base_dir, year, month, filename)
 
 
+class LedgerConflictError(ValueError):
+    """Raised when an immutable historical ledger record is illegally modified or conflicted."""
+
+
+def _format_decision_float(val: float | None) -> str:
+    """Format float for deterministic recommendation fingerprinting."""
+    if val is None:
+        return ""
+    try:
+        f = float(val)
+        return f"{f:.4f}"
+    except ValueError, TypeError:
+        return str(val).strip()
+
+
 def generate_recommendation_id(
     trading_date: str,
     symbol: str,
     action: str,
+    reference_price: float | None = None,
+    target_price: float | None = None,
+    confidence: float | None = None,
+    signal_score: float | None = None,
+    risk_level: str | None = None,
     model_version: str | None = None,
     config_hash: str | None = None,
 ) -> str:
-    """Generate deterministic, stable recommendation identity."""
+    """Generate deterministic, stable recommendation identity based on core decision attributes.
+
+    Decision-relevant fields included:
+    - trading_date (YYYY-MM-DD)
+    - symbol (uppercase)
+    - action (BUY, HOLD, SELL, WATCH, AVOID)
+    - reference_price (entry/current price)
+    - target_price (tp1)
+    - confidence (signal confidence)
+    - signal_score (quantitative score)
+    - risk_level (LOW, MEDIUM, HIGH)
+    - model_version (e.g. 2.0)
+    - config_hash (quantitative configuration hash)
+    """
     if not is_valid_date_string(trading_date):
         raise ValueError(f"Invalid trading_date for recommendation identity: {trading_date!r}")
     if not symbol or not isinstance(symbol, str):
@@ -61,8 +94,14 @@ def generate_recommendation_id(
     clean_action = action.strip().upper()
     mv = str(model_version or "").strip()
     ch = str(config_hash or "").strip()
+    rl = str(risk_level or "").strip().upper()
 
-    fingerprint_raw = f"{trading_date}|{clean_sym}|{clean_action}|{mv}|{ch}"
+    fp_ref = _format_decision_float(reference_price)
+    fp_tgt = _format_decision_float(target_price)
+    fp_conf = _format_decision_float(confidence)
+    fp_sig = _format_decision_float(signal_score)
+
+    fingerprint_raw = f"{trading_date}|{clean_sym}|{clean_action}|{fp_ref}|{fp_tgt}|{fp_conf}|{fp_sig}|{rl}|{mv}|{ch}"
     h = hashlib.sha256(fingerprint_raw.encode("utf-8")).hexdigest()[:12]
     return f"rec_{trading_date}_{clean_sym}_{h}"
 
@@ -258,6 +297,7 @@ class HistoryDirectoryConventions:
 __all__ = [
     "MAX_RETAINED_REPORTS",
     "HistoryDirectoryConventions",
+    "LedgerConflictError",
     "RecommendationLedgerEntry",
     "RunManifestEntry",
     "generate_recommendation_id",
