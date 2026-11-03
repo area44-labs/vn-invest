@@ -21,43 +21,104 @@ SENSITIVE_KEY_PATTERNS = [
     re.compile(r"password", re.IGNORECASE),
     re.compile(r"auth", re.IGNORECASE),
     re.compile(r"credential", re.IGNORECASE),
+    re.compile(r"cookie", re.IGNORECASE),
+    re.compile(r"session", re.IGNORECASE),
+]
+
+SENSITIVE_STRING_PATTERNS = [
+    # Authorization header / Bearer token
+    re.compile(r"(?i)\b(bearer\s+)[a-zA-Z0-9_\-\.]{8,}"),
+    re.compile(r"(?i)\b(authorization:\s*)([^\s,]+)"),
+    # Query parameters / key-value assignments containing credentials
+    re.compile(
+        r"(?i)(api[_-]?key|access[_-]?token|token|secret|password|passwd|auth)=([^\s&'\"]+)"
+    ),
+    # URL credentials: scheme://user:pass@host
+    re.compile(r"(?i)(https?://|postgres://|mongodb://|redis://)([^:\s/@]+):([^@\s/]+)@"),
 ]
 
 
+def redact_sensitive_string(val: str) -> str:
+    """Redact sensitive patterns (tokens, passwords, bearer headers, connection strings) from string."""
+    if not isinstance(val, str):
+        return str(val)
+
+    cleaned = val
+    # Redact Authorization / Bearer tokens
+    cleaned = re.sub(
+        r"(?i)\b(bearer\s+)[a-zA-Z0-9_\-\.]{8,}",
+        r"\1[REDACTED]",
+        cleaned,
+    )
+    cleaned = re.sub(
+        r"(?i)\b(authorization\s*:\s*)([^\s,]+)",
+        r"\1[REDACTED]",
+        cleaned,
+    )
+    # Redact URL / query string / config credential parameters
+    cleaned = re.sub(
+        r"(?i)(api[_-]?key|access[_-]?token|token|secret|password|passwd|auth)=([^\s&'\"]+)",
+        r"\1=[REDACTED]",
+        cleaned,
+    )
+    # Redact user:password in URLs / connection strings
+    cleaned = re.sub(
+        r"(?i)(https?://|postgres://|mongodb://|redis://)([^:\s/@]+):([^@\s/]+)@",
+        r"\1\2:[REDACTED]@",
+        cleaned,
+    )
+    return cleaned
+
+
 def sanitize_error_metadata(raw_meta: Any) -> dict[str, Any] | None:
-    """Recursively sanitize error metadata, redacting secrets, credentials, and excessive logs."""
+    """Recursively sanitize error metadata, redacting secrets, credentials, and sensitive strings.
+
+    Guarantees fail-safety: if sanitization encounters any unexpected error,
+    it falls back to a safe generic error summary, never exposing unsanitized data.
+    """
     if raw_meta is None:
         return None
 
-    if isinstance(raw_meta, (str, int, float, bool)):
-        return {"message": str(raw_meta)[:500]}
+    try:
+        if isinstance(raw_meta, (str, int, float, bool)):
+            return {"message": redact_sensitive_string(str(raw_meta))[:500]}
 
-    if not isinstance(raw_meta, dict):
-        return {"error": type(raw_meta).__name__, "message": str(raw_meta)[:500]}
+        if not isinstance(raw_meta, dict):
+            return {
+                "error": type(raw_meta).__name__,
+                "message": redact_sensitive_string(str(raw_meta))[:500],
+            }
 
-    sanitized: dict[str, Any] = {}
-    for k, v in raw_meta.items():
-        k_str = str(k)
-        if any(pat.search(k_str) for pat in SENSITIVE_KEY_PATTERNS):
-            sanitized[k_str] = "[REDACTED]"
-            continue
-
-        if isinstance(v, dict):
-            sanitized[k_str] = sanitize_error_metadata(v)
-        elif isinstance(v, list):
-            sanitized[k_str] = [
-                sanitize_error_metadata(x) if isinstance(x, dict) else str(x)[:200] for x in v[:10]
-            ]
-        elif isinstance(v, (int, float, bool)) or v is None:
-            sanitized[k_str] = v
-        else:
-            v_str = str(v)
+        sanitized: dict[str, Any] = {}
+        for k, v in raw_meta.items():
+            k_str = str(k)
             if any(pat.search(k_str) for pat in SENSITIVE_KEY_PATTERNS):
                 sanitized[k_str] = "[REDACTED]"
+                continue
+
+            if isinstance(v, dict):
+                sanitized[k_str] = sanitize_error_metadata(v)
+            elif isinstance(v, list):
+                sanitized_list = []
+                for x in v[:10]:
+                    if isinstance(x, dict):
+                        sanitized_list.append(sanitize_error_metadata(x))
+                    else:
+                        sanitized_list.append(redact_sensitive_string(str(x))[:200])
+                sanitized[k_str] = sanitized_list
+            elif isinstance(v, (int, float, bool)) or v is None:
+                sanitized[k_str] = v
             else:
+                v_str = redact_sensitive_string(str(v))
                 sanitized[k_str] = v_str[:500]
 
-    return sanitized
+        return sanitized
+    except Exception as err:  # noqa: BLE001
+        logger.error("Failed sanitizing error metadata: %s", err)
+        return {
+            "error": "SanitizationFailure",
+            "message": "Error metadata could not be safely sanitized",
+        }
 
 
 class RunManifestTracker:

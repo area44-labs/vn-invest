@@ -8,6 +8,7 @@ from typing import Any
 
 from scripts.history.models import (
     HistoryDirectoryConventions,
+    LedgerConflictError,
     RecommendationLedgerEntry,
     generate_recommendation_id,
     is_valid_date_string,
@@ -43,19 +44,29 @@ def extract_ledger_entries_from_recommendations(
         mv = r_dict.get("model_version") or model_version or "2.0"
         ch = r_dict.get("config_hash") or config_hash or ""
 
-        rec_id = generate_recommendation_id(
-            trading_date=trading_date,
-            symbol=sym,
-            action=act,
-            model_version=mv,
-            config_hash=ch,
-        )
-
         tp = r_dict.get("trade_plan") or {}
         ref_price = (
             tp.get("current_price") if isinstance(tp, dict) else getattr(tp, "current_price", None)
         )
         target_price = tp.get("tp1") if isinstance(tp, dict) else getattr(tp, "tp1", None)
+        ref_price_f = float(ref_price) if ref_price is not None else None
+        target_price_f = float(target_price) if target_price is not None else None
+        confidence = r_dict.get("confidence")
+        signal_score = r_dict.get("signal_score")
+        risk_level = r_dict.get("risk_level")
+
+        rec_id = generate_recommendation_id(
+            trading_date=trading_date,
+            symbol=sym,
+            action=act,
+            reference_price=ref_price_f,
+            target_price=target_price_f,
+            confidence=confidence,
+            signal_score=signal_score,
+            risk_level=risk_level,
+            model_version=mv,
+            config_hash=ch,
+        )
 
         reasons = tuple(r_dict.get("reasons") or ())
 
@@ -64,12 +75,12 @@ def extract_ledger_entries_from_recommendations(
             symbol=sym,
             trading_date=trading_date,
             action=act,
-            reference_price=float(ref_price) if ref_price is not None else None,
-            target_price=float(target_price) if target_price is not None else None,
-            confidence=r_dict.get("confidence"),
-            signal_score=r_dict.get("signal_score"),
+            reference_price=ref_price_f,
+            target_price=target_price_f,
+            confidence=confidence,
+            signal_score=signal_score,
             risk_adjusted_score=r_dict.get("risk_adjusted_score"),
-            risk_level=r_dict.get("risk_level"),
+            risk_level=risk_level,
             strategy_version=r_dict.get("quant_version"),
             model_version=mv,
             config_hash=ch,
@@ -148,9 +159,21 @@ class RecommendationLedger:
                 raise ValueError(
                     f"Entry trading_date '{entry.trading_date}' does not match partition date '{trading_date}'"
                 )
+            if entry.recommendation_id in entries_by_id:
+                existing = entries_by_id[entry.recommendation_id]
+                if existing.to_dict() != entry.to_dict():
+                    raise LedgerConflictError(
+                        f"Ledger conflict for recommendation_id '{entry.recommendation_id}': "
+                        f"attempting to overwrite immutable record with different content."
+                    )
+                # Same ID and same payload: idempotent no-op
+                continue
             entries_by_id[entry.recommendation_id] = entry
 
-        sorted_entries = sorted(entries_by_id.values(), key=lambda e: (e.symbol, e.action))
+        sorted_entries = sorted(
+            entries_by_id.values(),
+            key=lambda e: (e.symbol, e.action, e.recommendation_id),
+        )
 
         with open(target_path, "w", encoding="utf-8") as f:
             for entry in sorted_entries:

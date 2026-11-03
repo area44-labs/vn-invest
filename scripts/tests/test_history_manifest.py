@@ -64,6 +64,32 @@ class TestRunManifestSuite:
         assert sanitized["nested"]["detail"] == "Connection timed out"
         assert sanitized["stage"] == "data_acquisition"
 
+    def test_error_metadata_string_secret_redaction(self):
+        """Embedded secrets inside strings (Bearer tokens, URL query params, conn strings) are redacted."""
+        raw_error = {
+            "message": "Failed connecting to https://api.vnstocks.com/v1/data?api_key=secret_12345&foo=bar",
+            "exception_detail": "Request failed with Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.test_token",
+            "database_url": "postgres://user_admin:my_secret_pw@db.internal:5432/main",
+        }
+        sanitized = sanitize_error_metadata(raw_error)
+        assert "secret_12345" not in sanitized["message"]
+        assert "api_key=[REDACTED]" in sanitized["message"]
+        assert "eyJhbGciOiJIUzI1NiJ9" not in sanitized["exception_detail"]
+        assert "[REDACTED]" in sanitized["exception_detail"]
+        assert "my_secret_pw" not in sanitized["database_url"]
+        assert "user_admin:[REDACTED]@" in sanitized["database_url"]
+
+    def test_error_metadata_fail_safe_on_unexpected_failure(self):
+        """If an unhandled exception occurs during sanitization, fallback to generic safe error."""
+
+        class Unstringable:
+            def __str__(self):
+                raise RuntimeError("Boom!")
+
+        sanitized = sanitize_error_metadata({"bad": Unstringable()})
+        assert sanitized["error"] == "SanitizationFailure"
+        assert "could not be safely sanitized" in sanitized["message"]
+
     def test_run_manifest_persistence_and_partitioning(self):
         """Run manifest entries are safely appended into partition files."""
         with tempfile.TemporaryDirectory() as tmpdir:
