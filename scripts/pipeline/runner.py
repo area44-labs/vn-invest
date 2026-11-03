@@ -93,6 +93,39 @@ class ProductionPipeline:
                     exc.universe_audit = audit_partial
                 else:
                     exc.universe_audit = {"performance": performance_data}
+
+            # Record failed run in RunManifest if trading_date / data_as_of is known
+            try:
+                date_for_run = context.data_as_of or getattr(context, "historical_data_as_of", None)
+                if date_for_run and os.path.exists(context.generated_dir):
+                    from scripts.history.manifest import RunManifestTracker, sanitize_error_metadata
+                    from scripts.history.models import RunManifestEntry
+
+                    tracker = RunManifestTracker(context.generated_dir)
+                    run_type = (
+                        "BACKFILL"
+                        if context.is_historical
+                        else ("SCHEDULED" if context.update_data else "MANUAL")
+                    )
+                    failed_entry = RunManifestEntry(
+                        run_id=f"run_{date_for_run}_{int(time.time())}",
+                        trading_date=date_for_run,
+                        generated_at=context.generated_at,
+                        status="FAILED",
+                        run_type=run_type,
+                        error_metadata=sanitize_error_metadata(
+                            {
+                                "exception_type": type(exc).__name__,
+                                "message": str(exc),
+                            }
+                        ),
+                        commit_sha=os.getenv("GITHUB_SHA"),
+                        schema_version=1,
+                    )
+                    tracker.stage_run_entry(context.generated_dir, failed_entry)
+            except (OSError, ValueError, TypeError) as manifest_err:
+                logger.warning("Non-fatal error logging failed run to manifest: %s", manifest_err)
+
             raise
 
 

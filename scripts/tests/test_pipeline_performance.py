@@ -7,6 +7,7 @@ duplicate work detection, fail-closed guarantees, and output invariance without 
 import copy
 import json
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -87,9 +88,18 @@ SINGLE_STOCK_UNIVERSE = [
 ]
 
 
-def make_valid_canonical_df(num_rows: int = 25, start_date: str = "2026-08-01") -> pd.DataFrame:
+def make_valid_canonical_df(
+    num_rows: int = 25, start_date: str | None = None, end_date: str | None = None
+) -> pd.DataFrame:
     """Construct a valid canonical EOD OHLCV DataFrame."""
-    dates = pd.date_range(start=start_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
+    if end_date is not None:
+        dates = pd.date_range(end=end_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
+    elif start_date is not None:
+        dates = pd.date_range(start=start_date, periods=num_rows, freq="D").strftime("%Y-%m-%d")
+    else:
+        # Default fresh ending at current UTC date
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        dates = pd.date_range(end=today_str, periods=num_rows, freq="D").strftime("%Y-%m-%d")
     data = []
     base_price = 50000.0
     for i, d in enumerate(dates):
@@ -131,7 +141,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
@@ -187,7 +197,7 @@ class TestPipelinePerformanceProfiling:
 
         import itertools
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
@@ -673,7 +683,7 @@ class TestPipelinePerformanceProfiling:
     def test_stage_ordering_in_main_flow_remains_unchanged(self, mocker):
         """Main pipeline stage ordering matches expected canonical order strictly."""
 
-        valid_df = make_valid_canonical_df(25, start_date="2026-09-16")
+        valid_df = make_valid_canonical_df(25)
         mock_perf = mocker.patch("scripts.pipeline.tracker.time.perf_counter")
         mock_fetch_ohlcv = mocker.patch(
             "scripts.data.providers.vnstock.VnstockMarketProvider.fetch_ohlcv"
