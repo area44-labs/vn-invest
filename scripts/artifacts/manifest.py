@@ -62,15 +62,18 @@ def update_history_index(data_date: str | None, index_path: str | None = None):
     index_data = load_history_index(index_path)
     history_dates = index_data.get("dates", [])
 
-    if data_date not in history_dates:
-        history_dates = list(history_dates)
-        history_dates.append(data_date)
-        history_dates.sort(reverse=True)
+    from scripts.history.retention import apply_history_retention
+
+    candidate_dates = list(history_dates)
+    if data_date not in candidate_dates:
+        candidate_dates.append(data_date)
+
+    retained_dates, _ = apply_history_retention(candidate_dates)
 
     index_payload = {
         "last_updated": datetime.now(UTC).isoformat(),
-        "total_reports": len(history_dates),
-        "dates": history_dates,
+        "total_reports": len(retained_dates),
+        "dates": retained_dates,
     }
 
     relative_path = (
@@ -106,12 +109,14 @@ class ArtifactManifestBuilder:
         self.target_dir = os.path.abspath(target_dir if target_dir is not None else GENERATED_DIR)
         self._artifacts: dict[str, dict[str, Any]] = {}
 
-    def add_artifact(self, relative_path: str, payload: dict[str, Any]) -> ArtifactManifestBuilder:
+    def add_artifact(
+        self, relative_path: str, payload: dict[str, Any] | str
+    ) -> ArtifactManifestBuilder:
         """Add an artifact payload under a relative destination path."""
         if not relative_path or not isinstance(relative_path, str):
             raise ValueError("relative_path must be a non-empty string")
-        if not isinstance(payload, dict):
-            raise TypeError(f"Artifact payload for '{relative_path}' must be a dict")
+        if not isinstance(payload, (dict, str)):
+            raise TypeError(f"Artifact payload for '{relative_path}' must be a dict or str")
         self._artifacts[relative_path] = payload
         return self
 
@@ -128,15 +133,18 @@ class ArtifactManifestBuilder:
         idx_data = load_history_index(index_path)
         history_dates = idx_data.get("dates", [])
 
-        if data_as_of not in history_dates:
-            history_dates = list(history_dates)
-            history_dates.append(data_as_of)
-            history_dates.sort(reverse=True)
+        from scripts.history.retention import apply_history_retention
+
+        candidate_dates = list(history_dates)
+        if data_as_of not in candidate_dates:
+            candidate_dates.append(data_as_of)
+
+        retained_dates, _ = apply_history_retention(candidate_dates)
 
         index_payload = {
             "last_updated": now_iso,
-            "total_reports": len(history_dates),
-            "dates": history_dates,
+            "total_reports": len(retained_dates),
+            "dates": retained_dates,
         }
 
         self.add_artifact(os.path.join("history", "index.json"), index_payload)

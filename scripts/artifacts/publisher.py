@@ -1,5 +1,6 @@
 """Artifact publisher orchestrating validation, manifest building, atomic transactions, and recovery."""
 
+import json
 import logging
 import os
 import shutil
@@ -35,6 +36,21 @@ class ArtifactPublisher:
 
         Caller-supplied schema, version, or schema_path overrides are forbidden.
         """
+        if relative_path.endswith(".jsonl"):
+            # Validate JSONL content lines
+            lines = payload.splitlines() if isinstance(payload, str) else []
+            for i, line in enumerate(lines, start=1):
+                clean = line.strip()
+                if not clean:
+                    continue
+                try:
+                    json.loads(clean)
+                except Exception as err:
+                    raise ValueError(
+                        f"Artifact '{relative_path}' invalid JSONL on line {i}: {err}"
+                    ) from err
+            return
+
         if not isinstance(payload, dict):
             raise TypeError(f"Artifact '{relative_path}' payload must be a dict")
 

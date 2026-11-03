@@ -192,9 +192,25 @@ class ArtifactTransaction:
         for rel_path, data in artifacts.items():
             out_path = os.path.join(self.staging_dir, rel_path)
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-                f.write("\n")
+            if rel_path.endswith(".jsonl"):
+                # Raw text lines or JSONL string payload
+                content = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
+                with open(out_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    if not content.endswith("\n"):
+                        f.write("\n")
+            else:
+                with open(out_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                    f.write("\n")
+
+        # Staging retention cleanup for historical reports
+        index_rel = os.path.join("history", "index.json")
+        if index_rel in artifacts and isinstance(artifacts[index_rel], dict):
+            retained_dates = artifacts[index_rel].get("dates", [])
+            from scripts.history.retention import prune_staged_history_reports
+
+            prune_staged_history_reports(self.staging_dir, retained_dates)
 
         # Step 2: BACKUP
         self.update_state("BACKUP")

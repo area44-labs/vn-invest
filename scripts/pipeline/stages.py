@@ -943,25 +943,138 @@ class ArtifactPublishingStage(PipelineStage):
             raise SystemExit(1)
 
         data_as_of = context.data_as_of
+        from scripts.history.ledger import extract_ledger_entries_from_recommendations
+        from scripts.history.manifest import sanitize_error_metadata
+        from scripts.history.models import (
+            HistoryDirectoryConventions,
+            RunManifestEntry,
+        )
+        from scripts.history.retention import apply_history_retention
+
+        conv = HistoryDirectoryConventions(context.generated_dir)
+
+        # Build Recommendation Ledger partition content
+        recs_list = context.scanned_recs or (
+            context.recommendations_payload.get("recommendations", [])
+            if context.recommendations_payload
+            else []
+        )
+        ledger_lines: list[str] = []
+        if data_as_of:
+            # Read existing partition lines from disk if present to preserve/deduplicate
+            existing_ledger_entries = {}
+            ledger_path = conv.get_ledger_partition_path(data_as_of)
+            if os.path.exists(ledger_path):
+                import json as _json
+
+                with open(ledger_path, "r", encoding="utf-8") as lf:
+                    for line in lf:
+                        c_line = line.strip()
+                        if c_line:
+                            try:
+                                d_item = _json.loads(c_line)
+                                existing_ledger_entries[d_item["recommendation_id"]] = d_item
+                            except (_json.JSONDecodeError, KeyError, ValueError, TypeError) as err:
+                                logger.debug("Skipping unparseable ledger line: %s", err)
+
+            new_ledger_entries = extract_ledger_entries_from_recommendations(
+                recommendations=recs_list,
+                trading_date=data_as_of,
+            )
+            for entry in new_ledger_entries:
+                existing_ledger_entries[entry.recommendation_id] = entry.to_dict()
+
+            sorted_ledger = sorted(
+                existing_ledger_entries.values(),
+                key=lambda x: (x.get("symbol", ""), x.get("action", "")),
+            )
+            import json as _json
+
+            ledger_lines = [_json.dumps(x, ensure_ascii=False) for x in sorted_ledger]
+
+        # Build Run Manifest partition content
+        run_manifest_lines: list[str] = []
+        if data_as_of:
+            run_id = f"run_{data_as_of}_{int(time.time())}"
+            run_type = (
+                "BACKFILL"
+                if context.is_historical
+                else ("SCHEDULED" if context.update_data else "MANUAL")
+            )
+            audit_status = (
+                context.universe_audit.get("status", "SUCCESS")
+                if context.universe_audit
+                else "SUCCESS"
+            )
+            final_status = "SUCCESS" if audit_status == "SUCCESS" else "FAILED"
+
+            run_entry = RunManifestEntry(
+                run_id=run_id,
+                trading_date=data_as_of,
+                generated_at=context.generated_at,
+                status=final_status,
+                run_type=run_type,
+                error_metadata=sanitize_error_metadata(context.universe_audit.get("diagnostics"))
+                if final_status != "SUCCESS"
+                else None,
+                commit_sha=os.getenv("GITHUB_SHA"),
+                schema_version=1,
+            )
+
+            manifest_path = conv.get_manifest_partition_path(data_as_of)
+            existing_manifest_entries = {}
+            if os.path.exists(manifest_path):
+                import json as _json
+
+                with open(manifest_path, "r", encoding="utf-8") as mf:
+                    for line in mf:
+                        c_line = line.strip()
+                        if c_line:
+                            try:
+                                d_item = _json.loads(c_line)
+                                existing_manifest_entries[d_item["run_id"]] = d_item
+                            except (_json.JSONDecodeError, KeyError, ValueError, TypeError) as err:
+                                logger.debug("Skipping unparseable manifest line: %s", err)
+
+            existing_manifest_entries[run_entry.run_id] = run_entry.to_dict()
+            sorted_manifests = sorted(
+                existing_manifest_entries.values(), key=lambda x: x.get("generated_at", "")
+            )
+            import json as _json
+
+            run_manifest_lines = [_json.dumps(x, ensure_ascii=False) for x in sorted_manifests]
 
         if context.is_historical:
             index_path = os.path.join(context.generated_dir, "history", "index.json")
             index_data = load_history_index(index_path)
             history_dates = index_data.get("dates", [])
-            if data_as_of and data_as_of not in history_dates:
-                history_dates = list(history_dates)
-                history_dates.append(data_as_of)
-                history_dates.sort(reverse=True)
+            candidate_dates = list(history_dates)
+            if data_as_of and data_as_of not in candidate_dates:
+                candidate_dates.append(data_as_of)
+
+            retained_dates, _ = apply_history_retention(candidate_dates)
             index_payload = {
                 "last_updated": context.generated_at,
-                "total_reports": len(history_dates),
-                "dates": history_dates,
+                "total_reports": len(retained_dates),
+                "dates": retained_dates,
             }
 
             historical_artifacts = {
                 os.path.join("history", f"{data_as_of}.json"): context.history_payload,
                 os.path.join("history", "index.json"): index_payload,
             }
+
+            if data_as_of and ledger_lines:
+                ledger_rel = os.path.relpath(
+                    conv.get_ledger_partition_path(data_as_of), context.generated_dir
+                )
+                historical_artifacts[ledger_rel] = "\n".join(ledger_lines) + "\n"
+
+            if data_as_of and run_manifest_lines:
+                manifest_rel = os.path.relpath(
+                    conv.get_manifest_partition_path(data_as_of), context.generated_dir
+                )
+                historical_artifacts[manifest_rel] = "\n".join(run_manifest_lines) + "\n"
 
             # Build provenance manifest for historical publication batch
             batch_keys = list(historical_artifacts.keys()) + ["provenance.json"]
@@ -991,16 +1104,29 @@ class ArtifactPublishingStage(PipelineStage):
             index_path = os.path.join(context.generated_dir, "history", "index.json")
             index_data = load_history_index(index_path)
             history_dates = index_data.get("dates", [])
-            if data_as_of not in history_dates:
-                history_dates = list(history_dates)
-                history_dates.append(data_as_of)
-                history_dates.sort(reverse=True)
+            candidate_dates = list(history_dates)
+            if data_as_of not in candidate_dates:
+                candidate_dates.append(data_as_of)
+
+            retained_dates, _ = apply_history_retention(candidate_dates)
             index_payload = {
                 "last_updated": context.generated_at,
-                "total_reports": len(history_dates),
-                "dates": history_dates,
+                "total_reports": len(retained_dates),
+                "dates": retained_dates,
             }
             context.artifacts_to_publish[os.path.join("history", "index.json")] = index_payload
+
+            if ledger_lines:
+                ledger_rel = os.path.relpath(
+                    conv.get_ledger_partition_path(data_as_of), context.generated_dir
+                )
+                context.artifacts_to_publish[ledger_rel] = "\n".join(ledger_lines) + "\n"
+
+            if run_manifest_lines:
+                manifest_rel = os.path.relpath(
+                    conv.get_manifest_partition_path(data_as_of), context.generated_dir
+                )
+                context.artifacts_to_publish[manifest_rel] = "\n".join(run_manifest_lines) + "\n"
 
             # Build provenance manifest for production publication batch
             batch_keys = list(context.artifacts_to_publish.keys()) + ["provenance.json"]
