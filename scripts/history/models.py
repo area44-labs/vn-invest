@@ -26,7 +26,7 @@ def is_valid_date_string(date_str: Any) -> bool:
         y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
         dt = datetime(y, m, d, tzinfo=UTC)
         return dt.strftime("%Y-%m-%d") == date_str
-    except (ValueError, OverflowError):
+    except ValueError, OverflowError:
         return False
 
 
