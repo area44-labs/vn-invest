@@ -16,4 +16,4 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Run autofix
-        uses: area44/workflows/autofix@502d5d00c61a93261f6063e8805a0500d92bb5f2 # main
+        uses: area44/workflows/autofix@9ef8adfe1bde8ecb3b1138d804fc13409690ff3e # main
