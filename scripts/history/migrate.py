@@ -6,19 +6,32 @@ import os
 import re
 from typing import Any
 
-from scripts.artifacts.transaction import GENERATED_DIR
+from scripts.artifacts.manifest import load_history_index
+from scripts.artifacts.transaction import GENERATED_DIR, ArtifactLock
 from scripts.history.ledger import RecommendationLedger, extract_ledger_entries_from_recommendations
 from scripts.history.manifest import RunManifestTracker
-from scripts.history.models import HistoryDirectoryConventions, RunManifestEntry
+from scripts.history.models import (
+    MAX_RETAINED_REPORTS,
+    HistoryDirectoryConventions,
+    RunManifestEntry,
+)
+from scripts.history.retention import apply_history_retention
 
 logger = logging.getLogger(__name__)
 
 REPORT_DATE_REGEX = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
 
 
-def migrate_existing_history(generated_dir: str | None = None) -> dict[str, Any]:
+def migrate_existing_history(
+    generated_dir: str | None = None,
+    enforce_retention: bool = True,
+    max_reports: int = MAX_RETAINED_REPORTS,
+) -> dict[str, Any]:
     """Inspect all existing daily reports in history/, extract recommendations to recommendation-ledger/,
-    and record baseline run-manifest entries while preserving all existing daily reports and history index.
+    record baseline run-manifest entries, and enforce the 14-report retention policy.
+
+    Preserves all recommendation ledger and run manifest records.
+    Safely prunes expired daily report files in history/ and updates history/index.json under lock.
     """
     g_dir = os.path.abspath(generated_dir or GENERATED_DIR)
     conventions = HistoryDirectoryConventions(g_dir)
@@ -26,67 +39,107 @@ def migrate_existing_history(generated_dir: str | None = None) -> dict[str, Any]
 
     if not os.path.exists(hist_dir):
         logger.info("No history directory found at %s. Nothing to migrate.", hist_dir)
-        return {"migrated_dates": 0, "migrated_recommendations": 0}
+        return {"migrated_dates": 0, "migrated_recommendations": 0, "pruned_reports": 0}
 
-    ledger = RecommendationLedger(g_dir)
-    manifest_tracker = RunManifestTracker(g_dir)
+    with ArtifactLock(g_dir, timeout=30.0):
+        ledger = RecommendationLedger(g_dir)
+        manifest_tracker = RunManifestTracker(g_dir)
 
-    migrated_dates = 0
-    migrated_recs_count = 0
+        migrated_dates = 0
+        migrated_recs_count = 0
 
-    report_files = sorted([f for f in os.listdir(hist_dir) if REPORT_DATE_REGEX.match(f)])
+        report_files = sorted([f for f in os.listdir(hist_dir) if REPORT_DATE_REGEX.match(f)])
 
-    for fname in report_files:
-        trading_date = REPORT_DATE_REGEX.match(fname).group(1)
-        fpath = os.path.join(hist_dir, fname)
-        try:
-            with open(fpath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError, ValueError, TypeError) as err:
-            logger.error("Failed to read report %s: %s", fpath, err)
-            continue
+        for fname in report_files:
+            trading_date = REPORT_DATE_REGEX.match(fname).group(1)
+            fpath = os.path.join(hist_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError, ValueError, TypeError) as err:
+                logger.error("Failed to read report %s: %s", fpath, err)
+                continue
 
-        recs = data.get("recommendations", [])
-        if not recs:
-            continue
+            recs = data.get("recommendations", [])
+            if not recs:
+                continue
 
-        model_version = data.get("signal_model_version") or "2.0"
-        config_hash = data.get("config_hash") or ""
-        generated_at = data.get("generated_at") or f"{trading_date}T00:00:00Z"
+            model_version = data.get("signal_model_version") or "2.0"
+            config_hash = data.get("config_hash") or ""
+            generated_at = data.get("generated_at") or f"{trading_date}T00:00:00Z"
 
-        entries = extract_ledger_entries_from_recommendations(
-            recommendations=recs,
-            trading_date=trading_date,
-            model_version=model_version,
-            config_hash=config_hash,
-        )
+            entries = extract_ledger_entries_from_recommendations(
+                recommendations=recs,
+                trading_date=trading_date,
+                model_version=model_version,
+                config_hash=config_hash,
+            )
 
-        ledger.stage_partition_entries(g_dir, trading_date, entries)
+            ledger.stage_partition_entries(g_dir, trading_date, entries)
 
-        run_entry = RunManifestEntry(
-            run_id=f"run_{trading_date}_migrated",
-            trading_date=trading_date,
-            generated_at=generated_at,
-            status="SUCCESS",
-            run_type="MANUAL",
-            error_metadata=None,
-            commit_sha=None,
-            schema_version=1,
-        )
-        manifest_tracker.stage_run_entry(g_dir, run_entry)
+            run_entry = RunManifestEntry(
+                run_id=f"run_{trading_date}_migrated",
+                trading_date=trading_date,
+                generated_at=generated_at,
+                status="SUCCESS",
+                run_type="MANUAL",
+                error_metadata=None,
+                commit_sha=None,
+                schema_version=1,
+            )
+            manifest_tracker.stage_run_entry(g_dir, run_entry)
 
-        migrated_dates += 1
-        migrated_recs_count += len(entries)
-        logger.info(
-            "Migrated %s: %d recommendations into ledger and run manifest.",
-            trading_date,
-            len(entries),
-        )
+            migrated_dates += 1
+            migrated_recs_count += len(entries)
+            logger.info(
+                "Migrated %s: %d recommendations into ledger and run manifest.",
+                trading_date,
+                len(entries),
+            )
 
-    return {
-        "migrated_dates": migrated_dates,
-        "migrated_recommendations": migrated_recs_count,
-    }
+        pruned_count = 0
+        if enforce_retention:
+            # Reconcile and prune reports older than the newest max_reports (14)
+            found_dates = [
+                m.group(1) for f in os.listdir(hist_dir) if (m := REPORT_DATE_REGEX.match(f))
+            ]
+            retained_dates, expired_dates = apply_history_retention(
+                found_dates, max_reports=max_reports
+            )
+
+            for exp_d in expired_dates:
+                exp_path = os.path.join(hist_dir, f"{exp_d}.json")
+                if os.path.exists(exp_path):
+                    try:
+                        os.remove(exp_path)
+                        pruned_count += 1
+                        logger.info("Pruned expired historical daily report: %s", exp_path)
+                    except OSError as err:
+                        logger.error("Failed to remove expired report %s: %s", exp_path, err)
+                        raise RuntimeError(
+                            f"Retention migration failed: could not delete {exp_path}: {err}"
+                        ) from err
+
+            # Update history/index.json
+            index_path = conventions.history_index_path
+            current_idx = load_history_index(index_path)
+            new_idx = {
+                "last_updated": current_idx.get("last_updated")
+                or "2026-11-02T20:39:31.565349+00:00",
+                "total_reports": len(retained_dates),
+                "dates": retained_dates,
+            }
+            tmp_idx = f"{index_path}.tmp"
+            with open(tmp_idx, "w", encoding="utf-8") as f:
+                json.dump(new_idx, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            os.replace(tmp_idx, index_path)
+
+        return {
+            "migrated_dates": migrated_dates,
+            "migrated_recommendations": migrated_recs_count,
+            "pruned_reports": pruned_count,
+        }
 
 
 if __name__ == "__main__":

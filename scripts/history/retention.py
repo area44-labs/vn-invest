@@ -68,11 +68,25 @@ def prune_staged_history_reports(
                 removed_paths.append(rel_path)
                 logger.info("Pruned expired history report in staging: %s", rel_path)
             except OSError as err:
-                logger.warning(
+                logger.error(
                     "Failed pruning expired report file '%s' in staging: %s",
                     file_to_remove,
                     err,
                 )
+                raise RuntimeError(
+                    f"Retention invariant violation: Failed to prune expired report file '{file_to_remove}' in staging: {err}"
+                ) from err
+
+    # Verify retention invariant in staging: no un-retained reports exist
+    remaining = [
+        m.group(1)
+        for f in os.listdir(hist_dir)
+        if (m := REPORT_FILE_PATTERN.match(f)) and m.group(1) not in retained_set
+    ]
+    if remaining:
+        raise RuntimeError(
+            f"Retention invariant violation: Staged history contains un-retained reports: {remaining}"
+        )
 
     return sorted(removed_paths)
 

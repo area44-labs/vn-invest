@@ -192,7 +192,24 @@ class ArtifactTransaction:
         for rel_path, data in artifacts.items():
             out_path = os.path.join(self.staging_dir, rel_path)
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            if rel_path.endswith(".jsonl"):
+            if isinstance(data, dict) and data.get("__partition_type__") == "ledger":
+                from scripts.history.ledger import RecommendationLedger
+
+                ledger = RecommendationLedger(self.target_dir)
+                ledger.stage_partition_entries(
+                    staging_dir=self.staging_dir,
+                    trading_date=data["trading_date"],
+                    new_entries=data["entries"],
+                )
+            elif isinstance(data, dict) and data.get("__partition_type__") == "manifest":
+                from scripts.history.manifest import RunManifestTracker
+
+                tracker = RunManifestTracker(self.target_dir)
+                tracker.stage_run_entry(
+                    staging_dir=self.staging_dir,
+                    entry=data["entry"],
+                )
+            elif rel_path.endswith(".jsonl"):
                 # Raw text lines or JSONL string payload
                 content = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False)
                 with open(out_path, "w", encoding="utf-8") as f:
