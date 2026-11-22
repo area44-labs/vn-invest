@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Run build
-        uses: area44/workflows/pages@9ef8adfe1bde8ecb3b1138d804fc13409690ff3e # main
+        uses: area44/workflows/pages@f121338d570c823f468051b72923a61b174e9dd4 # main
         with:
           path: dist/client
 
