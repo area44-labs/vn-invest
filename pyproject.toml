@@ -11,7 +11,7 @@ dependencies = [
   "vnstock>=5.2.2",
   "requests>=2.34.2",
   "pandas>=3.1.1",
-  "numpy>=2.5.4",
+  "numpy>=2.5.5",
   "openpyxl>=3.1.5",
   "jsonschema>=4.26.0",
   "pytest>=9.2.0",
@@ -49,4 +49,4 @@ target-version = "py314"
 extend-exclude = ["AGENTS.md"]
 
 [dependency-groups]
-dev = ["ruff>=0.17.5"]
+dev = ["ruff>=0.17.6"]
